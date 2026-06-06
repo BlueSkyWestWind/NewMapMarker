@@ -17,6 +17,9 @@
 - **`app.js` 내 사이드바 마커 목록 필터 연동 (`renderMarkersList`)**:
   - `renderMarkersList()` 함수에서 텍스트 검색어 필터링을 수행하기 전, 현재 선택된 드롭다운 필터 조건에 부합하는 데이터셋(`filteredByDropdowns`)을 1차로 선별합니다.
   - 검색어가 없을 때는 필터링된 데이터 개수를 표시하고, 대기 마커 노출 시에도 필터 범위 내에서만 표시하도록 수정했습니다. 검색어가 있을 때는 1차 필터링된 셋을 기준으로 2차 검색 매칭을 수행합니다.
+- **`app.js` 내 DB 로드 시 `information` 테이블 결합 연동 (`init`)**:
+  - 기존에 `markers` 테이블 단독 조회로 인해 `facilityYear` 및 `businessType` 정보가 유실되어 필터 리스트가 정상 구성되지 못하던 현상을 해결했습니다.
+  - `init()` 시점에 `markers` 레코드를 먼저 로드한 뒤, 유효한 `facility_code` 목록을 기반으로 `information` 테이블에서 연도 및 사업구분 데이터를 500개 Chunk 단위로 분할 조회하여 메모리 상에서 매핑 조인(Join)하도록 보완했습니다.
 - **`app.js` 내 데이터 CRUD 및 가져오기 라이프사이클 필터 동기화 연동**:
   - 신규 마커 등록 및 수정 시(`handleSaveMarker`), 마커 삭제 시(`handleDeleteMarker`), 대기 마커 전송 시(`handleUploadSinglePending`, `handleUploadPending`), 대기 마커 취소 시(`handleCancelPending`), 그리고 엑셀/CSV 업로드(`handleImportExcel`) 및 JSON 파일 가져오기(`handleImportJSON`) 완료 시점에 데이터 풀이 변화하므로 `this.initFilters(false)`를 호출하여 고유 필터 옵션 목록을 실시간으로 갱신하도록 연동했습니다.
   - 대기 마커 전체 취소 시 지도 갱신이 누락되어 취소된 핀이 맵에 남아있던 버그를 예방하기 위해 `handleCancelPending` 호출 종료 전 `renderMarkersOnMap`을 호출하도록 구조를 보완했습니다.

@@ -420,23 +420,61 @@ class MapMarkerApp {
 
         if (this.supabase) {
             try {
-                const { data, error } = await this.supabase
+                // 1. markers 테이블 로드
+                const { data: markersList, error: markersError } = await this.supabase
                     .from('markers')
                     .select('*')
                     .order('created_at', { ascending: false });
                 
-                if (error) throw error;
+                if (markersError) throw markersError;
+
+                // 2. facility_code가 유효한 목록 추출
+                const facilityCodes = (markersList || [])
+                    .map(m => m.facility_code)
+                    .filter(code => code && code.trim() !== "");
+
+                const infoMap = new Map();
+
+                if (facilityCodes.length > 0) {
+                    // facility_code가 많을 수 있으므로 500개씩 Chunk로 나누어 쿼리
+                    const chunkSize = 500;
+                    for (let i = 0; i < facilityCodes.length; i += chunkSize) {
+                        const chunk = facilityCodes.slice(i, i + chunkSize);
+                        const { data: infoData, error: infoError } = await this.supabase
+                            .from('information')
+                            .select('facility_code, facility_year, business_type, project_code, final_station_name, eq_class, eq_type, install_date, open_date')
+                            .in('facility_code', chunk);
+
+                        if (!infoError && infoData) {
+                            infoData.forEach(info => {
+                                infoMap.set(info.facility_code, info);
+                            });
+                        }
+                    }
+                }
                 
-                this.markersData = (data || []).map(row => ({
-                    id: row.id,
-                    name: row.name,
-                    lat: row.lat,
-                    lng: row.lng,
-                    memo: row.memo || "",
-                    tags: row.tags || [],
-                    facilityCode: row.facility_code || "",
-                    createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
-                }));
+                // 3. markersData 구성 시 information 정보 결합
+                this.markersData = (markersList || []).map(row => {
+                    const info = row.facility_code ? infoMap.get(row.facility_code) : null;
+                    return {
+                        id: row.id,
+                        name: row.name,
+                        lat: row.lat,
+                        lng: row.lng,
+                        memo: row.memo || "",
+                        tags: row.tags || [],
+                        facilityCode: row.facility_code || "",
+                        projectCode: info ? info.project_code || "" : "",
+                        facilityYear: info ? info.facility_year || "" : "",
+                        businessType: info ? info.business_type || "" : "",
+                        finalStationName: info ? info.final_station_name || "" : "",
+                        eqClass: info ? info.eq_class || "" : "",
+                        eqType: info ? info.eq_type || "" : "",
+                        installDate: info ? info.install_date || "" : "",
+                        openDate: info ? info.open_date || "" : "",
+                        createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+                    };
+                });
             } catch (e) {
                 console.error("Supabase 데이터 로드 실패, 로컬 캐시를 사용합니다:", e);
                 this.loadFromLocalStorage();
