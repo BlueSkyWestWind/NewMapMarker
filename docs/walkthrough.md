@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-06-07] Supabase 테이블별(markers / information) 독립적 백업 및 복원 기능 구현 결과
+
+### 1. 개요 및 목적
+- Supabase의 `markers`(위치 핀) 테이블과 `information`(상세 장비) 테이블은 서로 외래키 혹은 데이터 매핑 관계를 가지나 데이터 성격과 스키마가 다릅니다. 기존의 통합 백업은 데이터 누락이 발생하거나 복원 시 일부 테이블의 내용이 소실되는 결함이 있었습니다.
+- 두 테이블을 완전히 독립시켜 각각의 JSON 백업 및 JSON 업로드 복원 기능을 설계함으로써, 백업 데이터 유실을 방지하고 무결성이 보장되는 정밀한 데이터 동기화 시스템을 완성했습니다.
+
+### 2. 변경된 내용
+- **`index.html` 내 백업/복원 영역의 시각적 분리 및 마크업 개편**:
+  - 사이드바 푸터(`sidebar-footer`)를 `위치 마커(markers)`와 `상세 장비(information)` 두 섹션으로 논리적으로 격리 배치했습니다.
+  - 각 섹션에 전용 [백업 (JSON)] 버튼과 [복원 (JSON)] 파일 업로드 라벨을 부여하고, 위치 마커 섹션에는 전체 위치 목록 CSV 내보내기 버튼을 병기했습니다.
+- **`app.js` 내 실시간 Supabase 쿼리 백업 및 upsert 복원 로직 구현**:
+  - **캐싱 및 이벤트 연동**: 새로 추가된 5개의 복원/백업 요소(`exportMarkersCsvBtn`, `exportMarkersJsonBtn`, `importMarkersJsonFile`, `exportInfoJsonBtn`, `importInfoJsonFile`)를 캐싱하고 클릭 및 파일 변경 리스너를 바인딩했습니다.
+  - **실시간 전체 데이터 백업**: 위치 마커(`handleExportMarkersJSON`, `handleExportMarkersCSV`) 및 상세 장비(`handleExportInfoJSON`) 백업 클릭 시, 로컬 캐시가 아닌 **Supabase DB에 실시간 쿼리(select('*'))를 전송**하여 DB의 전체 데이터를 100% 무결하게 추출해 다운로드합니다.
+  - **안전한 upsert 복원**: 위치 마커 복원(`handleImportMarkersJSON`) 시 `id` 컬럼 기준으로, 상세 장비 복원(`handleImportInfoJSON`) 시 기본 키인 `facility_code` 컬럼 기준으로 Supabase `upsert`를 처리하여 데이터의 중복 적재를 원천 차단하고 최신성을 유지합니다.
+  - **실시간 리프레시 동기화**: 복원 완료 시점에 최신 조인 데이터를 화면에 로딩하기 위해 비동기 Supabase 로드 메소드(`this.init()`)를 호출하여 지도의 핀과 사이드바 리스트가 실시간으로 재로드되도록 조치했습니다.
+
+### 3. 검증 결과
+- **UI 시인성**: 사이드바 하단에 "위치 마커"와 "상세 장비" 백업 관리 탭이 각각의 에메랄드 그린/인디고 퍼플 계열 테마와 아이콘으로 미려하게 분할 노출됨을 확인했습니다.
+- **실시간 다운로드 검증**: 위치 백업 시 `supabase_markers_backup_2026-06-07.json`이, 장비 백업 시 `supabase_information_backup_2026-06-07.json`이 각 테이블의 전체 행을 포함해 오차 없이 정상 다운로드됨을 확인했습니다.
+- **상세 장비 upsert 복원 검증**: 수정한 임의의 상세 장비 데이터를 JSON에 포함해 장비 복원을 실행했을 때, Supabase 데이터베이스 내 `facility_code`에 해당하는 행이 정상 덮어쓰기(upsert) 되고 화면 지도의 조인 정보(필터 연도 등)가 리프레시되는 것을 완벽히 검증했습니다.
+
+---
+
 ## [2026-06-07] 주소 검색창 위치를 '저장된 위치' 상단으로 이동하는 레이아웃 변경 작업 결과
 
 ### 1. 개요 및 목적

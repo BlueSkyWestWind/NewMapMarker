@@ -4,6 +4,57 @@
 
 ---
 
+## [2026-06-07] Supabase 테이블별(markers / information) 독립적 백업 및 복원 기능 구현 계획
+
+### 1. 개요
+- 사용자가 백업 파일을 다운로드 및 업로드할 때, Supabase 데이터베이스의 두 테이블(`markers`와 `information`)의 성격이 다름에도 불구하고 기존에는 위치 마커 단일 구조로만 백업/복원되거나 데이터가 누락되는 한계가 있었습니다.
+- 두 테이블을 각각 개별적으로 백업(전체 데이터 쿼리 다운로드)하고 개별적으로 복원(upsert를 통한 DB 무결성 유지)할 수 있도록 UI/UX 및 백그라운드 동기화 로직을 분리 및 구현합니다.
+
+### 2. User Review Required
+> [!IMPORTANT]
+> **테이블별 독립적 데이터 백업 및 복원 연동 방식**
+> - **실시간 전체 데이터 백업**: 로컬 캐시 데이터만 다운로드하던 기존의 백업 방식을 탈피하여, 백업 실행 시 Supabase DB로부터 `markers` 및 `information` 테이블의 **전체 데이터**를 직접 fetch하여 다운로드함으로써 유실 없는 100% 백업을 보장합니다.
+> - **중복 데이터 덮어쓰기 (upsert)**: 복원(Import) 시 데이터 충돌로 인한 데이터 유실이나 중복 방지를 위해, `markers`는 `id` 컬럼을 기준으로, `information`은 `facility_code` 컬럼을 기준으로 `upsert` 쿼리를 실행해 데이터의 최신성과 무결성을 동시에 유지합니다.
+> - **UI 구성**: 사이드바 하단 데이터 영역을 `위치 마커(markers) 백업/복원`과 `상세 장비(information) 백업/복원` 두 영역으로 시각적 분류하고 각각 전용 버튼을 배치합니다.
+
+### 3. Open Questions
+> [!NOTE]
+> - 복원 후 전체 마커 데이터 및 필터 셋을 실시간으로 갱신하기 위해 복원 성공 시점에 Supabase 로드 로직(`this.init()`)을 호출해 화면과 지도의 정합성을 보장할 계획입니다. 이에 대해 다른 요구사항이 있으시다면 말씀해 주세요.
+
+### 4. Proposed Changes
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/index.html)
+- 기존 `sidebar-footer` 내의 `export-csv-btn`, `export-json-btn`, `import-json-file` 마크업을 삭제합니다.
+- `위치 마커 (markers) 백업/복원`을 담당하는 전용 섹션(백업 JSON, CSV 내보내기, 복원 JSON 업로드)을 배치합니다.
+- `상세 장비 (information) 백업/복원`을 담당하는 전용 섹션(백업 JSON, 복원 JSON 업로드)을 추가합니다.
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **`cacheElements()`**:
+  - 새로 추가된 UI 버튼 및 파일 인풋 요소들(`exportMarkersCsvBtn`, `exportMarkersJsonBtn`, `importMarkersJsonFile`, `exportInfoJsonBtn`, `importInfoJsonFile`)을 캐싱합니다.
+- **`bindEvents()`**:
+  - 각 버튼과 파일 인풋의 `change` / `click` 이벤트를 각각의 핸들러에 매핑합니다.
+- **`handleExportMarkersJSON()` / `handleExportInfoJSON()` 신설**:
+  - Supabase `markers` / `information` 테이블에서 `select('*')` 전체 데이터를 쿼리해와 JSON 파일로 다운로드합니다.
+- **`handleImportMarkersJSON(e)` / `handleImportInfoJSON(e)` 신설**:
+  - 업로드된 JSON 파일을 파싱 및 검증하고, Supabase에 `upsert` 반영합니다. 성공 시 `this.init()`을 재실행하여 실시간 동기화를 보장합니다.
+- **`handleExportMarkersCSV()` 신설**:
+  - 기존 로컬 캐시 기반 혹은 Supabase 실시간 전체 마커 데이터를 바탕으로 CSV 내보내기를 수행합니다.
+
+### 5. Verification Plan
+
+#### Automated Tests
+- 없음
+
+#### Manual Verification
+1. 사이드바 하단 영역에 위치 마커 백업/복원, 상세 장비 백업/복원이 각각 전용 레이아웃으로 렌더링되는지 확인합니다.
+2. 위치 마커 `[백업]` 버튼 클릭 시 `supabase_markers_backup_YYYY-MM-DD.json` 파일이 다운로드되며 전체 markers 데이터가 잘 포함되어 있는지 검증합니다.
+3. 상세 장비 `[백업]` 버튼 클릭 시 `supabase_information_backup_YYYY-MM-DD.json` 파일이 다운로드되며 전체 information 데이터가 잘 포함되어 있는지 검증합니다.
+4. 백업된 JSON 파일을 활용해 각각 `[복원]` 기능을 수행했을 때, 데이터베이스에 정상적으로 반영되고 화면 지도가 실시간 리로드되는지 확인합니다.
+
+---
+
 ## [2026-06-07] 주소 검색창 위치를 '저장된 위치' 상단으로 이동하는 레이아웃 개선 계획
 
 ### 1. 개요

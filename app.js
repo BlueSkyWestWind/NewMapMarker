@@ -48,9 +48,11 @@ class MapMarkerApp {
         this.markersList = document.getElementById('markers-list');
         this.markerCount = document.getElementById('marker-count');
         
-        this.exportCsvBtn = document.getElementById('export-csv-btn');
-        this.exportJsonBtn = document.getElementById('export-json-btn');
-        this.importJsonFile = document.getElementById('import-json-file');
+        this.exportMarkersCsvBtn = document.getElementById('export-markers-csv-btn');
+        this.exportMarkersJsonBtn = document.getElementById('export-markers-json-btn');
+        this.importMarkersJsonFile = document.getElementById('import-markers-json-file');
+        this.exportInfoJsonBtn = document.getElementById('export-info-json-btn');
+        this.importInfoJsonFile = document.getElementById('import-info-json-file');
         
         // Excel/CSV 업로드 요소 캐시
         this.importExcelFile = document.getElementById('import-excel-file');
@@ -154,10 +156,21 @@ class MapMarkerApp {
         });
         this.markerFilter.addEventListener('keydown', (e) => this.handleMarkerFilterKeydown(e));
         
-        // 데이터 내보내기/가져오기 이벤트
-        this.exportCsvBtn.addEventListener('click', () => this.handleExportCSV());
-        this.exportJsonBtn.addEventListener('click', () => this.handleExportJSON());
-        this.importJsonFile.addEventListener('change', (e) => this.handleImportJSON(e));
+        if (this.exportMarkersCsvBtn) {
+            this.exportMarkersCsvBtn.addEventListener('click', () => this.handleExportMarkersCSV());
+        }
+        if (this.exportMarkersJsonBtn) {
+            this.exportMarkersJsonBtn.addEventListener('click', () => this.handleExportMarkersJSON());
+        }
+        if (this.importMarkersJsonFile) {
+            this.importMarkersJsonFile.addEventListener('change', (e) => this.handleImportMarkersJSON(e));
+        }
+        if (this.exportInfoJsonBtn) {
+            this.exportInfoJsonBtn.addEventListener('click', () => this.handleExportInfoJSON());
+        }
+        if (this.importInfoJsonFile) {
+            this.importInfoJsonFile.addEventListener('change', (e) => this.handleImportInfoJSON(e));
+        }
         
         // Excel/CSV 업로드 이벤트 바인딩
         this.importExcelFile.addEventListener('change', (e) => this.handleImportExcel(e));
@@ -2148,104 +2161,229 @@ class MapMarkerApp {
         }
     }
 
-    // 데이터 내보내기 CSV
-    handleExportCSV() {
-        if (this.markersData.length === 0) {
+    // 위치 마커 CSV 내보내기 (Supabase 실시간 데이터 반영)
+    async handleExportMarkersCSV() {
+        let dataToExport = this.markersData;
+        if (this.supabase) {
+            try {
+                this.showToast('Supabase markers 테이블 전체 데이터 조회 중...');
+                const { data, error } = await this.supabase
+                    .from('markers')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (error) throw error;
+                
+                // markers 데이터 camelCase 맵핑 (DataManager.exportToCSV 형식 호환)
+                dataToExport = data.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    lat: m.lat,
+                    lng: m.lng,
+                    memo: m.memo,
+                    tags: m.tags,
+                    facilityCode: m.facility_code,
+                    createdAt: m.created_at
+                }));
+            } catch (e) {
+                console.error('Supabase 데이터 로드 실패, 로컬 캐시 사용:', e);
+                this.showToast('Supabase 조회 실패로 로컬 마커 데이터로 대체하여 내보냅니다.', 4000);
+                dataToExport = this.markersData;
+            }
+        }
+        
+        if (dataToExport.length === 0) {
             this.showToast('내보낼 마커가 없습니다.');
             return;
         }
         try {
-            const stats = DataManager.exportToCSV(this.markersData);
+            const stats = DataManager.exportToCSV(dataToExport);
             this.showToast(`성공적으로 CSV 내보내기가 완료되었습니다. (총 ${stats.rowCount}건)`);
         } catch (e) {
             this.showToast('CSV 내보내기 오류: ' + e.message);
         }
     }
 
-    // 데이터 내보내기 JSON
-    handleExportJSON() {
-        if (this.markersData.length === 0) {
+    // 위치 마커 JSON 백업 (Supabase 실시간 데이터 반영)
+    async handleExportMarkersJSON() {
+        let dataToExport = this.markersData;
+        if (this.supabase) {
+            try {
+                this.showToast('Supabase markers 테이블 전체 데이터 조회 중...');
+                const { data, error } = await this.supabase
+                    .from('markers')
+                    .select('*');
+                if (error) throw error;
+                
+                dataToExport = data.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    lat: m.lat,
+                    lng: m.lng,
+                    memo: m.memo,
+                    tags: m.tags,
+                    facilityCode: m.facility_code,
+                    createdAt: m.created_at
+                }));
+            } catch (e) {
+                console.error('Supabase 데이터 조회 실패:', e);
+                this.showToast('Supabase 데이터 조회 실패로 로컬 데이터로 백업합니다.', 4000);
+                dataToExport = this.markersData;
+            }
+        }
+        
+        if (dataToExport.length === 0) {
             this.showToast('백업할 마커가 없습니다.');
             return;
         }
         try {
-            const count = DataManager.exportToJSON(this.markersData);
-            this.showToast(`JSON 백업이 완료되었습니다. (총 ${count}건)`);
+            const dateStr = new Date().toISOString().split('T')[0];
+            const jsonContent = JSON.stringify(dataToExport, null, 2);
+            DataManager._triggerDownload(jsonContent, `supabase_markers_backup_${dateStr}.json`, "application/json;charset=utf-8;");
+            this.showToast(`위치 마커 JSON 백업 완료 (총 ${dataToExport.length}건)`);
         } catch (e) {
             this.showToast('JSON 백업 오류: ' + e.message);
         }
     }
 
-    // 데이터 가져오기 JSON
-    handleImportJSON(event) {
+    // 위치 마커 JSON 복원
+    handleImportMarkersJSON(event) {
         const file = event.target.files[0];
         if (!file) return;
         
         DataManager.importFromJSON(file)
             .then(async (newMarkers) => {
-                // 기존 데이터에 병합 (중복 아이디 방지)
-                const existingIds = new Set(this.markersData.map(m => m.id));
-                const merged = [...this.markersData];
-                
-                let addedCount = 0;
-                const dbInsertQueue = [];
-
-                newMarkers.forEach(m => {
-                    if (!existingIds.has(m.id)) {
-                        merged.push(m);
-                        dbInsertQueue.push(m);
-                        addedCount++;
-                    } else {
-                        // 중복 ID가 존재할 경우 신규 아이디 발급하여 추가
-                        m.id = 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                        merged.push(m);
-                        dbInsertQueue.push(m);
-                        addedCount++;
-                    }
-                });
-
-                if (this.supabase && dbInsertQueue.length > 0) {
-                    try {
-                        const bulkData = dbInsertQueue.map(m => ({
-                            id: m.id,
-                            name: m.name,
-                            lat: m.lat,
-                            lng: m.lng,
-                            memo: m.memo || "",
-                            tags: m.tags || [],
-                            created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
-                        }));
-
-                        const { error } = await this.supabase
-                            .from('markers')
-                            .insert(bulkData);
-                        
-                        if (error) throw error;
-                    } catch (e) {
-                        this.showToast('Supabase JSON 동기화 실패: ' + e.message, 5000);
-                        this.importJsonFile.value = '';
-                        return;
-                    }
+                if (newMarkers.length === 0) {
+                    this.showToast('복원할 마커 데이터가 없습니다.');
+                    this.importMarkersJsonFile.value = '';
+                    return;
                 }
-
-                this.markersData = merged;
-                this.syncLocalStorage();
                 
-                // 필터 초기화 및 리렌더링
-                this.initFilters(false);
+                this.showToast('데이터 복원 처리 중...');
                 
-                // 리렌더링
-                this.renderMarkersOnMap();
-                this.renderMarkersList();
+                if (this.supabase) {
+                     try {
+                         // Supabase upsert 데이터 빌드 (동일 ID 존재 시 덮어쓰기)
+                         const bulkData = newMarkers.map(m => ({
+                             id: m.id,
+                             name: m.name,
+                             lat: m.lat,
+                             lng: m.lng,
+                             memo: m.memo || "",
+                             tags: m.tags || [],
+                             facility_code: m.facilityCode || null,
+                             created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
+                         }));
+                         
+                         const { error } = await this.supabase
+                             .from('markers')
+                             .upsert(bulkData, { onConflict: 'id' });
+                         
+                         if (error) throw error;
+                     } catch (e) {
+                         this.showToast('Supabase 위치 마커 복원 실패: ' + e.message, 5000);
+                         this.importMarkersJsonFile.value = '';
+                         return;
+                     }
+                } else {
+                     // Supabase가 없을 경우 로컬 스토리지 데이터 병합
+                     const existingIds = new Set(this.markersData.map(m => m.id));
+                     const merged = [...this.markersData];
+                     let addedLocalCount = 0;
+                     
+                     newMarkers.forEach(m => {
+                         if (!existingIds.has(m.id)) {
+                             merged.push(m);
+                             addedLocalCount++;
+                         }
+                     });
+                     this.markersData = merged;
+                     this.syncLocalStorage();
+                }
                 
-                this.showToast(`성공적으로 데이터를 복원했습니다. (새로 추가된 장소: ${addedCount}개)`);
-                // 파일 인풋 클리어
-                this.importJsonFile.value = '';
+                // Supabase 데이터와 로컬 메모리 최신 동기화 진행
+                await this.init();
+                
+                this.showToast(`위치 마커 복원이 완료되었습니다. (총 ${newMarkers.length}건)`);
+                this.importMarkersJsonFile.value = '';
             })
             .catch(err => {
                 this.showToast(err.message, 5000);
-                this.importJsonFile.value = '';
+                this.importMarkersJsonFile.value = '';
             });
+    }
+
+    // 상세 장비 정보 JSON 백업
+    async handleExportInfoJSON() {
+        if (!this.supabase) {
+            this.showToast('Supabase가 연결되어 있지 않아 상세 장비 정보를 백업할 수 없습니다.', 5000);
+            return;
+        }
+        try {
+            this.showToast('Supabase information 테이블 전체 데이터 조회 중...');
+            const { data, error } = await this.supabase
+                .from('information')
+                .select('*');
+            if (error) throw error;
+            if (!data || data.length === 0) {
+                this.showToast('내보낼 상세 장비 데이터가 없습니다.');
+                return;
+            }
+            const dateStr = new Date().toISOString().split('T')[0];
+            const jsonContent = JSON.stringify(data, null, 2);
+            DataManager._triggerDownload(jsonContent, `supabase_information_backup_${dateStr}.json`, "application/json;charset=utf-8;");
+            this.showToast(`상세 장비 정보 JSON 백업 완료 (총 ${data.length}건)`);
+        } catch (e) {
+            this.showToast('information 백업 실패: ' + e.message, 5000);
+        }
+    }
+
+    // 상세 장비 정보 JSON 복원
+    handleImportInfoJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (!this.supabase) {
+            this.showToast('Supabase가 연결되어 있지 않아 복원할 수 없습니다.', 5000);
+            this.importInfoJsonFile.value = '';
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const parsedData = JSON.parse(e.target.result);
+                if (!Array.isArray(parsedData)) {
+                    throw new Error('올바르지 않은 JSON 데이터 형식입니다. (배열 형태여야 합니다)');
+                }
+                
+                // 간단한 유효성 검사 (첫 번째 행에 facility_code가 있는지 검사)
+                if (parsedData.length > 0 && !parsedData[0].hasOwnProperty('facility_code')) {
+                    throw new Error('상세 장비 정보 형식이 아닙니다. (facility_code 필드가 필요합니다)');
+                }
+                
+                this.showToast('상세 장비 데이터 복원 처리 중...');
+                
+                // Supabase upsert (동일 facility_code 존재 시 덮어쓰기)
+                const { error } = await this.supabase
+                    .from('information')
+                    .upsert(parsedData, { onConflict: 'facility_code' });
+                    
+                if (error) throw error;
+                
+                // 전체 리프레시 및 조인 데이터 동기화
+                await this.init();
+                
+                this.showToast(`상세 장비 정보 복원이 완료되었습니다. (총 ${parsedData.length}건)`);
+                this.importInfoJsonFile.value = '';
+            } catch (err) {
+                this.showToast('상세 장비 복원 실패: ' + err.message, 5000);
+                this.importInfoJsonFile.value = '';
+            }
+        };
+        reader.onerror = () => {
+            this.showToast('파일을 읽는 도중 오류가 발생했습니다.');
+            this.importInfoJsonFile.value = '';
+        };
+        reader.readAsText(file);
     }
 
     // Excel 파일 가져오기 및 파싱
