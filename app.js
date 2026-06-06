@@ -1545,7 +1545,12 @@ class MapMarkerApp {
             });
             
             this.mapMarkers.set(data.id, marker);
-            markersToCluster.push(marker);
+            
+            if (isMovingThis) {
+                marker.setMap(this.map); // 위치 수정 중인 마커는 클러스터에서 제외하고 직접 맵에 꽂아야 드래그가 정상 작동함
+            } else {
+                markersToCluster.push(marker);
+            }
             
             // 2. 커스텀 오버레이 생성
             const overlayContent = this.createOverlayContent(data);
