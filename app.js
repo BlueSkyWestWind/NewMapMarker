@@ -20,6 +20,8 @@ class MapMarkerApp {
         this.customOverlays = new Map(); // id -> kakao.maps.CustomOverlay
         this.tempMarker = null; // 클릭시 생성되는 임시 마커
         this.clusterer = null; // 마커 클러스터러 객체
+        this.selectedYears = new Set(); // 선택된 연도 필터 셋
+        this.selectedBusinesses = new Set(); // 선택된 사업구분 필터 셋
         this.currentEditingId = null; // 현재 편집 중인 마커 ID (null이면 신규 등록)
         this.focusedMarkerIndex = -1; // 키보드 탐색을 위한 포커스된 마커 인덱스
         
@@ -114,6 +116,18 @@ class MapMarkerApp {
         this.infoConfirmTableBody = document.getElementById('info-confirm-table-body');
         this.infoConfirmCount = document.getElementById('info-confirm-count');
         this.pendingInfoData = null;
+
+        // 필터 요소 캐시
+        this.filterAccordionToggle = document.getElementById('filter-accordion-toggle');
+        this.filterAccordionContent = document.getElementById('filter-accordion-content');
+        this.selectYearsTrigger = document.getElementById('select-years-trigger');
+        this.optionsYearsContainer = document.getElementById('options-years-container');
+        this.selectBusinessesTrigger = document.getElementById('select-businesses-trigger');
+        this.optionsBusinessesContainer = document.getElementById('options-businesses-container');
+        this.btnSelectAllYears = document.getElementById('btn-select-all-years');
+        this.btnSelectAllBusinesses = document.getElementById('btn-select-all-businesses');
+        this.selectedYearsLabel = document.getElementById('selected-years-label');
+        this.selectedBusinessesLabel = document.getElementById('selected-businesses-label');
     }
 
     bindEvents() {
@@ -329,6 +343,68 @@ class MapMarkerApp {
 
         // 로드뷰 드래그 기능 활성화
         this.initRoadviewDrag();
+
+        // 필터 아코디언 토글 이벤트
+        if (this.filterAccordionToggle) {
+            this.filterAccordionToggle.addEventListener('click', () => {
+                this.filterAccordionToggle.closest('.filter-accordion-section').classList.toggle('active');
+                this.filterAccordionContent.classList.toggle('hidden');
+            });
+        }
+
+        // 연도 드롭다운 트리거
+        if (this.selectYearsTrigger) {
+            this.selectYearsTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const wrapper = this.selectYearsTrigger.closest('.custom-select-wrapper');
+                const isOpen = wrapper.classList.contains('open');
+                
+                // 다른 드롭다운 닫기
+                this.closeAllDropdowns();
+                
+                if (!isOpen) {
+                    wrapper.classList.add('open');
+                    this.optionsYearsContainer.classList.remove('hidden');
+                }
+            });
+        }
+
+        // 사업구분 드롭다운 트리거
+        if (this.selectBusinessesTrigger) {
+            this.selectBusinessesTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const wrapper = this.selectBusinessesTrigger.closest('.custom-select-wrapper');
+                const isOpen = wrapper.classList.contains('open');
+                
+                // 다른 드롭다운 닫기
+                this.closeAllDropdowns();
+                
+                if (!isOpen) {
+                    wrapper.classList.add('open');
+                    this.optionsBusinessesContainer.classList.remove('hidden');
+                }
+            });
+        }
+
+        // 모두 선택 버튼 이벤트
+        if (this.btnSelectAllYears) {
+            this.btnSelectAllYears.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectAllFilterOptions('year');
+            });
+        }
+
+        if (this.btnSelectAllBusinesses) {
+            this.btnSelectAllBusinesses.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectAllFilterOptions('business');
+            });
+        }
+
+        // 외부 클릭 시 드롭다운 닫기
+        document.addEventListener('click', () => {
+            this.closeAllDropdowns();
+        });
     }
 
     async init() {
@@ -378,6 +454,9 @@ class MapMarkerApp {
             this.showToast('카카오 지도 SDK가 로드되지 않았습니다. index.html 설정을 확인하세요.', 5000);
         }
         
+        // 필터 옵션 동적 구성
+        this.initFilters(true);
+
         this.renderMarkersList();
     }
 
@@ -391,6 +470,176 @@ class MapMarkerApp {
                 this.markersData = [];
             }
         }
+    }
+
+    // 모든 드롭다운 닫기
+    closeAllDropdowns() {
+        const wrappers = document.querySelectorAll('.custom-select-wrapper');
+        wrappers.forEach(w => w.classList.remove('open'));
+        const containers = document.querySelectorAll('.custom-options-container');
+        containers.forEach(c => c.classList.add('hidden'));
+    }
+
+    // 데이터 기반 필터 고유 옵션 목록 동적 초기화
+    initFilters(isFirstLoad = false) {
+        // 1. 고유 연도 및 사업구분 수집
+        const yearsSet = new Set();
+        const businessesSet = new Set();
+
+        this.markersData.forEach(marker => {
+            const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
+            const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
+            yearsSet.add(year);
+            businessesSet.add(business);
+        });
+
+        // 2. 정렬
+        // 연도는 숫자 기준 내림차순 정렬, "미지정"은 맨 아래로 배치
+        this.uniqueYears = Array.from(yearsSet).sort((a, b) => {
+            if (a === "미지정") return 1;
+            if (b === "미지정") return -1;
+            return parseInt(b) - parseInt(a);
+        });
+
+        // 사업구분은 사전식 오름차순 정렬, "미지정"은 맨 아래로 배치
+        this.uniqueBusinesses = Array.from(businessesSet).sort((a, b) => {
+            if (a === "미지정") return 1;
+            if (b === "미지정") return -1;
+            return a.localeCompare(b);
+        });
+
+        // 3. 첫 로드 시에는 전체 값을 기본 선택 상태로 셋업
+        if (isFirstLoad) {
+            this.selectedYears = new Set(this.uniqueYears);
+            this.selectedBusinesses = new Set(this.uniqueBusinesses);
+        } else {
+            // 신규 데이터 추가/삭제 시 유효한 선택만 필터 셋에 남김
+            const newSelectedYears = new Set();
+            this.uniqueYears.forEach(y => {
+                if (this.selectedYears.has(y)) newSelectedYears.add(y);
+            });
+            this.selectedYears = newSelectedYears.size > 0 ? newSelectedYears : new Set(this.uniqueYears);
+
+            const newSelectedBusinesses = new Set();
+            this.uniqueBusinesses.forEach(b => {
+                if (this.selectedBusinesses.has(b)) newSelectedBusinesses.add(b);
+            });
+            this.selectedBusinesses = newSelectedBusinesses.size > 0 ? newSelectedBusinesses : new Set(this.uniqueBusinesses);
+        }
+
+        // 4. 드롭다운 HTML 렌더링
+        this.renderFilterDropdowns();
+    }
+
+    // 커스텀 드롭다운 내 옵션 체크박스 리스트 그리기
+    renderFilterDropdowns() {
+        // --- 연도 선택 드롭다운 ---
+        if (this.optionsYearsContainer) {
+            this.optionsYearsContainer.innerHTML = '';
+            this.uniqueYears.forEach(year => {
+                const item = document.createElement('div');
+                const isSelected = this.selectedYears.has(year);
+                item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
+                item.innerHTML = `
+                    <div class="filter-option-checkbox"></div>
+                    <span class="filter-option-text">${year}</span>
+                `;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFilterOption('year', year);
+                });
+                this.optionsYearsContainer.appendChild(item);
+            });
+
+            // 트리거 영역 라벨 갱신
+            if (this.selectedYearsLabel) {
+                const selectedCount = this.selectedYears.size;
+                const totalCount = this.uniqueYears.length;
+                
+                if (selectedCount === totalCount) {
+                    this.selectedYearsLabel.textContent = "연도 선택";
+                } else if (selectedCount === 0) {
+                    this.selectedYearsLabel.textContent = "선택 안함";
+                } else {
+                    const firstSelected = Array.from(this.selectedYears)[0];
+                    this.selectedYearsLabel.textContent = selectedCount === 1 ? firstSelected : `${firstSelected} 외 ${selectedCount - 1}`;
+                }
+            }
+        }
+
+        // --- 사업구분 선택 드롭다운 ---
+        if (this.optionsBusinessesContainer) {
+            this.optionsBusinessesContainer.innerHTML = '';
+            this.uniqueBusinesses.forEach(biz => {
+                const item = document.createElement('div');
+                const isSelected = this.selectedBusinesses.has(biz);
+                item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
+                item.innerHTML = `
+                    <div class="filter-option-checkbox"></div>
+                    <span class="filter-option-text">${biz}</span>
+                `;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFilterOption('business', biz);
+                });
+                this.optionsBusinessesContainer.appendChild(item);
+            });
+
+            // 트리거 영역 라벨 갱신
+            if (this.selectedBusinessesLabel) {
+                const selectedCount = this.selectedBusinesses.size;
+                const totalCount = this.uniqueBusinesses.length;
+                
+                if (selectedCount === totalCount) {
+                    this.selectedBusinessesLabel.textContent = "사업구분 선택";
+                } else if (selectedCount === 0) {
+                    this.selectedBusinessesLabel.textContent = "선택 안함";
+                } else {
+                    const firstSelected = Array.from(this.selectedBusinesses)[0];
+                    this.selectedBusinessesLabel.textContent = selectedCount === 1 ? firstSelected : `${firstSelected} 외 ${selectedCount - 1}`;
+                }
+            }
+        }
+    }
+
+    // 특정 필터 옵션 선택 상태 토글 핸들러
+    toggleFilterOption(type, value) {
+        if (type === 'year') {
+            if (this.selectedYears.has(value)) {
+                this.selectedYears.delete(value);
+            } else {
+                this.selectedYears.add(value);
+            }
+        } else if (type === 'business') {
+            if (this.selectedBusinesses.has(value)) {
+                this.selectedBusinesses.delete(value);
+            } else {
+                this.selectedBusinesses.add(value);
+            }
+        }
+
+        // 라벨 및 스타일 리렌더링
+        this.renderFilterDropdowns();
+
+        // 필터링 상태 적용하여 지도 마커와 사이드바 목록 갱신
+        this.renderMarkersOnMap();
+        this.renderMarkersList();
+    }
+
+    // 모두 선택 기능 수행
+    selectAllFilterOptions(type) {
+        if (type === 'year') {
+            this.selectedYears = new Set(this.uniqueYears);
+        } else if (type === 'business') {
+            this.selectedBusinesses = new Set(this.uniqueBusinesses);
+        }
+
+        // 라벨 및 스타일 리렌더링
+        this.renderFilterDropdowns();
+
+        // 필터링 상태 적용하여 지도 마커와 사이드바 목록 갱신
+        this.renderMarkersOnMap();
+        this.renderMarkersList();
     }
 
     // 지도 인스턴스 생성 및 초기화
@@ -1068,6 +1317,9 @@ class MapMarkerApp {
         // 로컬 저장소 동기화
         this.syncLocalStorage();
         
+        // 필터 초기화 및 리렌더링
+        this.initFilters(false);
+        
         // 지도 및 사이드바 목록 리렌더링
         this.renderMarkersOnMap();
         this.renderMarkersList();
@@ -1099,6 +1351,9 @@ class MapMarkerApp {
         
         // 지도 객체 해제
         this.removeMarkerFromMap(id);
+        
+        // 필터 초기화
+        this.initFilters(false);
         
         this.renderMarkersList();
         this.closeModal();
@@ -1143,6 +1398,13 @@ class MapMarkerApp {
         
         // 현재 데이터셋 순회하며 마커 생성
         this.markersData.forEach(data => {
+            // 필터링 적용 (연도 & 사업구분이 선택되어 있는지 확인)
+            const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
+            const business = data.businessType ? data.businessType.toString().trim() : "미지정";
+            if (!this.selectedYears.has(year) || !this.selectedBusinesses.has(business)) {
+                return;
+            }
+
             const position = new kakao.maps.LatLng(data.lat, data.lng);
             
             // 1. 마커 객체 생성 (대기 상태 마커인 경우 노란 별 모양 이미지 적용)
@@ -1409,6 +1671,7 @@ class MapMarkerApp {
         
         // UI 갱신
         this.updatePendingUI();
+        this.initFilters(false);
         this.renderMarkersOnMap();
         this.renderMarkersList();
         this.showToast('선택한 위치가 Supabase에 저장되었습니다.');
@@ -1421,11 +1684,18 @@ class MapMarkerApp {
         // 목록 리셋
         this.markersList.innerHTML = '';
         
-        const pendingMarkers = this.markersData.filter(m => m.isPending);
+        // 연도 및 사업구분 필터가 적용된 마커 선별
+        const filteredByDropdowns = this.markersData.filter(marker => {
+            const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
+            const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
+            return this.selectedYears.has(year) && this.selectedBusinesses.has(business);
+        });
+        
+        const pendingMarkers = filteredByDropdowns.filter(m => m.isPending);
 
         // 검색어(필터)가 없는 경우 리스트를 렌더링하지 않으나, 대기 중인 마커가 있으면 대기 마커 리스트 노출
         if (!filterText) {
-            this.markerCount.textContent = this.markersData.length;
+            this.markerCount.textContent = filteredByDropdowns.length;
             
             if (pendingMarkers.length > 0) {
                 this.markerCount.textContent = `대기: ${pendingMarkers.length}`;
@@ -1444,7 +1714,7 @@ class MapMarkerApp {
         }
         
         // 필터링된 데이터 선별
-        const filtered = this.markersData.filter(marker => {
+        const filtered = filteredByDropdowns.filter(marker => {
             const nameMatch = (marker.name || '').toString().toLowerCase().includes(filterText);
             const memoMatch = (marker.memo || '').toString().toLowerCase().includes(filterText);
             const tagMatch = (marker.tags || []).some(t => {
@@ -1886,6 +2156,9 @@ class MapMarkerApp {
                 this.markersData = merged;
                 this.syncLocalStorage();
                 
+                // 필터 초기화 및 리렌더링
+                this.initFilters(false);
+                
                 // 리렌더링
                 this.renderMarkersOnMap();
                 this.renderMarkersList();
@@ -1953,6 +2226,9 @@ class MapMarkerApp {
                 
                 // 대기 UI 업데이트 (이탈 경고 및 카운터 토글)
                 this.updatePendingUI();
+                
+                // 필터 초기화 및 리렌더링
+                this.initFilters(false);
                 
                 // 지도 및 리스트 갱신
                 this.renderMarkersOnMap();
@@ -2070,6 +2346,7 @@ class MapMarkerApp {
 
         // UI 갱신
         this.updatePendingUI();
+        this.initFilters(false);
         this.renderMarkersOnMap();
         this.renderMarkersList();
         this.showToast(`성공적으로 ${pendingMarkers.length}개의 위치를 Supabase에 저장했습니다.`);
@@ -2090,6 +2367,8 @@ class MapMarkerApp {
 
         // UI 갱신
         this.updatePendingUI();
+        this.initFilters(false);
+        this.renderMarkersOnMap();
         this.renderMarkersList();
         this.showToast('임시 대기 마커가 모두 삭제되었습니다.');
     }

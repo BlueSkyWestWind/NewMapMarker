@@ -105,6 +105,55 @@
             </section>
 
 
+            <!-- Filter Accordion Section -->
+            <section class="section filter-accordion-section">
+                <div class="accordion-header" id="filter-accordion-toggle">
+                    <div class="title-left">
+                        <i class="fa-solid fa-filter icon" style="color: #6366f1;"></i>
+                        <span>연도·사업구분 표시</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                </div>
+                <div class="accordion-content hidden" id="filter-accordion-content">
+                    <div class="filter-row" style="display: flex; gap: 12px; margin-top: 10px;">
+                        <!-- 연도 선택 -->
+                        <div class="filter-card" style="flex: 1; min-width: 0;">
+                            <div class="filter-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span class="filter-card-title" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">연도 선택</span>
+                                <button type="button" class="btn-text-action" id="btn-select-all-years" style="background: none; border: none; color: var(--primary); font-size: 10px; cursor: pointer; padding: 0;">모두 선택</button>
+                            </div>
+                            <div class="custom-select-wrapper" id="select-years-wrapper" style="position: relative;">
+                                <div class="custom-select-trigger" id="select-years-trigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--text-primary); transition: var(--transition-smooth);">
+                                    <span id="selected-years-label">연도 선택</span>
+                                    <i class="fa-solid fa-chevron-down" style="font-size: 9px; opacity: 0.7;"></i>
+                                </div>
+                                <div class="custom-options-container hidden" id="options-years-container" style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; max-height: 180px; overflow-y: auto; z-index: 100; box-shadow: var(--shadow-lg); padding: 4px;">
+                                    <!-- Dynamic options will go here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 사업구분 선택 -->
+                        <div class="filter-card" style="flex: 1; min-width: 0;">
+                            <div class="filter-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span class="filter-card-title" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">사업구분 선택</span>
+                                <button type="button" class="btn-text-action" id="btn-select-all-businesses" style="background: none; border: none; color: var(--primary); font-size: 10px; cursor: pointer; padding: 0;">모두 선택</button>
+                            </div>
+                            <div class="custom-select-wrapper" id="select-businesses-wrapper" style="position: relative;">
+                                <div class="custom-select-trigger" id="select-businesses-trigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--text-primary); transition: var(--transition-smooth);">
+                                    <span id="selected-businesses-label">사업구분 선택</span>
+                                    <i class="fa-solid fa-chevron-down" style="font-size: 9px; opacity: 0.7;"></i>
+                                </div>
+                                <div class="custom-options-container hidden" id="options-businesses-container" style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; max-height: 180px; overflow-y: auto; z-index: 100; box-shadow: var(--shadow-lg); padding: 4px;">
+                                    <!-- Dynamic options will go here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
             <!-- Saved Markers Section -->
             <section class="section markers-section">
                 <div class="section-header">

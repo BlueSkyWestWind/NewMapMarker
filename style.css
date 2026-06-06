@@ -1019,3 +1019,123 @@ textarea:focus {
     line-height: 1.5;
     user-select: text;
 }
+
+/* Filter Accordion and Dropdown Styles */
+.filter-accordion-section {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+}
+
+.accordion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    padding: 8px 0;
+}
+
+.accordion-header .title-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.accordion-icon {
+    font-size: 11px;
+    color: var(--text-muted);
+    transition: transform 0.3s ease;
+}
+
+.filter-accordion-section.active .accordion-icon {
+    transform: rotate(180deg);
+}
+
+.accordion-content {
+    transition: all 0.3s ease;
+    overflow: visible; /* 드롭다운 메뉴가 잘리지 않도록 설정 */
+}
+
+/* Custom Select Dropdown Styles */
+.custom-select-trigger:hover {
+    border-color: rgba(99, 102, 241, 0.4) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.custom-select-wrapper.open .custom-select-trigger {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.custom-select-wrapper.open .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.custom-options-container {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform-origin: top;
+}
+
+/* Custom Checkbox Option Styles */
+.filter-option-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: var(--transition-smooth);
+    user-select: none;
+    border: 1px solid transparent;
+}
+
+.filter-option-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.filter-option-item.selected {
+    background: rgba(99, 102, 241, 0.08);
+    border-color: rgba(99, 102, 241, 0.3);
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.filter-option-checkbox {
+    width: 13px;
+    height: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: var(--transition-smooth);
+}
+
+.filter-option-item.selected .filter-option-checkbox {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.filter-option-checkbox::after {
+    content: '\f00c';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 8px;
+    color: white;
+    display: none;
+}
+
+.filter-option-item.selected .filter-option-checkbox::after {
+    display: block;
+}
+
+.btn-text-action:hover {
+    opacity: 0.8;
+}

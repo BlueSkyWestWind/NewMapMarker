@@ -4,6 +4,63 @@
 
 ---
 
+## [2026-06-06] 연도 및 사업구분 다중 필터(Dropdown Accordion) 구현 계획
+
+### 1. 개요
+지도에 표시되는 많은 마커들 중, 사용자가 원하는 시설연도(Year) 및 사업구분(Business Type) 데이터만을 필터링하여 지도와 좌측 목록에 노출할 수 있도록 접이식 아코디언 및 다중 선택 드롭다운(Custom Multi-select Dropdown) 필터 시스템을 구축합니다.
+
+### 2. User Review Required
+> [!IMPORTANT]
+> **필터 노출 기준 및 작동 방식**
+> - **동적 데이터 추출**: 데이터베이스에 등록된 마커들의 `facilityYear`와 `businessType` 데이터를 기반으로 고유값을 추출하여 필터 옵션을 동적으로 구성합니다. (신규 추가/업로드 시 자동 동동기화)
+> - **체크 상태 기반 다중 선택**: 드롭다운 내의 옵션들을 클릭하여 개별 활성화/비활성화할 수 있으며, 복수 선택된 연도와 사업구분의 교집합에 해당하는 마커만 지도 및 사이드바 목록에 렌더링됩니다.
+> - **일괄 제어**: 드롭다운 카드 내 우측 상단 `[모두 선택]` 버튼을 제공하여 대량의 필터 옵션을 한 번에 활성화할 수 있도록 사용성을 개선합니다.
+
+### 3. Proposed Changes
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/index.html)
+- **`markers-section` 상단에 `filter-accordion-section` 추가**:
+  - `"연도·사업구분 표시"` 타이틀과 화살표 토글 아이콘이 달린 아코디언 헤더를 배치합니다.
+  - 아코디언 바디 내부에 `"연도 선택"`과 `"사업구분 선택"`의 두 개 필터 카드를 신설합니다.
+  - 각 카드 내부에는 커스텀 셀렉트 트리거(`custom-select-trigger`)와 옵션 목록 컨테이너(`custom-options-container`)를 배치하여 이미지와 유사한 디자인을 구현합니다.
+
+#### [UI / CSS]
+##### [MODIFY] [style.css](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/style.css)
+- **필터 카드 및 아코디언 애니메이션 스타일 정의**:
+  - `.filter-accordion-section`, `.filter-card`, `.custom-select-wrapper` 등 관련 레이아웃과 반응형 둥근 모서리, 배경색(글라스모피즘 스타일) 스타일을 선언합니다.
+  - 드롭다운 옵션 컨테이너가 다른 요소를 가리지 않고 맵 위로 안정적으로 뜨도록 `position: absolute; z-index: 100;` 속성을 설정합니다.
+  - 선택된 옵션의 아이템 배경색 (`rgba(99, 102, 241, 0.08)`) 및 테두리 (`1px solid #6366f1`) 호버/체크 스타일을 적용해 시각적 가독성을 확보합니다.
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **`constructor()`**:
+  - `this.selectedYears = new Set();` 및 `this.selectedBusinesses = new Set();` 필터 상태 셋 멤버 변수를 선언합니다.
+- **`cacheElements()` & `bindEvents()`**:
+  - 아코디언 토글 클릭 이벤트 핸들링 및 드롭다운 트리거 외부 클릭 시 닫기(`click` 전역 감지) 연동을 바인딩합니다.
+- **필터 컨트롤러 핵심 메소드 신설**:
+  - `initFilters()`: 현재 로드된 전체 마커 데이터에서 연도/사업구분 값을 수집하여 중복을 제거한 목록을 정렬해 드롭다운 옵션 DOM을 동적 생성하고, 기본적으로 모든 값을 활성화 셋에 등록합니다.
+  - `toggleFilterOption(type, value)`: 특정 옵션 클릭 시 활성화/비활성화 상태를 토글하고 화면 및 지도 렌더링을 갱신합니다.
+  - `selectAllFilterOptions(type)`: 해당 카테고리의 모든 옵션을 일괄 활성화 상태로 세팅합니다.
+- **`renderMarkersOnMap()` & `renderMarkersList()`**:
+  - 마커를 맵에 그리고 사이드바 리스트를 렌더링하기 전, 해당 마커 데이터의 연도 및 사업구분이 `this.selectedYears`와 `this.selectedBusinesses` 셋에 모두 포함되어 있는지 검증하는 필터 조건식을 주입합니다.
+- **데이터 추가/수정/삭제 시 연동**:
+  - 마커의 저장(`handleSaveMarker`), 엑셀 벌크 업로드 성공, 마커 삭제 시 필터 옵션의 풀이 바뀔 수 있으므로 `this.initFilters()`를 재쿼리하여 실시간 갱신합니다.
+
+### 4. Verification Plan
+
+#### Automated Tests
+- 없음
+
+#### Manual Verification
+1. 브라우저에서 지도 페이지를 리로드합니다.
+2. 사이드바의 `"연도·사업구분 표시"` 아코디언을 클릭하여 접혀있던 필터 영역이 부드럽게 펼쳐지는지 확인합니다.
+3. `"연도 선택"` 또는 `"사업구분 선택"` 드롭다운을 클릭해 고유 데이터 옵션 리스트가 이미지처럼 출력되는지 확인합니다.
+4. 특정 연도(예: `2025`)를 클릭해 해제했을 때, 해당 연도를 가진 마커가 지도 상에서(클러스터러 포함) 즉시 지워지고 왼쪽 목록에서도 사라지는지 검증합니다.
+5. `"모두 선택"` 버튼을 눌렀을 때 모든 필터가 다시 활성화되어 전체 마커가 한 번에 복원되는지 최종 확인합니다.
+
+---
+
 ## [2026-06-06] 마커 클러스터러(MarkerClusterer) 구현 계획
 
 ### 1. 개요
