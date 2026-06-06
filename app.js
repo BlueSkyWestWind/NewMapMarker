@@ -1541,7 +1541,8 @@ class MapMarkerApp {
                 position: position,
                 title: data.name,
                 image: markerImage,
-                draggable: isMovingThis // 현재 위치 수정 중인 마커만 드래그 가능
+                draggable: isMovingThis, // 현재 위치 수정 중인 마커만 드래그 가능
+                zIndex: isMovingThis ? 100 : 3 // 위치 수정 중일 때는 오버레이(zIndex: 4)보다 위에 오도록 높은 zIndex 부여
             });
             
             this.mapMarkers.set(data.id, marker);
@@ -1572,9 +1573,19 @@ class MapMarkerApp {
             });
 
             // 마커 드래그 완료 시 좌표 갱신 및 DB/메모리 동기화 처리
-            kakao.maps.event.addListener(marker, 'dragend', () => {
-                this.handleMarkerDragEnd(data.id, marker.getPosition());
-            });
+            if (isMovingThis) {
+                kakao.maps.event.addListener(marker, 'dragstart', () => {
+                    this.map.setDraggable(false); // 드래그 시작 시 지도 이동 차단
+                });
+                kakao.maps.event.addListener(marker, 'dragend', () => {
+                    this.map.setDraggable(true); // 드래그 종료 시 지도 이동 복원
+                    this.handleMarkerDragEnd(data.id, marker.getPosition());
+                });
+            } else {
+                kakao.maps.event.addListener(marker, 'dragend', () => {
+                    this.handleMarkerDragEnd(data.id, marker.getPosition());
+                });
+            }
         });
 
         if (this.clusterer) {
@@ -1739,6 +1750,11 @@ class MapMarkerApp {
             this.mapClickMoveListener = null;
         }
 
+        // 지도 드래그 이동 원복
+        if (this.map) {
+            this.map.setDraggable(true);
+        }
+
         const markerData = this.markersData.find(m => m.id === id);
         if (markerData) {
             const lat = markerData.lat;
@@ -1782,6 +1798,11 @@ class MapMarkerApp {
         if (this.mapClickMoveListener) {
             kakao.maps.event.removeListener(this.map, 'click', this.mapClickMoveListener);
             this.mapClickMoveListener = null;
+        }
+
+        // 지도 드래그 이동 원복
+        if (this.map) {
+            this.map.setDraggable(true);
         }
 
         const markerData = this.markersData.find(m => m.id === id);
