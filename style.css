@@ -1014,7 +1014,7 @@ textarea:focus {
 
 /* Overlay Address Style */
 .overlay-address {
-    font-size: 16.5px;
+    font-size: 13px;
     color: var(--text-muted);
     line-height: 1.4;
     margin-bottom: 6px;
@@ -1030,14 +1030,14 @@ textarea:focus {
     content: '\f3c5';
     font-family: 'Font Awesome 6 Free';
     font-weight: 900;
-    font-size: 15px;
+    font-size: 12px;
     color: var(--secondary);
     flex-shrink: 0;
 }
 
 /* Modal Address Display Style */
 .marker-address-display {
-    font-size: 19.5px;
+    font-size: 13px;
     color: var(--text-secondary);
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--border-color);
