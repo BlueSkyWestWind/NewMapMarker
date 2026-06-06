@@ -771,7 +771,7 @@ class MapMarkerApp {
         
         const mapOption = {
             center: defaultCenter,
-            level: 3, // 지도 확대 레벨
+            level: 6, // 지도 확대 레벨
             mapTypeId: kakao.maps.MapTypeId.HYBRID // [스카이뷰 변경] 위성 지도 + 도로명 레이아웃
         };
         
