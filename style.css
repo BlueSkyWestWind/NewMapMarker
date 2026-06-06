@@ -850,6 +850,33 @@ textarea:focus {
     opacity: 0.9;
 }
 
+.overlay-btn-save {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.overlay-btn-save:hover {
+    opacity: 0.9;
+}
+
+.overlay-btn-cancel {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.overlay-btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.overlay-btn-move {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.overlay-btn-move:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
 /* Animations */
 @keyframes fadeInScale {
     from {

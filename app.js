@@ -51,6 +51,9 @@ class MapMarkerApp {
         this.focusedMarkerIndex = -1; // 키보드 탐색을 위한 포커스된 마커 인덱스
         this.currentRoadview = null; // 현재 활성화된 로드뷰 객체
         this.lastLoadedPanoId = null; // 마지막으로 가져온 촬영 일자의 파노라마 ID
+        this.currentMovingMarkerId = null; // 현재 위치 이동 수정 중인 마커 ID
+        this.originalMarkerPosition = null; // 위치 수정 전 원래 좌표 (LatLng)
+        this.mapClickMoveListener = null; // 위치 수정 중 지도 클릭 감지 리스너
         
         // DOM 요소 캐시
         this.cacheElements();
@@ -1533,11 +1536,12 @@ class MapMarkerApp {
                 ? new kakao.maps.MarkerImage(MARKER_SVG_GOLD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) })
                 : new kakao.maps.MarkerImage(MARKER_SVG_EMERALD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) });
 
+            const isMovingThis = this.currentMovingMarkerId === data.id;
             const marker = new kakao.maps.Marker({
                 position: position,
                 title: data.name,
                 image: markerImage,
-                draggable: true // 마우스 드래그로 위치 이동 활성화
+                draggable: isMovingThis // 현재 위치 수정 중인 마커만 드래그 가능
             });
             
             this.mapMarkers.set(data.id, marker);
@@ -1579,6 +1583,11 @@ class MapMarkerApp {
 
     // 마커 드래그 이동 종료 시 좌표 업데이트 및 Supabase 연동 처리
     async handleMarkerDragEnd(id, newPosition) {
+        if (this.currentMovingMarkerId === id) {
+            this.moveMarkerTemporarily(id, newPosition);
+            return;
+        }
+
         const markerData = this.markersData.find(m => m.id === id);
         if (!markerData) return;
 
@@ -1625,6 +1634,172 @@ class MapMarkerApp {
         }
     }
 
+    // 오버레이(말풍선) 내 주소 실시간 갱신
+    updateOverlayAddress(id, lat, lng) {
+        const overlay = this.customOverlays.get(id);
+        if (!overlay) return;
+        const container = overlay.getContent();
+        if (!container) return;
+        
+        const addressDiv = container.querySelector('.overlay-address');
+        if (addressDiv) {
+            addressDiv.innerHTML = '<span class="road-addr">주소 조회 중...</span>';
+            this.resolveAddress(lat, lng, (addrObj) => {
+                let html = '';
+                if (addrObj.roadAddress) {
+                    html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
+                }
+                if (addrObj.jibunAddress) {
+                    html += `<span class="jibun-addr" style="font-size: 10px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
+                }
+                if (!addrObj.roadAddress && !addrObj.jibunAddress) {
+                    html = '<span class="road-addr">주소를 확인할 수 없음</span>';
+                }
+                addressDiv.innerHTML = html;
+            });
+        }
+    }
+
+    // 마커 및 오버레이 임시 위치 이동 처리
+    moveMarkerTemporarily(id, newPosition) {
+        const markerData = this.markersData.find(m => m.id === id);
+        if (!markerData) return;
+
+        const newLat = newPosition.getLat();
+        const newLng = newPosition.getLng();
+
+        // 1. 메모리 좌표 임시 업데이트
+        markerData.lat = newLat;
+        markerData.lng = newLng;
+
+        // 2. 지도 마커 위치 이동
+        const marker = this.mapMarkers.get(id);
+        if (marker) {
+            marker.setPosition(newPosition);
+        }
+
+        // 3. 오버레이 위치 이동
+        const overlay = this.customOverlays.get(id);
+        if (overlay) {
+            overlay.setPosition(newPosition);
+        }
+
+        // 4. 오버레이 주소 갱신
+        this.updateOverlayAddress(id, newLat, newLng);
+
+        // 5. 클러스터러 갱신
+        if (this.clusterer) {
+            this.clusterer.redraw();
+        }
+    }
+
+    // 위치 변경 모드 진입
+    enterMarkerPositionChangeMode(id) {
+        // 이미 위치 수정 중인 마커가 있다면 취소 처리
+        if (this.currentMovingMarkerId && this.currentMovingMarkerId !== id) {
+            this.cancelMarkerPositionChange(this.currentMovingMarkerId);
+        }
+
+        const markerData = this.markersData.find(m => m.id === id);
+        if (!markerData) return;
+
+        const marker = this.mapMarkers.get(id);
+        if (!marker) return;
+
+        this.currentMovingMarkerId = id;
+        this.originalMarkerPosition = new kakao.maps.LatLng(markerData.lat, markerData.lng);
+
+        // 순간이동을 위한 지도 클릭 리스너 등록
+        this.mapClickMoveListener = (mouseEvent) => {
+            this.moveMarkerTemporarily(id, mouseEvent.latLng);
+        };
+        kakao.maps.event.addListener(this.map, 'click', this.mapClickMoveListener);
+
+        // 마커 draggable 활성화를 위해 지도를 리렌더링하여 UI 업데이트
+        this.renderMarkersOnMap();
+
+        // 오버레이 다시 노출
+        if (this.customOverlays.has(id)) {
+            this.customOverlays.get(id).setMap(this.map);
+        }
+
+        this.showToast('위치 변경 모드가 활성화되었습니다. 지도를 클릭하거나 핀을 드래그하세요.');
+    }
+
+    // 위치 변경 저장
+    async saveMarkerPosition(id) {
+        // 리스너 해제
+        if (this.mapClickMoveListener) {
+            kakao.maps.event.removeListener(this.map, 'click', this.mapClickMoveListener);
+            this.mapClickMoveListener = null;
+        }
+
+        const markerData = this.markersData.find(m => m.id === id);
+        if (markerData) {
+            const lat = markerData.lat;
+            const lng = markerData.lng;
+
+            if (!markerData.isPending && this.supabase) {
+                try {
+                    const { error } = await this.supabase
+                        .from('markers')
+                        .update({ lat, lng })
+                        .eq('id', id);
+
+                    if (error) throw error;
+                } catch (e) {
+                    this.showToast('Supabase 위치 저장 실패: ' + e.message, 5000);
+                    // 에러 시 롤백
+                    this.cancelMarkerPositionChange(id);
+                    return;
+                }
+            }
+
+            this.syncLocalStorage();
+            this.showToast(`'${markerData.name}' 위치가 성공적으로 저장되었습니다.`);
+        }
+
+        this.currentMovingMarkerId = null;
+        this.originalMarkerPosition = null;
+
+        // UI 모드 해제를 위한 리렌더링
+        this.renderMarkersOnMap();
+
+        // 오버레이 복원 노출
+        if (this.customOverlays.has(id)) {
+            this.customOverlays.get(id).setMap(this.map);
+        }
+    }
+
+    // 위치 변경 취소
+    cancelMarkerPositionChange(id) {
+        // 리스너 해제
+        if (this.mapClickMoveListener) {
+            kakao.maps.event.removeListener(this.map, 'click', this.mapClickMoveListener);
+            this.mapClickMoveListener = null;
+        }
+
+        const markerData = this.markersData.find(m => m.id === id);
+        if (markerData && this.originalMarkerPosition) {
+            // 좌표 원복
+            markerData.lat = this.originalMarkerPosition.getLat();
+            markerData.lng = this.originalMarkerPosition.getLng();
+        }
+
+        this.currentMovingMarkerId = null;
+        this.originalMarkerPosition = null;
+
+        // UI 원복을 위한 리렌더링
+        this.renderMarkersOnMap();
+
+        // 오버레이 복원 노출
+        if (this.customOverlays.has(id)) {
+            this.customOverlays.get(id).setMap(this.map);
+        }
+
+        this.showToast('위치 변경이 취소되었습니다.');
+    }
+
     // 카카오 Geocoder를 통한 역지오코딩 주소 조회
     resolveAddress(lat, lng, callback) {
         if (!window.kakao || !kakao.maps || !kakao.maps.services) return;
@@ -1658,6 +1833,10 @@ class MapMarkerApp {
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.customOverlays.get(data.id).setMap(null);
+            // 만약 위치 변경 모드인 상태에서 말풍선을 닫았다면, 취소 처리
+            if (this.currentMovingMarkerId === data.id) {
+                this.cancelMarkerPositionChange(data.id);
+            }
         });
         
         header.appendChild(title);
@@ -1686,6 +1865,18 @@ class MapMarkerApp {
             }
             addressDiv.innerHTML = html;
         });
+
+        // 위치 변경 모드용 안내 가이드
+        if (this.currentMovingMarkerId === data.id) {
+            const guideDiv = document.createElement('div');
+            guideDiv.className = 'overlay-guide';
+            guideDiv.style.fontSize = '10px';
+            guideDiv.style.color = '#f59e0b';
+            guideDiv.style.marginTop = '6px';
+            guideDiv.style.fontWeight = 'bold';
+            guideDiv.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> 지도를 클릭하거나 핀을 드래그해 이동하세요.';
+            container.appendChild(guideDiv);
+        }
         
         if (data.memo) {
             const memo = document.createElement('div');
@@ -1697,41 +1888,78 @@ class MapMarkerApp {
         const actions = document.createElement('div');
         actions.className = 'overlay-actions';
         
-        // 로드뷰 버튼 추가
-        const roadviewBtn = document.createElement('button');
-        roadviewBtn.className = 'overlay-btn overlay-btn-roadview';
-        roadviewBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-        roadviewBtn.style.color = 'white';
-        roadviewBtn.style.border = 'none';
-        roadviewBtn.textContent = '로드뷰';
-        roadviewBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openRoadviewModal(data.lat, data.lng, data.name);
-        });
+        if (this.currentMovingMarkerId === data.id) {
+            // 위치 변경 모드인 경우: 저장, 취소 버튼 표시
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'overlay-btn overlay-btn-save';
+            saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            saveBtn.style.color = 'white';
+            saveBtn.style.border = 'none';
+            saveBtn.textContent = '저장';
+            saveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.saveMarkerPosition(data.id);
+            });
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'overlay-btn overlay-btn-cancel';
+            cancelBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+            cancelBtn.style.color = 'var(--text-primary)';
+            cancelBtn.textContent = '취소';
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.cancelMarkerPositionChange(data.id);
+            });
+            
+            actions.appendChild(saveBtn);
+            actions.appendChild(cancelBtn);
+        } else {
+            // 일반 상태인 경우: 로드뷰, 상세, 편집, 위치 변경 버튼 표시
+            const roadviewBtn = document.createElement('button');
+            roadviewBtn.className = 'overlay-btn overlay-btn-roadview';
+            roadviewBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            roadviewBtn.style.color = 'white';
+            roadviewBtn.style.border = 'none';
+            roadviewBtn.textContent = '로드뷰';
+            roadviewBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openRoadviewModal(data.lat, data.lng, data.name);
+            });
+            
+            const detailBtn = document.createElement('button');
+            detailBtn.className = 'overlay-btn overlay-btn-detail';
+            detailBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+            detailBtn.style.color = 'var(--text-primary)';
+            detailBtn.textContent = '상세';
+            detailBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openDetailMarkerModal(data.id);
+            });
+            
+            const editBtn = document.createElement('button');
+            editBtn.className = 'overlay-btn overlay-btn-edit';
+            editBtn.textContent = '편집';
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openEditMarkerModal(data.id);
+            });
+
+            const moveBtn = document.createElement('button');
+            moveBtn.className = 'overlay-btn overlay-btn-move';
+            moveBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+            moveBtn.style.color = 'var(--text-primary)';
+            moveBtn.textContent = '위치 변경';
+            moveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.enterMarkerPositionChangeMode(data.id);
+            });
+            
+            actions.appendChild(roadviewBtn);
+            actions.appendChild(detailBtn);
+            actions.appendChild(editBtn);
+            actions.appendChild(moveBtn);
+        }
         
-        // 상세 보기 버튼 추가
-        const detailBtn = document.createElement('button');
-        detailBtn.className = 'overlay-btn overlay-btn-detail';
-        detailBtn.style.background = 'rgba(255, 255, 255, 0.08)';
-        detailBtn.style.color = 'var(--text-primary)';
-        detailBtn.textContent = '상세';
-        detailBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openDetailMarkerModal(data.id);
-        });
-        
-        // 편집 버튼 추가
-        const editBtn = document.createElement('button');
-        editBtn.className = 'overlay-btn overlay-btn-edit';
-        editBtn.textContent = '편집';
-        editBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openEditMarkerModal(data.id);
-        });
-        
-        actions.appendChild(roadviewBtn);
-        actions.appendChild(detailBtn);
-        actions.appendChild(editBtn);
         container.appendChild(actions);
         
         return container;
