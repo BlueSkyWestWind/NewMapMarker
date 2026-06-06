@@ -71,10 +71,48 @@ class MapMarkerApp {
         this.markerLngInput = document.getElementById('marker-lng');
         this.markerMemoInput = document.getElementById('marker-memo');
         this.markerTagsInput = document.getElementById('marker-tags');
+        
+        // 상세 장비 정보 입력 필드 캐시
+        this.markerFacilityCodeInput = document.getElementById('marker-facility-code');
+        this.markerProjectCodeInput = document.getElementById('marker-project-code');
+        this.markerFacilityYearInput = document.getElementById('marker-facility-year');
+        this.markerBusinessTypeInput = document.getElementById('marker-business-type');
+        this.markerFinalStationNameInput = document.getElementById('marker-final-station-name');
+        this.markerEqClassInput = document.getElementById('marker-eq-class');
+        this.markerEqTypeInput = document.getElementById('marker-eq-type');
+        this.markerInstallDateInput = document.getElementById('marker-install-date');
+        this.markerOpenDateInput = document.getElementById('marker-open-date');
+        
         this.saveMarkerBtn = document.getElementById('save-marker-btn');
         this.cancelModalBtn = document.getElementById('cancel-modal-btn');
         this.closeModalBtn = document.getElementById('close-modal-btn');
         this.deleteMarkerModalBtn = document.getElementById('delete-marker-modal-btn');
+        this.copySelectedBtn = document.getElementById('copy-selected-btn');
+
+        // 테이블 뷰 관련 요소 캐시
+        this.detailedInfoFormWrapper = document.getElementById('detailed-info-form-wrapper');
+        this.detailedInfoTableWrapper = document.getElementById('detailed-info-table-wrapper');
+        this.copyTableBtn = document.getElementById('copy-table-btn');
+        this.tableFacilityCode = document.getElementById('table-facility-code');
+        this.tableProjectCode = document.getElementById('table-project-code');
+        this.tableFacilityYear = document.getElementById('table-facility-year');
+        this.tableBusinessType = document.getElementById('table-business-type');
+        this.tableEqClass = document.getElementById('table-eq-class');
+        this.tableEqType = document.getElementById('table-eq-type');
+        this.tableInstallDate = document.getElementById('table-install-date');
+        this.tableOpenDate = document.getElementById('table-open-date');
+
+        // 상세장비정보 업로드 관련 요소 캐시
+        this.importInfoFile = document.getElementById('import-info-file');
+        this.infoUploadStatus = document.getElementById('info-upload-status');
+        this.infoUploadStatusText = document.getElementById('info-upload-status-text');
+        this.infoConfirmModal = document.getElementById('info-confirm-modal');
+        this.closeInfoConfirmBtn = document.getElementById('close-info-confirm-btn');
+        this.cancelInfoConfirmBtn = document.getElementById('cancel-info-confirm-btn');
+        this.sendInfoConfirmBtn = document.getElementById('send-info-confirm-btn');
+        this.infoConfirmTableBody = document.getElementById('info-confirm-table-body');
+        this.infoConfirmCount = document.getElementById('info-confirm-count');
+        this.pendingInfoData = null;
     }
 
     bindEvents() {
@@ -114,10 +152,150 @@ class MapMarkerApp {
         this.cancelModalBtn.addEventListener('click', () => this.closeModal());
         this.saveMarkerBtn.addEventListener('click', () => this.handleSaveMarker());
         this.deleteMarkerModalBtn.addEventListener('click', () => this.handleDeleteMarker(this.currentEditingId));
+        if (this.copyTableBtn) {
+            this.copyTableBtn.addEventListener('click', () => this.handleCopyDetailedTable());
+        }
+        if (this.copySelectedBtn) {
+            this.copySelectedBtn.addEventListener('click', () => this.handleCopySelectedCells());
+        }
         
         // 뒷배경 클릭시 모달 닫기 방지 (실수 방지 목적, 취소 버튼 명시 유도)
         this.markerModal.addEventListener('click', (e) => {
             if (e.target === this.markerModal) this.closeModal();
+        });
+
+        // 상세장비정보 업로드 이벤트 바인딩
+        if (this.importInfoFile) {
+            this.importInfoFile.addEventListener('change', (e) => this.handleImportInfoExcel(e));
+        }
+        if (this.closeInfoConfirmBtn) {
+            this.closeInfoConfirmBtn.addEventListener('click', () => this.closeInfoConfirmModal());
+        }
+        if (this.cancelInfoConfirmBtn) {
+            this.cancelInfoConfirmBtn.addEventListener('click', () => this.closeInfoConfirmModal());
+        }
+        if (this.sendInfoConfirmBtn) {
+            this.sendInfoConfirmBtn.addEventListener('click', () => this.handleSendInfoToSupabase());
+        }
+        if (this.infoConfirmModal) {
+            this.infoConfirmModal.addEventListener('click', (e) => {
+                if (e.target === this.infoConfirmModal) this.closeInfoConfirmModal();
+            });
+        }
+
+        // 상세 정보 테이블 드래그 범위 선택 및 단축키 복사 이벤트 바인딩
+        this.dragStartCell = null;
+        this.isDragSelecting = false;
+
+        const infoTable = document.getElementById('detailed-info-table');
+        if (infoTable) {
+            infoTable.addEventListener('mousedown', (e) => {
+                const td = e.target.closest('td');
+                if (!td) return;
+
+                const tr = td.closest('tr');
+                const tbody = tr.closest('tbody');
+                if (!tbody) return; // header 클릭 시 제외
+
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const rowIndex = rows.indexOf(tr);
+                const colIndex = Array.from(tr.querySelectorAll('td')).indexOf(td);
+
+                this.isDragSelecting = true;
+                this.dragStartCell = { row: rowIndex, col: colIndex };
+
+                // 단일 클릭 시 기존 선택 초기화 후 현재 셀 선택
+                this.clearCellSelection();
+                td.classList.add('cell-selected');
+                this.updateCopySelectedBtnVisibility();
+
+                // 브라우저 기본 텍스트 영역 지정 드래그 차단
+                e.preventDefault();
+            });
+
+            infoTable.addEventListener('mouseover', (e) => {
+                if (!this.isDragSelecting || !this.dragStartCell) return;
+
+                const td = e.target.closest('td');
+                if (!td) return;
+
+                const tr = td.closest('tr');
+                const tbody = tr.closest('tbody');
+                if (!tbody) return;
+
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const rowIndex = rows.indexOf(tr);
+                const colIndex = Array.from(tr.querySelectorAll('td')).indexOf(td);
+
+                // 드래그 앤 드롭 선택 범위 연산
+                const startRow = this.dragStartCell.row;
+                const startCol = this.dragStartCell.col;
+                const minRow = Math.min(startRow, rowIndex);
+                const maxRow = Math.max(startRow, rowIndex);
+                const minCol = Math.min(startCol, colIndex);
+                const maxCol = Math.max(startCol, colIndex);
+
+                // 직사각형 범위 내 셀 일괄 하이라이트
+                rows.forEach((rowEl, rIdx) => {
+                    const tds = Array.from(rowEl.querySelectorAll('td'));
+                    tds.forEach((tdEl, cIdx) => {
+                        if (rIdx >= minRow && rIdx <= maxRow && cIdx >= minCol && cIdx <= maxCol) {
+                            tdEl.classList.add('cell-selected');
+                        } else {
+                            tdEl.classList.remove('cell-selected');
+                        }
+                    });
+                });
+
+                this.updateCopySelectedBtnVisibility();
+            });
+
+            // 전역 마우스업 감지 및 플래그 리셋
+            document.addEventListener('mouseup', () => {
+                this.isDragSelecting = false;
+                this.dragStartCell = null;
+            });
+
+            // 헤더 열 복사 버튼 연동
+            infoTable.addEventListener('click', (e) => {
+                const copyBtn = e.target.closest('.col-copy-btn');
+                if (copyBtn) {
+                    const th = copyBtn.closest('th');
+                    const colIndex = parseInt(th.getAttribute('data-col'));
+                    const colName = th.textContent.replace('이 열 전체 복사', '').trim();
+                    this.handleCopyColumn(colIndex, colName);
+                }
+            });
+
+            // 더블클릭 단건 복사 이벤트 유지
+            const tbody = document.getElementById('detailed-info-table-body');
+            if (tbody) {
+                tbody.addEventListener('dblclick', (e) => {
+                    const td = e.target.closest('td');
+                    if (td) {
+                        const val = td.textContent.trim();
+                        if (val) {
+                            navigator.clipboard.writeText(val)
+                                .then(() => {
+                                    this.showToast(`'${val}'이(가) 클립보드에 복사되었습니다.`);
+                                })
+                                .catch(err => console.error('셀 복사 실패:', err));
+                        }
+                    }
+                });
+            }
+        }
+
+        // 전역 단축키 Ctrl+C 선택 복사 리스너 바인딩
+        document.addEventListener('keydown', (e) => {
+            const isCopyKey = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c';
+            if (isCopyKey) {
+                const selectedCells = document.querySelectorAll('#detailed-info-table-body .cell-selected');
+                if (selectedCells.length > 0) {
+                    e.preventDefault();
+                    this.handleCopySelectedCells();
+                }
+            }
         });
     }
 
@@ -148,6 +326,7 @@ class MapMarkerApp {
                     lng: row.lng,
                     memo: row.memo || "",
                     tags: row.tags || [],
+                    facilityCode: row.facility_code || "",
                     createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
                 }));
             } catch (e) {
@@ -185,7 +364,7 @@ class MapMarkerApp {
     // 지도 인스턴스 생성 및 초기화
     initializeMap() {
         const mapContainer = document.getElementById('map');
-        const defaultCenter = new kakao.maps.LatLng(37.566826, 126.9786567); // 서울시청 기준
+        const defaultCenter = new kakao.maps.LatLng(35.159542, 126.8526012); // 광주광역시청 기준
         
         const mapOption = {
             center: defaultCenter,
@@ -250,9 +429,190 @@ class MapMarkerApp {
         this.markerMemoInput.value = '';
         this.markerTagsInput.value = '';
         
+        // 주소 표시 (역지오코딩)
+        const modalAddrEl = document.getElementById('marker-address');
+        if (modalAddrEl) {
+            modalAddrEl.textContent = '주소 조회 중...';
+            this.resolveAddress(lat, lng, (addr) => {
+                modalAddrEl.textContent = addr || '주소를 확인할 수 없음';
+            });
+        }
+
+        // 상세 정보 폼 초기화
+        if (this.markerFacilityCodeInput) this.markerFacilityCodeInput.value = '';
+        if (this.markerProjectCodeInput) this.markerProjectCodeInput.value = '';
+        if (this.markerFacilityYearInput) this.markerFacilityYearInput.value = '';
+        if (this.markerBusinessTypeInput) this.markerBusinessTypeInput.value = '';
+        if (this.markerFinalStationNameInput) this.markerFinalStationNameInput.value = '';
+        if (this.markerEqClassInput) this.markerEqClassInput.value = '';
+        if (this.markerEqTypeInput) this.markerEqTypeInput.value = '';
+        if (this.markerInstallDateInput) this.markerInstallDateInput.value = '';
+        if (this.markerOpenDateInput) this.markerOpenDateInput.value = '';
+        
+        // 폼 잠금 해제 및 버튼 상태 설정
+        this.toggleModalReadOnly(false);
+        this.saveMarkerBtn.classList.remove('hidden');
+        this.cancelModalBtn.textContent = '취소';
+        
         this.deleteMarkerModalBtn.classList.add('hidden');
+        if (this.detailedInfoFormWrapper) this.detailedInfoFormWrapper.classList.remove('hidden');
+        if (this.detailedInfoTableWrapper) this.detailedInfoTableWrapper.classList.add('hidden');
+        
         this.markerModal.classList.remove('hidden');
         this.markerNameInput.focus();
+    }
+
+    // 모달창 내 입력 필드 읽기 전용 토글 헬퍼 함수
+    toggleModalReadOnly(isReadOnly) {
+        // 위도, 경도는 항상 읽기 전용이므로 장소명, 메모, 태그 및 추가 상세 정보 필드들을 제어
+        const inputs = [
+            this.markerNameInput,
+            this.markerMemoInput,
+            this.markerTagsInput,
+            this.markerFacilityCodeInput,
+            this.markerProjectCodeInput,
+            this.markerFacilityYearInput,
+            this.markerBusinessTypeInput,
+            this.markerFinalStationNameInput,
+            this.markerEqClassInput,
+            this.markerEqTypeInput,
+            this.markerInstallDateInput,
+            this.markerOpenDateInput
+        ];
+        
+        inputs.forEach(input => {
+            if (input) {
+                input.readOnly = isReadOnly;
+                if (isReadOnly) {
+                    input.classList.add('input-readonly');
+                } else {
+                    input.classList.remove('input-readonly');
+                }
+            }
+        });
+    }
+
+    // Supabase에서 국소명 기준으로 연관 상세 정보를 조회하여 테이블 및 폼에 바인딩
+    async fetchAndBindDetailedInfo(markerName, facilityCode) {
+        if (!this.supabase) return;
+        
+        try {
+            // 장소명(place_name)에 마커 이름이 포함되어 있는 모든 장비 레코드 로드 (ILIKE 검색)
+            const { data, error } = await this.supabase
+                .from('information')
+                .select('*')
+                .ilike('place_name', `%${markerName}%`);
+            
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                // 1. 테이블 뷰 바인딩 (엑셀 형태의 다중 행 렌더링)
+                const tbody = document.getElementById('detailed-info-table-body');
+                if (tbody) {
+                    tbody.innerHTML = '';
+                    data.forEach(row => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${row.facility_year || ''}</td>
+                            <td>${row.project_code || ''}</td>
+                            <td>${row.facility_code || ''}</td>
+                            <td>${row.business_type || ''}</td>
+                            <td>${row.final_station_name || ''}</td>
+                            <td>${row.eq_type || ''}</td>
+                            <td>${this.formatToShortDate(row.install_date)}</td>
+                            <td>${this.formatToShortDate(row.open_date)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+                
+                // 2. 폼 입력 필드 바인딩 (수정은 facilityCode가 일치하는 행 또는 첫 번째 행 타겟)
+                const activeRow = data.find(row => row.facility_code === facilityCode) || data[0];
+                if (activeRow) {
+                    if (this.markerFacilityCodeInput) this.markerFacilityCodeInput.value = activeRow.facility_code || '';
+                    if (this.markerProjectCodeInput) this.markerProjectCodeInput.value = activeRow.project_code || '';
+                    if (this.markerFacilityYearInput) this.markerFacilityYearInput.value = activeRow.facility_year || '';
+                    if (this.markerBusinessTypeInput) this.markerBusinessTypeInput.value = activeRow.business_type || '';
+                    if (this.markerFinalStationNameInput) this.markerFinalStationNameInput.value = activeRow.final_station_name || '';
+                    if (this.markerEqClassInput) this.markerEqClassInput.value = activeRow.eq_class || '';
+                    if (this.markerEqTypeInput) this.markerEqTypeInput.value = activeRow.eq_type || '';
+                    if (this.markerInstallDateInput) this.markerInstallDateInput.value = this.formatToShortDate(activeRow.install_date);
+                    if (this.markerOpenDateInput) this.markerOpenDateInput.value = this.formatToShortDate(activeRow.open_date);
+                }
+            }
+        } catch (e) {
+            console.error("연관 상세 정보 조회 실패:", e);
+        }
+    }
+
+    // 마커 상세 보기 전용 모달 열기 (읽기 전용)
+    openDetailMarkerModal(id) {
+        const markerData = this.markersData.find(m => m.id === id);
+        if (!markerData) return;
+        
+        this.currentEditingId = id;
+        this.modalTitle.textContent = '마커 상세 정보';
+        
+        this.markerNameInput.value = markerData.name;
+        this.markerLatInput.value = markerData.lat;
+        this.markerLngInput.value = markerData.lng;
+        this.markerMemoInput.value = markerData.memo || '';
+        this.markerTagsInput.value = (markerData.tags || []).join(', ');
+        
+        // 주소 표시 (역지오코딩)
+        const modalAddrEl = document.getElementById('marker-address');
+        if (modalAddrEl) {
+            modalAddrEl.textContent = '주소 조회 중...';
+            this.resolveAddress(markerData.lat, markerData.lng, (addr) => {
+                modalAddrEl.textContent = addr || '주소를 확인할 수 없음';
+            });
+        }
+
+        // 상세 정보 폼 값 세팅 (로컬 캐시 값 우선)
+        if (this.markerFacilityCodeInput) this.markerFacilityCodeInput.value = markerData.facilityCode || '';
+        if (this.markerProjectCodeInput) this.markerProjectCodeInput.value = markerData.projectCode || '';
+        if (this.markerFacilityYearInput) this.markerFacilityYearInput.value = markerData.facilityYear || '';
+        if (this.markerBusinessTypeInput) this.markerBusinessTypeInput.value = markerData.businessType || '';
+        if (this.markerFinalStationNameInput) this.markerFinalStationNameInput.value = markerData.finalStationName || '';
+        if (this.markerEqClassInput) this.markerEqClassInput.value = markerData.eqClass || '';
+        if (this.markerEqTypeInput) this.markerEqTypeInput.value = markerData.eqType || '';
+        if (this.markerInstallDateInput) this.markerInstallDateInput.value = this.formatToShortDate(markerData.installDate);
+        if (this.markerOpenDateInput) this.markerOpenDateInput.value = this.formatToShortDate(markerData.openDate);
+
+        // 상세 정보 테이블 값 세팅 (로컬 캐시 기준 1행 기본 렌더링, 추후 Supabase 조회 성공 시 연동행 덮어씀)
+        const tbody = document.getElementById('detailed-info-table-body');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td>${markerData.facilityYear || ''}</td>
+                    <td>${markerData.projectCode || ''}</td>
+                    <td>${markerData.facilityCode || ''}</td>
+                    <td>${markerData.businessType || ''}</td>
+                    <td>${markerData.finalStationName || ''}</td>
+                    <td>${markerData.eqType || ''}</td>
+                    <td>${this.formatToShortDate(markerData.installDate)}</td>
+                    <td>${this.formatToShortDate(markerData.openDate)}</td>
+                </tr>
+            `;
+        }
+        
+        // 폼 잠금 및 버튼 숨김 설정
+        this.toggleModalReadOnly(true);
+        this.saveMarkerBtn.classList.add('hidden');
+        this.deleteMarkerModalBtn.classList.add('hidden');
+        this.cancelModalBtn.textContent = '닫기';
+
+        // 테이블 뷰 토글
+        if (this.detailedInfoFormWrapper) this.detailedInfoFormWrapper.classList.add('hidden');
+        if (this.detailedInfoTableWrapper) this.detailedInfoTableWrapper.classList.remove('hidden');
+        
+        this.markerModal.classList.remove('hidden');
+        this.cancelModalBtn.focus();
+
+        // Supabase DB 실시간 최신 정보 조회 시도 (국소명 기준으로 일치하는 장비들 모두 쿼리)
+        if (!markerData.isPending && this.supabase) {
+            this.fetchAndBindDetailedInfo(markerData.name, markerData.facilityCode);
+        }
     }
 
     // 마커 수정 모달 열기
@@ -269,15 +629,88 @@ class MapMarkerApp {
         this.markerLngInput.value = markerData.lng;
         this.markerMemoInput.value = markerData.memo || '';
         this.markerTagsInput.value = (markerData.tags || []).join(', ');
+
+        // 주소 표시 (역지오코딩)
+        const modalAddrEl = document.getElementById('marker-address');
+        if (modalAddrEl) {
+            modalAddrEl.textContent = '주소 조회 중...';
+            this.resolveAddress(markerData.lat, markerData.lng, (addr) => {
+                modalAddrEl.textContent = addr || '주소를 확인할 수 없음';
+            });
+        }
         
-        this.deleteMarkerModalBtn.classList.remove('hidden');
+        // 상세 정보 폼 값 세팅 (로컬 캐시 값 우선)
+        if (this.markerFacilityCodeInput) this.markerFacilityCodeInput.value = markerData.facilityCode || '';
+        if (this.markerProjectCodeInput) this.markerProjectCodeInput.value = markerData.projectCode || '';
+        if (this.markerFacilityYearInput) this.markerFacilityYearInput.value = markerData.facilityYear || '';
+        if (this.markerBusinessTypeInput) this.markerBusinessTypeInput.value = markerData.businessType || '';
+        if (this.markerFinalStationNameInput) this.markerFinalStationNameInput.value = markerData.finalStationName || '';
+        if (this.markerEqClassInput) this.markerEqClassInput.value = markerData.eqClass || '';
+        if (this.markerEqTypeInput) this.markerEqTypeInput.value = markerData.eqType || '';
+        if (this.markerInstallDateInput) this.markerInstallDateInput.value = this.formatToShortDate(markerData.installDate);
+        if (this.markerOpenDateInput) this.markerOpenDateInput.value = this.formatToShortDate(markerData.openDate);
+        
+        // 폼 잠금 해제 및 저장 버튼 노출 설정
+        this.toggleModalReadOnly(false);
+        this.saveMarkerBtn.classList.remove('hidden');
+        this.cancelModalBtn.textContent = '취소';
+
+        // 테이블 뷰 토글
+        if (this.detailedInfoFormWrapper) this.detailedInfoFormWrapper.classList.remove('hidden');
+        if (this.detailedInfoTableWrapper) this.detailedInfoTableWrapper.classList.add('hidden');
+        
+        // 대기 상태(isPending)가 아닐 때만 삭제 버튼 노출
+        if (markerData.isPending) {
+            this.deleteMarkerModalBtn.classList.add('hidden');
+        } else {
+            this.deleteMarkerModalBtn.classList.remove('hidden');
+        }
+        
         this.markerModal.classList.remove('hidden');
         this.markerNameInput.focus();
+
+        // Supabase DB 실시간 최신 정보 조회 시도
+        if (!markerData.isPending && this.supabase) {
+            this.fetchAndBindDetailedInfo(markerData.name, markerData.facilityCode);
+        }
     }
 
     closeModal() {
         this.markerModal.classList.add('hidden');
         this.clearTempMarker();
+    }
+
+    // 상세 정보 테이블 클립보드 복사 (TSV 포맷, 엑셀 바로 적용 가능)
+    handleCopyDetailedTable() {
+        const tbody = document.getElementById('detailed-info-table-body');
+        if (!tbody) return;
+        
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        if (rows.length === 0) {
+            this.showToast('복사할 상세 정보가 없습니다.');
+            return;
+        }
+
+        // 엑셀 헤더 정의 (이미지 레이아웃 기준)
+        const headers = ["시설연도", "프로젝트코드", "통합시설코드", "사업구분", "국소명-최종", "장비타입", "시설일", "개통일"];
+        const tsvRows = [headers.join('\t')];
+
+        // 각 행의 데이터 수집
+        rows.forEach(tr => {
+            const tds = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim());
+            tsvRows.push(tds.join('\t'));
+        });
+
+        const tsvText = tsvRows.join('\n');
+
+        navigator.clipboard.writeText(tsvText)
+            .then(() => {
+                this.showToast(`상세 정보가 표 형식(총 ${rows.length}건)으로 클립보드에 복사되었습니다! (Excel 붙여넣기 가능)`);
+            })
+            .catch(err => {
+                console.error('클립보드 복사 실패:', err);
+                this.showToast('복사에 실패했습니다. 직접 드래그하여 복사해 주세요.');
+            });
     }
 
     // 마커 추가/수정 로직
@@ -298,6 +731,27 @@ class MapMarkerApp {
         const tags = tagsRaw 
             ? tagsRaw.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
             : [];
+
+        // 상세 정보 입력 값 취득
+        const facilityCode = this.markerFacilityCodeInput ? this.markerFacilityCodeInput.value.trim() : "";
+        const projectCode = this.markerProjectCodeInput ? this.markerProjectCodeInput.value.trim() : "";
+        const facilityYear = this.markerFacilityYearInput ? this.markerFacilityYearInput.value.trim() : "";
+        const businessType = this.markerBusinessTypeInput ? this.markerBusinessTypeInput.value.trim() : "";
+        const finalStationName = this.markerFinalStationNameInput ? this.markerFinalStationNameInput.value.trim() : "";
+        const eqClass = this.markerEqClassInput ? this.markerEqClassInput.value.trim() : "";
+        const eqType = this.markerEqTypeInput ? this.markerEqTypeInput.value.trim() : "";
+        const installDate = this.markerInstallDateInput ? this.markerInstallDateInput.value.trim() : "";
+        const openDate = this.markerOpenDateInput ? this.markerOpenDateInput.value.trim() : "";
+
+        // 통합시설코드 중복 검증
+        if (facilityCode) {
+            const isDuplicate = this.markersData.some(m => m.facilityCode === facilityCode && m.id !== this.currentEditingId);
+            if (isDuplicate) {
+                this.showToast('이미 등록된 통합시설코드입니다. 중복은 허용되지 않습니다.', 5000);
+                if (this.markerFacilityCodeInput) this.markerFacilityCodeInput.focus();
+                return;
+            }
+        }
             
         if (this.currentEditingId) {
             // 수정 모드
@@ -307,21 +761,52 @@ class MapMarkerApp {
                     ...this.markersData[index],
                     name,
                     memo,
-                    tags
+                    tags,
+                    facilityCode,
+                    projectCode,
+                    facilityYear,
+                    businessType,
+                    finalStationName,
+                    eqClass,
+                    eqType,
+                    installDate,
+                    openDate
                 };
 
-                if (this.supabase) {
+                // 대기 마커(isPending = true)가 아닐 때만 Supabase 데이터 업데이트를 진행함
+                if (this.supabase && !updatedItem.isPending) {
                     try {
+                        // 1. markers 테이블 업데이트
                         const { error } = await this.supabase
                             .from('markers')
                             .update({
                                 name: updatedItem.name,
                                 memo: updatedItem.memo,
-                                tags: updatedItem.tags
+                                tags: updatedItem.tags,
+                                facility_code: updatedItem.facilityCode || null
                             })
                             .eq('id', this.currentEditingId);
                         
                         if (error) throw error;
+
+                        // 2. information 테이블 upsert (통합시설코드가 있는 경우)
+                        if (updatedItem.facilityCode) {
+                            const { error: infoErr } = await this.supabase
+                                .from('information')
+                                .upsert({
+                                    facility_code: updatedItem.facilityCode,
+                                    place_name: updatedItem.name,
+                                    facility_year: updatedItem.facilityYear || "",
+                                    project_code: updatedItem.projectCode || "",
+                                    business_type: updatedItem.businessType || "",
+                                    final_station_name: updatedItem.finalStationName || "",
+                                    eq_class: updatedItem.eqClass || "",
+                                    eq_type: updatedItem.eqType || "",
+                                    install_date: updatedItem.installDate || "",
+                                    open_date: updatedItem.openDate || ""
+                                });
+                            if (infoErr) throw infoErr;
+                        }
                     } catch (e) {
                         this.showToast('Supabase 데이터 수정 실패: ' + e.message, 5000);
                         return;
@@ -341,11 +826,21 @@ class MapMarkerApp {
                 lng, // 정밀한 Float 값 보존
                 memo,
                 tags,
+                facilityCode,
+                projectCode,
+                facilityYear,
+                businessType,
+                finalStationName,
+                eqClass,
+                eqType,
+                installDate,
+                openDate,
                 createdAt: new Date().toISOString().split('T')[0]
             };
 
             if (this.supabase) {
                 try {
+                    // 1. markers 테이블 insert
                     const { error } = await this.supabase
                         .from('markers')
                         .insert({
@@ -355,10 +850,30 @@ class MapMarkerApp {
                             lng: newMarker.lng,
                             memo: newMarker.memo,
                             tags: newMarker.tags,
+                            facility_code: newMarker.facilityCode || null,
                             created_at: new Date().toISOString()
                         });
                     
                     if (error) throw error;
+
+                    // 2. information 테이블 upsert (통합시설코드가 있는 경우)
+                    if (newMarker.facilityCode) {
+                        const { error: infoErr } = await this.supabase
+                            .from('information')
+                            .upsert({
+                                facility_code: newMarker.facilityCode,
+                                place_name: newMarker.name,
+                                facility_year: newMarker.facilityYear || "",
+                                project_code: newMarker.projectCode || "",
+                                business_type: newMarker.businessType || "",
+                                final_station_name: newMarker.finalStationName || "",
+                                eq_class: newMarker.eqClass || "",
+                                eq_type: newMarker.eqType || "",
+                                install_date: newMarker.installDate || "",
+                                open_date: newMarker.openDate || ""
+                            });
+                        if (infoErr) throw infoErr;
+                    }
                 } catch (e) {
                     this.showToast('Supabase 데이터 추가 실패: ' + e.message, 5000);
                     return;
@@ -449,7 +964,8 @@ class MapMarkerApp {
                 position: position,
                 map: this.map,
                 title: data.name,
-                image: markerImage
+                image: markerImage,
+                draggable: true // 마우스 드래그로 위치 이동 활성화
             });
             
             this.mapMarkers.set(data.id, marker);
@@ -470,13 +986,79 @@ class MapMarkerApp {
             kakao.maps.event.addListener(marker, 'click', () => {
                 this.closeAllOverlays();
                 overlay.setMap(this.map);
-                this.map.panTo(position);
+                this.map.panTo(marker.getPosition());
+            });
+
+            // 마커 드래그 완료 시 좌표 갱신 및 DB/메모리 동기화 처리
+            kakao.maps.event.addListener(marker, 'dragend', () => {
+                this.handleMarkerDragEnd(data.id, marker.getPosition());
             });
         });
     }
 
     closeAllOverlays() {
         this.customOverlays.forEach(overlay => overlay.setMap(null));
+    }
+
+    // 마커 드래그 이동 종료 시 좌표 업데이트 및 Supabase 연동 처리
+    async handleMarkerDragEnd(id, newPosition) {
+        const markerData = this.markersData.find(m => m.id === id);
+        if (!markerData) return;
+
+        const newLat = newPosition.getLat();
+        const newLng = newPosition.getLng();
+
+        // 1. 메모리 데이터 좌표 갱신 (정밀도 유지)
+        markerData.lat = newLat;
+        markerData.lng = newLng;
+
+        // 2. 커스텀 오버레이(말풍선) 위치 동기화 이동
+        if (this.customOverlays.has(id)) {
+            this.customOverlays.get(id).setPosition(newPosition);
+        }
+
+        // 3. 대기 상태가 아닌(저장된) 일반 마커인 경우 Supabase 실시간 업데이트 실행
+        if (!markerData.isPending) {
+            if (this.supabase) {
+                try {
+                    const { error } = await this.supabase
+                        .from('markers')
+                        .update({
+                            lat: newLat,
+                            lng: newLng
+                        })
+                        .eq('id', id);
+
+                    if (error) throw error;
+                } catch (e) {
+                    this.showToast('Supabase 위치 업데이트 실패: ' + e.message, 5000);
+                    return;
+                }
+            }
+            // 로컬 스토리지 캐시 갱신
+            this.syncLocalStorage();
+            this.showToast(`'${markerData.name}' 위치가 수정되었습니다.`);
+        } else {
+            // 대기 마커인 경우
+            this.showToast(`대기 마커 '${markerData.name}'의 위치를 수정했습니다. (전송 시 반영)`);
+        }
+    }
+
+    // 카카오 Geocoder를 통한 역지오코딩 주소 조회
+    resolveAddress(lat, lng, callback) {
+        if (!window.kakao || !kakao.maps || !kakao.maps.services) return;
+        const geocoder = new kakao.maps.services.Geocoder();
+        const coord = new kakao.maps.LatLng(lat, lng);
+        geocoder.coord2Address(coord.getLng(), coord.getLat(), (result, status) => {
+            if (status === kakao.maps.services.Status.OK && result.length > 0) {
+                const addr = result[0].road_address
+                    ? result[0].road_address.address_name
+                    : result[0].address.address_name;
+                callback(addr);
+            } else {
+                callback('');
+            }
+        });
     }
 
     // 세련된 형태의 HTML 커스텀 오버레이 빌딩
@@ -501,6 +1083,15 @@ class MapMarkerApp {
         header.appendChild(title);
         header.appendChild(closeBtn);
         container.appendChild(header);
+
+        // 주소 표시 영역 (역지오코딩으로 비동기 로드)
+        const addressDiv = document.createElement('div');
+        addressDiv.className = 'overlay-address';
+        addressDiv.textContent = '주소 조회 중...';
+        container.appendChild(addressDiv);
+        this.resolveAddress(data.lat, data.lng, (addr) => {
+            addressDiv.textContent = addr || '주소를 확인할 수 없음';
+        });
         
         if (data.memo) {
             const memo = document.createElement('div');
@@ -512,29 +1103,27 @@ class MapMarkerApp {
         const actions = document.createElement('div');
         actions.className = 'overlay-actions';
         
-        // 대기 상태 마커인 경우 [전송] 버튼 추가
-        if (data.isPending) {
-            const uploadBtn = document.createElement('button');
-            uploadBtn.className = 'overlay-btn';
-            uploadBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
-            uploadBtn.style.color = '#fff';
-            uploadBtn.style.border = 'none';
-            uploadBtn.textContent = '전송';
-            uploadBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                await this.handleUploadSinglePending(data.id);
-            });
-            actions.appendChild(uploadBtn);
-        }
+        // 상세 보기 버튼 추가
+        const detailBtn = document.createElement('button');
+        detailBtn.className = 'overlay-btn overlay-btn-detail';
+        detailBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+        detailBtn.style.color = 'var(--text-primary)';
+        detailBtn.textContent = '상세';
+        detailBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openDetailMarkerModal(data.id);
+        });
         
+        // 편집 버튼 추가
         const editBtn = document.createElement('button');
         editBtn.className = 'overlay-btn overlay-btn-edit';
-        editBtn.textContent = data.isPending ? '상세' : '상세/편집';
+        editBtn.textContent = '편집';
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.openEditMarkerModal(data.id);
         });
         
+        actions.appendChild(detailBtn);
         actions.appendChild(editBtn);
         container.appendChild(actions);
         
@@ -549,7 +1138,8 @@ class MapMarkerApp {
         if (this.supabase) {
             try {
                 this.showToast('Supabase 전송 중...');
-                const { error } = await this.supabase
+                // 1. markers 테이블 insert
+                const { error: markerErr } = await this.supabase
                     .from('markers')
                     .insert({
                         id: marker.id,
@@ -558,10 +1148,30 @@ class MapMarkerApp {
                         lng: marker.lng,
                         memo: marker.memo || "",
                         tags: marker.tags || [],
+                        facility_code: marker.facilityCode || null,
                         created_at: new Date().toISOString()
                     });
                 
-                if (error) throw error;
+                if (markerErr) throw markerErr;
+
+                // 2. information 테이블 upsert (통합시설코드가 있는 경우)
+                if (marker.facilityCode) {
+                    const { error: infoErr } = await this.supabase
+                        .from('information')
+                        .upsert({
+                            facility_code: marker.facilityCode,
+                            place_name: marker.name,
+                            facility_year: marker.facilityYear || "",
+                            project_code: marker.projectCode || "",
+                            business_type: marker.businessType || "",
+                            final_station_name: marker.finalStationName || "",
+                            eq_class: marker.eqClass || "",
+                            eq_type: marker.eqType || "",
+                            install_date: marker.installDate || "",
+                            open_date: marker.openDate || ""
+                        });
+                    if (infoErr) throw infoErr;
+                }
             } catch (e) {
                 this.showToast('Supabase 전송 실패: ' + e.message, 5000);
                 return;
@@ -644,18 +1254,32 @@ class MapMarkerApp {
             
             // 마커 항목 마크업 조립
             item.innerHTML = `
-                <div class="marker-item-header">
-                    <h3 class="marker-title" title="${marker.name}">
+                <div class="marker-item-header" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                    <h3 class="marker-title" style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 0;" title="${marker.name}">
                         ${marker.isPending ? `<span style="color: #f59e0b; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-clock"></i> 대기</span>` : ''}
                         ${marker.name}
                     </h3>
-                    <span class="marker-date">${marker.createdAt}</span>
+                    ${marker.isPending ? `
+                        <button class="btn-send-single" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; flex-shrink: 0; font-weight: 500;">
+                            전송
+                        </button>
+                    ` : ''}
+                    <span class="marker-date" style="flex-shrink: 0; font-size: 10px; color: var(--text-muted);">${marker.createdAt}</span>
                 </div>
-                ${marker.memo ? `<p class="marker-memo">${marker.memo}</p>` : ''}
-                <div class="marker-tags">
+                ${marker.memo ? `<p class="marker-memo" style="margin-top: 4px;">${marker.memo}</p>` : ''}
+                <div class="marker-tags" style="margin-top: 6px;">
                     ${(marker.tags || []).map(tag => `<span class="tag">#${tag}</span>`).join('')}
                 </div>
             `;
+            
+            // 개별 전송 버튼 이벤트 바인딩
+            const sendBtn = item.querySelector('.btn-send-single');
+            if (sendBtn) {
+                sendBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation(); // 리스트 아이템 클릭(지도 포커싱) 이벤트 버블링 방지
+                    await this.handleUploadSinglePending(marker.id);
+                });
+            }
             
             // 사이드바 항목 클릭 시 해당 지도로 카메라 이동 및 오버레이 팝업
             item.addEventListener('click', () => {
@@ -1053,21 +1677,46 @@ class MapMarkerApp {
         if (this.supabase) {
             try {
                 this.showToast('Supabase로 전체 전송 중...');
-                const bulkData = pendingMarkers.map(m => ({
+                // 1. markers 벌크 데이터 생성
+                const bulkMarkers = pendingMarkers.map(m => ({
                     id: m.id,
                     name: m.name,
                     lat: m.lat,
                     lng: m.lng,
                     memo: m.memo || "",
                     tags: m.tags || [],
+                    facility_code: m.facilityCode || null,
                     created_at: new Date().toISOString()
                 }));
 
-                const { error } = await this.supabase
+                const { error: markerErr } = await this.supabase
                     .from('markers')
-                    .insert(bulkData);
+                    .insert(bulkMarkers);
                 
-                if (error) throw error;
+                if (markerErr) throw markerErr;
+
+                // 2. information 벌크 upsert 처리
+                const bulkInfo = pendingMarkers
+                    .filter(m => m.facilityCode)
+                    .map(m => ({
+                        facility_code: m.facilityCode,
+                        place_name: m.name,
+                        facility_year: m.facilityYear || "",
+                        project_code: m.projectCode || "",
+                        business_type: m.businessType || "",
+                        final_station_name: m.finalStationName || "",
+                        eq_class: m.eqClass || "",
+                        eq_type: m.eqType || "",
+                        install_date: m.installDate || "",
+                        open_date: m.openDate || ""
+                    }));
+
+                if (bulkInfo.length > 0) {
+                    const { error: infoErr } = await this.supabase
+                        .from('information')
+                        .upsert(bulkInfo);
+                    if (infoErr) throw infoErr;
+                }
             } catch (e) {
                 this.showToast('Supabase 일괄 전송 실패: ' + e.message, 5000);
                 return;
@@ -1149,6 +1798,116 @@ class MapMarkerApp {
         });
     }
 
+    // 상세장비정보 엑셀 업로드 핸들러
+    handleImportInfoExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (this.infoUploadStatus) {
+            this.infoUploadStatus.classList.remove('hidden');
+            this.infoUploadStatusText.textContent = '상세 장비 정보 파일 분석 중...';
+        }
+
+        DataManager.parseInfoExcel(file)
+            .then((parsedData) => {
+                if (this.infoUploadStatus) {
+                    this.infoUploadStatus.classList.add('hidden');
+                }
+
+                // 파싱된 데이터를 임시 보관 후 확인 모달 오픈
+                this.pendingInfoData = parsedData;
+                this.openInfoConfirmModal(parsedData);
+
+                // 파일 인풋 클리어
+                this.importInfoFile.value = '';
+            })
+            .catch(err => {
+                this.showToast(err.message, 5000);
+                if (this.infoUploadStatus) {
+                    this.infoUploadStatus.classList.add('hidden');
+                }
+                this.importInfoFile.value = '';
+            });
+    }
+
+    // 상세장비정보 전송 확인 모달 열기
+    openInfoConfirmModal(data) {
+        if (!this.infoConfirmModal) return;
+
+        // 테이블 본문 렌더링
+        if (this.infoConfirmTableBody) {
+            this.infoConfirmTableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.facility_year || ''}</td>
+                    <td>${row.project_code || ''}</td>
+                    <td>${row.facility_code || ''}</td>
+                    <td>${row.business_type || ''}</td>
+                    <td>${row.place_name || ''}</td>
+                    <td>${row.final_station_name || ''}</td>
+                    <td>${row.eq_class || ''}</td>
+                    <td>${row.eq_type || ''}</td>
+                    <td>${this.formatToShortDate(row.install_date)}</td>
+                    <td>${this.formatToShortDate(row.open_date)}</td>
+                `;
+                this.infoConfirmTableBody.appendChild(tr);
+            });
+        }
+
+        if (this.infoConfirmCount) {
+            this.infoConfirmCount.textContent = data.length;
+        }
+
+        this.infoConfirmModal.classList.remove('hidden');
+    }
+
+    // 상세장비정보 전송 확인 모달 닫기
+    closeInfoConfirmModal() {
+        if (this.infoConfirmModal) {
+            this.infoConfirmModal.classList.add('hidden');
+        }
+        this.pendingInfoData = null;
+    }
+
+    // Supabase information 테이블에 전송
+    async handleSendInfoToSupabase() {
+        if (!this.pendingInfoData || this.pendingInfoData.length === 0) {
+            this.showToast('전송할 데이터가 없습니다.');
+            return;
+        }
+
+        if (!this.supabase) {
+            this.showToast('Supabase가 연결되지 않았습니다. config.js를 확인하세요.', 5000);
+            return;
+        }
+
+        // 전송 버튼 비활성화 (중복 클릭 방지)
+        if (this.sendInfoConfirmBtn) {
+            this.sendInfoConfirmBtn.disabled = true;
+            this.sendInfoConfirmBtn.textContent = '전송 중...';
+        }
+
+        try {
+            const { error } = await this.supabase
+                .from('information')
+                .upsert(this.pendingInfoData, { onConflict: 'facility_code' });
+
+            if (error) throw error;
+
+            const count = this.pendingInfoData.length;
+            this.closeInfoConfirmModal();
+            this.showToast(`상세 장비 정보 ${count}건이 Supabase에 성공적으로 전송되었습니다.`, 5000);
+        } catch (e) {
+            this.showToast('Supabase 전송 실패: ' + e.message, 5000);
+        } finally {
+            if (this.sendInfoConfirmBtn) {
+                this.sendInfoConfirmBtn.disabled = false;
+                this.sendInfoConfirmBtn.textContent = '전송';
+            }
+        }
+    }
+
     // 토스트 노티피케이션 노출
     showToast(message, duration = 3000) {
         this.toast.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span>${message}</span>`;
@@ -1162,6 +1921,117 @@ class MapMarkerApp {
         this.toastTimeout = setTimeout(() => {
             this.toast.classList.add('hidden');
         }, duration);
+    }
+
+    // 날짜 문자열을 yy-mm-dd 포맷으로 변환하는 헬퍼 메서드
+    formatToShortDate(dateStr) {
+        if (!dateStr) return '';
+        
+        // 만약 Date 객체 파싱이 가능하면 Date로 변환해 포맷
+        let date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+            // "2026.06.06" -> "2026-06-06" 등으로 특수문자 보정 시도
+            const cleaned = dateStr.replace(/[^0-9]/g, '');
+            if (cleaned.length === 8) { // YYYYMMDD
+                const yy = cleaned.substring(2, 4);
+                const mm = cleaned.substring(4, 6);
+                const dd = cleaned.substring(6, 8);
+                return `${yy}-${mm}-${dd}`;
+            } else if (cleaned.length === 6) { // YYMMDD
+                const yy = cleaned.substring(0, 2);
+                const mm = cleaned.substring(2, 4);
+                const dd = cleaned.substring(4, 6);
+                return `${yy}-${mm}-${dd}`;
+            }
+            return dateStr; // 파싱 불가 시 원본 반환
+        }
+        
+        const yy = String(date.getFullYear()).substring(2, 4);
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yy}-${mm}-${dd}`;
+    }
+
+    // 선택된 상세 정보 테이블 셀 하이라이트 클리어
+    clearCellSelection() {
+        const selected = document.querySelectorAll('#detailed-info-table-body .cell-selected');
+        selected.forEach(td => td.classList.remove('cell-selected'));
+        this.updateCopySelectedBtnVisibility();
+    }
+
+    // 선택 셀 복사 버튼 노출 여부 제어
+    updateCopySelectedBtnVisibility() {
+        if (!this.copySelectedBtn) return;
+        const selectedCount = document.querySelectorAll('#detailed-info-table-body .cell-selected').length;
+        if (selectedCount > 0) {
+            this.copySelectedBtn.classList.remove('hidden');
+        } else {
+            this.copySelectedBtn.classList.add('hidden');
+        }
+    }
+
+    // 선택된 셀들의 데이터를 엑셀 호환(\n 및 \t 구분) 포맷팅하여 클립보드 복사
+    handleCopySelectedCells() {
+        const tbody = document.getElementById('detailed-info-table-body');
+        if (!tbody) return;
+
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const selectedRowsData = [];
+
+        rows.forEach(tr => {
+            const selectedTds = Array.from(tr.querySelectorAll('td.cell-selected'));
+            if (selectedTds.length > 0) {
+                const rowVals = selectedTds.map(td => td.textContent.trim());
+                selectedRowsData.push(rowVals.join('\t'));
+            }
+        });
+
+        if (selectedRowsData.length === 0) {
+            this.showToast('복사할 선택 영역이 없습니다.');
+            return;
+        }
+
+        const textToCopy = selectedRowsData.join('\n');
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+                this.showToast(`선택 영역이 클립보드에 복사되었습니다! (Excel 붙여넣기 가능)`);
+                this.clearCellSelection();
+            })
+            .catch(err => {
+                console.error('선택 복사 실패:', err);
+                this.showToast('복사에 실패했습니다.');
+            });
+    }
+
+    // 상세 정보 테이블의 특정 열 전체 데이터를 세로로 모아서 복사
+    handleCopyColumn(colIndex, colName) {
+        const tbody = document.getElementById('detailed-info-table-body');
+        if (!tbody) return;
+
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const colVals = [];
+
+        rows.forEach(tr => {
+            const tds = tr.querySelectorAll('td');
+            if (tds[colIndex]) {
+                colVals.push(tds[colIndex].textContent.trim());
+            }
+        });
+
+        if (colVals.length === 0) {
+            this.showToast('복사할 열 데이터가 없습니다.');
+            return;
+        }
+
+        const textToCopy = colVals.join('\n');
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+                this.showToast(`'${colName}' 열 데이터 전체(총 ${colVals.length}건)가 세로 형식으로 복사되었습니다.`);
+            })
+            .catch(err => {
+                console.error('열 복사 실패:', err);
+                this.showToast('열 복사에 실패했습니다.');
+            });
     }
 }
 

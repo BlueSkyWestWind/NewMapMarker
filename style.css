@@ -659,7 +659,8 @@ textarea:focus {
 }
 
 .modal-card {
-    width: 440px;
+    width: 950px;
+    max-width: 95vw;
     background: #151d30;
     border: 1px solid var(--border-color);
     border-radius: 16px;
@@ -721,7 +722,8 @@ textarea:focus {
     background: rgba(0, 0, 0, 0.2);
     color: var(--text-muted);
     border-style: dashed;
-    cursor: not-allowed;
+    cursor: text;
+    user-select: text !important;
 }
 
 .modal-footer {
@@ -749,7 +751,7 @@ textarea:focus {
     padding: 14px;
     box-shadow: var(--card-shadow);
     color: var(--text-primary);
-    width: 220px;
+    width: 280px;
     box-sizing: border-box;
     font-family: var(--font-sans);
     transform: translateY(-56px);
@@ -784,7 +786,7 @@ textarea:focus {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 160px;
+    max-width: 220px;
 }
 
 .overlay-close {
@@ -889,4 +891,90 @@ textarea:focus {
 /* Hidden Utility class */
 .hidden {
     display: none !important;
+}
+
+/* Table Styles for Detailed Info */
+.detailed-info-table-wrapper {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+}
+
+.info-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.info-table th, 
+.info-table td {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    text-align: left;
+    white-space: nowrap; /* 엑셀 형식 보존 및 셀 내 줄바꿈 방지 */
+}
+
+.info-table th {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.info-table td {
+    background: rgba(0, 0, 0, 0.19);
+    color: var(--text-primary);
+    user-select: text !important; /* 텍스트 선택이 용이하도록 명시 */
+    cursor: cell; /* 선택하기 쉽도록 마우스 포인터를 cell 모양으로 변경 */
+}
+
+.info-table td.cell-selected {
+    background: rgba(99, 102, 241, 0.35) !important;
+    outline: 2px solid var(--primary) !important;
+    outline-offset: -2px;
+}
+
+.col-copy-btn:hover {
+    opacity: 1 !important;
+    color: var(--primary);
+}
+
+/* Overlay Address Style */
+.overlay-address {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.overlay-address::before {
+    content: '\f3c5';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 10px;
+    color: var(--secondary);
+    flex-shrink: 0;
+}
+
+/* Modal Address Display Style */
+.marker-address-display {
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 12px;
+    line-height: 1.5;
+    user-select: text;
 }

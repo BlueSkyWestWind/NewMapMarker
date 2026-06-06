@@ -96,7 +96,7 @@ const DataManager = {
                             throw new Error(`[장소: ${item.name}] 위도 또는 경도 값이 올바르지 않은 숫자입니다.`);
                         }
 
-                        // 복원 데이터 빌드 (원본의 정밀도를 해치지 않음)
+                        // 복원 데이터 빌드 (상세 장비 정보 필드 보존 포함)
                         return {
                             id: item.id || 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                             name: item.name.trim(),
@@ -104,6 +104,15 @@ const DataManager = {
                             lng: lngNum,
                             memo: (item.memo || "").trim(),
                             tags: Array.isArray(item.tags) ? item.tags.map(t => t.trim()) : [],
+                            facilityCode: item.facilityCode || "",
+                            projectCode: item.projectCode || "",
+                            facilityYear: item.facilityYear || "",
+                            businessType: item.businessType || "",
+                            finalStationName: item.finalStationName || "",
+                            eqClass: item.eqClass || "",
+                            eqType: item.eqType || "",
+                            installDate: item.installDate || "",
+                            openDate: item.openDate || "",
                             createdAt: item.createdAt || new Date().toISOString()
                         };
                     });
@@ -154,7 +163,16 @@ const DataManager = {
                         lng: headers.find(h => /경도|lng|longitude|lon|x/i.test(h)),
                         address: headers.find(h => /주소|소재지|도로명|지번|address|addr/i.test(h)),
                         memo: headers.find(h => /설명|메모|비고|특이사항|memo|desc|description/i.test(h)),
-                        tags: headers.find(h => /태그|구분|그룹|tag|category/i.test(h))
+                        tags: headers.find(h => /태그|구분|그룹|tag|category/i.test(h)),
+                        facilityYear: headers.find(h => /시설연도|시설년도|연도|year/i.test(h)),
+                        projectCode: headers.find(h => /프로젝트코드|프로젝트|project/i.test(h)),
+                        facilityCode: headers.find(h => /통합시설코드|시설코드|code/i.test(h)),
+                        businessType: headers.find(h => /사업구분|사업|business/i.test(h)),
+                        finalStationName: headers.find(h => /국소명.*최종|국소명-최종|국소명_최종/i.test(h)),
+                        eqClass: headers.find(h => /장비분류|분류|class/i.test(h)),
+                        eqType: headers.find(h => /장비타입|타입|type/i.test(h)),
+                        installDate: headers.find(h => /시설일|설치일|install/i.test(h)),
+                        openDate: headers.find(h => /개통일|개통|가동일|가동|open/i.test(h))
                     };
                     
                     // 장소 이름과, (위도/경도) 또는 (주소) 중 하나는 반드시 존재해야 함
@@ -178,6 +196,17 @@ const DataManager = {
                         const memoVal = mapping.memo ? String(row[mapping.memo]).trim() : "";
                         const tagsVal = mapping.tags ? String(row[mapping.tags]).trim() : "";
                         
+                        // 추가 상세 정보 수집
+                        const facilityCodeVal = mapping.facilityCode ? String(row[mapping.facilityCode]).trim() : "";
+                        const projectCodeVal = mapping.projectCode ? String(row[mapping.projectCode]).trim() : "";
+                        const facilityYearVal = mapping.facilityYear ? String(row[mapping.facilityYear]).trim() : "";
+                        const businessTypeVal = mapping.businessType ? String(row[mapping.businessType]).trim() : "";
+                        const finalStationNameVal = mapping.finalStationName ? String(row[mapping.finalStationName]).trim() : "";
+                        const eqClassVal = mapping.eqClass ? String(row[mapping.eqClass]).trim() : "";
+                        const eqTypeVal = mapping.eqType ? String(row[mapping.eqType]).trim() : "";
+                        const installDateVal = mapping.installDate ? String(row[mapping.installDate]).trim() : "";
+                        const openDateVal = mapping.openDate ? String(row[mapping.openDate]).trim() : "";
+                        
                         // 태그 분리
                         const tags = tagsVal 
                             ? tagsVal.split(/[,|/]/).map(t => t.trim()).filter(t => t.length > 0)
@@ -188,6 +217,15 @@ const DataManager = {
                             name: rawName,
                             memo: memoVal,
                             tags: tags,
+                            facilityCode: facilityCodeVal,
+                            projectCode: projectCodeVal,
+                            facilityYear: facilityYearVal,
+                            businessType: businessTypeVal,
+                            finalStationName: finalStationNameVal,
+                            eqClass: eqClassVal,
+                            eqType: eqTypeVal,
+                            installDate: installDateVal,
+                            openDate: openDateVal,
                             createdAt: new Date().toISOString().split('T')[0]
                         };
                         
@@ -210,6 +248,92 @@ const DataManager = {
                     resolve(parsedData);
                 } catch (error) {
                     reject(new Error("Excel 파일 파싱 오류: " + error.message));
+                }
+            };
+            
+            reader.onerror = () => {
+                reject(new Error("파일을 읽는 도중 오류가 발생했습니다."));
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+    },
+
+    /**
+     * information 테이블 전용 엑셀 파싱.
+     * 위경도 없이 상세 장비 정보(통합시설코드, 프로젝트코드 등)만 추출합니다.
+     * @param {File} file 업로드된 Excel/CSV 파일
+     * @returns {Promise<Array>} 파싱된 information 행 배열
+     */
+    parseInfoExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+                    
+                    if (rows.length === 0) {
+                        throw new Error("엑셀 파일에 데이터가 없습니다.");
+                    }
+                    
+                    const headers = Object.keys(rows[0]);
+                    const mapping = {
+                        facilityCode: headers.find(h => /통합시설코드|시설코드|facility.*code/i.test(h)),
+                        projectCode: headers.find(h => /프로젝트코드|프로젝트|project/i.test(h)),
+                        facilityYear: headers.find(h => /시설연도|시설년도|연도|year/i.test(h)),
+                        businessType: headers.find(h => /사업구분|사업|business/i.test(h)),
+                        placeName: headers.find(h => /장소.*이름|장소명|이름|name|place/i.test(h)),
+                        finalStationName: headers.find(h => /국소명.*최종|국소명-최종|국소명_최종/i.test(h)),
+                        eqClass: headers.find(h => /장비분류|분류/i.test(h)),
+                        eqType: headers.find(h => /장비타입|타입/i.test(h)),
+                        installDate: headers.find(h => /시설일|설치일|install/i.test(h)),
+                        openDate: headers.find(h => /개통일|개통|가동일|가동|open/i.test(h))
+                    };
+                    
+                    if (!mapping.facilityCode) {
+                        throw new Error("통합시설코드에 해당하는 열(통합시설코드, 시설코드 등)을 찾을 수 없습니다.");
+                    }
+                    
+                    const parsedData = rows.map((row, idx) => {
+                        const facilityCode = String(row[mapping.facilityCode] || '').trim();
+                        if (!facilityCode) return null;
+                        
+                        return {
+                            facility_code: facilityCode,
+                            project_code: mapping.projectCode ? String(row[mapping.projectCode]).trim() : "",
+                            facility_year: mapping.facilityYear ? String(row[mapping.facilityYear]).trim() : "",
+                            business_type: mapping.businessType ? String(row[mapping.businessType]).trim() : "",
+                            place_name: mapping.placeName ? String(row[mapping.placeName]).trim() : "",
+                            final_station_name: mapping.finalStationName ? String(row[mapping.finalStationName]).trim() : "",
+                            eq_class: mapping.eqClass ? String(row[mapping.eqClass]).trim() : "",
+                            eq_type: mapping.eqType ? String(row[mapping.eqType]).trim() : "",
+                            install_date: mapping.installDate ? String(row[mapping.installDate]).trim() : "",
+                            open_date: mapping.openDate ? String(row[mapping.openDate]).trim() : ""
+                        };
+                    }).filter(item => item !== null);
+                    
+                    if (parsedData.length === 0) {
+                        throw new Error("유효한 상세 장비 정보가 없습니다. 통합시설코드 열이 비어있는지 확인하세요.");
+                    }
+                    
+                    // 통합시설코드 중복 검사
+                    const codes = parsedData.map(d => d.facility_code);
+                    const duplicates = codes.filter((c, i) => codes.indexOf(c) !== i);
+                    if (duplicates.length > 0) {
+                        const uniqueDuplicates = [...new Set(duplicates)];
+                        throw new Error(`통합시설코드 중복 발견: ${uniqueDuplicates.join(', ')}. 중복을 제거한 후 다시 업로드하세요.`);
+                    }
+                    
+                    resolve(parsedData);
+                } catch (error) {
+                    reject(new Error("상세 장비 정보 파싱 오류: " + error.message));
                 }
             };
             

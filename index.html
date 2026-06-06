@@ -82,6 +82,29 @@
                 </div>
             </section>
 
+            <!-- 상세 장비 정보 업로드 Section -->
+            <section class="section info-upload-section">
+                <div class="section-title">
+                    <div class="title-left">
+                        <i class="fa-solid fa-server icon" style="color: #8b5cf6;"></i>
+                        <span>상세장비정보 업로드</span>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <p class="api-help-text">통합시설코드가 포함된 Excel/CSV 파일을 업로드하여 Supabase information 테이블에 저장합니다.</p>
+                    <div class="import-wrapper" style="margin-top: 8px;">
+                        <label for="import-info-file" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2); width: 100%;">
+                            <i class="fa-solid fa-file-arrow-up"></i> 상세장비 Excel 업로드
+                        </label>
+                        <input type="file" id="import-info-file" accept=".xlsx, .xls, .csv" style="display: none;">
+                    </div>
+                    <div id="info-upload-status" class="excel-status status-active hidden" style="margin-top: 10px; font-size: 11px; padding: 8px; border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.2); background: rgba(139, 92, 246, 0.05); display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                        <span id="info-upload-status-text">파일 분석 중...</span>
+                    </div>
+                </div>
+            </section>
+
 
             <!-- Saved Markers Section -->
             <section class="section markers-section">
@@ -148,7 +171,7 @@
                 <h3 id="modal-title">위치 마커 등록</h3>
                 <button id="close-modal-btn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
             </header>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height: 65vh; overflow-y: auto; padding-right: 18px;">
                 <div class="form-group">
                     <label for="marker-name">장소 이름 <span class="required">*</span></label>
                     <input type="text" id="marker-name" placeholder="예: 맛있는 카페, 거래처 A">
@@ -164,6 +187,10 @@
                     </div>
                 </div>
                 <div class="form-group">
+                    <label><i class="fa-solid fa-location-dot" style="margin-right: 4px; color: var(--secondary);"></i>주소</label>
+                    <div id="marker-address" class="marker-address-display">주소 조회 중...</div>
+                </div>
+                <div class="form-group">
                     <label for="marker-memo">메모 / 설명</label>
                     <textarea id="marker-memo" rows="3" placeholder="위치에 대한 간단한 설명을 입력하세요..."></textarea>
                 </div>
@@ -171,12 +198,149 @@
                     <label for="marker-tags">태그 (쉼표로 구분)</label>
                     <input type="text" id="marker-tags" placeholder="예: 카페, 거래처, 즐겨찾기">
                 </div>
+                
+                <!-- 구분선 및 상세 장비 정보 섹션 -->
+                <div style="border-top: 1px dashed var(--border-color); margin: 16px 0; padding-top: 16px;">
+                    <h4 style="font-size: 13px; font-weight: 600; color: var(--secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-server"></i> 상세 장비 정보 (Supabase 연동)
+                    </h4>
+                </div>
+                
+                <!-- 입력 폼 Wrapper (신규/편집 시 사용) -->
+                <div id="detailed-info-form-wrapper">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="marker-facility-code">통합시설코드</label>
+                            <input type="text" id="marker-facility-code" placeholder="예: FAC12345">
+                        </div>
+                        <div class="form-group">
+                            <label for="marker-project-code">프로젝트코드</label>
+                            <input type="text" id="marker-project-code" placeholder="예: PRJ-2026">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="marker-facility-year">시설연도</label>
+                            <input type="text" id="marker-facility-year" placeholder="예: 2026">
+                        </div>
+                        <div class="form-group">
+                            <label for="marker-business-type">사업구분</label>
+                            <input type="text" id="marker-business-type" placeholder="예: 상용망">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="marker-final-station-name">국소명-최종</label>
+                            <input type="text" id="marker-final-station-name" placeholder="예: 국소명_1-AAU">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="marker-eq-class">장비분류</label>
+                            <input type="text" id="marker-eq-class" placeholder="예: 전송장비">
+                        </div>
+                        <div class="form-group">
+                            <label for="marker-eq-type">장비타입</label>
+                            <input type="text" id="marker-eq-type" placeholder="예: MUX">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="marker-install-date">시설일</label>
+                            <input type="text" id="marker-install-date" placeholder="예: 2026-06-01">
+                        </div>
+                        <div class="form-group">
+                            <label for="marker-open-date">개통일</label>
+                            <input type="text" id="marker-open-date" placeholder="예: 2026-06-05">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 테이블 뷰 Wrapper (상세 보기 시 사용, 복사 최적화) -->
+                <div id="detailed-info-table-wrapper" class="detailed-info-table-wrapper hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-mouse-pointer"></i> 셀을 마우스로 드래그 선택 후 복사 또는 Ctrl+C를 누르세요.</span>
+                        <div style="display: flex; gap: 6px;">
+                            <button id="copy-selected-btn" class="btn btn-secondary hidden" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; display: flex; align-items: center; gap: 4px; height: 26px; background: rgba(99, 102, 241, 0.2); border-color: var(--primary); color: var(--text-primary);">
+                                <i class="fa-solid fa-square-check"></i> 선택 셀 복사
+                            </button>
+                            <button id="copy-table-btn" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; display: flex; align-items: center; gap: 4px; height: 26px;">
+                                <i class="fa-solid fa-copy"></i> 표 전체 복사
+                            </button>
+                        </div>
+                    </div>
+                    <!-- 가로 스크롤 대응을 위해 래퍼 추가 -->
+                    <div style="width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                        <table class="info-table" id="detailed-info-table" style="min-width: 800px; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th data-col="0" style="position: relative;">시설연도 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="1" style="position: relative;">프로젝트코드 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="2" style="position: relative;">통합시설코드 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="3" style="position: relative;">사업구분 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="4" style="position: relative;">국소명-최종 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="5" style="position: relative;">장비타입 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="6" style="position: relative;">시설일 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="7" style="position: relative;">개통일 <i class="fa-regular fa-copy col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="detailed-info-table-body">
+                                <!-- 동적으로 연관 장비 여러 행이 추가됨 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             <footer class="modal-footer">
                 <button id="delete-marker-modal-btn" class="btn btn-danger hidden">삭제</button>
                 <div class="footer-right">
                     <button id="cancel-modal-btn" class="btn btn-text">취소</button>
                     <button id="save-marker-btn" class="btn btn-primary">저장</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- 상세 장비 정보 전송 확인 모달 -->
+    <div id="info-confirm-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 700px;">
+            <header class="modal-header">
+                <h3 id="info-confirm-title">상세 장비 정보 전송 확인</h3>
+                <button id="close-info-confirm-btn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="modal-body" style="max-height: 50vh; overflow-y: auto; padding-right: 18px;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                    아래 데이터를 Supabase <strong>information</strong> 테이블에 전송합니다. 내용을 확인하세요.
+                </p>
+                <div style="width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <table class="info-table" style="min-width: 750px; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th>시설연도</th>
+                                <th>프로젝트코드</th>
+                                <th>통합시설코드</th>
+                                <th>사업구분</th>
+                                <th>장소 이름</th>
+                                <th>국소명-최종</th>
+                                <th>장비분류</th>
+                                <th>장비타입</th>
+                                <th>시설일</th>
+                                <th>개통일</th>
+                            </tr>
+                        </thead>
+                        <tbody id="info-confirm-table-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 12px; font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-circle-info" style="color: var(--secondary);"></i>
+                    <span>총 <strong id="info-confirm-count">0</strong>건의 데이터가 전송됩니다. 통합시설코드가 기존에 존재하면 갱신(upsert)됩니다.</span>
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <div class="footer-right">
+                    <button id="cancel-info-confirm-btn" class="btn btn-text">취소</button>
+                    <button id="send-info-confirm-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">전송</button>
                 </div>
             </footer>
         </div>
