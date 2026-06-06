@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapMarker Pro - 위치 관리 대시보드</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- SheetJS for Excel Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-map-location-dot logo-icon"></i>
+                    <h1>MapMarker <span>Pro</span></h1>
+                </div>
+                <p class="subtitle">위치 마킹 및 데이터 대시보드</p>
+            </header>
+
+
+            <!-- Search Section -->
+            <section class="section search-section">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="search-input" placeholder="장소, 주소 검색..." disabled>
+                    <button id="search-btn" class="btn btn-search" disabled>검색</button>
+                </div>
+                <div id="search-results-container" class="search-results-container hidden">
+                    <div class="results-header">
+                        <h3>검색 결과</h3>
+                        <button id="close-search-btn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <ul id="search-results-list" class="results-list"></ul>
+                </div>
+            </section>
+            
+            <!-- Excel Import Section -->
+            <section class="section excel-section">
+                <div class="section-title">
+                    <div class="title-left">
+                        <i class="fa-solid fa-file-excel icon" style="color: #10b981;"></i>
+                        <span>엑셀로 위치 찍기</span>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <p class="api-help-text">위도/경도 또는 주소가 포함된 Excel/CSV 파일을 업로드하세요.</p>
+                    <div class="import-wrapper" style="margin-top: 8px;">
+                        <label for="import-excel-file" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); width: 100%;">
+                            <i class="fa-solid fa-file-arrow-up"></i> Excel/CSV 파일 업로드
+                        </label>
+                        <input type="file" id="import-excel-file" accept=".xlsx, .xls, .csv" style="display: none;">
+                    </div>
+                    <div id="excel-status" class="excel-status status-active hidden" style="margin-top: 10px; font-size: 11px; padding: 8px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.05); display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                        <span id="excel-status-text">파일 분석 중...</span>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Saved Markers Section -->
+            <section class="section markers-section">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-bookmark icon"></i> 저장된 위치 (<span id="marker-count">0</span>)</h2>
+                    <div class="marker-search">
+                        <input type="text" id="marker-filter" placeholder="저장된 위치 필터링...">
+                    </div>
+                </div>
+                <div class="markers-list-wrapper">
+                    <ul id="markers-list" class="markers-list">
+                        <!-- Dynamic content -->
+                        <div class="empty-state">
+                            <i class="fa-solid fa-map-pin"></i>
+                            <p>저장된 위치가 없습니다.<br>지도 상의 위치를 클릭하거나 장소를 검색해 보세요.</p>
+                        </div>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Data Operations -->
+            <footer class="sidebar-footer">
+                <div class="footer-buttons">
+                    <button id="export-csv-btn" class="btn btn-secondary flex-btn">
+                        <i class="fa-solid fa-file-csv"></i> CSV 내보내기
+                    </button>
+                    <button id="export-json-btn" class="btn btn-secondary flex-btn">
+                        <i class="fa-solid fa-file-code"></i> 백업 (JSON)
+                    </button>
+                </div>
+                <div class="import-wrapper">
+                    <label for="import-json-file" class="btn btn-outline flex-btn">
+                        <i class="fa-solid fa-file-import"></i> JSON 데이터 복원
+                    </label>
+                    <input type="file" id="import-json-file" accept=".json" style="display: none;">
+                </div>
+            </footer>
+        </aside>
+
+        <!-- Map Container -->
+        <main class="map-container">
+            <div id="map"></div>
+            
+            <!-- Floating Controls -->
+            <div class="floating-controls">
+                <button id="my-location-btn" class="btn-floating" title="내 위치로 이동">
+                    <i class="fa-solid fa-location-crosshairs"></i>
+                </button>
+                <div class="zoom-controls">
+                    <button id="zoom-in-btn" class="btn-floating" title="확대"><i class="fa-solid fa-plus"></i></button>
+                    <button id="zoom-out-btn" class="btn-floating" title="축소"><i class="fa-solid fa-minus"></i></button>
+                </div>
+            </div>
+            
+            <!-- Map Alert/Overlay Toast -->
+            <div id="toast" class="toast hidden"></div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Marker Modal -->
+    <div id="marker-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <header class="modal-header">
+                <h3 id="modal-title">위치 마커 등록</h3>
+                <button id="close-modal-btn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="marker-name">장소 이름 <span class="required">*</span></label>
+                    <input type="text" id="marker-name" placeholder="예: 맛있는 카페, 거래처 A">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>위도 (Latitude)</label>
+                        <input type="text" id="marker-lat" readonly class="input-readonly">
+                    </div>
+                    <div class="form-group">
+                        <label>경도 (Longitude)</label>
+                        <input type="text" id="marker-lng" readonly class="input-readonly">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="marker-memo">메모 / 설명</label>
+                    <textarea id="marker-memo" rows="3" placeholder="위치에 대한 간단한 설명을 입력하세요..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="marker-tags">태그 (쉼표로 구분)</label>
+                    <input type="text" id="marker-tags" placeholder="예: 카페, 거래처, 즐겨찾기">
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <button id="delete-marker-modal-btn" class="btn btn-danger hidden">삭제</button>
+                <div class="footer-right">
+                    <button id="cancel-modal-btn" class="btn btn-text">취소</button>
+                    <button id="save-marker-btn" class="btn btn-primary">저장</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Kakao Map SDK -->
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=223e7ae08e4de052f9b928968c485d27&libraries=services&autoload=false"></script>
+    <!-- Custom scripts -->
+    <script src="data-manager.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
