@@ -52,6 +52,12 @@ class MapMarkerApp {
         this.excelStatus = document.getElementById('excel-status');
         this.excelStatusText = document.getElementById('excel-status-text');
         
+        // 대기 마커 제어 UI 요소 캐시
+        this.pendingActions = document.getElementById('pending-actions');
+        this.pendingCount = document.getElementById('pending-count');
+        this.uploadPendingBtn = document.getElementById('upload-pending-btn');
+        this.cancelPendingBtn = document.getElementById('cancel-pending-btn');
+        
         this.myLocationBtn = document.getElementById('my-location-btn');
         this.zoomInBtn = document.getElementById('zoom-in-btn');
         this.zoomOutBtn = document.getElementById('zoom-out-btn');
@@ -93,6 +99,10 @@ class MapMarkerApp {
         
         // Excel/CSV 업로드 이벤트 바인딩
         this.importExcelFile.addEventListener('change', (e) => this.handleImportExcel(e));
+        
+        // 대기 마커 제어 이벤트 바인딩
+        this.uploadPendingBtn.addEventListener('click', () => this.handleUploadPending());
+        this.cancelPendingBtn.addEventListener('click', () => this.handleCancelPending());
         
         // 지도 플로팅 컨트롤 이벤트
         this.myLocationBtn.addEventListener('click', () => this.goToMyLocation());
@@ -411,7 +421,8 @@ class MapMarkerApp {
     }
 
     syncLocalStorage() {
-        localStorage.setItem('saved_markers', JSON.stringify(this.markersData));
+        const permanentMarkers = this.markersData.filter(m => !m.isPending);
+        localStorage.setItem('saved_markers', JSON.stringify(permanentMarkers));
     }
 
     // 지도 상에 저장된 모든 마커 렌더링
@@ -428,11 +439,17 @@ class MapMarkerApp {
         this.markersData.forEach(data => {
             const position = new kakao.maps.LatLng(data.lat, data.lng);
             
-            // 1. 마커 객체 생성
+            // 1. 마커 객체 생성 (대기 상태 마커인 경우 노란 별 모양 이미지 적용)
+            const markerImage = data.isPending ? new kakao.maps.MarkerImage(
+                'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png',
+                new kakao.maps.Size(24, 35)
+            ) : null;
+
             const marker = new kakao.maps.Marker({
                 position: position,
                 map: this.map,
-                title: data.name
+                title: data.name,
+                image: markerImage
             });
             
             this.mapMarkers.set(data.id, marker);
@@ -495,9 +512,24 @@ class MapMarkerApp {
         const actions = document.createElement('div');
         actions.className = 'overlay-actions';
         
+        // 대기 상태 마커인 경우 [전송] 버튼 추가
+        if (data.isPending) {
+            const uploadBtn = document.createElement('button');
+            uploadBtn.className = 'overlay-btn';
+            uploadBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+            uploadBtn.style.color = '#fff';
+            uploadBtn.style.border = 'none';
+            uploadBtn.textContent = '전송';
+            uploadBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.handleUploadSinglePending(data.id);
+            });
+            actions.appendChild(uploadBtn);
+        }
+        
         const editBtn = document.createElement('button');
         editBtn.className = 'overlay-btn overlay-btn-edit';
-        editBtn.textContent = '상세/편집';
+        editBtn.textContent = data.isPending ? '상세' : '상세/편집';
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.openEditMarkerModal(data.id);
@@ -509,6 +541,44 @@ class MapMarkerApp {
         return container;
     }
 
+    // 대기 마커 단건 전송 처리
+    async handleUploadSinglePending(id) {
+        const marker = this.markersData.find(m => m.id === id);
+        if (!marker) return;
+
+        if (this.supabase) {
+            try {
+                this.showToast('Supabase 전송 중...');
+                const { error } = await this.supabase
+                    .from('markers')
+                    .insert({
+                        id: marker.id,
+                        name: marker.name,
+                        lat: marker.lat,
+                        lng: marker.lng,
+                        memo: marker.memo || "",
+                        tags: marker.tags || [],
+                        created_at: new Date().toISOString()
+                    });
+                
+                if (error) throw error;
+            } catch (e) {
+                this.showToast('Supabase 전송 실패: ' + e.message, 5000);
+                return;
+            }
+        }
+
+        // 임시 플래그 제거 및 로컬스토리지 저장
+        marker.isPending = false;
+        this.syncLocalStorage();
+        
+        // UI 갱신
+        this.updatePendingUI();
+        this.renderMarkersOnMap();
+        this.renderMarkersList();
+        this.showToast('선택한 위치가 Supabase에 저장되었습니다.');
+    }
+
     // 왼쪽 사이드바 마커 목록 렌더링
     renderMarkersList() {
         const filterText = this.markerFilter.value.trim().toLowerCase();
@@ -516,9 +586,18 @@ class MapMarkerApp {
         // 목록 리셋
         this.markersList.innerHTML = '';
         
-        // 검색어(필터)가 없는 경우 리스트를 렌더링하지 않음
+        const pendingMarkers = this.markersData.filter(m => m.isPending);
+
+        // 검색어(필터)가 없는 경우 리스트를 렌더링하지 않으나, 대기 중인 마커가 있으면 대기 마커 리스트 노출
         if (!filterText) {
             this.markerCount.textContent = this.markersData.length;
+            
+            if (pendingMarkers.length > 0) {
+                this.markerCount.textContent = `대기: ${pendingMarkers.length}`;
+                this.renderFilteredList(pendingMarkers, true);
+                return;
+            }
+
             const emptyState = document.createElement('div');
             emptyState.className = 'empty-state';
             emptyState.innerHTML = `
@@ -550,14 +629,26 @@ class MapMarkerApp {
             return;
         }
         
+        this.renderFilteredList(filtered, true);
+    }
+
+    // 필터링된 마커 리스트 실제 HTML 조립 출력 헬퍼
+    renderFilteredList(filtered, highlightPending = false) {
         filtered.forEach(marker => {
             const item = document.createElement('li');
             item.className = 'marker-item';
+            if (highlightPending && marker.isPending) {
+                item.className = 'marker-item pending-item';
+                item.style.borderLeft = '3px solid #f59e0b';
+            }
             
             // 마커 항목 마크업 조립
             item.innerHTML = `
                 <div class="marker-item-header">
-                    <h3 class="marker-title" title="${marker.name}">${marker.name}</h3>
+                    <h3 class="marker-title" title="${marker.name}">
+                        ${marker.isPending ? `<span style="color: #f59e0b; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-clock"></i> 대기</span>` : ''}
+                        ${marker.name}
+                    </h3>
                     <span class="marker-date">${marker.createdAt}</span>
                 </div>
                 ${marker.memo ? `<p class="marker-memo">${marker.memo}</p>` : ''}
@@ -871,8 +962,11 @@ class MapMarkerApp {
                     failCount = result.failCount;
                 }
                 
-                // 최종 마커 취합
-                const finalMarkers = [...withCoords, ...geocodeResults];
+                // 최종 마커 취합 및 대기 상태 플래그 추가
+                const finalMarkers = [...withCoords, ...geocodeResults].map(m => ({
+                    ...m,
+                    isPending: true // DB 저장 대기 임시 마커로 등록
+                }));
                 
                 if (finalMarkers.length === 0) {
                     throw new Error('가져올 수 있는 유효한 위치 데이터가 없습니다.');
@@ -883,44 +977,17 @@ class MapMarkerApp {
                 const merged = [...this.markersData];
                 
                 let addedCount = 0;
-                const dbInsertQueue = [];
-
                 finalMarkers.forEach(m => {
                     if (!existingIds.has(m.id)) {
                         merged.push(m);
-                        dbInsertQueue.push(m);
                         addedCount++;
                     }
                 });
-
-                if (this.supabase && dbInsertQueue.length > 0) {
-                    try {
-                        this.excelStatusText.textContent = 'Supabase 클라우드 동기화 중...';
-                        const bulkData = dbInsertQueue.map(m => ({
-                            id: m.id,
-                            name: m.name,
-                            lat: m.lat,
-                            lng: m.lng,
-                            memo: m.memo || "",
-                            tags: m.tags || [],
-                            created_at: new Date().toISOString()
-                        }));
-
-                        const { error } = await this.supabase
-                            .from('markers')
-                            .insert(bulkData);
-                        
-                        if (error) throw error;
-                    } catch (e) {
-                        this.showToast('Supabase Excel 동기화 실패: ' + e.message, 5000);
-                        this.excelStatus.classList.add('hidden');
-                        this.importExcelFile.value = '';
-                        return;
-                    }
-                }
                 
                 this.markersData = merged;
-                this.syncLocalStorage();
+                
+                // 대기 UI 업데이트 (이탈 경고 및 카운터 토글)
+                this.updatePendingUI();
                 
                 // 지도 및 리스트 갱신
                 this.renderMarkersOnMap();
@@ -934,7 +1001,7 @@ class MapMarkerApp {
                     this.map.setLevel(4);
                 }
                 
-                let summaryMsg = `엑셀 위치 마킹 완료! 총 ${addedCount}개 장소 추가.`;
+                let summaryMsg = `엑셀 위치 마킹 완료! 총 ${addedCount}개 장소가 대기 중입니다.`;
                 if (failCount > 0) {
                     summaryMsg += ` (주소 찾기 실패: ${failCount}건)`;
                 }
@@ -949,6 +1016,92 @@ class MapMarkerApp {
                 this.excelStatus.classList.add('hidden');
                 this.importExcelFile.value = '';
             });
+    }
+
+    // 대기 마커 개수 업데이트 및 UI 제어 (페이지 이탈 방지 경고 포함)
+    updatePendingUI() {
+        const pendingCount = this.markersData.filter(m => m.isPending).length;
+        if (pendingCount > 0) {
+            this.pendingCount.textContent = pendingCount;
+            this.pendingActions.classList.remove('hidden');
+            
+            // 페이지 이탈 경고 이벤트 바인딩 (중복 등록 방지)
+            if (!this.beforeUnloadHandler) {
+                this.beforeUnloadHandler = (e) => {
+                    e.preventDefault();
+                    e.returnValue = '저장되지 않은 대기 마커가 있습니다. 이 페이지를 벗어나시겠습니까?';
+                    return e.returnValue;
+                };
+                window.addEventListener('beforeunload', this.beforeUnloadHandler);
+            }
+        } else {
+            this.pendingActions.classList.add('hidden');
+            
+            // 페이지 이탈 경고 해제
+            if (this.beforeUnloadHandler) {
+                window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+                this.beforeUnloadHandler = null;
+            }
+        }
+    }
+
+    // 대기 마커 전체 Supabase 전송
+    async handleUploadPending() {
+        const pendingMarkers = this.markersData.filter(m => m.isPending);
+        if (pendingMarkers.length === 0) return;
+
+        if (this.supabase) {
+            try {
+                this.showToast('Supabase로 전체 전송 중...');
+                const bulkData = pendingMarkers.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    lat: m.lat,
+                    lng: m.lng,
+                    memo: m.memo || "",
+                    tags: m.tags || [],
+                    created_at: new Date().toISOString()
+                }));
+
+                const { error } = await this.supabase
+                    .from('markers')
+                    .insert(bulkData);
+                
+                if (error) throw error;
+            } catch (e) {
+                this.showToast('Supabase 일괄 전송 실패: ' + e.message, 5000);
+                return;
+            }
+        }
+
+        // 전체 대기 상태 제거 및 로컬스토리지 저장
+        pendingMarkers.forEach(m => m.isPending = false);
+        this.syncLocalStorage();
+
+        // UI 갱신
+        this.updatePendingUI();
+        this.renderMarkersOnMap();
+        this.renderMarkersList();
+        this.showToast(`성공적으로 ${pendingMarkers.length}개의 위치를 Supabase에 저장했습니다.`);
+    }
+
+    // 대기 마커 전체 취소 및 지도 클리어
+    handleCancelPending() {
+        const pendingMarkers = this.markersData.filter(m => m.isPending);
+        if (pendingMarkers.length === 0) return;
+
+        if (!confirm(`대기 중인 ${pendingMarkers.length}개의 위치 마킹을 모두 취소하시겠습니까?`)) return;
+
+        // 대기 상태의 마커들을 메모리에서 완전히 솎아냄
+        this.markersData = this.markersData.filter(m => !m.isPending);
+        
+        // 지도 객체 정리
+        pendingMarkers.forEach(m => this.removeMarkerFromMap(m.id));
+
+        // UI 갱신
+        this.updatePendingUI();
+        this.renderMarkersList();
+        this.showToast('임시 대기 마커가 모두 삭제되었습니다.');
     }
 
     // 주소 변환 큐 처리

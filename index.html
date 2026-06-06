@@ -64,6 +64,21 @@
                         <i class="fa-solid fa-circle-notch fa-spin"></i>
                         <span id="excel-status-text">파일 분석 중...</span>
                     </div>
+                    <!-- 대기 마커 전송/취소 컨트롤 영역 -->
+                    <div id="pending-actions" class="pending-actions hidden" style="margin-top: 12px; padding: 10px; border-radius: 8px; border: 1px dashed #f59e0b; background: rgba(245, 158, 11, 0.03);">
+                        <div style="font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span>대기 중인 위치: <strong id="pending-count" style="color: #f59e0b; font-weight: 600;">0</strong>개</span>
+                            <span style="color: var(--text-muted);">*확인 후 전송해 주세요.</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button id="cancel-pending-btn" class="btn btn-secondary flex-btn" style="padding: 6px 12px; font-size: 11px; height: 32px; border-color: rgba(244, 63, 94, 0.2); color: #f43f5e; background: transparent;">
+                                <i class="fa-solid fa-trash-can"></i> 전체 취소
+                            </button>
+                            <button id="upload-pending-btn" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); padding: 6px 12px; font-size: 11px; height: 32px;">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> 전체 전송
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
