@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-07] 주소 검색창 위치를 '저장된 위치' 상단으로 이동하는 레이아웃 개선 계획
+
+### 1. 개요
+- 사용자가 장소 및 주소 검색 후 해당 결과를 확인하고, 바로 아래의 '저장된 위치' 목록과 연계하여 탐색하기 편리하도록 사이드바 상단에 고정되어 있던 주소 검색창(`section.search-section`)을 '저장된 위치'(`section.markers-section`)의 바로 위로 배치 이동합니다.
+
+### 2. Proposed Changes
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/index.html)
+- `section.search-section` 마크업 블록을 기존 사이드바 최상단(헤더 아래)에서 잘라내어, `section.filter-accordion-section`과 `section.markers-section` 사이로 이동시킵니다.
+
+### 3. Verification Plan
+1. 브라우저에서 사이드바를 로드하여 검색창이 '저장된 위치' 타이틀 바로 위에 렌더링되는지 확인합니다.
+2. 검색어 입력 및 결과 팝업 시 정상적으로 하단의 '저장된 위치'를 밀어내며 작동하는지 확인합니다.
+
+---
+
 ## [2026-06-07] 로드뷰 촬영 날짜 선택 및 과거 이력 보기 구현 계획
 
 ### 1. 개요
