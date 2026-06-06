@@ -120,6 +120,13 @@ class MapMarkerApp {
         // 필터 요소 캐시
         this.filterAccordionToggle = document.getElementById('filter-accordion-toggle');
         this.filterAccordionContent = document.getElementById('filter-accordion-content');
+
+        // 업로드 섹션 아코디언 캐시
+        this.excelAccordionToggle = document.getElementById('excel-accordion-toggle');
+        this.excelAccordionContent = document.getElementById('excel-accordion-content');
+        this.infoAccordionToggle = document.getElementById('info-accordion-toggle');
+        this.infoAccordionContent = document.getElementById('info-accordion-content');
+
         this.selectYearsTrigger = document.getElementById('select-years-trigger');
         this.optionsYearsContainer = document.getElementById('options-years-container');
         this.selectBusinessesTrigger = document.getElementById('select-businesses-trigger');
@@ -349,6 +356,22 @@ class MapMarkerApp {
             this.filterAccordionToggle.addEventListener('click', () => {
                 this.filterAccordionToggle.closest('.filter-accordion-section').classList.toggle('active');
                 this.filterAccordionContent.classList.toggle('hidden');
+            });
+        }
+
+        // 엑셀로 위치 찍기 아코디언 토글 이벤트
+        if (this.excelAccordionToggle) {
+            this.excelAccordionToggle.addEventListener('click', () => {
+                this.excelAccordionToggle.closest('.excel-section').classList.toggle('active');
+                this.excelAccordionContent.classList.toggle('hidden');
+            });
+        }
+
+        // 상세장비정보 업로드 아코디언 토글 이벤트
+        if (this.infoAccordionToggle) {
+            this.infoAccordionToggle.addEventListener('click', () => {
+                this.infoAccordionToggle.closest('.info-upload-section').classList.toggle('active');
+                this.infoAccordionContent.classList.toggle('hidden');
             });
         }
 
