@@ -24,7 +24,6 @@
                     <i class="fa-solid fa-map-location-dot logo-icon"></i>
                     <h1>MapMarker <span>Pro</span></h1>
                 </div>
-                <p class="subtitle">위치 마킹 및 데이터 대시보드</p>
             </header>
 
 
@@ -53,7 +52,7 @@
                     </div>
                 </div>
                 <div class="section-content">
-                    <p class="api-help-text">위도/경도 또는 주소가 포함된 Excel/CSV 파일을 업로드하세요.</p>
+                    <p class="api-help-text">위도/경도 또는 주소가 포함된 Excel/CSV 파일 업로드</p>
                     <div class="import-wrapper" style="margin-top: 8px;">
                         <label for="import-excel-file" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); width: 100%;">
                             <i class="fa-solid fa-file-arrow-up"></i> Excel/CSV 파일 업로드
@@ -91,7 +90,7 @@
                     </div>
                 </div>
                 <div class="section-content">
-                    <p class="api-help-text">통합시설코드가 포함된 Excel/CSV 파일을 업로드하여 Supabase information 테이블에 저장합니다.</p>
+                    <p class="api-help-text">통합시설코드가 포함된 Excel/CSV 파일 업로드</p>
                     <div class="import-wrapper" style="margin-top: 8px;">
                         <label for="import-info-file" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2); width: 100%;">
                             <i class="fa-solid fa-file-arrow-up"></i> 상세장비 Excel 업로드
@@ -346,8 +345,25 @@
         </div>
     </div>
 
+    <!-- Roadview Modal -->
+    <div id="roadview-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="width: 1200px; height: 900px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; resize: both; overflow: hidden; min-width: 400px; min-height: 300px;">
+            <header class="modal-header" style="cursor: move; user-select: none;">
+                <h3 id="roadview-title">현장 로드뷰</h3>
+                <button id="close-roadview-btn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="modal-body" style="flex-grow: 1; padding: 0; position: relative;">
+                <div id="roadview-container" style="width: 100%; height: 100%;"></div>
+                <div id="roadview-error" class="hidden" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-secondary);">
+                    <i class="fa-solid fa-circle-exclamation" style="font-size: 48px; color: var(--danger);"></i>
+                    <p style="font-size: 14px;">해당 좌표 주변에 제공되는 로드뷰가 없습니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Kakao Map SDK -->
-    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=223e7ae08e4de052f9b928968c485d27&libraries=services&autoload=false"></script>
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=223e7ae08e4de052f9b928968c485d27&libraries=services,clusterer&autoload=false"></script>
     <!-- Supabase SDK & Config -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
