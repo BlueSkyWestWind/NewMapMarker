@@ -1,0 +1,5 @@
+// Supabase 접속 설정 정보
+const SUPABASE_CONFIG = {
+    URL: "YOUR_SUPABASE_PROJECT_URL",
+    ANON_KEY: "YOUR_SUPABASE_ANON_KEY"
+};

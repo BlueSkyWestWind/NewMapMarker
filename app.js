@@ -111,16 +111,41 @@ class MapMarkerApp {
         });
     }
 
-    init() {
-        // 로컬 스토리지에서 저장된 마커 불러오기
-        const saved = localStorage.getItem('saved_markers');
-        if (saved) {
+    async init() {
+        // Supabase 초기화 검증 및 인스턴스 생성
+        this.supabase = null;
+        if (typeof supabase !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.URL && SUPABASE_CONFIG.URL !== "YOUR_SUPABASE_PROJECT_URL") {
             try {
-                this.markersData = JSON.parse(saved);
+                this.supabase = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY);
             } catch (e) {
-                console.error("저장된 마커 파싱 오류:", e);
-                this.markersData = [];
+                console.error("Supabase 초기화 실패:", e);
             }
+        }
+
+        if (this.supabase) {
+            try {
+                const { data, error } = await this.supabase
+                    .from('markers')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) throw error;
+                
+                this.markersData = (data || []).map(row => ({
+                    id: row.id,
+                    name: row.name,
+                    lat: row.lat,
+                    lng: row.lng,
+                    memo: row.memo || "",
+                    tags: row.tags || [],
+                    createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+                }));
+            } catch (e) {
+                console.error("Supabase 데이터 로드 실패, 로컬 캐시를 사용합니다:", e);
+                this.loadFromLocalStorage();
+            }
+        } else {
+            this.loadFromLocalStorage();
         }
         
         // 정적 스크립트 로드 완료 후 지도 로딩 진행
@@ -133,6 +158,18 @@ class MapMarkerApp {
         }
         
         this.renderMarkersList();
+    }
+
+    loadFromLocalStorage() {
+        const saved = localStorage.getItem('saved_markers');
+        if (saved) {
+            try {
+                this.markersData = JSON.parse(saved);
+            } catch (e) {
+                console.error("저장된 마커 파싱 오류:", e);
+                this.markersData = [];
+            }
+        }
     }
 
     // 지도 인스턴스 생성 및 초기화
@@ -234,7 +271,7 @@ class MapMarkerApp {
     }
 
     // 마커 추가/수정 로직
-    handleSaveMarker() {
+    async handleSaveMarker() {
         const name = this.markerNameInput.value.trim();
         const lat = parseFloat(this.markerLatInput.value);
         const lng = parseFloat(this.markerLngInput.value);
@@ -256,13 +293,33 @@ class MapMarkerApp {
             // 수정 모드
             const index = this.markersData.findIndex(m => m.id === this.currentEditingId);
             if (index !== -1) {
-                // 수정 시 기존 정보 중 위도, 경도 좌표는 변경 없이 보존
-                this.markersData[index] = {
+                const updatedItem = {
                     ...this.markersData[index],
                     name,
                     memo,
                     tags
                 };
+
+                if (this.supabase) {
+                    try {
+                        const { error } = await this.supabase
+                            .from('markers')
+                            .update({
+                                name: updatedItem.name,
+                                memo: updatedItem.memo,
+                                tags: updatedItem.tags
+                            })
+                            .eq('id', this.currentEditingId);
+                        
+                        if (error) throw error;
+                    } catch (e) {
+                        this.showToast('Supabase 데이터 수정 실패: ' + e.message, 5000);
+                        return;
+                    }
+                }
+
+                // 수정 시 기존 정보 중 위도, 경도 좌표는 변경 없이 보존
+                this.markersData[index] = updatedItem;
                 this.showToast('마커 정보가 수정되었습니다.');
             }
         } else {
@@ -276,6 +333,28 @@ class MapMarkerApp {
                 tags,
                 createdAt: new Date().toISOString().split('T')[0]
             };
+
+            if (this.supabase) {
+                try {
+                    const { error } = await this.supabase
+                        .from('markers')
+                        .insert({
+                            id: newMarker.id,
+                            name: newMarker.name,
+                            lat: newMarker.lat,
+                            lng: newMarker.lng,
+                            memo: newMarker.memo,
+                            tags: newMarker.tags,
+                            created_at: new Date().toISOString()
+                        });
+                    
+                    if (error) throw error;
+                } catch (e) {
+                    this.showToast('Supabase 데이터 추가 실패: ' + e.message, 5000);
+                    return;
+                }
+            }
+
             this.markersData.push(newMarker);
             this.showToast('새 마커가 성공적으로 등록되었습니다.');
         }
@@ -291,9 +370,23 @@ class MapMarkerApp {
     }
 
     // 마커 삭제 로직
-    handleDeleteMarker(id) {
+    async handleDeleteMarker(id) {
         if (!confirm('이 마커를 삭제하시겠습니까?')) return;
         
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase
+                    .from('markers')
+                    .delete()
+                    .eq('id', id);
+                
+                if (error) throw error;
+            } catch (e) {
+                this.showToast('Supabase 데이터 삭제 실패: ' + e.message, 5000);
+                return;
+            }
+        }
+
         // 메모리 데이터에서 삭제
         this.markersData = this.markersData.filter(m => m.id !== id);
         this.syncLocalStorage();
@@ -688,23 +781,51 @@ class MapMarkerApp {
         if (!file) return;
         
         DataManager.importFromJSON(file)
-            .then(newMarkers => {
+            .then(async (newMarkers) => {
                 // 기존 데이터에 병합 (중복 아이디 방지)
                 const existingIds = new Set(this.markersData.map(m => m.id));
                 const merged = [...this.markersData];
                 
                 let addedCount = 0;
+                const dbInsertQueue = [];
+
                 newMarkers.forEach(m => {
                     if (!existingIds.has(m.id)) {
                         merged.push(m);
+                        dbInsertQueue.push(m);
                         addedCount++;
                     } else {
                         // 중복 ID가 존재할 경우 신규 아이디 발급하여 추가
                         m.id = 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
                         merged.push(m);
+                        dbInsertQueue.push(m);
                         addedCount++;
                     }
                 });
+
+                if (this.supabase && dbInsertQueue.length > 0) {
+                    try {
+                        const bulkData = dbInsertQueue.map(m => ({
+                            id: m.id,
+                            name: m.name,
+                            lat: m.lat,
+                            lng: m.lng,
+                            memo: m.memo || "",
+                            tags: m.tags || [],
+                            created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
+                        }));
+
+                        const { error } = await this.supabase
+                            .from('markers')
+                            .insert(bulkData);
+                        
+                        if (error) throw error;
+                    } catch (e) {
+                        this.showToast('Supabase JSON 동기화 실패: ' + e.message, 5000);
+                        this.importJsonFile.value = '';
+                        return;
+                    }
+                }
 
                 this.markersData = merged;
                 this.syncLocalStorage();
@@ -762,12 +883,41 @@ class MapMarkerApp {
                 const merged = [...this.markersData];
                 
                 let addedCount = 0;
+                const dbInsertQueue = [];
+
                 finalMarkers.forEach(m => {
                     if (!existingIds.has(m.id)) {
                         merged.push(m);
+                        dbInsertQueue.push(m);
                         addedCount++;
                     }
                 });
+
+                if (this.supabase && dbInsertQueue.length > 0) {
+                    try {
+                        this.excelStatusText.textContent = 'Supabase 클라우드 동기화 중...';
+                        const bulkData = dbInsertQueue.map(m => ({
+                            id: m.id,
+                            name: m.name,
+                            lat: m.lat,
+                            lng: m.lng,
+                            memo: m.memo || "",
+                            tags: m.tags || [],
+                            created_at: new Date().toISOString()
+                        }));
+
+                        const { error } = await this.supabase
+                            .from('markers')
+                            .insert(bulkData);
+                        
+                        if (error) throw error;
+                    } catch (e) {
+                        this.showToast('Supabase Excel 동기화 실패: ' + e.message, 5000);
+                        this.excelStatus.classList.add('hidden');
+                        this.importExcelFile.value = '';
+                        return;
+                    }
+                }
                 
                 this.markersData = merged;
                 this.syncLocalStorage();
