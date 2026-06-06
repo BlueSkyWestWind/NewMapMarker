@@ -428,34 +428,35 @@ class MapMarkerApp {
                 
                 if (markersError) throw markersError;
 
-                // 2. facility_code가 유효한 목록 추출
-                const facilityCodes = (markersList || [])
-                    .map(m => m.facility_code)
-                    .filter(code => code && code.trim() !== "");
+                // 2. information 테이블 전체 로드 (메모리 조인용)
+                const { data: infoList, error: infoError } = await this.supabase
+                    .from('information')
+                    .select('*');
+                
+                if (infoError) throw infoError;
 
+                // 3. place_name을 key로 하는 Map 생성 (1:N 대응이므로 배열로 저장)
                 const infoMap = new Map();
-
-                if (facilityCodes.length > 0) {
-                    // facility_code가 많을 수 있으므로 500개씩 Chunk로 나누어 쿼리
-                    const chunkSize = 500;
-                    for (let i = 0; i < facilityCodes.length; i += chunkSize) {
-                        const chunk = facilityCodes.slice(i, i + chunkSize);
-                        const { data: infoData, error: infoError } = await this.supabase
-                            .from('information')
-                            .select('facility_code, facility_year, business_type, project_code, final_station_name, eq_class, eq_type, install_date, open_date')
-                            .in('facility_code', chunk);
-
-                        if (!infoError && infoData) {
-                            infoData.forEach(info => {
-                                infoMap.set(info.facility_code, info);
-                            });
+                if (infoList) {
+                    infoList.forEach(info => {
+                        const name = info.place_name ? info.place_name.trim() : "";
+                        if (name) {
+                            if (!infoMap.has(name)) {
+                                infoMap.set(name, []);
+                            }
+                            infoMap.get(name).push(info);
                         }
-                    }
+                    });
                 }
                 
-                // 3. markersData 구성 시 information 정보 결합
+                // 4. markersData 구성 시 place_name 기준으로 information 정보 결합
                 this.markersData = (markersList || []).map(row => {
-                    const info = row.facility_code ? infoMap.get(row.facility_code) : null;
+                    const markerName = row.name ? row.name.trim() : "";
+                    const infos = infoMap.get(markerName) || [];
+                    
+                    // N개의 장비 중 첫 번째 정보를 대표 정보로 사용
+                    const repInfo = infos[0] || null;
+                    
                     return {
                         id: row.id,
                         name: row.name,
@@ -463,15 +464,15 @@ class MapMarkerApp {
                         lng: row.lng,
                         memo: row.memo || "",
                         tags: row.tags || [],
-                        facilityCode: row.facility_code || "",
-                        projectCode: info ? info.project_code || "" : "",
-                        facilityYear: info ? info.facility_year || "" : "",
-                        businessType: info ? info.business_type || "" : "",
-                        finalStationName: info ? info.final_station_name || "" : "",
-                        eqClass: info ? info.eq_class || "" : "",
-                        eqType: info ? info.eq_type || "" : "",
-                        installDate: info ? info.install_date || "" : "",
-                        openDate: info ? info.open_date || "" : "",
+                        facilityCode: row.facility_code || (repInfo ? repInfo.facility_code || "" : ""),
+                        projectCode: repInfo ? repInfo.project_code || "" : "",
+                        facilityYear: repInfo ? repInfo.facility_year || "" : "",
+                        businessType: repInfo ? repInfo.business_type || "" : "",
+                        finalStationName: repInfo ? repInfo.final_station_name || "" : "",
+                        eqClass: repInfo ? repInfo.eq_class || "" : "",
+                        eqType: repInfo ? repInfo.eq_type || "" : "",
+                        installDate: repInfo ? repInfo.install_date || "" : "",
+                        openDate: repInfo ? repInfo.open_date || "" : "",
                         createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
                     };
                 });
