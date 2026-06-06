@@ -10,6 +10,31 @@
  * 6. CSV/JSON 내보내기 및 데이터 관리 연동
  */
 
+// 커스텀 SVG 마커 이미지 정의 (에메랄드 그린 & 오렌지 골드)
+const MARKER_SVG_EMERALD = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45">
+  <defs>
+    <linearGradient id="pin-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#pin-emerald)" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="12" cy="12" r="4.5" fill="#ffffff"/>
+</svg>`);
+
+const MARKER_SVG_GOLD = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45">
+  <defs>
+    <linearGradient id="pin-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#pin-gold)" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="12" cy="12" r="4.5" fill="#ffffff"/>
+</svg>`);
+
 class MapMarkerApp {
     constructor() {
         // 상태 정의
@@ -820,9 +845,11 @@ class MapMarkerApp {
         // 이미 생성된 임시 마커가 있다면 제거
         this.clearTempMarker();
         
-        // 임시 마커 생성 (저장 전 상태 시각화)
+        // 임시 마커 생성 (저장 전 상태 시각화 - 골드 커스텀 SVG 적용)
+        const tempMarkerImage = new kakao.maps.MarkerImage(MARKER_SVG_GOLD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) });
         this.tempMarker = new kakao.maps.Marker({
             position: latLng,
+            image: tempMarkerImage,
             map: this.map
         });
         
@@ -1501,11 +1528,10 @@ class MapMarkerApp {
 
             const position = new kakao.maps.LatLng(data.lat, data.lng);
             
-            // 1. 마커 객체 생성 (대기 상태 마커인 경우 노란 별 모양 이미지 적용)
-            const markerImage = data.isPending ? new kakao.maps.MarkerImage(
-                'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png',
-                new kakao.maps.Size(24, 35)
-            ) : null;
+            // 1. 마커 객체 생성 (대기 상태 마커인 경우 골드, 일반 마커인 경우 에메랄드 그린 커스텀 SVG 적용)
+            const markerImage = data.isPending
+                ? new kakao.maps.MarkerImage(MARKER_SVG_GOLD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) })
+                : new kakao.maps.MarkerImage(MARKER_SVG_EMERALD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) });
 
             const marker = new kakao.maps.Marker({
                 position: position,
@@ -2013,10 +2039,12 @@ class MapMarkerApp {
                 this.map.setCenter(position);
                 this.map.setLevel(3);
                 
-                // 임시 마커 및 말풍선 렌더링 (팝업 바로 띄우지 않음)
+                // 임시 마커 및 말풍선 렌더링 (팝업 바로 띄우지 않음 - 골드 커스텀 SVG 적용)
                 this.clearTempMarker();
+                const tempMarkerImage = new kakao.maps.MarkerImage(MARKER_SVG_GOLD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) });
                 this.tempMarker = new kakao.maps.Marker({
                     position: position,
+                    image: tempMarkerImage,
                     map: this.map
                 });
 
