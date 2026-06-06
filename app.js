@@ -655,9 +655,9 @@ class MapMarkerApp {
         this.saveMarkerBtn.classList.remove('hidden');
         this.cancelModalBtn.textContent = '취소';
 
-        // 테이블 뷰 토글
-        if (this.detailedInfoFormWrapper) this.detailedInfoFormWrapper.classList.remove('hidden');
-        if (this.detailedInfoTableWrapper) this.detailedInfoTableWrapper.classList.add('hidden');
+        // 테이블 뷰 토글 (상세 보기 모드와 동일하게 상세장비정보를 테이블 형태로 노출하도록 변경)
+        if (this.detailedInfoFormWrapper) this.detailedInfoFormWrapper.classList.add('hidden');
+        if (this.detailedInfoTableWrapper) this.detailedInfoTableWrapper.classList.remove('hidden');
         
         // 대기 상태(isPending)가 아닐 때만 삭제 버튼 노출
         if (markerData.isPending) {
