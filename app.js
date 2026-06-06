@@ -2858,15 +2858,25 @@ class MapMarkerApp {
         if (this.lastLoadedPanoId === panoId) return;
         this.lastLoadedPanoId = panoId;
 
-        // 카카오 로드뷰 노드 정보 질의 API (비공식 서비스 API 활용)
-        const url = `https://rv.map.kakao.com/roadview-search/v2/node/${panoId}?SERVICE=csspano`;
+        // 로컬 프록시 주소 및 카카오 직접 호출 주소 정의 (CORS 대응)
+        const localUrl = `/api/roadview-dates?panoId=${panoId}`;
+        const remoteUrl = `https://rv.map.kakao.com/roadview-search/v2/node/${panoId}?SERVICE=csspano`;
 
-        fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('네트워크 응답이 올바르지 않습니다.');
-                }
-                return response.json();
+        const requestData = (fetchUrl) => {
+            return fetch(fetchUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('네트워크 응답이 올바르지 않습니다.');
+                    }
+                    return response.json();
+                });
+        };
+
+        // 1차로 로컬 프록시 요청 시도, 실패 시 2차로 원격 직접 요청 시도
+        requestData(localUrl)
+            .catch(err => {
+                console.warn('로컬 프록시 API 호출 실패, 카카오 직접 호출 시도:', err);
+                return requestData(remoteUrl);
             })
             .then(data => {
                 const dateContainer = document.getElementById('roadview-date-container');

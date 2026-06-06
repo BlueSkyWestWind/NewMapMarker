@@ -14,10 +14,12 @@
 - **`index.html` 내 촬영 일자 선택 드롭다운 오버레이 UI 추가**:
   - 로드뷰 모달 바디(`#roadview-modal .modal-body`) 내부의 `#roadview-container` 상단 영역에 절대 위치(`position: absolute; z-index: 10;`)의 글라스모피즘 스타일 오버레이 카드인 `#roadview-date-container`를 배치했습니다.
   - 다크 테마 기반의 디자인(`background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px)`)을 적용하여 3D 파노라마 화면 위에서도 가시성이 뛰어나며, 달력 아이콘과 함께 촬영 일자를 선택할 수 있는 `<select id="roadview-date-select">`를 배치했습니다.
-- **`app.js` 내 비공식 REST API를 이용한 촬영 날짜 동적 획득 및 갱신 구현**:
+- **`app.js` 및 `server.js` 내 비공식 REST API를 이용한 촬영 날짜 동적 획득, CORS 프록시 우회 및 갱신 구현**:
+  - **CORS 프록시 API 신설 (`server.js`)**: 브라우저에서 외부 `rv.map.kakao.com` 으로 직접 API 요청 시 발생하는 CORS(Cross-Origin Resource Sharing) 제한 에러를 방어하기 위해, Node.js 기반 로컬 개발 서버에 `/api/roadview-dates?panoId=...` 엔드포인트를 추가하여 카카오 API 서버와 프록시 통신을 중계하도록 개선했습니다.
+  - **하이브리드 fetch 통신 적용 (`app.js` -> `updateRoadviewDates`)**: 1차적으로 로컬 프록시 API 서버에 요청을 전송하고, 로컬 서버 미작동 등의 사유로 오류가 날 경우 2차적으로 카카오 원격 API 주소로 직접 우회하여 요청을 시도하는 하이브리드 fetch 매커니즘을 구사하여 신뢰도를 끌어올렸습니다.
   - **상태 관리 변수 추가**: 현재 인스턴스를 보관할 `this.currentRoadview` 및 API 중복 호출을 막을 `this.lastLoadedPanoId`를 도입했습니다.
   - **`openRoadviewModal(lat, lng, name)`**: 로드뷰 인스턴스 생성 직후 촬영 일자 영역을 초기화(숨김) 처리하고, 카카오 SDK의 로드뷰 파노라마 변경 이벤트 `pano_changed`를 리스닝하도록 등록했습니다.
-  - **`updateRoadviewDates(panoId)` 신설**: 파노라마 ID가 바뀔 때 호출되며, 중복 캐시를 검사한 후 비공식 카카오 로드뷰 검색 API(`https://rv.map.kakao.com/roadview-search/v2/node/{panoId}?SERVICE=csspano`)로 fetch 요청을 보냅니다.
+  - **`updateRoadviewDates(panoId)` 신설**: 파노라마 ID가 바뀔 때 호출되며, 중복 캐시를 검사한 후 fetch 요청을 보내 과거 이력을 로드합니다.
   - 응답 데이터의 `street_view.streetList`에서 과거 촬영 날짜 코드(`date`)들을 추출하고 최신순으로 정렬하여 `YYYY년 MM월` 포맷으로 드롭다운 옵션을 동적 생성한 뒤 바인딩합니다. 과거 이력이 존재할 때만 드롭다운 컨테이너(`#roadview-date-container`)를 노출합니다.
   - **`closeRoadviewModal()`**: 모달 닫기 시 메모리 누수 방지를 위해 캐시를 초기화하고 날짜 리스트 및 오버레이 박스를 청소 및 숨깁니다.
   - **이벤트 바인딩 (`bindEvents`)**: 드롭다운 `#roadview-date-select`의 `change` 이벤트를 감지하여 선택된 파노라마 ID의 로드뷰 화면으로 즉각 전환(`currentRoadview.setPanoId(selectedPanoId)`)되도록 핸들러를 연동했습니다.

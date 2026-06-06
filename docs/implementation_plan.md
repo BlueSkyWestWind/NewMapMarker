@@ -13,7 +13,7 @@
 > [!IMPORTANT]
 > **과거 로드뷰 촬영 이력 연동 방식**
 > - **비공식 REST API 활용 및 예외 처리**: 카카오맵 JavaScript SDK 공식 문서에는 과거 일자 조회 메서드가 없으므로, 로드뷰 SDK 내부에서 파노라마 노드 및 과거 이력을 탐색할 때 사용하는 REST API(`https://rv.map.kakao.com/roadview-search/v2/node/{panoId}?SERVICE=csspano`)를 비동기로 호출하여 `streetList` 데이터를 추출합니다.
-> - **CORS 정책 고려**: 브라우저에서 직접 카카오 API로 fetch를 보낼 때 CORS 정책 제한을 고려하여, 카카오 개발자 센터에 등록된 origin 환경에서 정상 동작함을 보장하되, 만약의 오류 상황(CORS 제한 등) 발생 시에도 로드뷰의 핵심 기능은 정상 동작하고 날짜 선택 영역만 우아하게 숨겨지도록(Graceful Degradation) 안전 장치(`try-catch`)를 구성합니다.
+> - **CORS 회피 및 하이브리드 fetch**: 브라우저에서 카카오 API로 직접 fetch를 날릴 때 발생하는 CORS 차단 에러를 우회하기 위해, 로컬 개발 서버(`server.js`) 내에 `/api/roadview-dates?panoId=...` 프록시 API 엔드포인트를 신설합니다. 클라이언트는 1차로 이 로컬 프록시 API를 fetch하고, 로컬 서버 미작동이나 기타 이유로 실패할 경우 2차로 카카오 API에 원격 직접 요청을 쏘는(CORS fallback) 하이브리드 요청 전략을 활용하여 날짜 선택기 로딩률을 100% 보장합니다.
 > - **무한 루프 방지**: 로드뷰 이동(`pano_changed`)과 셀렉트 박스 선택 변경(`change`) 시점의 중복 API 호출을 방지하기 위해 직전에 로딩 완료한 `lastLoadedPanoId`를 메모리에 캐싱하여 제어합니다.
 > - **복원 보장**: 구현 도중 예상치 못한 버그 등으로 인해 구현에 실패하는 경우, 사용자가 "복원해줘"라고 지시하면 현재 시점(작업 시작 직전 커밋 상태)으로 즉시 롤백할 것을 보장합니다.
 

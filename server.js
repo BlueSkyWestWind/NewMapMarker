@@ -19,6 +19,36 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
 
+    // API 프록시 처리 (카카오 로드뷰 과거 날짜 API의 브라우저 CORS 회피 목적)
+    if (req.url.startsWith('/api/roadview-dates')) {
+        const urlObj = new URL(req.url, `http://${req.headers.host}`);
+        const panoId = urlObj.searchParams.get('panoId');
+        if (!panoId) {
+            res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: 'panoId 파라미터가 필요합니다.' }));
+            return;
+        }
+
+        const targetUrl = `https://rv.map.kakao.com/roadview-search/v2/node/${panoId}?SERVICE=csspano`;
+        const https = require('https');
+        https.get(targetUrl, (apiRes) => {
+            let body = '';
+            apiRes.on('data', (chunk) => body += chunk);
+            apiRes.on('end', () => {
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(body);
+            });
+        }).on('error', (err) => {
+            console.error('프록시 API 요청 오류:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: '카카오 API 요청에 실패했습니다.' }));
+        });
+        return;
+    }
+
     // 기본 파일 경로 설정
     let filePath = '.' + req.url;
     if (filePath === './') {
