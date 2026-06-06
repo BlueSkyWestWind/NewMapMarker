@@ -4,6 +4,63 @@
 
 ---
 
+## [2026-06-07] 로드뷰 촬영 날짜 선택 및 과거 이력 보기 구현 계획
+
+### 1. 개요
+카카오 로드뷰가 제공하는 특정 위치 주변의 과거 로드뷰 촬영 일자 목록을 조회하여, 사용자가 웹 화면에서 원하는 촬영 날짜를 직접 드롭다운으로 선택해 해당 시점의 로드뷰 화면으로 전환할 수 있도록 UI/UX 및 연동 로직을 구현합니다.
+
+### 2. User Review Required
+> [!IMPORTANT]
+> **과거 로드뷰 촬영 이력 연동 방식**
+> - **비공식 REST API 활용 및 예외 처리**: 카카오맵 JavaScript SDK 공식 문서에는 과거 일자 조회 메서드가 없으므로, 로드뷰 SDK 내부에서 파노라마 노드 및 과거 이력을 탐색할 때 사용하는 REST API(`https://rv.map.kakao.com/roadview-search/v2/node/{panoId}?SERVICE=csspano`)를 비동기로 호출하여 `streetList` 데이터를 추출합니다.
+> - **CORS 정책 고려**: 브라우저에서 직접 카카오 API로 fetch를 보낼 때 CORS 정책 제한을 고려하여, 카카오 개발자 센터에 등록된 origin 환경에서 정상 동작함을 보장하되, 만약의 오류 상황(CORS 제한 등) 발생 시에도 로드뷰의 핵심 기능은 정상 동작하고 날짜 선택 영역만 우아하게 숨겨지도록(Graceful Degradation) 안전 장치(`try-catch`)를 구성합니다.
+> - **무한 루프 방지**: 로드뷰 이동(`pano_changed`)과 셀렉트 박스 선택 변경(`change`) 시점의 중복 API 호출을 방지하기 위해 직전에 로딩 완료한 `lastLoadedPanoId`를 메모리에 캐싱하여 제어합니다.
+> - **복원 보장**: 구현 도중 예상치 못한 버그 등으로 인해 구현에 실패하는 경우, 사용자가 "복원해줘"라고 지시하면 현재 시점(작업 시작 직전 커밋 상태)으로 즉시 롤백할 것을 보장합니다.
+
+### 3. Proposed Changes
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/index.html)
+- 로드뷰 모달 바디(`#roadview-modal .modal-body`)의 `#roadview-container` 상단 레이어에 절대 위치(`position: absolute; z-index: 10;`)로 날짜 선택기 오버레이 카드(`#roadview-date-container`)를 신설합니다.
+- 카드 내부에 달력 아이콘, `"촬영 일자"` 텍스트 레이블, 그리고 동적으로 옵션이 채워질 `<select id="roadview-date-select">`를 배치합니다.
+- 초기 로드 및 과거 이력이 없을 때는 보이지 않도록 기본적으로 `hidden` 클래스를 적용해 숨겨둡니다.
+
+#### [UI / CSS]
+##### [MODIFY] [style.css](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/style.css)
+- 필요 시 날짜 선택 오버레이 카드의 다크 모드/글라스모피즘 스타일을 정의합니다. (인라인 스타일로도 충분히 미려하게 구현 가능하지만 일관된 디자인 유지를 위해 CSS에 클래스 추가 또는 인라인 완성도 극대화)
+- 드롭다운 스타일이 3D 로드뷰 나침반이나 Kakao 기본 UI 요소를 가리지 않도록 적절한 줌/패딩 및 마진을 부여합니다.
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **`constructor()`**:
+  - `this.currentRoadview = null;` 및 `this.lastLoadedPanoId = null;` 인스턴스 변수를 초기화합니다.
+- **`bindEvents()`**:
+  - `#roadview-date-select` 요소의 `change` 이벤트를 감지하여 선택된 `panoId`로 `this.currentRoadview.setPanoId(selectedPanoId)`를 실행하는 리스너를 연동합니다.
+- **`openRoadviewModal(lat, lng, name)`**:
+  - 로드뷰 객체 `rv` 인스턴스를 `this.currentRoadview`에 캐싱합니다.
+  - `rv` 객체에 `pano_changed` 이벤트를 바인딩하여, 로드뷰의 시점/위치 이동 시마다 `updateRoadviewDates(currentPanoId)`를 실행시킵니다.
+- **`updateRoadviewDates(panoId)` 신설**:
+  - `this.lastLoadedPanoId === panoId` 일 시 조기 반환하여 중복 API 통신을 회피합니다.
+  - 카카오 로드뷰 검색 API(`https://rv.map.kakao.com/roadview-search/v2/node/{panoId}?SERVICE=csspano`)로 fetch 요청을 보냅니다.
+  - 수집된 `streetList`의 날짜 코드(예: `202306`)를 정렬 및 포맷팅(예: `2023년 06월`)하여 `#roadview-date-select` 옵션을 갱신합니다.
+  - 현재 파노라마 ID와 매칭되는 옵션을 `selected` 처리하고, 날짜 목록이 유효할 경우 날짜 오버레이 박스(`#roadview-date-container`)를 화면에 표시합니다.
+- **`closeRoadviewModal()`**:
+  - 모달 닫기 시 `this.currentRoadview = null;`, `this.lastLoadedPanoId = null;`로 캐시를 리셋하고 날짜 오버레이 레이아웃을 비우며 숨깁니다.
+
+### 4. Verification Plan
+
+#### Automated Tests
+- 없음
+
+#### Manual Verification
+1. 브라우저에서 마커의 `[로드뷰]` 버튼을 클릭해 로드뷰 모달을 띄웁니다.
+2. 로드뷰 화면 좌측 상단에 "촬영 일자" 드롭다운이 다크 모드 오버레이 카드로 미려하게 표시되는지 확인합니다.
+3. 드롭다운 목록에 해당 위치의 과거 촬영 연월 목록(최신순 정렬)이 `YYYY년 MM월` 포맷으로 바르게 출력되는지 확인합니다.
+4. 다른 날짜를 선택했을 때 로드뷰 화면이 해당 시점의 풍경으로 자연스럽게 전환되는지 검증합니다.
+5. 로드뷰 화면에서 전진/후진 마우스를 눌러 다른 구역으로 이동했을 때, 이동한 지점의 과거 날짜들로 드롭다운 리스트가 동적 갱신되고 현재 날짜가 올바르게 선택되는지 최종 확인합니다.
+
+---
+
 ## [2026-06-06] 연도 및 사업구분 다중 필터(Dropdown Accordion) 구현 계획
 
 ### 1. 개요

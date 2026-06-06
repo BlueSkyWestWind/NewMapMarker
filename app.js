@@ -24,6 +24,8 @@ class MapMarkerApp {
         this.selectedBusinesses = new Set(); // 선택된 사업구분 필터 셋
         this.currentEditingId = null; // 현재 편집 중인 마커 ID (null이면 신규 등록)
         this.focusedMarkerIndex = -1; // 키보드 탐색을 위한 포커스된 마커 인덱스
+        this.currentRoadview = null; // 현재 활성화된 로드뷰 객체
+        this.lastLoadedPanoId = null; // 마지막으로 가져온 촬영 일자의 파노라마 ID
         
         // DOM 요소 캐시
         this.cacheElements();
@@ -350,6 +352,17 @@ class MapMarkerApp {
 
         // 로드뷰 드래그 기능 활성화
         this.initRoadviewDrag();
+
+        // 로드뷰 촬영 일자 선택 변경 이벤트 바인딩
+        const roadviewDateSelect = document.getElementById('roadview-date-select');
+        if (roadviewDateSelect) {
+            roadviewDateSelect.addEventListener('change', (e) => {
+                const selectedPanoId = e.target.value;
+                if (this.currentRoadview && selectedPanoId) {
+                    this.currentRoadview.setPanoId(selectedPanoId);
+                }
+            });
+        }
 
         // 필터 아코디언 토글 이벤트
         if (this.filterAccordionToggle) {
@@ -2761,6 +2774,14 @@ class MapMarkerApp {
 
         try {
             const rv = new kakao.maps.Roadview(roadviewContainer);
+            this.currentRoadview = rv;
+
+            // 촬영 일자 오버레이 컨테이너 숨김 초기화
+            const dateContainer = document.getElementById('roadview-date-container');
+            if (dateContainer) {
+                dateContainer.classList.add('hidden');
+            }
+
             const rvClient = new kakao.maps.RoadviewClient();
             const position = new kakao.maps.LatLng(lat, lng);
 
@@ -2771,6 +2792,12 @@ class MapMarkerApp {
                 } else {
                     rv.setPanoId(panoId, position);
                 }
+            });
+
+            // 파노라마 ID 변경 이벤트 바인딩 (시점 이동 또는 날짜 선택 시 촬영 일자 목록 갱신)
+            kakao.maps.event.addListener(rv, 'pano_changed', () => {
+                const currentPanoId = rv.getPanoId();
+                this.updateRoadviewDates(currentPanoId);
             });
 
             // 크기 조절 시 로드뷰 레이아웃 재정렬 감지
@@ -2799,14 +2826,97 @@ class MapMarkerApp {
             this.roadviewResizeObserver.disconnect();
             this.roadviewResizeObserver = null;
         }
+        this.currentRoadview = null;
+        this.lastLoadedPanoId = null;
+
         const roadviewModal = document.getElementById('roadview-modal');
         if (roadviewModal) {
             roadviewModal.classList.add('hidden');
         }
+        
+        // 날짜 선택기 초기화
+        const dateContainer = document.getElementById('roadview-date-container');
+        if (dateContainer) {
+            dateContainer.classList.add('hidden');
+        }
+        const dateSelect = document.getElementById('roadview-date-select');
+        if (dateSelect) {
+            dateSelect.innerHTML = '';
+        }
+
         const roadviewContainer = document.getElementById('roadview-container');
         if (roadviewContainer) {
             roadviewContainer.innerHTML = '';
         }
+    }
+
+    // 현재 파노라마 ID를 기준으로 과거 촬영 날짜 목록을 조회하여 선택박스 동적 구성
+    updateRoadviewDates(panoId) {
+        if (!panoId) return;
+
+        // 중복 호출 방지 캐시 검증
+        if (this.lastLoadedPanoId === panoId) return;
+        this.lastLoadedPanoId = panoId;
+
+        // 카카오 로드뷰 노드 정보 질의 API (비공식 서비스 API 활용)
+        const url = `https://rv.map.kakao.com/roadview-search/v2/node/${panoId}?SERVICE=csspano`;
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('네트워크 응답이 올바르지 않습니다.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const dateContainer = document.getElementById('roadview-date-container');
+                const dateSelect = document.getElementById('roadview-date-select');
+                if (!dateContainer || !dateSelect) return;
+
+                const streetList = data.street_view ? data.street_view.streetList : null;
+                if (!streetList || streetList.length === 0) {
+                    dateContainer.classList.add('hidden');
+                    return;
+                }
+
+                // 촬영 이력 목록 최신순으로 정렬
+                const sortedList = [...streetList].sort((a, b) => b.date.localeCompare(a.date));
+
+                // 셀렉트 박스 옵션 생성
+                dateSelect.innerHTML = '';
+                sortedList.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+
+                    // 날짜 포맷팅 (예: "202306" -> "2023년 06월", "20230628" -> "2023년 06월 28일")
+                    let formattedDate = item.date;
+                    if (item.date && item.date.length === 6) {
+                        formattedDate = `${item.date.substring(0, 4)}년 ${item.date.substring(4, 6)}월`;
+                    } else if (item.date && item.date.length === 8) {
+                        formattedDate = `${item.date.substring(0, 4)}년 ${item.date.substring(4, 6)}월 ${item.date.substring(6, 8)}일`;
+                    }
+
+                    opt.textContent = formattedDate;
+                    if (String(item.id) === String(panoId)) {
+                        opt.selected = true;
+                    }
+                    dateSelect.appendChild(opt);
+                });
+
+                // 현재 촬영 일자 셀렉트 박스 동기화 설정 (현재 panoId가 선택되어 있지 않다면 강제 설정)
+                dateSelect.value = panoId;
+
+                // 날짜 옵션 리스트가 있으면 화면에 노출
+                dateContainer.classList.remove('hidden');
+            })
+            .catch(error => {
+                console.warn('로드뷰 과거 촬영 날짜 목록 로드 실패 (CORS 또는 네트워크 제한):', error);
+                // 오류 발생 시에는 사용자 경험 저해를 막기 위해 드롭다운 숨김 처리 후 로드뷰 화면은 그대로 노출
+                const dateContainer = document.getElementById('roadview-date-container');
+                if (dateContainer) {
+                    dateContainer.classList.add('hidden');
+                }
+            });
     }
 
     // 로드뷰 모달창 드래그 이동 기능 초기화

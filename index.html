@@ -409,6 +409,15 @@
             </header>
             <div class="modal-body" style="flex-grow: 1; padding: 0; position: relative;">
                 <div id="roadview-container" style="width: 100%; height: 100%;"></div>
+                
+                <!-- 로드뷰 촬영 일자 선택 오버레이 -->
+                <div id="roadview-date-container" class="hidden" style="position: absolute; top: 16px; left: 16px; z-index: 10; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                    <i class="fa-solid fa-calendar-days" style="color: #10b981; font-size: 14px;"></i>
+                    <span style="color: #f8fafc; font-size: 12px; font-weight: 500; user-select: none;">촬영 일자</span>
+                    <select id="roadview-date-select" style="background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; padding: 4px 24px 4px 8px; font-size: 12px; outline: none; cursor: pointer; font-family: inherit; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right%208px%20top%2050%25; background-size: 8px%20auto; min-width: 100px;">
+                    </select>
+                </div>
+
                 <div id="roadview-error" class="hidden" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-secondary);">
                     <i class="fa-solid fa-circle-exclamation" style="font-size: 48px; color: var(--danger);"></i>
                     <p style="font-size: 14px;">해당 좌표 주변에 제공되는 로드뷰가 없습니다.</p>
