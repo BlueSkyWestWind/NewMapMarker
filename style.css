@@ -1052,7 +1052,8 @@ textarea:focus {
 
 .filter-accordion-section.active .accordion-icon,
 .excel-section.active .accordion-icon,
-.info-upload-section.active .accordion-icon {
+.info-upload-section.active .accordion-icon,
+.sidebar-footer.active .accordion-icon {
     transform: rotate(180deg);
 }
 

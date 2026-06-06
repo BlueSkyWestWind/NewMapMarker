@@ -178,39 +178,45 @@
                 </div>
             </section>
 
-            <!-- Data Operations -->
-            <footer class="sidebar-footer" style="padding: 16px 24px; gap: 12px; display: flex; flex-direction: column;">
-                <!-- 위치 마커 (markers) 관리 -->
-                <div class="footer-section" style="border-bottom: 1px dashed var(--border-color); padding-bottom: 12px;">
-                    <div style="font-size: 11px; font-weight: 600; color: var(--secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-location-dot"></i> 위치 마커 (markers) 백업/복원
+            <!-- Data Operations (Accordion) -->
+            <footer class="sidebar-footer" style="padding: 0; display: flex; flex-direction: column;">
+                <div class="accordion-header" id="backup-accordion-toggle" style="padding: 16px 24px; border-top: 1px solid var(--border-color); cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="title-left" style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-database icon" style="color: #10b981; font-size: 16px;"></i>
+                        <span style="font-size: 13px; font-weight: 500;">데이터 백업 및 복원</span>
                     </div>
-                    <div class="footer-buttons" style="display: flex; gap: 8px; margin-bottom: 8px;">
-                        <button id="export-markers-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1;">
-                            <i class="fa-solid fa-file-code"></i> 백업 (JSON)
-                        </button>
-                        <label for="import-markers-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; margin: 0;">
-                            <i class="fa-solid fa-file-import"></i> 복원 (JSON)
-                        </label>
-                        <input type="file" id="import-markers-json-file" accept=".json" style="display: none;">
-                    </div>
-                    <button id="export-markers-csv-btn" class="btn btn-secondary flex-btn" style="width: 100%; padding: 6px 10px; font-size: 11px; height: 32px; background: transparent; border-color: var(--border-color);">
-                        <i class="fa-solid fa-file-csv"></i> 위치 목록 CSV 내보내기
-                    </button>
+                    <i class="fa-solid fa-chevron-down accordion-icon" style="font-size: 12px; color: var(--text-muted); transition: var(--transition-smooth);"></i>
                 </div>
-                <!-- 상세 장비 정보 (information) 관리 -->
-                <div class="footer-section">
-                    <div style="font-size: 11px; font-weight: 600; color: #8b5cf6; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-server"></i> 상세 장비 (information) 백업/복원
+                <div class="accordion-content hidden" id="backup-accordion-content" style="padding: 0 24px 20px 24px; display: flex; flex-direction: column; gap: 16px;">
+                    <!-- 위치 마커 (markers) 관리 -->
+                    <div class="footer-section" style="border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-top: 10px;">
+                        <div style="font-size: 11px; font-weight: 600; color: var(--secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-location-dot"></i> 위치 마커 (markers)
+                        </div>
+                        <div class="footer-buttons" style="display: flex; gap: 8px;">
+                            <button id="export-markers-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1;">
+                                <i class="fa-solid fa-file-code"></i> 백업 (JSON)
+                            </button>
+                            <label for="import-markers-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; margin: 0;">
+                                <i class="fa-solid fa-file-import"></i> 복원 (JSON)
+                            </label>
+                            <input type="file" id="import-markers-json-file" accept=".json" style="display: none;">
+                        </div>
                     </div>
-                    <div class="footer-buttons" style="display: flex; gap: 8px;">
-                        <button id="export-info-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1;">
-                            <i class="fa-solid fa-file-code"></i> 백업 (JSON)
-                        </button>
-                        <label for="import-info-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; margin: 0;">
-                            <i class="fa-solid fa-file-import"></i> 복원 (JSON)
-                        </label>
-                        <input type="file" id="import-info-json-file" accept=".json" style="display: none;">
+                    <!-- 상세 장비 정보 (information) 관리 -->
+                    <div class="footer-section">
+                        <div style="font-size: 11px; font-weight: 600; color: #8b5cf6; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-server"></i> 상세 장비 (information)
+                        </div>
+                        <div class="footer-buttons" style="display: flex; gap: 8px;">
+                            <button id="export-info-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1;">
+                                <i class="fa-solid fa-file-code"></i> 백업 (JSON)
+                            </button>
+                            <label for="import-info-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; margin: 0;">
+                                <i class="fa-solid fa-file-import"></i> 복원 (JSON)
+                            </label>
+                            <input type="file" id="import-info-json-file" accept=".json" style="display: none;">
+                        </div>
                     </div>
                 </div>
             </footer>

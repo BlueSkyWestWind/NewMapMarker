@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-06-07] 백업 및 복원 영역의 아코디언(Accordion) 전환 및 CSV 내보내기 버튼 제거 계획
+
+### 1. 개요
+- 사이드바 하단 영역이 상시 고정 노출되어 화면 높이를 차지하는 사용성 불편을 개선하기 위해, 백업 및 복원 구역을 접이식 아코디언 구조로 개편하여 필요할 때만 펼쳐서 쓸 수 있도록 변경합니다.
+- 불필요한 "위치 목록 CSV 내보내기" 버튼은 UI에서 영구 제거합니다.
+
+### 2. Proposed Changes
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/num%EC%84%9C/Vibe%20Codeing/001.MapMarker/index.html)
+- `sidebar-footer` 내부에 백업 아코디언 헤더(`#backup-accordion-toggle`)와 접이식 백업 아코디언 콘텐츠(`#backup-accordion-content`) 마크업 구조를 적용하고 기본적으로 접힌 상태(`hidden` 클래스 적용)로 렌더링합니다.
+- 기존 "위치 목록 CSV 내보내기" 버튼을 삭제합니다.
+
+#### [UI / CSS]
+##### [MODIFY] [style.css](file:///c:/Users/celyo/OneDrive/num%EC%84%9C/Vibe%20Codeing/001.MapMarker/style.css)
+- `.sidebar-footer.active .accordion-icon` 선택자를 추가하여, 아코디언이 펼쳐질 때 화살표 아이콘이 180도 부드럽게 회전하도록 구현합니다.
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/num%EC%84%9C/Vibe%20Codeing/001.MapMarker/app.js)
+- `backupAccordionToggle` 및 `backupAccordionContent` 요소를 캐싱하고, 아코디언 토글 클릭 시 `.sidebar-footer`에 `active` 클래스 토글 및 콘텐츠의 `hidden` 클래스를 토글하는 이벤트를 바인딩합니다.
+- 기존 CSV 내보내기 버튼 요소 캐시 및 이벤트 등록을 삭제합니다.
+
+### 3. Verification Plan
+1. 화면 하단에 "데이터 백업 및 복원" 아코디언 헤더가 표시되는지 확인합니다.
+2. 헤더 클릭 시 화살표 아이콘이 회전하며 백업/복원 상세 버튼들이 부드럽게 노출되는지 확인합니다.
+3. 위치 목록 CSV 내보내기 버튼이 정상 삭제되었는지 검증합니다.
+
+---
+
 ## [2026-06-07] Supabase 테이블별(markers / information) 독립적 백업 및 복원 기능 구현 계획
 
 ### 1. 개요

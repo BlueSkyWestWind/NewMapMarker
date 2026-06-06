@@ -48,11 +48,14 @@ class MapMarkerApp {
         this.markersList = document.getElementById('markers-list');
         this.markerCount = document.getElementById('marker-count');
         
-        this.exportMarkersCsvBtn = document.getElementById('export-markers-csv-btn');
         this.exportMarkersJsonBtn = document.getElementById('export-markers-json-btn');
         this.importMarkersJsonFile = document.getElementById('import-markers-json-file');
         this.exportInfoJsonBtn = document.getElementById('export-info-json-btn');
         this.importInfoJsonFile = document.getElementById('import-info-json-file');
+        
+        // 백업 아코디언 요소 캐시
+        this.backupAccordionToggle = document.getElementById('backup-accordion-toggle');
+        this.backupAccordionContent = document.getElementById('backup-accordion-content');
         
         // Excel/CSV 업로드 요소 캐시
         this.importExcelFile = document.getElementById('import-excel-file');
@@ -156,8 +159,11 @@ class MapMarkerApp {
         });
         this.markerFilter.addEventListener('keydown', (e) => this.handleMarkerFilterKeydown(e));
         
-        if (this.exportMarkersCsvBtn) {
-            this.exportMarkersCsvBtn.addEventListener('click', () => this.handleExportMarkersCSV());
+        if (this.backupAccordionToggle) {
+            this.backupAccordionToggle.addEventListener('click', () => {
+                this.backupAccordionToggle.closest('.sidebar-footer').classList.toggle('active');
+                this.backupAccordionContent.classList.toggle('hidden');
+            });
         }
         if (this.exportMarkersJsonBtn) {
             this.exportMarkersJsonBtn.addEventListener('click', () => this.handleExportMarkersJSON());
