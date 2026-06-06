@@ -832,6 +832,24 @@ textarea:focus {
     background: var(--primary-hover);
 }
 
+.overlay-btn-detail {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.overlay-btn-detail:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.overlay-btn-roadview {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.overlay-btn-roadview:hover {
+    opacity: 0.9;
+}
+
 /* Animations */
 @keyframes fadeInScale {
     from {
@@ -937,6 +955,29 @@ textarea:focus {
     background: rgba(99, 102, 241, 0.35) !important;
     outline: 2px solid var(--primary) !important;
     outline-offset: -2px;
+}
+
+.table-input {
+    width: 100%;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-primary) !important;
+    padding: 2px 4px !important;
+    font-size: 12px !important;
+    font-family: var(--font-sans);
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.table-input:focus {
+    background: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: inset 0 0 0 1px var(--primary);
+    border-radius: 4px;
+}
+
+.table-input[readonly] {
+    color: var(--text-muted) !important;
+    cursor: not-allowed !important;
 }
 
 .col-copy-btn:hover {
