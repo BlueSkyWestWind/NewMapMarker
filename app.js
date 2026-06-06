@@ -1666,7 +1666,7 @@ class MapMarkerApp {
                     html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
                 }
                 if (addrObj.jibunAddress) {
-                    html += `<span class="jibun-addr" style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
+                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '<span class="road-addr">주소를 확인할 수 없음</span>';
@@ -1884,7 +1884,7 @@ class MapMarkerApp {
                 html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
             }
             if (addrObj.jibunAddress) {
-                html += `<span class="jibun-addr" style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
+                html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
             }
             if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                 html = '<span class="road-addr">주소를 확인할 수 없음</span>';
@@ -2336,7 +2336,7 @@ class MapMarkerApp {
                     tempAddrHtml += `<span class="road-addr">${roadAddr}</span>`;
                 }
                 if (jibunAddr && jibunAddr !== roadAddr) {
-                    tempAddrHtml += `<span class="jibun-addr" style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${jibunAddr}</span>`;
+                    tempAddrHtml += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${jibunAddr}</span>`;
                 }
                 if (!roadAddr && !jibunAddr) {
                     tempAddrHtml = '<span class="road-addr">주소를 확인할 수 없음</span>';
