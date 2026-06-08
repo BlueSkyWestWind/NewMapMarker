@@ -113,6 +113,7 @@ const DataManager = {
                             eqType: item.eqType || "",
                             installDate: item.installDate || "",
                             openDate: item.openDate || "",
+                            color: item.color || '#10b981',
                             createdAt: item.createdAt || new Date().toISOString()
                         };
                     });
@@ -172,7 +173,8 @@ const DataManager = {
                         eqClass: headers.find(h => /장비분류|분류|class/i.test(h)),
                         eqType: headers.find(h => /장비타입|타입|type/i.test(h)),
                         installDate: headers.find(h => /시설일|설치일|install/i.test(h)),
-                        openDate: headers.find(h => /개통일|개통|가동일|가동|open/i.test(h))
+                        openDate: headers.find(h => /개통일|개통|가동일|가동|open/i.test(h)),
+                        color: headers.find(h => /마커색상|색상|color/i.test(h))
                     };
                     
                     // 장소 이름과, (위도/경도) 또는 (주소) 중 하나는 반드시 존재해야 함
@@ -206,17 +208,22 @@ const DataManager = {
                         const eqTypeVal = mapping.eqType ? String(row[mapping.eqType]).trim() : "";
                         const installDateVal = mapping.installDate ? String(row[mapping.installDate]).trim() : "";
                         const openDateVal = mapping.openDate ? String(row[mapping.openDate]).trim() : "";
+                        const colorVal = mapping.color ? String(row[mapping.color]).trim() : "";
                         
                         // 태그 분리
                         const tags = tagsVal 
                             ? tagsVal.split(/[,|/]/).map(t => t.trim()).filter(t => t.length > 0)
                             : [];
                         
+                        // 색상 Hex 유효성 검증 (# 포함 7자리 또는 4자리)
+                        const validColor = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#10b981';
+                        
                         const item = {
                             id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                             name: rawName,
                             memo: memoVal,
                             tags: tags,
+                            color: validColor,
                             facilityCode: facilityCodeVal,
                             projectCode: projectCodeVal,
                             facilityYear: facilityYearVal,

@@ -4,6 +4,130 @@
 
 ---
 
+## [2026-06-08] 마커 개별 색상 지정(Color Customization) 및 SVG 동적 렌더링 구현 계획
+
+### 1. 개요
+- 사용자가 마커를 등록하거나 수정할 때, 중요도나 분류에 맞게 마커의 색상을 직접 선택하여 지도에 표시할 수 있는 마커 색상 커스터마이징 기능을 추가합니다.
+- Supabase `markers` 테이블에 `color` 필드를 추가하고, 마커 등록/수정 모달에 프리미엄 톤의 5가지 색상 칩 UI를 배치합니다.
+- 카카오 지도 SDK의 `MarkerImage` 생성 시 선택된 색상 코드를 기준으로 입체적인 그라디언트가 적용된 SVG 핀 이미지를 동적으로 렌더링하여 지도의 시각적 완성도와 데이터 가독성을 극대화합니다.
+
+### 2. User Review Required
+> [!IMPORTANT]
+> **데이터베이스 마이그레이션 및 기본값 규칙**
+> 1. **Supabase DDL 스크립트 제공**: `sql/add_color_to_markers.sql` 스크립트를 생성하여 제공합니다. 사용자는 Supabase SQL Editor에서 이 쿼리를 실행하여 `markers` 테이블에 `color VARCHAR(50) DEFAULT '#10b981'` 컬럼을 추가해야 합니다.
+> 2. **기본값 매핑**: 기존에 등록된 모든 마커와 신규 생성되는 마커의 기본 색상은 에메랄드 그린(`#10b981`)으로 매핑됩니다. 대기 마커(Pending Marker)의 경우 색상 지정을 하지 않는 한 고유 골드 색상(`#f59e0b`)으로 분리 유지됩니다.
+> 3. **제공할 5가지 Harmonies 테마 컬러**:
+>    - 🟢 Emerald Green (에메랄드): `#10b981` (기본값)
+>    - 🔵 Indigo Blue (인디고): `#6366f1`
+>    - 🔴 Rose Red (로즈): `#f43f5e`
+>    - 🟡 Orange Gold (골드): `#f59e0b`
+>    - 🟣 Purple (퍼플): `#8b5cf6`
+
+### 3. Proposed Changes
+
+#### [SQL DDL]
+##### [NEW] [add_color_to_markers.sql](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/sql/add_color_to_markers.sql)
+- `markers` 테이블에 `color` 컬럼 추가 쿼리.
+- PostgREST 스키마 캐시 갱신 통지 (`NOTIFY pgrst, 'reload schema';`).
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/index.html)
+- 마커 등록/수정 모달 바디(대표 정보 영역) 내부에 마커 색상을 선택할 수 있는 `<div class="color-picker-section">` 추가.
+- 5가지 테마의 색상 단추(`.color-chip`)들과 라벨 배치.
+
+#### [UI / CSS]
+##### [MODIFY] [style.css](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/style.css)
+- 색상 칩 컨테이너 및 색상 단추의 둥근 모서리, 그림자, 선택 시의 화이트 링 아웃라인 보더 효과(`.color-chip.selected`) 스타일 추가.
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **SVG 동적 렌더링 모듈 도입**:
+  - 하드코딩된 `MARKER_SVG_EMERALD` 상수를 걷어내고, 색상Hex를 넘겨받아 그라디언트 스톱 칼라(밝은 톤 ➡️ 어두운 톤)를 연산하여 SVG data URI를 반환하는 `getMarkerSvg(colorHex)` 헬퍼 함수를 설계 및 작성합니다.
+- **모달 캐싱 및 UI 바인딩**:
+  - 모달 내 색상 칩들을 캐시하고, 클릭 이벤트를 등록하여 선택된 색상 칩에 `selected` 클래스를 토글하고 값을 보관하도록 구현합니다.
+  - `openDetailMarkerModal`, `openEditMarkerModal`, `openAddMarkerModal`에서 현재 마커의 색상 값을 읽어 UI 색상 칩 선택 상태에 동기화합니다. (상세 모드에서는 색상 변경 불가하도록 `disabled` 또는 클릭 차단 처리)
+- **Supabase 및 로컬스토리지 저장 연동**:
+  - `handleSaveMarker` 호출 시 UI에서 선택된 색상 코드를 획득하여 Supabase `markers` 테이블 `insert`/`update` 쿼리에 `color` 컬럼을 포함시킵니다.
+  - JSON 백업/복원 기능에도 `color` 필드가 데이터 유실 없이 그대로 유지되도록 정합성을 확보합니다.
+- **지도 마커 렌더링 연동**:
+  - `renderMarkersOnMap()` 내에서 개별 마커 생성 시, 대기 마커(Pending)는 기존과 같이 골드(`#f59e0b`)로 고정 표시하되, 등록 마커의 경우 데이터 객체의 `marker.color` 값을 읽어 `getMarkerSvg(marker.color)`로 마커 이미지를 실시간 동적 생성하여 꽂아줍니다.
+
+##### [MODIFY] [data-manager.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/data-manager.js)
+- Excel/CSV 업로드(`parseExcelOrCSV`) 시 파일 내에 `"마커색상"` 이나 `"색상"`, `"color"` 라는 컬럼이 존재할 경우, 색상 Hex 코드를 파싱하여 마커 데이터 객체의 `color` 필드로 안전하게 매핑하는 처리기를 보강합니다.
+
+### 4. Verification Plan
+
+#### Automated Tests
+- 없음
+
+#### Manual Verification
+1. **테이블 스키마 추가**: Supabase SQL Editor에서 제공되는 SQL 스크립트를 실행한 후, 브라우저를 새로고침하여 앱에 진입합니다.
+2. **신규 등록 검증**: 지도를 클릭해 핀 등록 모달을 열고 "보라색" 색상 칩을 선택한 뒤 저장합니다. 지도 상에 보라색 마커가 이질감 없는 그라디언트로 실시간 꽂히는지 확인하고, Supabase `markers` DB를 조회해 `color` 값에 `#8b5cf6`이 바르게 입력되었는지 확인합니다.
+3. **수정 검증**: 등록된 마커의 말풍선에서 [편집]을 눌러 모달을 열고, 마커 색상을 "빨간색" 칩으로 변경한 뒤 [저장]합니다. 지도 상의 마커가 즉시 빨간색 핀으로 교체되며, DB에도 업데이트가 성공하는지 확인합니다.
+4. **상세 모드 읽기전용 검증**: [상세] 버튼을 클릭해 열었을 때, 색상 선택 UI는 표시되지만 클릭하여 색상을 바꿀 수 없도록 차단(읽기 전용)되어 있는지 검증합니다.
+5. **백업/복원 검증**: 수정한 마커들의 JSON 백업 파일을 다운로드하여 `color` 필드가 기록되어 있는지 보고, 이를 다른 기기나 복원을 통해 가져왔을 때 해당 커스텀 색상 핀이 완벽하게 지도에 복구되는지 검증합니다.
+
+### 5. 구현 완료 이력
+
+| 일시 | 작업 | 상태 |
+|------|------|------|
+| 2026-06-08 23:03 | SQL DDL 스크립트(`add_color_to_markers.sql`) 생성 | ✅ 완료 |
+| 2026-06-08 23:03 | HTML 색상 칩 UI(`index.html`) 배치 | ✅ 완료 |
+| 2026-06-08 23:03 | CSS `.color-chip` 선택 스타일(`style.css`) 추가 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - `getMarkerSvg()` 동적 SVG 생성 함수 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - `selectColorChip()` UI 동기화 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - Supabase 로드 시 `color` 필드 매핑 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - `handleSaveMarker()` insert/update에 color 포함 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - 3종 모달(등록/상세/수정)에 색상 칩 동기화 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - `renderMarkersOnMap()` 개별 색상 SVG 렌더링 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - 대기 마커 단건/전체 전송에 color 포함 | ✅ 완료 |
+| 2026-06-08 23:03 | `app.js` - JSON 백업/복원에 color 필드 보존 | ✅ 완료 |
+| 2026-06-08 23:03 | `data-manager.js` - Excel 파싱 시 색상 컬럼 자동 매핑 | ✅ 완료 |
+| 2026-06-08 23:03 | `data-manager.js` - JSON 복원 시 color 필드 보존 | ✅ 완료 |
+
+---
+
+## [2026-06-08] 마커 위치 변경 모드 중 오버레이 클릭 시 이벤트 버블링으로 인한 순간이동 버그 수정 계획
+
+### 1. 개요
+- 마커의 위치 변경 모드에 진입한 상태에서 핀을 옮긴 뒤, 커스텀 오버레이(말풍선) 내부의 `[저장]` 또는 `[취소]` 버튼을 클릭할 때 클릭 이벤트가 지도 객체로 버블링되는 문제가 있습니다.
+- 이로 인해 지도 클릭 시 마커를 해당 클릭 좌표로 이동시키는 `mapClickMoveListener`가 트리거되어, 마커가 저장 버튼 뒤에 위치한 마우스 포인터 좌표로 순간이동한 직후 저장되는 버그가 발생합니다.
+- 커스텀 오버레이 컨테이너 DOM 자체에 마우스/터치 이벤트 전파 방지(`e.stopPropagation()`)를 적용하여 지도 객체로의 이벤트 전달을 차단하고 버그를 해결합니다.
+
+### 2. User Review Required
+> [!IMPORTANT]
+> **이벤트 전파 차단 범위**
+> - 커스텀 오버레이 컨테이너(`container`)에 `click`, `mousedown`, `mouseup`, `touchstart`, `touchend` 이벤트를 바인딩하고 `e.stopPropagation()`을 실행하여 지도로의 전파를 완벽히 격리합니다.
+> - 이로써 오버레이 내부의 빈 영역이나 각종 버튼들을 클릭할 때 지도 클릭 이벤트가 오동작하여 마커 핀이 튕기는 현상을 원천적으로 차단합니다.
+
+### 3. Proposed Changes
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- `createOverlayContent(data)` 함수 내부의 `container` 생성부 바로 아래에 이벤트 전파 방지 코드를 주입합니다:
+  ```javascript
+  const stopPropagation = (e) => e.stopPropagation();
+  container.addEventListener('click', stopPropagation);
+  container.addEventListener('mousedown', stopPropagation);
+  container.addEventListener('mouseup', stopPropagation);
+  container.addEventListener('touchstart', stopPropagation);
+  container.addEventListener('touchend', stopPropagation);
+  ```
+
+### 4. Verification Plan
+
+#### Automated Tests
+- 없음
+
+#### Manual Verification
+1. 임의의 마커 클릭 후 `[위치 변경]` 모드로 진입합니다.
+2. 핀을 드래그하거나 지도의 임의 지점을 클릭하여 핀을 이동시킵니다.
+3. 말풍선 오버레이 내부의 `[저장]` 또는 `[취소]` 버튼을 클릭합니다.
+4. 버튼을 누른 마우스 포인터 위치(저장 버튼 바로 뒤 지도)로 핀이 튕기지 않고, 최종 이동해 둔 올바른 위치에 마커가 정확하게 저장 및 고정되는지 검증합니다.
+5. 위치 변경 완료 후 일반 지도 작동 및 마커 상세 조회가 온전히 구동되는지 확인합니다.
+
+---
+
 ## [2026-06-07] 말풍선(CustomOverlay) 내 '위치 변경' 기능 도입 및 좌표 수정 저장 로직 구현 계획
 
 ### 1. 개요

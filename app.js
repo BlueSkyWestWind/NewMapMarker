@@ -10,19 +10,7 @@
  * 6. CSV/JSON 내보내기 및 데이터 관리 연동
  */
 
-// 커스텀 SVG 마커 이미지 정의 (에메랄드 그린 & 오렌지 골드)
-const MARKER_SVG_EMERALD = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45">
-  <defs>
-    <linearGradient id="pin-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#10b981" />
-      <stop offset="100%" stop-color="#059669" />
-    </linearGradient>
-  </defs>
-  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#pin-emerald)" stroke="#ffffff" stroke-width="1.5"/>
-  <circle cx="12" cy="12" r="4.5" fill="#ffffff"/>
-</svg>`);
-
+// 커스텀 SVG 마커 이미지 정의 (오렌지 골드)
 const MARKER_SVG_GOLD = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45">
   <defs>
@@ -34,6 +22,34 @@ const MARKER_SVG_GOLD = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
   <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#pin-gold)" stroke="#ffffff" stroke-width="1.5"/>
   <circle cx="12" cy="12" r="4.5" fill="#ffffff"/>
 </svg>`);
+
+// 입력된 색상 코드를 기준으로 입체적인 그라디언트가 적용된 SVG 마커 이미지를 동적으로 생성
+function getMarkerSvg(colorHex) {
+    const gradients = {
+        '#10b981': { start: '#10b981', end: '#059669' }, // Emerald Green
+        '#6366f1': { start: '#6366f1', end: '#4f46e5' }, // Indigo Blue
+        '#f43f5e': { start: '#f43f5e', end: '#e11d48' }, // Rose Red
+        '#f59e0b': { start: '#f59e0b', end: '#d97706' }, // Orange Gold
+        '#8b5cf6': { start: '#8b5cf6', end: '#7c3aed' }  // Purple
+    };
+
+    const theme = gradients[colorHex] || { start: colorHex, end: colorHex };
+    const gradId = 'grad-' + colorHex.replace('#', '');
+
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45">
+  <defs>
+    <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${theme.start}" />
+      <stop offset="100%" stop-color="${theme.end}" />
+    </linearGradient>
+  </defs>
+  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="12" cy="12" r="4.5" fill="#ffffff"/>
+</svg>`;
+
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.trim());
+}
 
 class MapMarkerApp {
     constructor() {
@@ -54,6 +70,7 @@ class MapMarkerApp {
         this.currentMovingMarkerId = null; // 현재 위치 이동 수정 중인 마커 ID
         this.originalMarkerPosition = null; // 위치 수정 전 원래 좌표 (LatLng)
         this.mapClickMoveListener = null; // 위치 수정 중 지도 클릭 감지 리스너
+        this.selectedColor = '#10b981'; // 현재 모달에서 선택된 마커 색상 Hex
         
         // DOM 요소 캐시
         this.cacheElements();
@@ -126,6 +143,7 @@ class MapMarkerApp {
         this.closeModalBtn = document.getElementById('close-modal-btn');
         this.deleteMarkerModalBtn = document.getElementById('delete-marker-modal-btn');
         this.copySelectedBtn = document.getElementById('copy-selected-btn');
+        this.colorChips = document.querySelectorAll('.color-chip');
 
         // 테이블 뷰 관련 요소 캐시
         this.detailedInfoFormWrapper = document.getElementById('detailed-info-form-wrapper');
@@ -223,6 +241,19 @@ class MapMarkerApp {
         this.cancelModalBtn.addEventListener('click', () => this.closeModal());
         this.saveMarkerBtn.addEventListener('click', () => this.handleSaveMarker());
         this.deleteMarkerModalBtn.addEventListener('click', () => this.handleDeleteMarker(this.currentEditingId));
+        
+        // 색상 칩 선택 이벤트
+        if (this.colorChips) {
+            this.colorChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    const isReadOnly = this.markerNameInput && this.markerNameInput.readOnly;
+                    if (!isReadOnly) {
+                        const color = chip.getAttribute('data-color');
+                        this.selectColorChip(color);
+                    }
+                });
+            });
+        }
         if (this.copyTableBtn) {
             this.copyTableBtn.addEventListener('click', () => this.handleCopyDetailedTable());
         }
@@ -547,6 +578,7 @@ class MapMarkerApp {
                         lng: row.lng,
                         memo: row.memo || "",
                         tags: row.tags || [],
+                        color: row.color || '#10b981',
                         facilityCode: row.facility_code || (repInfo ? repInfo.facility_code || "" : ""),
                         projectCode: repInfo ? repInfo.project_code || "" : "",
                         facilityYear: repInfo ? repInfo.facility_year || "" : "",
@@ -924,6 +956,9 @@ class MapMarkerApp {
         if (this.detailedInfoFormWrapper) this.detailedInfoFormWrapper.classList.remove('hidden');
         if (this.detailedInfoTableWrapper) this.detailedInfoTableWrapper.classList.add('hidden');
         
+        // 기본 색상(에메랄드) 선택 초기화
+        this.selectColorChip('#10b981');
+        
         this.markerModal.classList.remove('hidden');
         this.markerNameInput.focus();
     }
@@ -1088,6 +1123,9 @@ class MapMarkerApp {
             `;
         }
         
+        // 저장된 색상으로 칩 동기화 (상세 보기 모드)
+        this.selectColorChip(markerData.color || '#10b981');
+
         // 폼 잠금 및 버튼 숨김 설정
         this.toggleModalReadOnly(true);
         this.saveMarkerBtn.classList.add('hidden');
@@ -1152,6 +1190,9 @@ class MapMarkerApp {
         if (this.markerInstallDateInput) this.markerInstallDateInput.value = this.formatToShortDate(markerData.installDate);
         if (this.markerOpenDateInput) this.markerOpenDateInput.value = this.formatToShortDate(markerData.openDate);
         
+        // 저장된 색상으로 칩 동기화 (수정 모드)
+        this.selectColorChip(markerData.color || '#10b981');
+
         // 폼 잠금 해제 및 저장 버튼 노출 설정
         this.toggleModalReadOnly(false);
         this.clearCellSelection(); // 편집 진입 시 기존 셀 선택 하이라이트 리셋
@@ -1337,6 +1378,7 @@ class MapMarkerApp {
                     name,
                     memo,
                     tags,
+                    color: this.selectedColor || '#10b981',
                     facilityCode: repInfo.facility_code || facilityCode || "",
                     projectCode: repInfo.project_code || projectCode || "",
                     facilityYear: repInfo.facility_year || facilityYear || "",
@@ -1358,6 +1400,7 @@ class MapMarkerApp {
                                 name: updatedItem.name,
                                 memo: updatedItem.memo,
                                 tags: updatedItem.tags,
+                                color: updatedItem.color || '#10b981',
                                 facility_code: updatedItem.facilityCode || null
                             })
                             .eq('id', this.currentEditingId);
@@ -1391,6 +1434,7 @@ class MapMarkerApp {
                 lng, // 정밀한 Float 값 보존
                 memo,
                 tags,
+                color: this.selectedColor || '#10b981',
                 facilityCode: repInfo.facility_code || facilityCode || "",
                 projectCode: repInfo.project_code || projectCode || "",
                 facilityYear: repInfo.facility_year || facilityYear || "",
@@ -1415,6 +1459,7 @@ class MapMarkerApp {
                             lng: newMarker.lng,
                             memo: newMarker.memo,
                             tags: newMarker.tags,
+                            color: newMarker.color || '#10b981',
                             facility_code: newMarker.facilityCode || null,
                             created_at: new Date().toISOString()
                         });
@@ -1531,10 +1576,11 @@ class MapMarkerApp {
 
             const position = new kakao.maps.LatLng(data.lat, data.lng);
             
-            // 1. 마커 객체 생성 (대기 상태 마커인 경우 골드, 일반 마커인 경우 에메랄드 그린 커스텀 SVG 적용)
-            const markerImage = data.isPending
-                ? new kakao.maps.MarkerImage(MARKER_SVG_GOLD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) })
-                : new kakao.maps.MarkerImage(MARKER_SVG_EMERALD, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) });
+            // 1. 마커 객체 생성 (대기 상태 마커인 경우 골드, 일반 마커인 경우 저장된 개별 색상의 커스텀 SVG 적용)
+            const markerSvgUri = data.isPending
+                ? MARKER_SVG_GOLD
+                : getMarkerSvg(data.color || '#10b981');
+            const markerImage = new kakao.maps.MarkerImage(markerSvgUri, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) });
 
             const isMovingThis = this.currentMovingMarkerId === data.id;
             const marker = new kakao.maps.Marker({
@@ -1709,6 +1755,20 @@ class MapMarkerApp {
         }
     }
 
+    // 선택된 색상 칩 업데이트
+    selectColorChip(colorHex) {
+        this.selectedColor = colorHex || '#10b981';
+        if (this.colorChips) {
+            this.colorChips.forEach(chip => {
+                if (chip.getAttribute('data-color') === this.selectedColor) {
+                    chip.classList.add('selected');
+                } else {
+                    chip.classList.remove('selected');
+                }
+            });
+        }
+    }
+
     // 위치 변경 모드 진입
     enterMarkerPositionChangeMode(id) {
         // 이미 위치 수정 중인 마커가 있다면 취소 처리
@@ -1846,6 +1906,14 @@ class MapMarkerApp {
     createOverlayContent(data) {
         const container = document.createElement('div');
         container.className = 'custom-overlay';
+        
+        // 이벤트 버블링 방지 (지도로 클릭이 전달되어 순간이동이 트리거되는 것 차단)
+        const stopPropagation = (e) => e.stopPropagation();
+        container.addEventListener('click', stopPropagation);
+        container.addEventListener('mousedown', stopPropagation);
+        container.addEventListener('mouseup', stopPropagation);
+        container.addEventListener('touchstart', stopPropagation);
+        container.addEventListener('touchend', stopPropagation);
         
         const header = document.createElement('div');
         header.className = 'overlay-header';
@@ -2009,6 +2077,7 @@ class MapMarkerApp {
                         lng: marker.lng,
                         memo: marker.memo || "",
                         tags: marker.tags || [],
+                        color: marker.color || '#10b981',
                         facility_code: marker.facilityCode || null,
                         created_at: new Date().toISOString()
                     });
@@ -2509,6 +2578,7 @@ class MapMarkerApp {
                     lng: m.lng,
                     memo: m.memo,
                     tags: m.tags,
+                    color: m.color || '#10b981',
                     facilityCode: m.facility_code,
                     createdAt: m.created_at
                 }));
@@ -2558,6 +2628,7 @@ class MapMarkerApp {
                              lng: m.lng,
                              memo: m.memo || "",
                              tags: m.tags || [],
+                             color: m.color || '#10b981',
                              facility_code: m.facilityCode || null,
                              created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
                          }));
@@ -2803,6 +2874,7 @@ class MapMarkerApp {
                     lng: m.lng,
                     memo: m.memo || "",
                     tags: m.tags || [],
+                    color: m.color || '#10b981',
                     facility_code: m.facilityCode || null,
                     created_at: new Date().toISOString()
                 }));

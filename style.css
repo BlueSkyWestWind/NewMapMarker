@@ -1169,3 +1169,13 @@ textarea:focus {
 .btn-text-action:hover {
     opacity: 0.8;
 }
+
+/* Color Picker styles */
+.color-chip:hover {
+    transform: scale(1.2);
+}
+.color-chip.selected {
+    box-shadow: 0 0 0 2px #0f172a, 0 0 0 4px #ffffff;
+    transform: scale(1.15);
+}
+
