@@ -8,6 +8,81 @@
  */
 const DataManager = {
     /**
+     * 날짜 값을 yyyy-mm-dd 문자열로 정규화합니다.
+     * Excel 직렬값·다양한 구분자·ISO 문자열을 지원합니다.
+     * @param {string|number|Date|null|undefined} value 원본 날짜 값
+     * @returns {string} yyyy-mm-dd 또는 빈 문자열
+     */
+    formatDateToYmd(value) {
+        if (value === null || value === undefined) return "";
+        if (value instanceof Date) {
+            if (isNaN(value.getTime())) return "";
+            const yyyy = value.getFullYear();
+            const mm = String(value.getMonth() + 1).padStart(2, "0");
+            const dd = String(value.getDate()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        const str = String(value).trim();
+        if (!str) return "";
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+            return str;
+        }
+
+        const isoPrefix = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoPrefix) {
+            return `${isoPrefix[1]}-${isoPrefix[2]}-${isoPrefix[3]}`;
+        }
+
+        const separated = str.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+        if (separated) {
+            return `${separated[1]}-${separated[2].padStart(2, "0")}-${separated[3].padStart(2, "0")}`;
+        }
+
+        const shortYear = str.match(/^(\d{2})-(\d{2})-(\d{2})$/);
+        if (shortYear) {
+            const yearNum = parseInt(shortYear[1], 10);
+            const fullYear = yearNum >= 50 ? 1900 + yearNum : 2000 + yearNum;
+            return `${fullYear}-${shortYear[2]}-${shortYear[3]}`;
+        }
+
+        const digits = str.replace(/[^0-9]/g, "");
+        if (digits.length === 8) {
+            return `${digits.substring(0, 4)}-${digits.substring(4, 6)}-${digits.substring(6, 8)}`;
+        }
+
+        const serial = parseFloat(str);
+        if (!isNaN(serial) && serial > 20000 && serial < 100000 && !/[./-]/.test(str)) {
+            const utcDays = Math.floor(serial - 25569);
+            const dateFromSerial = new Date(utcDays * 86400 * 1000);
+            if (!isNaN(dateFromSerial.getTime())) {
+                return this.formatDateToYmd(dateFromSerial);
+            }
+        }
+
+        const parsed = new Date(str);
+        if (!isNaN(parsed.getTime())) {
+            return this.formatDateToYmd(parsed);
+        }
+
+        return str;
+    },
+
+    /**
+     * information 행의 시설일·개통일을 yyyy-mm-dd로 정규화합니다.
+     * @param {Object} record information 테이블 행 객체
+     * @returns {Object} 날짜가 정규화된 행 객체
+     */
+    normalizeInfoRecord(record) {
+        return {
+            ...record,
+            install_date: this.formatDateToYmd(record.install_date),
+            open_date: this.formatDateToYmd(record.open_date)
+        };
+    },
+
+    /**
      * 마커 데이터를 CSV 형식의 문자열로 변환하고 다운로드합니다.
      * @param {Array} markers 저장된 마커 배열
      */
@@ -208,8 +283,12 @@ const DataManager = {
                         const finalStationNameVal = mapping.finalStationName ? String(row[mapping.finalStationName]).trim() : "";
                         const eqClassVal = mapping.eqClass ? String(row[mapping.eqClass]).trim() : "";
                         const eqTypeVal = mapping.eqType ? String(row[mapping.eqType]).trim() : "";
-                        const installDateVal = mapping.installDate ? String(row[mapping.installDate]).trim() : "";
-                        const openDateVal = mapping.openDate ? String(row[mapping.openDate]).trim() : "";
+                        const installDateVal = mapping.installDate
+                            ? this.formatDateToYmd(row[mapping.installDate])
+                            : "";
+                        const openDateVal = mapping.openDate
+                            ? this.formatDateToYmd(row[mapping.openDate])
+                            : "";
                         const colorVal = mapping.color ? String(row[mapping.color]).trim() : "";
                         
                         // 태그 분리
@@ -325,8 +404,12 @@ const DataManager = {
                             final_station_name: mapping.finalStationName ? String(row[mapping.finalStationName]).trim() : "",
                             eq_class: mapping.eqClass ? String(row[mapping.eqClass]).trim() : "",
                             eq_type: mapping.eqType ? String(row[mapping.eqType]).trim() : "",
-                            install_date: mapping.installDate ? String(row[mapping.installDate]).trim() : "",
-                            open_date: mapping.openDate ? String(row[mapping.openDate]).trim() : ""
+                            install_date: mapping.installDate
+                                ? this.formatDateToYmd(row[mapping.installDate])
+                                : "",
+                            open_date: mapping.openDate
+                                ? this.formatDateToYmd(row[mapping.openDate])
+                                : ""
                         };
                     }).filter(item => item !== null);
                     
@@ -354,6 +437,196 @@ const DataManager = {
             
             reader.readAsArrayBuffer(file);
         });
+    },
+
+    /**
+     * 마커 백업용 Excel(.xlsx) 파일로보냅니다.
+     * JSON 백업과 동일한 필드를 고정 열 헤더로 보존합니다.
+     * @param {Array} markers 저장된 마커 배열
+     * @param {string} [filename] 다운로드 파일명
+     * @returns {number}보낸 행 수
+     */
+    exportMarkersToExcel(markers, filename) {
+        if (!markers || markers.length === 0) {
+            throw new Error("백업할 마커 데이터가 없습니다.");
+        }
+
+        const rows = markers.map(marker => ({
+            "아이디": marker.id || "",
+            "장소 이름": marker.name || "",
+            "위도": typeof marker.lat === "number" ? marker.lat.toString() : (marker.lat || ""),
+            "경도": typeof marker.lng === "number" ? marker.lng.toString() : (marker.lng || ""),
+            "메모": marker.memo || "",
+            "태그": Array.isArray(marker.tags) ? marker.tags.join(", ") : "",
+            "마커색상": marker.color || "#10b981",
+            "통합시설코드": marker.facilityCode || "",
+            "도로명주소": marker.roadAddress || "",
+            "지번주소": marker.jibunAddress || "",
+            "등록일": marker.createdAt || ""
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "markers");
+
+        const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const dateStr = new Date().toISOString().split("T")[0];
+        this._triggerDownloadBuffer(
+            buffer,
+            filename || `supabase_markers_backup_${dateStr}.xlsx`,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+
+        return rows.length;
+    },
+
+    /**
+     * information 테이블 백업용 Excel(.xlsx) 파일로보냅니다.
+     * @param {Array} infoList information 테이블 행 배열
+     * @param {string} [filename] 다운로드 파일명
+     * @returns {number}보낸 행 수
+     */
+    exportInfoToExcel(infoList, filename) {
+        if (!infoList || infoList.length === 0) {
+            throw new Error("백업할 상세 장비 데이터가 없습니다.");
+        }
+
+        const rows = infoList.map(row => ({
+            "통합시설코드": row.facility_code || "",
+            "프로젝트코드": row.project_code || "",
+            "시설연도": row.facility_year || "",
+            "사업구분": row.business_type || "",
+            "장소이름": row.place_name || "",
+            "국소명-최종": row.final_station_name || "",
+            "장비분류": row.eq_class || "",
+            "장비타입": row.eq_type || "",
+            "시설일": this.formatDateToYmd(row.install_date),
+            "개통일": this.formatDateToYmd(row.open_date)
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "information");
+
+        const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const dateStr = new Date().toISOString().split("T")[0];
+        this._triggerDownloadBuffer(
+            buffer,
+            filename || `supabase_information_backup_${dateStr}.xlsx`,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+
+        return rows.length;
+    },
+
+    /**
+     * 마커 백업 Excel 파일을 읽고 JSON 복원과 동일한 형식으로 검증합니다.
+     * @param {File} file 업로드된 Excel/CSV 파일
+     * @returns {Promise<Array>} 검증된 마커 배열
+     */
+    importMarkersFromExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: "array" });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                    if (rows.length === 0) {
+                        throw new Error("엑셀 파일에 데이터가 없습니다.");
+                    }
+
+                    const headers = Object.keys(rows[0]);
+                    const mapping = {
+                        id: headers.find(h => /아이디|^id$/i.test(h)),
+                        name: headers.find(h => /장소.*이름|장소명|이름|name/i.test(h)),
+                        lat: headers.find(h => /위도|lat/i.test(h)),
+                        lng: headers.find(h => /경도|lng|lon/i.test(h)),
+                        memo: headers.find(h => /메모|비고|memo/i.test(h)),
+                        tags: headers.find(h => /태그|tag/i.test(h)),
+                        color: headers.find(h => /마커색상|색상|color/i.test(h)),
+                        facilityCode: headers.find(h => /통합시설코드|시설코드|facility/i.test(h)),
+                        roadAddress: headers.find(h => /도로명주소|도로명/i.test(h)),
+                        jibunAddress: headers.find(h => /지번주소|지번/i.test(h)),
+                        createdAt: headers.find(h => /등록일|생성일|created/i.test(h))
+                    };
+
+                    if (!mapping.name) {
+                        throw new Error("장소 이름에 해당하는 열을 찾을 수 없습니다.");
+                    }
+                    if (!mapping.lat || !mapping.lng) {
+                        throw new Error("위도·경도에 해당하는 열을 찾을 수 없습니다.");
+                    }
+
+                    const validatedMarkers = rows.map((row, index) => {
+                        const rawName = String(row[mapping.name] || "").trim();
+                        if (!rawName) return null;
+
+                        const latNum = parseFloat(row[mapping.lat]);
+                        const lngNum = parseFloat(row[mapping.lng]);
+                        if (isNaN(latNum) || isNaN(lngNum)) {
+                            throw new Error(`[행 ${index + 2}] 위도 또는 경도 값이 올바르지 않습니다. (장소: ${rawName})`);
+                        }
+
+                        const rawId = mapping.id ? String(row[mapping.id] || "").trim() : "";
+                        const tagsVal = mapping.tags ? String(row[mapping.tags] || "").trim() : "";
+                        const colorVal = mapping.color ? String(row[mapping.color]).trim() : "";
+                        const validColor = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : "#10b981";
+
+                        return {
+                            id: rawId || "marker_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
+                            name: rawName,
+                            lat: latNum,
+                            lng: lngNum,
+                            memo: mapping.memo ? String(row[mapping.memo] || "").trim() : "",
+                            tags: tagsVal
+                                ? tagsVal.split(/[,|/]/).map(t => t.trim()).filter(t => t.length > 0)
+                                : [],
+                            color: validColor,
+                            facilityCode: mapping.facilityCode ? String(row[mapping.facilityCode] || "").trim() : "",
+                            roadAddress: mapping.roadAddress ? String(row[mapping.roadAddress] || "").trim() : "",
+                            jibunAddress: mapping.jibunAddress ? String(row[mapping.jibunAddress] || "").trim() : "",
+                            createdAt: mapping.createdAt ? String(row[mapping.createdAt] || "").trim() : new Date().toISOString()
+                        };
+                    }).filter(item => item !== null);
+
+                    if (validatedMarkers.length === 0) {
+                        throw new Error("복원할 유효한 마커 데이터가 없습니다.");
+                    }
+
+                    resolve(validatedMarkers);
+                } catch (error) {
+                    reject(new Error("마커 Excel 복원 실패: " + error.message));
+                }
+            };
+
+            reader.onerror = () => {
+                reject(new Error("파일을 읽는 도중 오류가 발생했습니다."));
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+    },
+
+    /**
+     * 브라우저에서 ArrayBuffer 기반 다운로드를 실행시키는 헬퍼 메서드
+     * @private
+     */
+    _triggerDownloadBuffer(buffer, filename, mimeType) {
+        const blob = new Blob([buffer], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     },
 
     /**

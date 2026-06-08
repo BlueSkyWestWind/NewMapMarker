@@ -193,14 +193,21 @@
                         <div style="font-size: 11px; font-weight: 600; color: var(--secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
                             <i class="fa-solid fa-location-dot"></i> 위치 마커 (markers)
                         </div>
-                        <div class="footer-buttons" style="display: flex; gap: 8px;">
-                            <button id="export-markers-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1;">
+                        <div class="footer-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button id="export-markers-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
                                 <i class="fa-solid fa-file-code"></i> 백업 (JSON)
                             </button>
-                            <label for="import-markers-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; margin: 0;">
+                            <button id="export-markers-excel-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
+                                <i class="fa-solid fa-file-excel"></i> 백업 (Excel)
+                            </button>
+                            <label for="import-markers-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
                                 <i class="fa-solid fa-file-import"></i> 복원 (JSON)
                             </label>
+                            <label for="import-markers-excel-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
+                                <i class="fa-solid fa-file-import"></i> 복원 (Excel)
+                            </label>
                             <input type="file" id="import-markers-json-file" accept=".json" style="display: none;">
+                            <input type="file" id="import-markers-excel-file" accept=".xlsx,.xls,.csv" style="display: none;">
                         </div>
                     </div>
                     <!-- 상세 장비 정보 (information) 관리 -->
@@ -208,14 +215,21 @@
                         <div style="font-size: 11px; font-weight: 600; color: #8b5cf6; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
                             <i class="fa-solid fa-server"></i> 상세 장비 (information)
                         </div>
-                        <div class="footer-buttons" style="display: flex; gap: 8px;">
-                            <button id="export-info-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1;">
+                        <div class="footer-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button id="export-info-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
                                 <i class="fa-solid fa-file-code"></i> 백업 (JSON)
                             </button>
-                            <label for="import-info-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; margin: 0;">
+                            <button id="export-info-excel-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
+                                <i class="fa-solid fa-file-excel"></i> 백업 (Excel)
+                            </button>
+                            <label for="import-info-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
                                 <i class="fa-solid fa-file-import"></i> 복원 (JSON)
                             </label>
+                            <label for="import-info-excel-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
+                                <i class="fa-solid fa-file-import"></i> 복원 (Excel)
+                            </label>
                             <input type="file" id="import-info-json-file" accept=".json" style="display: none;">
+                            <input type="file" id="import-info-excel-file" accept=".xlsx,.xls,.csv" style="display: none;">
                         </div>
                     </div>
                 </div>

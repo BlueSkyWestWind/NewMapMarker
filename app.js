@@ -94,9 +94,13 @@ class MapMarkerApp {
         this.markerCount = document.getElementById('marker-count');
         
         this.exportMarkersJsonBtn = document.getElementById('export-markers-json-btn');
+        this.exportMarkersExcelBtn = document.getElementById('export-markers-excel-btn');
         this.importMarkersJsonFile = document.getElementById('import-markers-json-file');
+        this.importMarkersExcelFile = document.getElementById('import-markers-excel-file');
         this.exportInfoJsonBtn = document.getElementById('export-info-json-btn');
+        this.exportInfoExcelBtn = document.getElementById('export-info-excel-btn');
         this.importInfoJsonFile = document.getElementById('import-info-json-file');
+        this.importInfoExcelFile = document.getElementById('import-info-excel-file');
         
         // 백업 아코디언 요소 캐시
         this.backupAccordionToggle = document.getElementById('backup-accordion-toggle');
@@ -214,14 +218,26 @@ class MapMarkerApp {
         if (this.exportMarkersJsonBtn) {
             this.exportMarkersJsonBtn.addEventListener('click', () => this.handleExportMarkersJSON());
         }
+        if (this.exportMarkersExcelBtn) {
+            this.exportMarkersExcelBtn.addEventListener('click', () => this.handleExportMarkersExcel());
+        }
         if (this.importMarkersJsonFile) {
             this.importMarkersJsonFile.addEventListener('change', (e) => this.handleImportMarkersJSON(e));
+        }
+        if (this.importMarkersExcelFile) {
+            this.importMarkersExcelFile.addEventListener('change', (e) => this.handleImportMarkersExcel(e));
         }
         if (this.exportInfoJsonBtn) {
             this.exportInfoJsonBtn.addEventListener('click', () => this.handleExportInfoJSON());
         }
+        if (this.exportInfoExcelBtn) {
+            this.exportInfoExcelBtn.addEventListener('click', () => this.handleExportInfoExcel());
+        }
         if (this.importInfoJsonFile) {
             this.importInfoJsonFile.addEventListener('change', (e) => this.handleImportInfoJSON(e));
+        }
+        if (this.importInfoExcelFile) {
+            this.importInfoExcelFile.addEventListener('change', (e) => this.handleImportInfoExcelBackup(e));
         }
         
         // Excel/CSV 업로드 이벤트 바인딩
@@ -1336,8 +1352,8 @@ class MapMarkerApp {
                         eq_class: eqClass || "", // 테이블에 분류 열은 없으므로 기존 값 유지
                         eq_type: rowData.eq_type || "",
                         final_station_name: rowData.final_station_name || "",
-                        install_date: rowData.install_date || "",
-                        open_date: rowData.open_date || ""
+                        install_date: DataManager.formatDateToYmd(rowData.install_date || ""),
+                        open_date: DataManager.formatDateToYmd(rowData.open_date || "")
                     });
                 }
             });
@@ -1353,8 +1369,8 @@ class MapMarkerApp {
                     eq_class: eqClass,
                     eq_type: eqType,
                     final_station_name: finalStationName,
-                    install_date: installDate,
-                    open_date: openDate
+                    install_date: DataManager.formatDateToYmd(installDate),
+                    open_date: DataManager.formatDateToYmd(openDate)
                 });
             }
         }
@@ -2175,8 +2191,8 @@ class MapMarkerApp {
                             final_station_name: marker.finalStationName || "",
                             eq_class: marker.eqClass || "",
                             eq_type: marker.eqType || "",
-                            install_date: marker.installDate || "",
-                            open_date: marker.openDate || ""
+                            install_date: DataManager.formatDateToYmd(marker.installDate || ""),
+                            open_date: DataManager.formatDateToYmd(marker.openDate || "")
                         });
                     if (infoErr) throw infoErr;
                 }
@@ -2684,6 +2700,63 @@ class MapMarkerApp {
         }
     }
 
+    // 위치 마커 Excel 백업 (Supabase 실시간 데이터 반영)
+    async handleExportMarkersExcel() {
+        let dataToExport = this.markersData;
+        if (this.supabase) {
+            try {
+                this.showToast('Supabase markers 테이블 전체 데이터 조회 중...');
+                const { data, error } = await this.supabase
+                    .from('markers')
+                    .select('*');
+                if (error) throw error;
+                dataToExport = data.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    lat: m.lat,
+                    lng: m.lng,
+                    memo: m.memo,
+                    tags: m.tags,
+                    color: m.color || '#10b981',
+                    facilityCode: m.facility_code,
+                    roadAddress: m.road_address || "",
+                    jibunAddress: m.jibun_address || "",
+                    createdAt: m.created_at
+                }));
+            } catch (e) {
+                console.error('Supabase 데이터 조회 실패:', e);
+                this.showToast('Supabase 데이터 조회 실패로 로컬 데이터로 백업합니다.', 4000);
+                dataToExport = this.markersData;
+            }
+        }
+
+        if (dataToExport.length === 0) {
+            this.showToast('백업할 마커가 없습니다.');
+            return;
+        }
+        try {
+            const count = DataManager.exportMarkersToExcel(dataToExport);
+            this.showToast(`위치 마커 Excel 백업 완료 (총 ${count}건)`);
+        } catch (e) {
+            this.showToast('Excel 백업 오류: ' + e.message);
+        }
+    }
+
+    // 위치 마커 Excel 복원
+    handleImportMarkersExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        DataManager.importMarkersFromExcel(file)
+            .then(async (newMarkers) => {
+                await this.applyMarkersRestore(newMarkers, this.importMarkersExcelFile);
+            })
+            .catch(err => {
+                this.showToast(err.message, 5000);
+                this.importMarkersExcelFile.value = '';
+            });
+    }
+
     // 위치 마커 JSON 복원
     handleImportMarkersJSON(event) {
         const file = event.target.files[0];
@@ -2691,67 +2764,66 @@ class MapMarkerApp {
         
         DataManager.importFromJSON(file)
             .then(async (newMarkers) => {
-                if (newMarkers.length === 0) {
-                    this.showToast('복원할 마커 데이터가 없습니다.');
-                    this.importMarkersJsonFile.value = '';
-                    return;
-                }
-                
-                this.showToast('데이터 복원 처리 중...');
-                
-                if (this.supabase) {
-                     try {
-                         // Supabase upsert 데이터 빌드 (동일 ID 존재 시 덮어쓰기)
-                         const bulkData = newMarkers.map(m => ({
-                             id: m.id,
-                             name: m.name,
-                             lat: m.lat,
-                             lng: m.lng,
-                             memo: m.memo || "",
-                             tags: m.tags || [],
-                             color: m.color || '#10b981',
-                             facility_code: m.facilityCode || null,
-                             road_address: m.roadAddress || "",
-                             jibun_address: m.jibunAddress || "",
-                             created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
-                         }));
-                         
-                         const { error } = await this.supabase
-                             .from('markers')
-                             .upsert(bulkData, { onConflict: 'id' });
-                         
-                         if (error) throw error;
-                     } catch (e) {
-                         this.showToast('Supabase 위치 마커 복원 실패: ' + e.message, 5000);
-                         this.importMarkersJsonFile.value = '';
-                         return;
-                     }
-                } else {
-                     // Supabase가 없을 경우 로컬 스토리지 데이터 병합
-                     const existingIds = new Set(this.markersData.map(m => m.id));
-                     const merged = [...this.markersData];
-                     let addedLocalCount = 0;
-                     
-                     newMarkers.forEach(m => {
-                         if (!existingIds.has(m.id)) {
-                             merged.push(m);
-                             addedLocalCount++;
-                         }
-                     });
-                     this.markersData = merged;
-                     this.syncLocalStorage();
-                }
-                
-                // Supabase 데이터와 로컬 메모리 최신 동기화 진행
-                await this.init();
-                
-                this.showToast(`위치 마커 복원이 완료되었습니다. (총 ${newMarkers.length}건)`);
-                this.importMarkersJsonFile.value = '';
+                await this.applyMarkersRestore(newMarkers, this.importMarkersJsonFile);
             })
             .catch(err => {
                 this.showToast(err.message, 5000);
                 this.importMarkersJsonFile.value = '';
             });
+    }
+
+    // 위치 마커 복원 공통 처리 (JSON/Excel)
+    async applyMarkersRestore(newMarkers, fileInput) {
+        if (newMarkers.length === 0) {
+            this.showToast('복원할 마커 데이터가 없습니다.');
+            if (fileInput) fileInput.value = '';
+            return;
+        }
+
+        this.showToast('데이터 복원 처리 중...');
+
+        if (this.supabase) {
+            try {
+                const bulkData = newMarkers.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    lat: m.lat,
+                    lng: m.lng,
+                    memo: m.memo || "",
+                    tags: m.tags || [],
+                    color: m.color || '#10b981',
+                    facility_code: m.facilityCode || null,
+                    road_address: m.roadAddress || "",
+                    jibun_address: m.jibunAddress || "",
+                    created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
+                }));
+
+                const { error } = await this.supabase
+                    .from('markers')
+                    .upsert(bulkData, { onConflict: 'id' });
+
+                if (error) throw error;
+            } catch (e) {
+                this.showToast('Supabase 위치 마커 복원 실패: ' + e.message, 5000);
+                if (fileInput) fileInput.value = '';
+                return;
+            }
+        } else {
+            const existingIds = new Set(this.markersData.map(m => m.id));
+            const merged = [...this.markersData];
+
+            newMarkers.forEach(m => {
+                if (!existingIds.has(m.id)) {
+                    merged.push(m);
+                }
+            });
+            this.markersData = merged;
+            this.syncLocalStorage();
+        }
+
+        await this.init();
+        this.showToast(`위치 마커 복원이 완료되었습니다. (총 ${newMarkers.length}건)`);
+        if (fileInput) fileInput.value = '';
     }
 
     // 상세 장비 정보 JSON 백업
@@ -2779,6 +2851,44 @@ class MapMarkerApp {
         }
     }
 
+    // 상세 장비 정보 Excel 백업
+    async handleExportInfoExcel() {
+        if (!this.supabase) {
+            this.showToast('Supabase가 연결되어 있지 않아 상세 장비 정보를 백업할 수 없습니다.', 5000);
+            return;
+        }
+        try {
+            this.showToast('Supabase information 테이블 전체 데이터 조회 중...');
+            const { data, error } = await this.supabase
+                .from('information')
+                .select('*');
+            if (error) throw error;
+            if (!data || data.length === 0) {
+                this.showToast('보낼 상세 장비 데이터가 없습니다.');
+                return;
+            }
+            const count = DataManager.exportInfoToExcel(data);
+            this.showToast(`상세 장비 정보 Excel 백업 완료 (총 ${count}건)`);
+        } catch (e) {
+            this.showToast('information Excel 백업 실패: ' + e.message, 5000);
+        }
+    }
+
+    // 상세 장비 정보 Excel 복원
+    handleImportInfoExcelBackup(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        DataManager.parseInfoExcel(file)
+            .then(async (parsedData) => {
+                await this.applyInfoRestore(parsedData, this.importInfoExcelFile);
+            })
+            .catch(err => {
+                this.showToast(err.message, 5000);
+                this.importInfoExcelFile.value = '';
+            });
+    }
+
     // 상세 장비 정보 JSON 복원
     handleImportInfoJSON(event) {
         const file = event.target.files[0];
@@ -2796,26 +2906,10 @@ class MapMarkerApp {
                 if (!Array.isArray(parsedData)) {
                     throw new Error('올바르지 않은 JSON 데이터 형식입니다. (배열 형태여야 합니다)');
                 }
-                
-                // 간단한 유효성 검사 (첫 번째 행에 facility_code가 있는지 검사)
                 if (parsedData.length > 0 && !parsedData[0].hasOwnProperty('facility_code')) {
                     throw new Error('상세 장비 정보 형식이 아닙니다. (facility_code 필드가 필요합니다)');
                 }
-                
-                this.showToast('상세 장비 데이터 복원 처리 중...');
-                
-                // Supabase upsert (동일 facility_code 존재 시 덮어쓰기)
-                const { error } = await this.supabase
-                    .from('information')
-                    .upsert(parsedData, { onConflict: 'facility_code' });
-                    
-                if (error) throw error;
-                
-                // 전체 리프레시 및 조인 데이터 동기화
-                await this.init();
-                
-                this.showToast(`상세 장비 정보 복원이 완료되었습니다. (총 ${parsedData.length}건)`);
-                this.importInfoJsonFile.value = '';
+                await this.applyInfoRestore(parsedData, this.importInfoJsonFile);
             } catch (err) {
                 this.showToast('상세 장비 복원 실패: ' + err.message, 5000);
                 this.importInfoJsonFile.value = '';
@@ -2826,6 +2920,38 @@ class MapMarkerApp {
             this.importInfoJsonFile.value = '';
         };
         reader.readAsText(file);
+    }
+
+    // 상세 장비 정보 복원 공통 처리 (JSON/Excel)
+    async applyInfoRestore(parsedData, fileInput) {
+        if (!this.supabase) {
+            this.showToast('Supabase가 연결되어 있지 않아 복원할 수 없습니다.', 5000);
+            if (fileInput) fileInput.value = '';
+            return;
+        }
+        if (!parsedData || parsedData.length === 0) {
+            this.showToast('복원할 상세 장비 데이터가 없습니다.');
+            if (fileInput) fileInput.value = '';
+            return;
+        }
+
+        this.showToast('상세 장비 데이터 복원 처리 중...');
+
+        const normalizedData = parsedData.map(row => DataManager.normalizeInfoRecord(row));
+
+        const { error } = await this.supabase
+            .from('information')
+            .upsert(normalizedData, { onConflict: 'facility_code' });
+
+        if (error) {
+            this.showToast('상세 장비 복원 실패: ' + error.message, 5000);
+            if (fileInput) fileInput.value = '';
+            return;
+        }
+
+        await this.init();
+        this.showToast(`상세 장비 정보 복원이 완료되었습니다. (총 ${parsedData.length}건)`);
+        if (fileInput) fileInput.value = '';
     }
 
     // Excel 파일 가져오기 및 파싱
@@ -2993,8 +3119,8 @@ class MapMarkerApp {
                         final_station_name: m.finalStationName || "",
                         eq_class: m.eqClass || "",
                         eq_type: m.eqType || "",
-                        install_date: m.installDate || "",
-                        open_date: m.openDate || ""
+                        install_date: DataManager.formatDateToYmd(m.installDate || ""),
+                        open_date: DataManager.formatDateToYmd(m.openDate || "")
                     }));
 
                 if (bulkInfo.length > 0) {
@@ -3180,9 +3306,10 @@ class MapMarkerApp {
         }
 
         try {
+            const normalizedData = this.pendingInfoData.map(row => DataManager.normalizeInfoRecord(row));
             const { error } = await this.supabase
                 .from('information')
-                .upsert(this.pendingInfoData, { onConflict: 'facility_code' });
+                .upsert(normalizedData, { onConflict: 'facility_code' });
 
             if (error) throw error;
 
@@ -3214,33 +3341,9 @@ class MapMarkerApp {
         }, duration);
     }
 
-    // 날짜 문자열을 yy-mm-dd 포맷으로 변환하는 헬퍼 메서드
+    // 날짜 문자열을 yyyy-mm-dd 포맷으로 변환하는 헬퍼 메서드
     formatToShortDate(dateStr) {
-        if (!dateStr) return '';
-        
-        // 만약 Date 객체 파싱이 가능하면 Date로 변환해 포맷
-        let date = new Date(dateStr);
-        if (isNaN(date.getTime())) {
-            // "2026.06.06" -> "2026-06-06" 등으로 특수문자 보정 시도
-            const cleaned = dateStr.replace(/[^0-9]/g, '');
-            if (cleaned.length === 8) { // YYYYMMDD
-                const yy = cleaned.substring(2, 4);
-                const mm = cleaned.substring(4, 6);
-                const dd = cleaned.substring(6, 8);
-                return `${yy}-${mm}-${dd}`;
-            } else if (cleaned.length === 6) { // YYMMDD
-                const yy = cleaned.substring(0, 2);
-                const mm = cleaned.substring(2, 4);
-                const dd = cleaned.substring(4, 6);
-                return `${yy}-${mm}-${dd}`;
-            }
-            return dateStr; // 파싱 불가 시 원본 반환
-        }
-        
-        const yy = String(date.getFullYear()).substring(2, 4);
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        return `${yy}-${mm}-${dd}`;
+        return DataManager.formatDateToYmd(dateStr);
     }
 
     // td 내 텍스트 또는 인풋 값 취득용 헬퍼 함수
