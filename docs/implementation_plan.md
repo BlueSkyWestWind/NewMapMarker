@@ -4,6 +4,59 @@
 
 ---
 
+## [2026-06-08] DB 주소 저장 방식을 통한 카카오 Geocoder API 호출량 최적화 구현 계획
+
+### 1. 개요
+- 현재 지도가 로드되거나 필터 변경 시 `renderMarkersOnMap()` 내에서 모든 마커에 대해 실시간 역지오코딩 API(`resolveAddress`)를 호출하고 있음.
+- 마커가 120개인 경우 로드 및 필터 조작 시마다 120번의 Geocoder API 요청이 집중 발생하여 하루 API 사용량이 급증(2만 건 이상)하는 원인이 됨.
+- 이를 해결하기 위해 Supabase `markers` 테이블에 주소 정보를 직접 저장할 수 있는 `road_address`, `jibun_address` 컬럼을 신설하고, 마커 저장/이동 시에만 API를 호출해 저장하며, 조회 시에는 DB에 저장된 주소를 즉시 출력함으로써 API 호출 횟수를 기하급수적으로 줄임. (사용자 1회 맵 조회 당 120회 호출 ➡️ 0회 호출)
+
+### 2. User Review Required
+> [!IMPORTANT]
+> **DB 스키마 추가 및 마이그레이션**:
+> - `markers` 테이블에 `road_address` 및 `jibun_address` 컬럼을 추가하기 위해 `sql/add_address_to_markers.sql` 마이그레이션 스크립트를 작성하여 제공합니다.
+> - 기존 마커들의 경우 주소 정보가 비어 있으므로, 최초 렌더링 시 주소가 비어 있는 마커에 한해서만 역지오코딩을 1회 수행한 뒤, 조회된 주소를 백그라운드에서 Supabase DB에 자동으로 갱신(Auto-migrate)해주는 폴백(Fallback) 보정 로직을 적용합니다. 이를 통해 기존 데이터 주소를 수동으로 채우지 않아도 사용자가 지도를 볼 때 자동으로 DB가 정제됩니다.
+
+### 3. Proposed Changes
+
+#### [SQL DDL]
+##### [NEW] [add_address_to_markers.sql](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/sql/add_address_to_markers.sql)
+- `markers` 테이블에 `road_address` 및 `jibun_address` 컬럼 추가 쿼리.
+- PostgREST 스키마 캐시 리로드 (`NOTIFY pgrst, 'reload schema';`).
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **마커 저장 및 전송 로직 수정**:
+  - `handleSaveMarker()`, `handleUploadSinglePending()`, 그리고 대기 마커 일괄 전송 시 역지오코딩 API를 사용해 주소를 얻어낸 후, Supabase DB `insert`/`update` 쿼리에 `road_address` 및 `jibun_address` 컬럼 값을 실어 저장하도록 변경합니다.
+  - 마커 위치 수정 저장 (`saveMarkerPosition`) 시에도 새 좌표로 주소를 역지오코딩한 후 DB에 업데이트합니다.
+- **오버레이 렌더링 최적화**:
+  - `createOverlayContent`에서 `resolveAddress`를 호출하기 전에 데이터 객체에 주소 정보(`data.roadAddress`, `data.jibunAddress`)가 이미 존재하는지 확인합니다.
+  - 이미 존재할 경우 Geocoder API 호출을 건너뛰고 HTML 템플릿에 즉시 출력합니다.
+  - 주소가 없는 기존 마커(구데이터 폴백)의 경우에는 `resolveAddress`를 호출해 주소를 구하고, 구해진 주소를 즉시 Supabase DB에 백그라운드로 자동 업데이트(`update`)하도록 마이그레이션 코드를 추가합니다.
+
+##### [MODIFY] [data-manager.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/data-manager.js)
+- Excel/CSV 업로드(`parseExcelOrCSV`) 및 JSON 백업/복원 시 `roadAddress`, `jibunAddress` 속성이 유실되지 않고 안전하게 처리될 수 있도록 데이터 매핑 코드를 갱신합니다.
+
+### 4. Verification Plan
+
+#### Automated Tests
+- 없음 (프론트엔드 환경)
+
+#### Manual Verification
+1. **마이그레이션 실행**: Supabase SQL Editor에서 제공되는 SQL 스크립트를 실행한 후, 웹 앱을 리로드합니다.
+2. **호출량 차단 확인**: F12 개발자 도구의 네트워크 탭을 확인하여, 지도를 새로고침할 때마다 `coord2address` API가 120번씩 발생하던 것이 완전히 사라지고 0건으로 동작하는지 확인합니다.
+3. **폴백 자동 저장 검증**: 기존에 주소가 없던 마커들이 최초 1회 렌더링 시 주소를 자동으로 조회하여 채워진 뒤, 백그라운드 DB 갱신으로 인해 Supabase `markers` 테이블의 `road_address` 컬럼에 주소가 무사히 기입되는지 확인합니다. 기입이 완료된 이후로는 새로고침해도 더는 API를 호출하지 않아야 합니다.
+4. **신규 등록 및 수정 검증**: 지도를 클릭해 새로운 핀을 저장하거나 마커의 `[위치 변경]` 모드로 들어가 좌표를 수정한 후 [저장]했을 때, 변경된 위치에 맞는 새로운 주소가 Supabase DB에 완벽히 연동 및 기록되는지 검증합니다.
+5. **백업/복원 정합성**: 백업 다운로드 파일에 `roadAddress`와 `jibunAddress` 정보가 누락 없이 기록되는지 검증합니다.
+
+---
+
+# MapMarker Pro - 구현 계획 이력 (Implementation Plans History)
+
+본 문서는 개발 과정에 따라 작성된 기능별 구현 계획서의 역사적 기록물입니다. 새로운 기능의 구현 계획은 상단(가장 최신)에 누적하여 추가합니다.
+
+---
+
 ## [2026-06-08] 마커 개별 색상 지정(Color Customization) 및 SVG 동적 렌더링 구현 계획
 
 ### 1. 개요

@@ -579,6 +579,8 @@ class MapMarkerApp {
                         memo: row.memo || "",
                         tags: row.tags || [],
                         color: row.color || '#10b981',
+                        roadAddress: row.road_address || "",
+                        jibunAddress: row.jibun_address || "",
                         facilityCode: row.facility_code || (repInfo ? repInfo.facility_code || "" : ""),
                         projectCode: repInfo ? repInfo.project_code || "" : "",
                         facilityYear: repInfo ? repInfo.facility_year || "" : "",
@@ -1390,6 +1392,13 @@ class MapMarkerApp {
                     openDate: repInfo.open_date || openDate || ""
                 };
 
+                // 주소 정보가 유실된 구데이터인 경우 실시간 1회 조회
+                if (!updatedItem.roadAddress && !updatedItem.jibunAddress) {
+                    const addrObj = await this.resolveAddressPromise(updatedItem.lat, updatedItem.lng);
+                    updatedItem.roadAddress = addrObj.roadAddress;
+                    updatedItem.jibunAddress = addrObj.jibunAddress;
+                }
+
                 // 대기 마커(isPending = true)가 아닐 때만 Supabase 데이터 업데이트를 진행함
                 if (this.supabase && !updatedItem.isPending) {
                     try {
@@ -1401,7 +1410,9 @@ class MapMarkerApp {
                                 memo: updatedItem.memo,
                                 tags: updatedItem.tags,
                                 color: updatedItem.color || '#10b981',
-                                facility_code: updatedItem.facilityCode || null
+                                facility_code: updatedItem.facilityCode || null,
+                                road_address: updatedItem.roadAddress || "",
+                                jibun_address: updatedItem.jibunAddress || ""
                             })
                             .eq('id', this.currentEditingId);
                         
@@ -1427,6 +1438,8 @@ class MapMarkerApp {
         } else {
             // 신규 추가 모드
             const repInfo = infoListToUpsert[0] || {};
+            // 신규 추가 시 역지오코딩 조회 실행
+            const addrObj = await this.resolveAddressPromise(lat, lng);
             const newMarker = {
                 id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                 name,
@@ -1435,6 +1448,8 @@ class MapMarkerApp {
                 memo,
                 tags,
                 color: this.selectedColor || '#10b981',
+                roadAddress: addrObj.roadAddress || "",
+                jibunAddress: addrObj.jibunAddress || "",
                 facilityCode: repInfo.facility_code || facilityCode || "",
                 projectCode: repInfo.project_code || projectCode || "",
                 facilityYear: repInfo.facility_year || facilityYear || "",
@@ -1461,6 +1476,8 @@ class MapMarkerApp {
                             tags: newMarker.tags,
                             color: newMarker.color || '#10b981',
                             facility_code: newMarker.facilityCode || null,
+                            road_address: newMarker.roadAddress || "",
+                            jibun_address: newMarker.jibunAddress || "",
                             created_at: new Date().toISOString()
                         });
                     
@@ -1819,12 +1836,22 @@ class MapMarkerApp {
         if (markerData) {
             const lat = markerData.lat;
             const lng = markerData.lng;
+            
+            // 바뀐 좌표에 맞게 도로명/지번 주소 실시간 1회 변환
+            const addrObj = await this.resolveAddressPromise(lat, lng);
+            markerData.roadAddress = addrObj.roadAddress;
+            markerData.jibunAddress = addrObj.jibunAddress;
 
             if (!markerData.isPending && this.supabase) {
                 try {
                     const { error } = await this.supabase
                         .from('markers')
-                        .update({ lat, lng })
+                        .update({ 
+                            lat, 
+                            lng,
+                            road_address: addrObj.roadAddress || "",
+                            jibun_address: addrObj.jibunAddress || ""
+                        })
                         .eq('id', id);
 
                     if (error) throw error;
@@ -1884,6 +1911,15 @@ class MapMarkerApp {
         }
 
         this.showToast('위치 변경이 취소되었습니다.');
+    }
+
+    // 카카오 Geocoder를 통한 역지오코딩 주소 조회 (Promise 래퍼)
+    resolveAddressPromise(lat, lng) {
+        return new Promise((resolve) => {
+            this.resolveAddress(lat, lng, (addrObj) => {
+                resolve(addrObj);
+            });
+        });
     }
 
     // 카카오 Geocoder를 통한 역지오코딩 주소 조회
@@ -1946,19 +1982,51 @@ class MapMarkerApp {
         addressDiv.innerHTML = '<span class="road-addr">주소 조회 중...</span>';
         container.appendChild(addressDiv);
 
-        this.resolveAddress(data.lat, data.lng, (addrObj) => {
+        // 이미 데이터에 주소 정보가 있는 경우 API 호출 생략하고 즉시 렌더링
+        if (data.roadAddress || data.jibunAddress) {
             let html = '';
-            if (addrObj.roadAddress) {
-                html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
+            if (data.roadAddress) {
+                html += `<span class="road-addr">${data.roadAddress}</span>`;
             }
-            if (addrObj.jibunAddress) {
-                html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
-            }
-            if (!addrObj.roadAddress && !addrObj.jibunAddress) {
-                html = '<span class="road-addr">주소를 확인할 수 없음</span>';
+            if (data.jibunAddress) {
+                html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${data.jibunAddress}</span>`;
             }
             addressDiv.innerHTML = html;
-        });
+        } else {
+            // 주소가 없는 기존 마커(구데이터) 폴백 처리: 최초 1회만 API 조회
+            this.resolveAddress(data.lat, data.lng, async (addrObj) => {
+                let html = '';
+                if (addrObj.roadAddress) {
+                    html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
+                }
+                if (addrObj.jibunAddress) {
+                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
+                }
+                if (!addrObj.roadAddress && !addrObj.jibunAddress) {
+                    html = '<span class="road-addr">주소를 확인할 수 없음</span>';
+                }
+                addressDiv.innerHTML = html;
+                
+                // 로컬 메모리 동적 캐싱
+                data.roadAddress = addrObj.roadAddress;
+                data.jibunAddress = addrObj.jibunAddress;
+                
+                // 백그라운드 DB 마이그레이션 자동 갱신
+                if (!data.isPending && this.supabase) {
+                    try {
+                        await this.supabase
+                            .from('markers')
+                            .update({
+                                road_address: addrObj.roadAddress || "",
+                                jibun_address: addrObj.jibunAddress || ""
+                            })
+                            .eq('id', data.id);
+                    } catch (err) {
+                        console.error("백그라운드 주소 자동 마이그레이션 실패:", err);
+                    }
+                }
+            });
+        }
 
         // 위치 변경 모드용 안내 가이드
         if (this.currentMovingMarkerId === data.id) {
@@ -2067,6 +2135,14 @@ class MapMarkerApp {
         if (this.supabase) {
             try {
                 this.showToast('Supabase 전송 중...');
+                
+                // 전송 전 주소 누락 여부 최종 1회 검증/획득
+                if (!marker.roadAddress && !marker.jibunAddress) {
+                    const addrObj = await this.resolveAddressPromise(marker.lat, marker.lng);
+                    marker.roadAddress = addrObj.roadAddress;
+                    marker.jibunAddress = addrObj.jibunAddress;
+                }
+                
                 // 1. markers 테이블 insert
                 const { error: markerErr } = await this.supabase
                     .from('markers')
@@ -2079,6 +2155,8 @@ class MapMarkerApp {
                         tags: marker.tags || [],
                         color: marker.color || '#10b981',
                         facility_code: marker.facilityCode || null,
+                        road_address: marker.roadAddress || "",
+                        jibun_address: marker.jibunAddress || "",
                         created_at: new Date().toISOString()
                     });
                 
@@ -2539,6 +2617,8 @@ class MapMarkerApp {
                     memo: m.memo,
                     tags: m.tags,
                     facilityCode: m.facility_code,
+                    roadAddress: m.road_address || "",
+                    jibunAddress: m.jibun_address || "",
                     createdAt: m.created_at
                 }));
             } catch (e) {
@@ -2570,7 +2650,6 @@ class MapMarkerApp {
                     .from('markers')
                     .select('*');
                 if (error) throw error;
-                
                 dataToExport = data.map(m => ({
                     id: m.id,
                     name: m.name,
@@ -2580,6 +2659,8 @@ class MapMarkerApp {
                     tags: m.tags,
                     color: m.color || '#10b981',
                     facilityCode: m.facility_code,
+                    roadAddress: m.road_address || "",
+                    jibunAddress: m.jibun_address || "",
                     createdAt: m.created_at
                 }));
             } catch (e) {
@@ -2630,6 +2711,8 @@ class MapMarkerApp {
                              tags: m.tags || [],
                              color: m.color || '#10b981',
                              facility_code: m.facilityCode || null,
+                             road_address: m.roadAddress || "",
+                             jibun_address: m.jibunAddress || "",
                              created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
                          }));
                          
@@ -2866,6 +2949,17 @@ class MapMarkerApp {
         if (this.supabase) {
             try {
                 this.showToast('Supabase로 전체 전송 중...');
+                
+                // 주소가 누락된 대기 마커가 있다면 백그라운드 지오코딩으로 채워줌
+                for (let m of pendingMarkers) {
+                    if (!m.roadAddress && !m.jibunAddress) {
+                        const addrObj = await this.resolveAddressPromise(m.lat, m.lng);
+                        m.roadAddress = addrObj.roadAddress;
+                        m.jibunAddress = addrObj.jibunAddress;
+                        await new Promise(r => setTimeout(r, 50)); // API 과부하 딜레이
+                    }
+                }
+                
                 // 1. markers 벌크 데이터 생성
                 const bulkMarkers = pendingMarkers.map(m => ({
                     id: m.id,
@@ -2876,6 +2970,8 @@ class MapMarkerApp {
                     tags: m.tags || [],
                     color: m.color || '#10b981',
                     facility_code: m.facilityCode || null,
+                    road_address: m.roadAddress || "",
+                    jibun_address: m.jibunAddress || "",
                     created_at: new Date().toISOString()
                 }));
 
@@ -2960,6 +3056,8 @@ class MapMarkerApp {
             if (coords) {
                 item.lat = coords.lat;
                 item.lng = coords.lng;
+                item.roadAddress = item.address; // 엑셀 주소 변환 결과를 로드 어드레스로 맵핑 보존
+                item.jibunAddress = "";
                 delete item.address;
                 results.push(item);
                 successCount++;

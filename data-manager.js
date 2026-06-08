@@ -114,6 +114,8 @@ const DataManager = {
                             installDate: item.installDate || "",
                             openDate: item.openDate || "",
                             color: item.color || '#10b981',
+                            roadAddress: item.roadAddress || "",
+                            jibunAddress: item.jibunAddress || "",
                             createdAt: item.createdAt || new Date().toISOString()
                         };
                     });
@@ -233,6 +235,8 @@ const DataManager = {
                             eqType: eqTypeVal,
                             installDate: installDateVal,
                             openDate: openDateVal,
+                            roadAddress: addressVal, // 엑셀에 기입된 주소가 있다면 기본 할당
+                            jibunAddress: "",
                             createdAt: new Date().toISOString().split('T')[0]
                         };
                         
