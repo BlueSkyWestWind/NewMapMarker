@@ -4,6 +4,62 @@
 
 ---
 
+## [2026-06-09] 구주소 "번지" 접미사 동적 표시 기능 구현 계획
+
+### 사용자 요청 (원문)
+
+**최초 요청**
+> 마커 정보창이나 상세내에  주소가 있는데 구주소에  맨뒤에 번지가 들어갔으면해
+
+**인터뷰 답변**
+- Q: DB에 저장하는 원본 지번 주소 자체를 변경할까요, 아니면 화면에 표시될 때만 동적으로 "번지"를 붙여서 출력할까요?
+  - A: 1번으로 (화면 UI 표시 시에만 동적 추가)
+- Q: 숫자로 끝나는 주소에만 추가할까요, 아니면 모든 지번 주소에 일괄 추가할까요?
+  - A: 1번으로 (숫자로 끝나는 주소에만 추가)
+
+### 1. 개요
+- 사용자가 마커 정보창(말풍선 오버레이), 상세/등록/수정 모달, 장소 및 주소 검색 결과 등에서 구주소(지번 주소)를 확인할 때, 주소의 맨 끝에 "번지"가 표시되도록 보완하여 가독성을 높입니다.
+- 지번 주소가 숫자로 끝나는 경우에만 "번지"를 붙이고, 이미 "번지"가 붙어 있거나 숫자가 아닌 한글/특수문자로 끝나는 경우에는 붙이지 않는 포맷터 함수를 적용합니다.
+- 데이터베이스(Supabase) 및 백업 파일의 원본 주소 데이터는 오염 없이 안전하게 원본 형태를 그대로 유지하며, 화면 상에 렌더링되는 시점에만 동적으로 포맷팅을 수행합니다.
+
+### 2. Proposed Changes
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **지번 주소 포맷터 함수 추가 (`formatJibunAddress`)**:
+  - `jibunAddress` 문자열을 인자로 받아, 존재하고 숫자로 끝나는지 검사한 후 "번지"를 안전하게 붙여 반환하는 헬퍼 함수를 추가합니다:
+    ```javascript
+    formatJibunAddress(addr) {
+        if (!addr) return '';
+        const trimmed = addr.trim();
+        if (trimmed.endsWith('번지')) return trimmed;
+        if (/\d$/.test(trimmed)) {
+            return trimmed + '번지';
+        }
+        return trimmed;
+    }
+    ```
+- **지번 주소 표시 영역 동적 포맷팅 적용**:
+  - 등록 모달 (`openAddMarkerModal`) 내 주소 표시: `addrObj.jibunAddress` 대신 `this.formatJibunAddress(addrObj.jibunAddress)` 사용.
+  - 상세 보기 모달 (`openDetailMarkerModal`) 내 주소 표시: `markerData.jibunAddress` 대신 `this.formatJibunAddress(markerData.jibunAddress)` 사용.
+  - 수정 모달 (`openEditMarkerModal`) 내 주소 표시: `markerData.jibunAddress` 대신 `this.formatJibunAddress(markerData.jibunAddress)` 사용.
+  - 지도 클릭/이동 시 오버레이 주소 갱신 (`updateOverlayAddress`): `addrObj.jibunAddress` 대신 `this.formatJibunAddress(addrObj.jibunAddress)` 사용.
+  - 마커 커스텀 오버레이 생성 (`createOverlayContent`): 캐시된 주소(`data.jibunAddress`) 및 API 조회된 주소(`addrObj.jibunAddress`) 렌더링 시 `this.formatJibunAddress(...)` 적용.
+  - 장소/주소 검색 결과 목록 및 임시 오버레이 렌더링 (`displaySearchResults`): `place.address_name` 렌더링 시 `this.formatJibunAddress(...)` 적용.
+
+### 3. Verification Plan
+
+#### Manual Verification
+1. **마커 정보창(오버레이) 검증**: 기존 지번 주소 마커를 클릭하여 말풍선에 "(지번) ...번지"로 표시되는지 확인.
+2. **모달(등록/상세/수정) 검증**:
+   - 마커 클릭 후 [상세] 버튼 클릭 시 모달 주소란에 "(지번) ...번지"로 올바르게 표시되는지 확인.
+   - [편집] 버튼 클릭 후 수정 모달 주소란에 "(지번) ...번지"로 표시되는지 확인.
+   - 지도를 빈 공간 클릭하여 등록 모달을 열었을 때 주소란에 "(지번) ...번지"로 표시되는지 확인.
+3. **주소 검색 결과 검증**: 주소창에 "선암동 657" 검색 후 결과 리스트 및 임시 마커 오버레이에 "(지번) 광주 광산구 선암동 657번지"로 표시되는지 확인.
+4. **오동작 방지 검증**: "번지"가 이미 들어가 있는 주소나, 숫자로 끝나지 않는 경우(예: 주소를 찾을 수 없어 빈 값이거나 다른 텍스트인 경우) "번지"가 중복/오적용되지 않는지 확인.
+
+---
+
 ## [2026-06-08] DB 주소 저장 방식을 통한 카카오 Geocoder API 호출량 최적화 구현 계획
 
 ### 1. 개요

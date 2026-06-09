@@ -945,7 +945,7 @@ class MapMarkerApp {
                     html += `<div>${addrObj.roadAddress}</div>`;
                 }
                 if (addrObj.jibunAddress) {
-                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${addrObj.jibunAddress}</div>`;
+                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '주소를 확인할 수 없음';
@@ -1104,7 +1104,7 @@ class MapMarkerApp {
                     html += `<div>${addrObj.roadAddress}</div>`;
                 }
                 if (addrObj.jibunAddress) {
-                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${addrObj.jibunAddress}</div>`;
+                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '주소를 확인할 수 없음';
@@ -1188,7 +1188,7 @@ class MapMarkerApp {
                     html += `<div>${addrObj.roadAddress}</div>`;
                 }
                 if (addrObj.jibunAddress) {
-                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${addrObj.jibunAddress}</div>`;
+                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '주소를 확인할 수 없음';
@@ -1745,7 +1745,7 @@ class MapMarkerApp {
                     html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
                 }
                 if (addrObj.jibunAddress) {
-                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
+                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</span>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '<span class="road-addr">주소를 확인할 수 없음</span>';
@@ -1938,6 +1938,17 @@ class MapMarkerApp {
         });
     }
 
+    // 지번 주소 포맷터 (숫자로 끝날 시 맨 뒤에 '번지' 추가)
+    formatJibunAddress(addr) {
+        if (!addr) return '';
+        const trimmed = addr.trim();
+        if (trimmed.endsWith('번지')) return trimmed;
+        if (/\d$/.test(trimmed)) {
+            return trimmed + '번지';
+        }
+        return trimmed;
+    }
+
     // 카카오 Geocoder를 통한 역지오코딩 주소 조회
     resolveAddress(lat, lng, callback) {
         if (!window.kakao || !kakao.maps || !kakao.maps.services) return;
@@ -2005,7 +2016,7 @@ class MapMarkerApp {
                 html += `<span class="road-addr">${data.roadAddress}</span>`;
             }
             if (data.jibunAddress) {
-                html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${data.jibunAddress}</span>`;
+                html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(data.jibunAddress)}</span>`;
             }
             addressDiv.innerHTML = html;
         } else {
@@ -2016,7 +2027,7 @@ class MapMarkerApp {
                     html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
                 }
                 if (addrObj.jibunAddress) {
-                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${addrObj.jibunAddress}</span>`;
+                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</span>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '<span class="road-addr">주소를 확인할 수 없음</span>';
@@ -2439,7 +2450,7 @@ class MapMarkerApp {
                 addrHtml += `<div class="result-address">${roadAddr}</div>`;
             }
             if (jibunAddr && jibunAddr !== roadAddr) {
-                addrHtml += `<div class="result-address jibun-addr" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">(지번) ${jibunAddr}</div>`;
+                addrHtml += `<div class="result-address jibun-addr" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">(지번) ${this.formatJibunAddress(jibunAddr)}</div>`;
             }
             
             item.innerHTML = `
@@ -2499,7 +2510,7 @@ class MapMarkerApp {
                     tempAddrHtml += `<span class="road-addr">${roadAddr}</span>`;
                 }
                 if (jibunAddr && jibunAddr !== roadAddr) {
-                    tempAddrHtml += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${jibunAddr}</span>`;
+                    tempAddrHtml += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(jibunAddr)}</span>`;
                 }
                 if (!roadAddr && !jibunAddr) {
                     tempAddrHtml = '<span class="road-addr">주소를 확인할 수 없음</span>';
