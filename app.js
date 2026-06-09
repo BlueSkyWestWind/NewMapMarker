@@ -2191,13 +2191,6 @@ class MapMarkerApp {
             container.appendChild(guideDiv);
         }
         
-        if (data.memo) {
-            const memo = document.createElement('div');
-            memo.className = 'overlay-memo';
-            memo.textContent = data.memo;
-            container.appendChild(memo);
-        }
-        
         const actions = document.createElement('div');
         actions.className = 'overlay-actions';
         
