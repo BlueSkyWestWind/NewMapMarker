@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-06-09] 왼쪽 사이드바 접기/펴기(토글) 및 지도 리사이즈 기능 구현 계획
+
+### 사용자 요청 (원문)
+
+> 기능구현
+>  왼족에 레이아웃을 클릭으로 접었다 폈다 할수 있는기능 추가해줘
+
+### 1. 개요
+- 사용자가 더 넓은 화면에서 지도를 탐색할 수 있도록 왼쪽 사이드바를 접고 펼 수 있는 토글 기능을 제공합니다.
+- 사이드바 우측 경계선에 absolute 플로팅 버튼(세로형 탭 단추 및 화살표 아이콘)을 배치하고, 클릭 시 사이드바 본체가 좌측으로 부드럽게 슬라이드 아웃(margin-left: -380px)되도록 구현합니다.
+- 사이드바가 접히고 펼쳐질 때 카카오 지도 객체가 영역 변화를 정상 인지하여 화면을 깨짐 없이 꽉 채우도록 `this.map.relayout()`을 리사이즈 타이밍에 맞춰 호출합니다.
+
+### 2. Proposed Changes
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/index.html)
+- `.sidebar` 컴포넌트 내부 하단에 사이드바 접기/펴기를 수행할 `<button id="sidebar-toggle-btn" class="sidebar-toggle-btn">` 단추와 꺾쇠 화살표 아이콘(`<i class="fa-solid fa-chevron-left"></i>`)을 추가합니다.
+
+#### [UI / CSS]
+##### [MODIFY] [style.css](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/style.css)
+- `.sidebar-toggle-btn` 버튼의 탭 모양 디자인(세로형 타원/둥근 탭, 블러 및 섀도우 포함) 스타일을 정의합니다.
+- `.sidebar.collapsed` 스타일을 신설하여 `margin-left: -380px;` 및 우측 섀도우를 비활성화합니다.
+- `.sidebar.collapsed .sidebar-toggle-btn i` 회전 변환(`transform: rotate(180deg)`)을 추가하여 아이콘 방향을 스위칭합니다.
+- 사이드바가 열려 있거나 닫힐 때 트랜지션이 자연스럽게 적용되도록 보장합니다.
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **요소 캐싱 및 바인딩**:
+  - `this.sidebar` 및 `this.sidebarToggleBtn`을 캐싱하고 이벤트를 바인딩합니다.
+- **토글 로직 및 지도 relayout**:
+  - 버튼 클릭 시 `this.sidebar.classList.toggle('collapsed')`를 실행합니다.
+  - 애니메이션 트랜지션 시간(300ms) 동안 지도가 자연스럽게 맞춰지도록 `this.map.relayout()`을 클릭 직후 및 300ms 지연 후 2차로 호출하여 지도가 매끄럽고 완벽하게 영역을 채우도록 처리합니다.
+
+### 3. Verification Plan
+
+#### Manual Verification
+1. **버튼 렌더링 확인**: 사이드바 우측 경계선에 둥근 세로형 토글 단추가 테마 색상과 맞추어 미려하게 떠 있는지 확인합니다.
+2. **접기 동작**: 토글 버튼 클릭 시 사이드바가 왼쪽으로 부드럽게 사라지고, 지도가 빈 공간을 100% 꽉 채우는지 확인합니다. 이때 지도 이미지나 UI가 깨지거나 왜곡되지 않는지 확인합니다.
+3. **펴기 동작**: 접힌 상태에서 토글 버튼을 다시 클릭하면 사이드바가 원래 너비(380px)로 돌아오고, 지도 역시 축소되어 원래 영역으로 정상 정렬되는지 검증합니다.
+
+---
+
 ## [2026-06-09] 마커정보창(커스텀 오버레이) 내 메모/설명 출력 기능 제거 계획
 
 ### 사용자 요청 (원문)

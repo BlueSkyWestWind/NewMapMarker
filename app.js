@@ -150,6 +150,10 @@ class MapMarkerApp {
         this.copySelectedBtn = document.getElementById('copy-selected-btn');
         this.colorChips = document.querySelectorAll('.color-chip');
 
+        // 사이드바 토글 관련 캐시
+        this.sidebar = document.querySelector('.sidebar');
+        this.sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+
         // 테이블 뷰 관련 요소 캐시
         this.detailedInfoFormWrapper = document.getElementById('detailed-info-form-wrapper');
         this.detailedInfoTableWrapper = document.getElementById('detailed-info-table-wrapper');
@@ -206,6 +210,23 @@ class MapMarkerApp {
             if (e.key === 'Enter') this.handleSearch();
         });
         this.closeSearchBtn.addEventListener('click', () => this.hideSearchResults());
+
+        // 사이드바 토글 이벤트 바인딩
+        if (this.sidebarToggleBtn) {
+            this.sidebarToggleBtn.addEventListener('click', () => {
+                this.sidebar.classList.toggle('collapsed');
+                // 클릭 직후 즉시 지도 relayout 호출
+                if (this.map) {
+                    this.map.relayout();
+                }
+                // transition 애니메이션(300ms) 완료 후 2차 relayout 호출
+                setTimeout(() => {
+                    if (this.map) {
+                        this.map.relayout();
+                    }
+                }, 310);
+            });
+        }
         
         // 필터링 이벤트
         this.markerFilter.addEventListener('input', () => {

@@ -1179,3 +1179,47 @@ textarea:focus {
     transform: scale(1.15);
 }
 
+/* Sidebar Toggle Layout & Styling */
+.sidebar {
+    position: relative; /* 토글 버튼 부모 기준 설정 */
+    overflow: visible !important; /* 토글 버튼 노출 보장 */
+}
+
+.sidebar.collapsed {
+    margin-left: -380px;
+    box-shadow: none;
+}
+
+.sidebar-toggle-btn {
+    position: absolute;
+    top: 50%;
+    right: -20px;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 60px;
+    background: var(--bg-panel);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border-color);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99;
+    transition: var(--transition-smooth);
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.25);
+    outline: none;
+}
+
+.sidebar-toggle-btn:hover {
+    color: var(--primary);
+    background: rgba(30, 41, 59, 0.9);
+}
+
+.sidebar.collapsed .sidebar-toggle-btn i {
+    transform: rotate(180deg);
+}
+
