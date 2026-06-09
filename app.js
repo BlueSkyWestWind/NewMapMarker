@@ -63,6 +63,7 @@ class MapMarkerApp {
         this.clusterer = null; // 마커 클러스터러 객체
         this.selectedYears = new Set(); // 선택된 연도 필터 셋
         this.selectedBusinesses = new Set(); // 선택된 사업구분 필터 셋
+        this.selectedColors = new Set(); // 선택된 마커 색상 필터 셋
         this.currentEditingId = null; // 현재 편집 중인 마커 ID (null이면 신규 등록)
         this.focusedMarkerIndex = -1; // 키보드 탐색을 위한 포커스된 마커 인덱스
         this.currentRoadview = null; // 현재 활성화된 로드뷰 객체
@@ -192,6 +193,10 @@ class MapMarkerApp {
         this.btnSelectAllBusinesses = document.getElementById('btn-select-all-businesses');
         this.selectedYearsLabel = document.getElementById('selected-years-label');
         this.selectedBusinessesLabel = document.getElementById('selected-businesses-label');
+        this.selectColorsTrigger = document.getElementById('select-colors-trigger');
+        this.optionsColorsContainer = document.getElementById('options-colors-container');
+        this.btnSelectAllColors = document.getElementById('btn-select-all-colors');
+        this.selectedColorsLabel = document.getElementById('selected-colors-label');
     }
 
     bindEvents() {
@@ -516,6 +521,23 @@ class MapMarkerApp {
             });
         }
 
+        // 색상 드롭다운 트리거
+        if (this.selectColorsTrigger) {
+            this.selectColorsTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const wrapper = this.selectColorsTrigger.closest('.custom-select-wrapper');
+                const isOpen = wrapper.classList.contains('open');
+                
+                // 다른 드롭다운 닫기
+                this.closeAllDropdowns();
+                
+                if (!isOpen) {
+                    wrapper.classList.add('open');
+                    this.optionsColorsContainer.classList.remove('hidden');
+                }
+            });
+        }
+
         // 모두 선택 버튼 이벤트
         if (this.btnSelectAllYears) {
             this.btnSelectAllYears.addEventListener('click', (e) => {
@@ -528,6 +550,13 @@ class MapMarkerApp {
             this.btnSelectAllBusinesses.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.selectAllFilterOptions('business');
+            });
+        }
+
+        if (this.btnSelectAllColors) {
+            this.btnSelectAllColors.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectAllFilterOptions('color');
             });
         }
 
@@ -654,15 +683,18 @@ class MapMarkerApp {
 
     // 데이터 기반 필터 고유 옵션 목록 동적 초기화
     initFilters(isFirstLoad = false) {
-        // 1. 고유 연도 및 사업구분 수집
+        // 1. 고유 연도 및 사업구분, 색상 수집
         const yearsSet = new Set();
         const businessesSet = new Set();
+        const colorsSet = new Set();
 
         this.markersData.forEach(marker => {
             const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
             const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
+            const color = marker.color ? marker.color.toLowerCase().trim() : "#10b981";
             yearsSet.add(year);
             businessesSet.add(business);
+            colorsSet.add(color);
         });
 
         // 2. 정렬
@@ -680,10 +712,22 @@ class MapMarkerApp {
             return a.localeCompare(b);
         });
 
+        // 색상은 지정된 테마 컬러 순서로 정렬
+        const colorOrder = ['#10b981', '#6366f1', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#14b8a6', '#f97316'];
+        this.uniqueColors = Array.from(colorsSet).sort((a, b) => {
+            const idxA = colorOrder.indexOf(a);
+            const idxB = colorOrder.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b);
+        });
+
         // 3. 첫 로드 시에는 전체 값을 기본 선택 상태로 셋업
         if (isFirstLoad) {
             this.selectedYears = new Set(this.uniqueYears);
             this.selectedBusinesses = new Set(this.uniqueBusinesses);
+            this.selectedColors = new Set(this.uniqueColors);
         } else {
             // 신규 데이터 추가/삭제 시 유효한 선택만 필터 셋에 남김
             const newSelectedYears = new Set();
@@ -697,6 +741,12 @@ class MapMarkerApp {
                 if (this.selectedBusinesses.has(b)) newSelectedBusinesses.add(b);
             });
             this.selectedBusinesses = newSelectedBusinesses.size > 0 ? newSelectedBusinesses : new Set(this.uniqueBusinesses);
+
+            const newSelectedColors = new Set();
+            this.uniqueColors.forEach(c => {
+                if (this.selectedColors.has(c)) newSelectedColors.add(c);
+            });
+            this.selectedColors = newSelectedColors.size > 0 ? newSelectedColors : new Set(this.uniqueColors);
         }
 
         // 4. 드롭다운 HTML 렌더링
@@ -772,6 +822,71 @@ class MapMarkerApp {
                 }
             }
         }
+
+        // --- 색상 선택 드롭다운 ---
+        if (this.optionsColorsContainer) {
+            this.optionsColorsContainer.innerHTML = '';
+            
+            const COLOR_NAMES = {
+                '#10b981': '에메랄드',
+                '#6366f1': '인디고',
+                '#f43f5e': '로즈',
+                '#f59e0b': '골드',
+                '#8b5cf6': '퍼플',
+                '#06b6d4': '시안',
+                '#ec4899': '핑크',
+                '#84cc16': '라임',
+                '#14b8a6': '틸',
+                '#f97316': '오렌지'
+            };
+
+            this.uniqueColors.forEach(color => {
+                const item = document.createElement('div');
+                const isSelected = this.selectedColors.has(color);
+                item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
+                
+                const name = COLOR_NAMES[color] || color;
+                
+                item.innerHTML = `
+                    <div class="filter-option-checkbox"></div>
+                    <div style="width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; margin-right: 6px; border: 1px solid rgba(255, 255, 255, 0.2);"></div>
+                    <span class="filter-option-text">${name}</span>
+                `;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFilterOption('color', color);
+                });
+                this.optionsColorsContainer.appendChild(item);
+            });
+
+            // 트리거 영역 라벨 갱신
+            if (this.selectedColorsLabel) {
+                const selectedCount = this.selectedColors.size;
+                const totalCount = this.uniqueColors.length;
+                
+                if (selectedCount === totalCount) {
+                    this.selectedColorsLabel.textContent = "색상 선택";
+                } else if (selectedCount === 0) {
+                    this.selectedColorsLabel.textContent = "선택 안함";
+                } else {
+                    const COLOR_NAMES = {
+                        '#10b981': '에메랄드',
+                        '#6366f1': '인디고',
+                        '#f43f5e': '로즈',
+                        '#f59e0b': '골드',
+                        '#8b5cf6': '퍼플',
+                        '#06b6d4': '시안',
+                        '#ec4899': '핑크',
+                        '#84cc16': '라임',
+                        '#14b8a6': '틸',
+                        '#f97316': '오렌지'
+                    };
+                    const firstSelected = Array.from(this.selectedColors)[0];
+                    const firstLabel = COLOR_NAMES[firstSelected] || firstSelected;
+                    this.selectedColorsLabel.textContent = selectedCount === 1 ? firstLabel : `${firstLabel} 외 ${selectedCount - 1}`;
+                }
+            }
+        }
     }
 
     // 특정 필터 옵션 선택 상태 토글 핸들러
@@ -787,6 +902,12 @@ class MapMarkerApp {
                 this.selectedBusinesses.delete(value);
             } else {
                 this.selectedBusinesses.add(value);
+            }
+        } else if (type === 'color') {
+            if (this.selectedColors.has(value)) {
+                this.selectedColors.delete(value);
+            } else {
+                this.selectedColors.add(value);
             }
         }
 
@@ -804,6 +925,8 @@ class MapMarkerApp {
             this.selectedYears = new Set(this.uniqueYears);
         } else if (type === 'business') {
             this.selectedBusinesses = new Set(this.uniqueBusinesses);
+        } else if (type === 'color') {
+            this.selectedColors = new Set(this.uniqueColors);
         }
 
         // 라벨 및 스타일 리렌더링
@@ -1600,10 +1723,11 @@ class MapMarkerApp {
         
         // 현재 데이터셋 순회하며 마커 생성
         this.markersData.forEach(data => {
-            // 필터링 적용 (연도 & 사업구분이 선택되어 있는지 확인)
+            // 필터링 적용 (연도 & 사업구분 & 색상이 선택되어 있는지 확인)
             const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
             const business = data.businessType ? data.businessType.toString().trim() : "미지정";
-            if (!this.selectedYears.has(year) || !this.selectedBusinesses.has(business)) {
+            const color = data.color ? data.color.toLowerCase().trim() : "#10b981";
+            if (!this.selectedYears.has(year) || !this.selectedBusinesses.has(business) || !this.selectedColors.has(color)) {
                 return;
             }
 
@@ -2232,11 +2356,12 @@ class MapMarkerApp {
         // 목록 리셋
         this.markersList.innerHTML = '';
         
-        // 연도 및 사업구분 필터가 적용된 마커 선별
+        // 연도, 사업구분 및 색상 필터가 적용된 마커 선별
         const filteredByDropdowns = this.markersData.filter(marker => {
             const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
             const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
-            return this.selectedYears.has(year) && this.selectedBusinesses.has(business);
+            const color = marker.color ? marker.color.toLowerCase().trim() : "#10b981";
+            return this.selectedYears.has(year) && this.selectedBusinesses.has(business) && this.selectedColors.has(color);
         });
         
         const pendingMarkers = filteredByDropdowns.filter(m => m.isPending);
