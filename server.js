@@ -21,31 +21,57 @@ const server = http.createServer((req, res) => {
 
     // API 프록시 처리 (카카오 로드뷰 과거 날짜 API의 브라우저 CORS 회피 목적)
     if (req.url.startsWith('/api/roadview-dates')) {
-        const urlObj = new URL(req.url, `http://${req.headers.host}`);
-        const panoId = urlObj.searchParams.get('panoId');
-        if (!panoId) {
-            res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-            res.end(JSON.stringify({ error: 'panoId 파라미터가 필요합니다.' }));
-            return;
-        }
-
-        const targetUrl = `https://rv.map.kakao.com/roadview-search/v2/node/${panoId}?SERVICE=csspano`;
-        const https = require('https');
-        https.get(targetUrl, (apiRes) => {
-            let body = '';
-            apiRes.on('data', (chunk) => body += chunk);
-            apiRes.on('end', () => {
-                res.writeHead(200, { 
+        try {
+            const urlObj = new URL(req.url, `http://${req.headers.host}`);
+            const panoId = urlObj.searchParams.get('panoId');
+            if (!panoId) {
+                res.writeHead(400, { 
                     'Content-Type': 'application/json; charset=utf-8',
                     'Access-Control-Allow-Origin': '*'
                 });
-                res.end(body);
+                res.end(JSON.stringify({ error: 'panoId 파라미터가 필요합니다.' }));
+                return;
+            }
+
+            const targetUrl = `https://rv.map.kakao.com/roadview-search/v2/node/${panoId}?SERVICE=csspano`;
+            const https = require('https');
+            
+            const apiReq = https.get(targetUrl, (apiRes) => {
+                let body = '';
+                apiRes.on('data', (chunk) => body += chunk);
+                apiRes.on('end', () => {
+                    res.writeHead(200, { 
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Access-Control-Allow-Origin': '*'
+                    });
+                    res.end(body);
+                });
             });
-        }).on('error', (err) => {
-            console.error('프록시 API 요청 오류:', err);
-            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-            res.end(JSON.stringify({ error: '카카오 API 요청에 실패했습니다.' }));
-        });
+
+            // 5초 타임아웃 설정 (Hanging 현상 방지)
+            apiReq.setTimeout(5000, () => {
+                apiReq.destroy(new Error('timeout'));
+            });
+
+            apiReq.on('error', (err) => {
+                console.error('프록시 API 요청 오류:', err);
+                const isTimeout = err.message === 'timeout';
+                res.writeHead(isTimeout ? 504 : 500, { 
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ 
+                    error: isTimeout ? '카카오 API 요청 시간이 초과되었습니다.' : '카카오 API 요청에 실패했습니다.' 
+                }));
+            });
+        } catch (err) {
+            console.error('프록시 처리 중 예외 발생:', err);
+            res.writeHead(500, { 
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ error: '서버 내부 오류가 발생했습니다.' }));
+        }
         return;
     }
 
