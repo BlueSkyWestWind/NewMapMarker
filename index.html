@@ -477,6 +477,53 @@
         </div>
     </div>
 
+    <!-- 엑셀 위치 등록 확인 모달 -->
+    <div id="excel-confirm-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 90%; width: 1200px;">
+            <header class="modal-header">
+                <h3 id="excel-confirm-title">엑셀 위치 등록 확인</h3>
+                <button id="close-excel-confirm-btn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto; padding-right: 18px;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                    업로드된 엑셀 데이터의 위치 목록입니다. 각 위치의 상세 정보를 확인하고 등록 또는 제외를 선택할 수 있습니다.
+                </p>
+                <div style="width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <table class="info-table" style="min-width: 1100px; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th>장소 이름</th>
+                                <th>통합시설코드</th>
+                                <th>프로젝트코드</th>
+                                <th>시설연도</th>
+                                <th>사업구분</th>
+                                <th>국소명-최종</th>
+                                <th>장비타입</th>
+                                <th>위도</th>
+                                <th>경도</th>
+                                <th>주소</th>
+                                <th style="width: 190px; text-align: center;">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="excel-confirm-table-body">
+                            <!-- 동적으로 대기 마커들이 추가됨 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 12px; font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-circle-info" style="color: var(--secondary);"></i>
+                    <span>대기 중인 위치: <strong id="excel-confirm-count">0</strong>건. [이동] 버튼 클릭 시 지도가 해당 위치로 포커싱됩니다.</span>
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <div class="footer-right">
+                    <button id="cancel-excel-confirm-btn" class="btn btn-text">닫기</button>
+                    <button id="send-excel-confirm-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);">전체 전송</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
     <!-- Roadview Modal -->
     <div id="roadview-modal" class="modal-overlay hidden">
         <div class="modal-card" style="width: 1200px; height: 900px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; resize: both; overflow: hidden; min-width: 400px; min-height: 300px;">
