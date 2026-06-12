@@ -215,6 +215,10 @@ class MapMarkerApp {
         this.sendExcelConfirmBtn = document.getElementById('send-excel-confirm-btn');
         this.excelConfirmTableBody = document.getElementById('excel-confirm-table-body');
         this.excelConfirmCount = document.getElementById('excel-confirm-count');
+
+        // 지적편집도 관련 요소 캐시 및 상태
+        this.cadastralBtn = document.getElementById('cadastral-btn');
+        this.isCadastralMode = localStorage.getItem('cadastral_mode') === 'true';
     }
 
     bindEvents() {
@@ -291,6 +295,9 @@ class MapMarkerApp {
         this.myLocationBtn.addEventListener('click', () => this.goToMyLocation());
         this.zoomInBtn.addEventListener('click', () => this.zoomMap(true));
         this.zoomOutBtn.addEventListener('click', () => this.zoomMap(false));
+        if (this.cadastralBtn) {
+            this.cadastralBtn.addEventListener('click', () => this.toggleCadastralMode());
+        }
         
         // 모달 이벤트
         this.closeModalBtn.addEventListener('click', () => this.closeModal());
@@ -1092,6 +1099,15 @@ class MapMarkerApp {
         
         try {
             this.map = new kakao.maps.Map(mapContainer, mapOption);
+            
+            // 저장된 지적도 활성화 상태 적용
+            if (this.isCadastralMode) {
+                this.map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+                if (this.cadastralBtn) {
+                    this.cadastralBtn.classList.add('active');
+                }
+            }
+            
             this.placesService = new kakao.maps.services.Places();
             
             // 지도 컨트롤 및 입력창 활성화
@@ -2964,6 +2980,28 @@ class MapMarkerApp {
     hideSearchResults() {
         this.searchResultsContainer.classList.add('hidden');
         this.searchResultsList.innerHTML = '';
+    }
+
+    // 지적편집도 토글 기능
+    toggleCadastralMode() {
+        if (!this.map) return;
+        
+        this.isCadastralMode = !this.isCadastralMode;
+        localStorage.setItem('cadastral_mode', this.isCadastralMode);
+        
+        if (this.isCadastralMode) {
+            this.map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+            if (this.cadastralBtn) {
+                this.cadastralBtn.classList.add('active');
+            }
+            this.showToast('지적편집도를 표시합니다.');
+        } else {
+            this.map.removeOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+            if (this.cadastralBtn) {
+                this.cadastralBtn.classList.remove('active');
+            }
+            this.showToast('지적편집도를 해제합니다.');
+        }
     }
 
     // 지오로케이션(Geolocation API) 내 위치 찾기

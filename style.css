@@ -581,6 +581,13 @@ textarea:focus {
     transform: translateY(0);
 }
 
+.btn-floating.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 0 12px var(--primary-glow);
+}
+
 .zoom-controls {
     display: flex;
     flex-direction: column;

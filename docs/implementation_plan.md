@@ -4,6 +4,43 @@
 
 ---
 
+## [2026-06-12] 지도 지적편집도(지번 테두리) 토글 기능 추가 계획
+
+### 사용자 요청 (원문)
+> 맵지도에 지번 테투리가 보이게 할려면 어떻게 해야 할까???
+> 구현해줘
+
+### 1. 개요
+- 사용자가 지도 상에서 필지 경계와 지번을 한눈에 식별할 수 있도록 카카오 지도 API의 지적편집도(`kakao.maps.MapTypeId.USE_DISTRICT`) 레이어를 올릴 수 있는 기능을 제공합니다.
+- 지도 우측 플로팅 컨트롤 뷰 영역에 지적도 토글 버튼을 추가하여 간편하게 On/Off 할 수 있게 합니다.
+- 페이지가 새로고침되더라도 사용자의 마지막 지적편집도 활성화 상태를 로컬 스토리지(`cadastral_mode`)를 통해 기억하고 유지하는 고품격 편의성을 연동합니다.
+
+### 2. Proposed Changes
+
+#### [UI / HTML]
+##### [MODIFY] [index.html](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/index.html)
+- `#my-location-btn` 아래에 지적편집도 토글을 위한 `#cadastral-btn` 플로팅 단추(아이콘: `fa-regular fa-map`)를 신설합니다.
+
+#### [UI / CSS]
+##### [MODIFY] [style.css](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/style.css)
+- `.btn-floating.active` 클래스 스타일을 정의합니다. 
+- 지적도 활성화 시 버튼의 배경을 강조색(예: `#4f46e5` 또는 `#6366f1`)으로 채우고 활성화되었음을 시각적으로 뚜렷하게 인지할 수 있도록 보완합니다.
+
+#### [Logic / JS]
+##### [MODIFY] [app.js](file:///c:/Users/celyo/OneDrive/문서/Vibe%20Codeing/001.MapMarker/app.js)
+- **상태 관리 변수**: `this.isCadastralMode`를 로컬스토리지 값(`localStorage.getItem('cadastral_mode') === 'true'`)으로 초기화합니다.
+- **요소 캐싱 및 이벤트 바인딩**: `#cadastral-btn`을 캐싱하고, 클릭 시 지적편집도 상태를 토글한 뒤 지도에 오버레이 레이어를 추가/삭제(`addOverlayMapTypeId`/`removeOverlayMapTypeId`)하고 상태를 로컬 스토리지에 세이브하도록 연동합니다.
+- **초기 상태 적용**: 지도 로드 완료 시점(`initMap` 또는 맵 생성 완료 후)에 저장되어 있던 `this.isCadastralMode`가 `true`일 경우, 지적도 오버레이를 지도에 올리고 단추를 활성화(`active`) 처리하는 초기화 구문을 연동합니다.
+
+### 3. Verification Plan
+
+#### Manual Verification
+1. **버튼 노출**: 지도 우측 플로팅 컨트롤러에 지도 아이콘 형태의 "지적편집도 토글" 버튼이 노출되는지 확인합니다.
+2. **지적도 토글**: 버튼 클릭 시 지도 상에 붉은색/노란색 등의 지번 경계(용도지역 및 지번 텍스트)가 덧씌워지는지 확인하고, 다시 누르면 깨끗이 사라지는지 확인합니다.
+3. **영구 기억 장치**: 지적도를 켠 상태에서 F5 새로고침을 실행했을 때, 다시 로딩된 후에도 지적도가 켜진 상태가 그대로 보존되어 있고 토글 버튼이 하이라이트 활성화되어 있는지 교차 검증합니다.
+
+---
+
 ## [2026-06-12] 마커 태그 필터 기능 추가 계획
 
 ### 사용자 요청 (원문)
