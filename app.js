@@ -64,6 +64,7 @@ class MapMarkerApp {
         this.selectedYears = new Set(); // 선택된 연도 필터 셋
         this.selectedBusinesses = new Set(); // 선택된 사업구분 필터 셋
         this.selectedColors = new Set(); // 선택된 마커 색상 필터 셋
+        this.selectedTags = new Set(); // 선택된 마커 태그 필터 셋
         this.currentEditingId = null; // 현재 편집 중인 마커 ID (null이면 신규 등록)
         this.focusedMarkerIndex = -1; // 키보드 탐색을 위한 포커스된 마커 인덱스
         this.currentRoadview = null; // 현재 활성화된 로드뷰 객체
@@ -201,6 +202,11 @@ class MapMarkerApp {
         this.optionsColorsContainer = document.getElementById('options-colors-container');
         this.btnSelectAllColors = document.getElementById('btn-select-all-colors');
         this.selectedColorsLabel = document.getElementById('selected-colors-label');
+
+        this.selectTagsTrigger = document.getElementById('select-tags-trigger');
+        this.optionsTagsContainer = document.getElementById('options-tags-container');
+        this.btnSelectAllTags = document.getElementById('btn-select-all-tags');
+        this.selectedTagsLabel = document.getElementById('selected-tags-label');
 
         // 엑셀 위치 등록 확인 모달 요소 캐시
         this.excelConfirmModal = document.getElementById('excel-confirm-modal');
@@ -583,6 +589,23 @@ class MapMarkerApp {
             });
         }
 
+        // 태그 드롭다운 트리거
+        if (this.selectTagsTrigger) {
+            this.selectTagsTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const wrapper = this.selectTagsTrigger.closest('.custom-select-wrapper');
+                const isOpen = wrapper.classList.contains('open');
+                
+                // 다른 드롭다운 닫기
+                this.closeAllDropdowns();
+                
+                if (!isOpen) {
+                    wrapper.classList.add('open');
+                    this.optionsTagsContainer.classList.remove('hidden');
+                }
+            });
+        }
+
         // 모두 선택 버튼 이벤트
         if (this.btnSelectAllYears) {
             this.btnSelectAllYears.addEventListener('click', (e) => {
@@ -602,6 +625,13 @@ class MapMarkerApp {
             this.btnSelectAllColors.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.selectAllFilterOptions('color');
+            });
+        }
+
+        if (this.btnSelectAllTags) {
+            this.btnSelectAllTags.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectAllFilterOptions('tag');
             });
         }
 
@@ -728,11 +758,12 @@ class MapMarkerApp {
 
     // 데이터 기반 필터 고유 옵션 목록 동적 초기화
     initFilters(isFirstLoad = false) {
-        // 1. 고유 연도 및 사업구분, 색상 수집
+        // 1. 고유 연도 및 사업구분, 색상, 태그 수집
         const yearsSet = new Set();
         const businessesSet = new Set();
         const colorsSet = new Set();
-
+        const tagsSet = new Set();
+ 
         this.markersData.forEach(marker => {
             const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
             const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
@@ -740,8 +771,18 @@ class MapMarkerApp {
             yearsSet.add(year);
             businessesSet.add(business);
             colorsSet.add(color);
-        });
 
+            // 태그 수집
+            if (marker.tags && marker.tags.length > 0) {
+                marker.tags.forEach(tag => {
+                    const cleanTag = tag.toString().trim();
+                    if (cleanTag) tagsSet.add(cleanTag);
+                });
+            } else {
+                tagsSet.add("미지정");
+            }
+        });
+ 
         // 2. 정렬
         // 연도는 숫자 기준 내림차순 정렬, "미지정"은 맨 아래로 배치
         this.uniqueYears = Array.from(yearsSet).sort((a, b) => {
@@ -768,11 +809,19 @@ class MapMarkerApp {
             return a.localeCompare(b);
         });
 
+        // 태그는 사전식 오름차순 정렬, "미지정"은 맨 아래로 배치
+        this.uniqueTags = Array.from(tagsSet).sort((a, b) => {
+            if (a === "미지정") return 1;
+            if (b === "미지정") return -1;
+            return a.localeCompare(b);
+        });
+
         // 3. 첫 로드 시에는 전체 값을 기본 선택 상태로 셋업
         if (isFirstLoad) {
             this.selectedYears = new Set(this.uniqueYears);
             this.selectedBusinesses = new Set(this.uniqueBusinesses);
             this.selectedColors = new Set(this.uniqueColors);
+            this.selectedTags = new Set(this.uniqueTags);
         } else {
             // 신규 데이터 추가/삭제 시 유효한 선택만 필터 셋에 남김
             const newSelectedYears = new Set();
@@ -792,6 +841,12 @@ class MapMarkerApp {
                 if (this.selectedColors.has(c)) newSelectedColors.add(c);
             });
             this.selectedColors = newSelectedColors.size > 0 ? newSelectedColors : new Set(this.uniqueColors);
+
+            const newSelectedTags = new Set();
+            this.uniqueTags.forEach(t => {
+                if (this.selectedTags.has(t)) newSelectedTags.add(t);
+            });
+            this.selectedTags = newSelectedTags.size > 0 ? newSelectedTags : new Set(this.uniqueTags);
         }
 
         // 4. 드롭다운 HTML 렌더링
@@ -932,6 +987,40 @@ class MapMarkerApp {
                 }
             }
         }
+
+        // --- 태그 선택 드롭다운 ---
+        if (this.optionsTagsContainer) {
+            this.optionsTagsContainer.innerHTML = '';
+            this.uniqueTags.forEach(tag => {
+                const item = document.createElement('div');
+                const isSelected = this.selectedTags.has(tag);
+                item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
+                item.innerHTML = `
+                    <div class="filter-option-checkbox"></div>
+                    <span class="filter-option-text">${tag}</span>
+                `;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFilterOption('tag', tag);
+                });
+                this.optionsTagsContainer.appendChild(item);
+            });
+
+            // 트리거 영역 라벨 갱신
+            if (this.selectedTagsLabel) {
+                const selectedCount = this.selectedTags.size;
+                const totalCount = this.uniqueTags.length;
+                
+                if (selectedCount === totalCount) {
+                    this.selectedTagsLabel.textContent = "태그 선택";
+                } else if (selectedCount === 0) {
+                    this.selectedTagsLabel.textContent = "선택 안함";
+                } else {
+                    const firstSelected = Array.from(this.selectedTags)[0];
+                    this.selectedTagsLabel.textContent = selectedCount === 1 ? firstSelected : `${firstSelected} 외 ${selectedCount - 1}`;
+                }
+            }
+        }
     }
 
     // 특정 필터 옵션 선택 상태 토글 핸들러
@@ -954,6 +1043,12 @@ class MapMarkerApp {
             } else {
                 this.selectedColors.add(value);
             }
+        } else if (type === 'tag') {
+            if (this.selectedTags.has(value)) {
+                this.selectedTags.delete(value);
+            } else {
+                this.selectedTags.add(value);
+            }
         }
 
         // 라벨 및 스타일 리렌더링
@@ -972,6 +1067,8 @@ class MapMarkerApp {
             this.selectedBusinesses = new Set(this.uniqueBusinesses);
         } else if (type === 'color') {
             this.selectedColors = new Set(this.uniqueColors);
+        } else if (type === 'tag') {
+            this.selectedTags = new Set(this.uniqueTags);
         }
 
         // 라벨 및 스타일 리렌더링
@@ -1109,11 +1206,11 @@ class MapMarkerApp {
             modalAddrEl.innerHTML = '주소 조회 중...';
             this.resolveAddress(lat, lng, (addrObj) => {
                 let html = '';
-                if (addrObj.roadAddress) {
-                    html += `<div>${addrObj.roadAddress}</div>`;
-                }
                 if (addrObj.jibunAddress) {
-                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
+                    html += `<div>${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
+                }
+                if (addrObj.roadAddress) {
+                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(도로명) ${addrObj.roadAddress}</div>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '주소를 확인할 수 없음';
@@ -1268,11 +1365,11 @@ class MapMarkerApp {
             modalAddrEl.innerHTML = '주소 조회 중...';
             this.resolveAddress(markerData.lat, markerData.lng, (addrObj) => {
                 let html = '';
-                if (addrObj.roadAddress) {
-                    html += `<div>${addrObj.roadAddress}</div>`;
-                }
                 if (addrObj.jibunAddress) {
-                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
+                    html += `<div>${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
+                }
+                if (addrObj.roadAddress) {
+                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(도로명) ${addrObj.roadAddress}</div>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '주소를 확인할 수 없음';
@@ -1352,11 +1449,11 @@ class MapMarkerApp {
             modalAddrEl.innerHTML = '주소 조회 중...';
             this.resolveAddress(markerData.lat, markerData.lng, (addrObj) => {
                 let html = '';
-                if (addrObj.roadAddress) {
-                    html += `<div>${addrObj.roadAddress}</div>`;
-                }
                 if (addrObj.jibunAddress) {
-                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
+                    html += `<div>${this.formatJibunAddress(addrObj.jibunAddress)}</div>`;
+                }
+                if (addrObj.roadAddress) {
+                    html += `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">(도로명) ${addrObj.roadAddress}</div>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '주소를 확인할 수 없음';
@@ -1811,12 +1908,20 @@ class MapMarkerApp {
         
         // 현재 데이터셋 순회하며 마커 생성
         this.markersData.forEach(data => {
-            // 필터링 적용 (대기 마커가 아닌 경우에만 연도 & 사업구분 & 색상 필터 검사)
+            // 필터링 적용 (대기 마커가 아닌 경우에만 연도 & 사업구분 & 색상 & 태그 필터 검사)
             if (!data.isPending) {
                 const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
                 const business = data.businessType ? data.businessType.toString().trim() : "미지정";
                 const color = data.color ? data.color.toLowerCase().trim() : "#10b981";
-                if (!this.selectedYears.has(year) || !this.selectedBusinesses.has(business) || !this.selectedColors.has(color)) {
+
+                let hasMatchingTag = false;
+                if (data.tags && data.tags.length > 0) {
+                    hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
+                } else {
+                    hasMatchingTag = this.selectedTags.has("미지정");
+                }
+
+                if (!this.selectedYears.has(year) || !this.selectedBusinesses.has(business) || !this.selectedColors.has(color) || !hasMatchingTag) {
                     return;
                 }
             }
@@ -1952,8 +2057,9 @@ class MapMarkerApp {
                     if (latInput) latInput.value = newLat;
                     if (lngInput) lngInput.value = newLng;
                     if (addressTd) {
-                        addressTd.textContent = addrObj.roadAddress || '주소 없음';
-                        addressTd.setAttribute('title', addrObj.roadAddress || '');
+                        const showAddr = this.formatJibunAddress(addrObj.jibunAddress) || addrObj.roadAddress || '주소 없음';
+                        addressTd.textContent = showAddr;
+                        addressTd.setAttribute('title', showAddr);
                     }
                 }
             }
@@ -1977,11 +2083,11 @@ class MapMarkerApp {
             addressDiv.innerHTML = '<span class="road-addr">주소 조회 중...</span>';
             this.resolveAddress(lat, lng, (addrObj) => {
                 let html = '';
-                if (addrObj.roadAddress) {
-                    html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
-                }
                 if (addrObj.jibunAddress) {
-                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</span>`;
+                    html += `<span class="road-addr">${this.formatJibunAddress(addrObj.jibunAddress)}</span>`;
+                }
+                if (addrObj.roadAddress) {
+                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(도로명) ${addrObj.roadAddress}</span>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '<span class="road-addr">주소를 확인할 수 없음</span>';
@@ -2255,22 +2361,22 @@ class MapMarkerApp {
         // 이미 데이터에 주소 정보가 있는 경우 API 호출 생략하고 즉시 렌더링
         if (data.roadAddress || data.jibunAddress) {
             let html = '';
-            if (data.roadAddress) {
-                html += `<span class="road-addr">${data.roadAddress}</span>`;
-            }
             if (data.jibunAddress) {
-                html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(data.jibunAddress)}</span>`;
+                html += `<span class="road-addr">${this.formatJibunAddress(data.jibunAddress)}</span>`;
+            }
+            if (data.roadAddress) {
+                html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(도로명) ${data.roadAddress}</span>`;
             }
             addressDiv.innerHTML = html;
         } else {
             // 주소가 없는 기존 마커(구데이터) 폴백 처리: 최초 1회만 API 조회
             this.resolveAddress(data.lat, data.lng, async (addrObj) => {
                 let html = '';
-                if (addrObj.roadAddress) {
-                    html += `<span class="road-addr">${addrObj.roadAddress}</span>`;
-                }
                 if (addrObj.jibunAddress) {
-                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(addrObj.jibunAddress)}</span>`;
+                    html += `<span class="road-addr">${this.formatJibunAddress(addrObj.jibunAddress)}</span>`;
+                }
+                if (addrObj.roadAddress) {
+                    html += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(도로명) ${addrObj.roadAddress}</span>`;
                 }
                 if (!addrObj.roadAddress && !addrObj.jibunAddress) {
                     html = '<span class="road-addr">주소를 확인할 수 없음</span>';
@@ -2483,13 +2589,24 @@ class MapMarkerApp {
         // 목록 리셋
         this.markersList.innerHTML = '';
         
-        // 연도, 사업구분 및 색상 필터가 적용된 마커 선별 (대기 마커는 필터 선택 상태에 상관없이 무조건 포함)
+        // 연도, 사업구분 및 색상, 태그 필터가 적용된 마커 선별 (대기 마커는 필터 선택 상태에 상관없이 무조건 포함)
         const filteredByDropdowns = this.markersData.filter(marker => {
             if (marker.isPending) return true;
             const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
             const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
             const color = marker.color ? marker.color.toLowerCase().trim() : "#10b981";
-            return this.selectedYears.has(year) && this.selectedBusinesses.has(business) && this.selectedColors.has(color);
+            
+            let hasMatchingTag = false;
+            if (marker.tags && marker.tags.length > 0) {
+                hasMatchingTag = marker.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
+            } else {
+                hasMatchingTag = this.selectedTags.has("미지정");
+            }
+            
+            return this.selectedYears.has(year) && 
+                   this.selectedBusinesses.has(business) && 
+                   this.selectedColors.has(color) && 
+                   hasMatchingTag;
         });
         
         const pendingMarkers = filteredByDropdowns.filter(m => m.isPending);
@@ -2725,11 +2842,11 @@ class MapMarkerApp {
             const roadAddr = place.road_address_name || '';
             const jibunAddr = place.address_name || '';
             let addrHtml = '';
-            if (roadAddr) {
-                addrHtml += `<div class="result-address">${roadAddr}</div>`;
+            if (jibunAddr) {
+                addrHtml += `<div class="result-address">${this.formatJibunAddress(jibunAddr)}</div>`;
             }
-            if (jibunAddr && jibunAddr !== roadAddr) {
-                addrHtml += `<div class="result-address jibun-addr" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">(지번) ${this.formatJibunAddress(jibunAddr)}</div>`;
+            if (roadAddr && roadAddr !== jibunAddr) {
+                addrHtml += `<div class="result-address jibun-addr" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">(도로명) ${roadAddr}</div>`;
             }
             
             item.innerHTML = `
@@ -2785,11 +2902,11 @@ class MapMarkerApp {
                 addressDiv.style.gap = '2px';
                 
                 let tempAddrHtml = '';
-                if (roadAddr) {
-                    tempAddrHtml += `<span class="road-addr">${roadAddr}</span>`;
+                if (jibunAddr) {
+                    tempAddrHtml += `<span class="road-addr">${this.formatJibunAddress(jibunAddr)}</span>`;
                 }
-                if (jibunAddr && jibunAddr !== roadAddr) {
-                    tempAddrHtml += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(지번) ${this.formatJibunAddress(jibunAddr)}</span>`;
+                if (roadAddr && roadAddr !== jibunAddr) {
+                    tempAddrHtml += `<span class="jibun-addr" style="font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px;">(도로명) ${roadAddr}</span>`;
                 }
                 if (!roadAddr && !jibunAddr) {
                     tempAddrHtml = '<span class="road-addr">주소를 확인할 수 없음</span>';
@@ -3618,7 +3735,7 @@ class MapMarkerApp {
                     <td>${marker.eqType || ''}</td>
                     <td><input type="text" class="table-input" data-key="lat" value="${marker.lat || ''}" style="width: 90px;"></td>
                     <td><input type="text" class="table-input" data-key="lng" value="${marker.lng || ''}" style="width: 90px;"></td>
-                    <td title="${marker.roadAddress || ''}" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${marker.roadAddress || ''}</td>
+                    <td title="${this.formatJibunAddress(marker.jibunAddress) || marker.roadAddress || ''}" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${this.formatJibunAddress(marker.jibunAddress) || marker.roadAddress || ''}</td>
                     <td style="text-align: center;">
                         <button class="btn-table-action btn-table-move"><i class="fa-solid fa-crosshairs"></i> 이동</button>
                         <button class="btn-table-action btn-table-send"><i class="fa-solid fa-check"></i> 등록</button>
@@ -3671,8 +3788,9 @@ class MapMarkerApp {
                     
                     const addressTd = tr.querySelector('td:nth-last-child(2)');
                     if (addressTd) {
-                        addressTd.textContent = addrObj.roadAddress || '주소 없음';
-                        addressTd.setAttribute('title', addrObj.roadAddress || '');
+                        const showAddr = this.formatJibunAddress(addrObj.jibunAddress) || addrObj.roadAddress || '주소 없음';
+                        addressTd.textContent = showAddr;
+                        addressTd.setAttribute('title', showAddr);
                     }
                 };
 
