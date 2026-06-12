@@ -1681,12 +1681,13 @@ class MapMarkerApp {
                 const index = this.markersData.findIndex(m => m.id === this.currentEditingId);
                 if (index !== -1) {
                     const repInfo = infoListToUpsert[0] || {};
+                    const isTempMarker = this.markersData[index].isTemp;
                     const updatedItem = {
                         ...this.markersData[index],
                         name,
                         memo,
                         tags,
-                        color: this.selectedColor || '#10b981',
+                        color: isTempMarker ? '#ef4444' : (this.selectedColor || '#10b981'),
                         facilityCode: repInfo.facility_code || facilityCode || "",
                         projectCode: repInfo.project_code || projectCode || "",
                         facilityYear: repInfo.facility_year || facilityYear || "",
@@ -1705,8 +1706,8 @@ class MapMarkerApp {
                         updatedItem.jibunAddress = addrObj.jibunAddress;
                     }
 
-                    // 대기 마커(isPending = true)가 아닐 때만 Supabase 데이터 업데이트를 진행함
-                    if (this.supabase && !updatedItem.isPending) {
+                    // 대기 마커(isPending = true) 및 임시 마커(isTemp = true)가 아닐 때만 Supabase 데이터 업데이트를 진행함
+                    if (this.supabase && !updatedItem.isPending && !updatedItem.isTemp) {
                         try {
                             // 1. markers 테이블 업데이트
                             const { error } = await this.supabase
@@ -1739,13 +1740,15 @@ class MapMarkerApp {
 
                     // 수정 시 기존 정보 중 위도, 경도 좌표는 변경 없이 보존
                     this.markersData[index] = updatedItem;
-                    this.showToast('마커 정보가 수정되었습니다.');
+                    this.showToast(isTempMarker ? '임시 마커 정보가 수정되었습니다.' : '마커 정보가 수정되었습니다.');
                 }
             } else {
                 // 신규 추가 모드
                 const repInfo = infoListToUpsert[0] || {};
                 // 신규 추가 시 역지오코딩 조회 실행
                 const addrObj = await this.resolveAddressPromise(lat, lng);
+                const isTemp = this.markerIsTemp && this.markerIsTemp.checked;
+                
                 const newMarker = {
                     id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     name,
@@ -1753,7 +1756,7 @@ class MapMarkerApp {
                     lng, // 정밀한 Float 값 보존
                     memo,
                     tags,
-                    color: this.selectedColor || '#10b981',
+                    color: isTemp ? '#ef4444' : (this.selectedColor || '#10b981'),
                     roadAddress: addrObj.roadAddress || "",
                     jibunAddress: addrObj.jibunAddress || "",
                     facilityCode: repInfo.facility_code || facilityCode || "",
@@ -1768,7 +1771,11 @@ class MapMarkerApp {
                     createdAt: new Date().toISOString().split('T')[0]
                 };
 
-                if (this.supabase) {
+                if (isTemp) {
+                    newMarker.isTemp = true;
+                }
+
+                if (this.supabase && !isTemp) {
                     try {
                         // 1. markers 테이블 insert
                         const { error } = await this.supabase
@@ -1803,7 +1810,7 @@ class MapMarkerApp {
                 }
 
                 this.markersData.push(newMarker);
-                this.showToast('새 마커가 성공적으로 등록되었습니다.');
+                this.showToast(isTemp ? '임시 마커가 성공적으로 등록되었습니다.' : '새 마커가 성공적으로 등록되었습니다.');
             }
             
             // 로컬 저장소 동기화
@@ -1833,7 +1840,10 @@ class MapMarkerApp {
         
         this.isDeletingMarker = true;
         try {
-            if (this.supabase) {
+            const marker = this.markersData.find(m => m.id === id);
+            const isTemp = marker ? marker.isTemp : false;
+
+            if (this.supabase && !isTemp) {
                 try {
                     const { error } = await this.supabase
                         .from('markers')
@@ -1859,7 +1869,7 @@ class MapMarkerApp {
             
             this.renderMarkersList();
             this.closeModal();
-            this.showToast('마커가 삭제되었습니다.');
+            this.showToast(isTemp ? '임시 마커가 삭제되었습니다.' : '마커가 삭제되었습니다.');
         } finally {
             this.isDeletingMarker = false;
         }
@@ -1891,7 +1901,7 @@ class MapMarkerApp {
     }
 
     syncLocalStorage() {
-        const permanentMarkers = this.markersData.filter(m => !m.isPending);
+        const permanentMarkers = this.markersData.filter(m => !m.isPending && !m.isTemp);
         localStorage.setItem('saved_markers', JSON.stringify(permanentMarkers));
     }
 
@@ -1924,8 +1934,8 @@ class MapMarkerApp {
         
         // 현재 데이터셋 순회하며 마커 생성
         this.markersData.forEach(data => {
-            // 필터링 적용 (대기 마커가 아닌 경우에만 연도 & 사업구분 & 색상 & 태그 필터 검사)
-            if (!data.isPending) {
+            // 필터링 적용 (대기 마커 및 임시 마커가 아닌 경우에만 연도 & 사업구분 & 색상 & 태그 필터 검사)
+            if (!data.isPending && !data.isTemp) {
                 const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
                 const business = data.businessType ? data.businessType.toString().trim() : "미지정";
                 const color = data.color ? data.color.toLowerCase().trim() : "#10b981";
@@ -2220,7 +2230,7 @@ class MapMarkerApp {
                 markerData.roadAddress = addrObj.roadAddress;
                 markerData.jibunAddress = addrObj.jibunAddress;
 
-                if (!markerData.isPending && this.supabase) {
+                if (!markerData.isPending && !markerData.isTemp && this.supabase) {
                     try {
                         const { error } = await this.supabase
                             .from('markers')
@@ -2242,7 +2252,7 @@ class MapMarkerApp {
                 }
 
                 this.syncLocalStorage();
-                this.showToast(`'${markerData.name}' 위치가 성공적으로 저장되었습니다.`);
+                this.showToast(markerData.isTemp ? `'${markerData.name}' 임시 위치가 변경되었습니다.` : `'${markerData.name}' 위치가 성공적으로 저장되었습니다.`);
             }
 
             this.currentMovingMarkerId = null;
@@ -2512,73 +2522,86 @@ class MapMarkerApp {
         return container;
     }
 
-    // 대기 마커 단건 전송 처리
-    async handleUploadSinglePending(id) {
+    // 대기 마커 단건 전송 또는 임시 등록 처리
+    async handleUploadSinglePending(id, isTemp = false) {
         if (this.isUploadingSingle) return;
         this.isUploadingSingle = true;
 
         const tr = this.markersList ? this.markersList.querySelector(`.marker-item[data-id="${id}"]`) : null;
         const sendBtn = tr ? tr.querySelector('.btn-send-single') : null;
+        const tempBtn = tr ? tr.querySelector('.btn-send-temp-single') : null;
+        
         if (sendBtn) {
             sendBtn.disabled = true;
             sendBtn.textContent = '등록 중...';
+        }
+        if (tempBtn) {
+            tempBtn.disabled = true;
+            tempBtn.textContent = '등록 중...';
         }
 
         try {
             const marker = this.markersData.find(m => m.id === id);
             if (!marker) return;
 
-            if (this.supabase) {
-                this.showToast('Supabase 전송 중...');
-                
-                // 전송 전 주소 누락 여부 최종 1회 검증/획득
-                if (!marker.roadAddress && !marker.jibunAddress) {
-                    const addrObj = await this.resolveAddressPromise(marker.lat, marker.lng);
-                    marker.roadAddress = addrObj.roadAddress;
-                    marker.jibunAddress = addrObj.jibunAddress;
-                }
-                
-                // 1. markers 테이블 insert
-                const { error: markerErr } = await this.supabase
-                    .from('markers')
-                    .insert({
-                        id: marker.id,
-                        name: marker.name,
-                        lat: marker.lat,
-                        lng: marker.lng,
-                        memo: marker.memo || "",
-                        tags: marker.tags || [],
-                        color: marker.color || '#10b981',
-                        facility_code: marker.facilityCode || null,
-                        road_address: marker.roadAddress || "",
-                        jibun_address: marker.jibunAddress || "",
-                        created_at: new Date().toISOString()
-                    });
-                
-                if (markerErr) throw markerErr;
-
-                // 2. information 테이블 upsert (통합시설코드가 있는 경우)
-                if (marker.facilityCode) {
-                    const { error: infoErr } = await this.supabase
-                        .from('information')
-                        .upsert({
-                            facility_code: marker.facilityCode,
-                            place_name: marker.name,
-                            facility_year: marker.facilityYear || "",
-                            project_code: marker.projectCode || "",
-                            business_type: marker.businessType || "",
-                            final_station_name: marker.finalStationName || "",
-                            eq_class: marker.eqClass || "",
-                            eq_type: marker.eqType || "",
-                            install_date: DataManager.formatDateToYmd(marker.installDate || ""),
-                            open_date: DataManager.formatDateToYmd(marker.openDate || "")
-                        });
-                    if (infoErr) throw infoErr;
-                }
+            // 전송 전 주소 누락 여부 최종 1회 검증/획득
+            if (!marker.roadAddress && !marker.jibunAddress) {
+                const addrObj = await this.resolveAddressPromise(marker.lat, marker.lng);
+                marker.roadAddress = addrObj.roadAddress;
+                marker.jibunAddress = addrObj.jibunAddress;
             }
 
-            // 임시 플래그 제거 및 로컬스토리지 저장
-            marker.isPending = false;
+            if (isTemp) {
+                // 임시 등록의 경우 Supabase를 우회하고 color와 isTemp 플래그 세팅
+                marker.isPending = false;
+                marker.isTemp = true;
+                marker.color = '#ef4444';
+            } else {
+                if (this.supabase) {
+                    this.showToast('Supabase 전송 중...');
+                    
+                    // 1. markers 테이블 insert
+                    const { error: markerErr } = await this.supabase
+                        .from('markers')
+                        .insert({
+                            id: marker.id,
+                            name: marker.name,
+                            lat: marker.lat,
+                            lng: marker.lng,
+                            memo: marker.memo || "",
+                            tags: marker.tags || [],
+                            color: marker.color || '#10b981',
+                            facility_code: marker.facilityCode || null,
+                            road_address: marker.roadAddress || "",
+                            jibun_address: marker.jibunAddress || "",
+                            created_at: new Date().toISOString()
+                        });
+                    
+                    if (markerErr) throw markerErr;
+
+                    // 2. information 테이블 upsert (통합시설코드가 있는 경우)
+                    if (marker.facilityCode) {
+                        const { error: infoErr } = await this.supabase
+                            .from('information')
+                            .upsert({
+                                facility_code: marker.facilityCode,
+                                place_name: marker.name,
+                                facility_year: marker.facilityYear || "",
+                                project_code: marker.projectCode || "",
+                                business_type: marker.businessType || "",
+                                final_station_name: marker.finalStationName || "",
+                                eq_class: marker.eqClass || "",
+                                eq_type: marker.eqType || "",
+                                install_date: DataManager.formatDateToYmd(marker.installDate || ""),
+                                open_date: DataManager.formatDateToYmd(marker.openDate || "")
+                            });
+                        if (infoErr) throw infoErr;
+                    }
+                }
+                marker.isPending = false;
+            }
+
+            // 로컬스토리지 저장 (syncLocalStorage에서 isTemp 필터링)
             this.syncLocalStorage();
             
             // UI 갱신
@@ -2586,14 +2609,18 @@ class MapMarkerApp {
             this.initFilters(false);
             this.renderMarkersOnMap();
             this.renderMarkersList();
-            this.showToast('선택한 위치가 Supabase에 저장되었습니다.');
+            this.showToast(isTemp ? '임시 마커가 성공적으로 등록되었습니다.' : '선택한 위치가 Supabase에 저장되었습니다.');
         } catch (e) {
-            this.showToast('Supabase 전송 실패: ' + e.message, 5000);
+            this.showToast((isTemp ? '임시 등록' : 'Supabase 전송') + ' 실패: ' + e.message, 5000);
         } finally {
             this.isUploadingSingle = false;
             if (sendBtn) {
                 sendBtn.disabled = false;
                 sendBtn.textContent = '등록';
+            }
+            if (tempBtn) {
+                tempBtn.disabled = false;
+                tempBtn.textContent = '임시';
             }
         }
     }
@@ -2605,9 +2632,9 @@ class MapMarkerApp {
         // 목록 리셋
         this.markersList.innerHTML = '';
         
-        // 연도, 사업구분 및 색상, 태그 필터가 적용된 마커 선별 (대기 마커는 필터 선택 상태에 상관없이 무조건 포함)
+        // 연도, 사업구분 및 색상, 태그 필터가 적용된 마커 선별 (대기 마커 및 임시 마커는 필터 선택 상태에 상관없이 무조건 포함)
         const filteredByDropdowns = this.markersData.filter(marker => {
-            if (marker.isPending) return true;
+            if (marker.isPending || marker.isTemp) return true;
             const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
             const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
             const color = marker.color ? marker.color.toLowerCase().trim() : "#10b981";
@@ -2690,6 +2717,7 @@ class MapMarkerApp {
                 <div class="marker-item-header" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                     <h3 class="marker-title" style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 0;" title="${marker.name}">
                         ${marker.isPending ? `<span style="color: #f59e0b; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-clock"></i> 대기</span>` : ''}
+                        ${marker.isTemp ? `<span style="color: #ef4444; font-size: 10px; margin-right: 4px; border: 1px solid #ef4444; padding: 1px 3px; border-radius: 3px; font-weight: bold; background: rgba(239, 68, 68, 0.05);">임시</span>` : ''}
                         ${marker.name}
                     </h3>
                     ${marker.isPending ? `
@@ -2697,7 +2725,10 @@ class MapMarkerApp {
                             <button class="btn-send-single" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">
                                 등록
                             </button>
-                            <button class="btn-remove-single" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">
+                            <button class="btn-send-temp-single" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">
+                                임시
+                            </button>
+                            <button class="btn-remove-single" style="background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">
                                 제외
                             </button>
                         </div>
@@ -2715,7 +2746,16 @@ class MapMarkerApp {
             if (sendBtn) {
                 sendBtn.addEventListener('click', async (e) => {
                     e.stopPropagation(); // 리스트 아이템 클릭(지도 포커싱) 이벤트 버블링 방지
-                    await this.handleUploadSinglePending(marker.id);
+                    await this.handleUploadSinglePending(marker.id, false);
+                });
+            }
+
+            // 개별 임시 등록 버튼 이벤트 바인딩
+            const tempBtn = item.querySelector('.btn-send-temp-single');
+            if (tempBtn) {
+                tempBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    await this.handleUploadSinglePending(marker.id, true);
                 });
             }
 
@@ -3521,8 +3561,8 @@ class MapMarkerApp {
         }
     }
 
-    // 대기 마커 전체 Supabase 전송
-    async handleUploadPending() {
+    // 대기 마커 전체 Supabase 또는 임시 등록 처리
+    async handleUploadPending(isTemp = false) {
         if (this.isUploadingPending) return;
         this.isUploadingPending = true;
 
@@ -3533,6 +3573,10 @@ class MapMarkerApp {
         if (this.sendExcelConfirmBtn) {
             this.sendExcelConfirmBtn.disabled = true;
             this.sendExcelConfirmBtn.textContent = '전송 중...';
+        }
+        if (this.sendExcelTempBtn) {
+            this.sendExcelTempBtn.disabled = true;
+            this.sendExcelTempBtn.textContent = '등록 중...';
         }
 
         try {
@@ -3569,66 +3613,75 @@ class MapMarkerApp {
             const pendingMarkers = this.markersData.filter(m => m.isPending);
             if (pendingMarkers.length === 0) return;
 
-            if (this.supabase) {
-                this.showToast('Supabase로 전체 전송 중...');
-                
-                // 주소가 누락된 대기 마커가 있다면 백그라운드 지오코딩으로 채워줌
-                for (let m of pendingMarkers) {
-                    if (!m.roadAddress && !m.jibunAddress) {
-                        const addrObj = await this.resolveAddressPromise(m.lat, m.lng);
-                        m.roadAddress = addrObj.roadAddress;
-                        m.jibunAddress = addrObj.jibunAddress;
-                        await new Promise(r => setTimeout(r, 50)); // API 과부하 딜레이
-                    }
-                }
-                
-                // 1. markers 벌크 데이터 생성
-                const bulkMarkers = pendingMarkers.map(m => ({
-                    id: m.id,
-                    name: m.name,
-                    lat: m.lat,
-                    lng: m.lng,
-                    memo: m.memo || "",
-                    tags: m.tags || [],
-                    color: m.color || '#10b981',
-                    facility_code: m.facilityCode || null,
-                    road_address: m.roadAddress || "",
-                    jibun_address: m.jibunAddress || "",
-                    created_at: new Date().toISOString()
-                }));
-
-                const { error: markerErr } = await this.supabase
-                    .from('markers')
-                    .insert(bulkMarkers);
-                
-                if (markerErr) throw markerErr;
-
-                // 2. information 벌크 upsert 처리
-                const bulkInfo = pendingMarkers
-                    .filter(m => m.facilityCode)
-                    .map(m => ({
-                        facility_code: m.facilityCode,
-                        place_name: m.name,
-                        facility_year: m.facilityYear || "",
-                        project_code: m.projectCode || "",
-                        business_type: m.businessType || "",
-                        final_station_name: m.finalStationName || "",
-                        eq_class: m.eqClass || "",
-                        eq_type: m.eqType || "",
-                        install_date: DataManager.formatDateToYmd(m.installDate || ""),
-                        open_date: DataManager.formatDateToYmd(m.openDate || "")
-                    }));
-
-                if (bulkInfo.length > 0) {
-                    const { error: infoErr } = await this.supabase
-                        .from('information')
-                        .upsert(bulkInfo);
-                    if (infoErr) throw infoErr;
+            // 주소가 누락된 대기 마커가 있다면 백그라운드 지오코딩으로 채워줌
+            for (let m of pendingMarkers) {
+                if (!m.roadAddress && !m.jibunAddress) {
+                    const addrObj = await this.resolveAddressPromise(m.lat, m.lng);
+                    m.roadAddress = addrObj.roadAddress;
+                    m.jibunAddress = addrObj.jibunAddress;
+                    await new Promise(r => setTimeout(r, 50)); // API 과부하 딜레이
                 }
             }
 
-            // 전체 대기 상태 제거 및 로컬스토리지 저장
-            pendingMarkers.forEach(m => m.isPending = false);
+            if (isTemp) {
+                // 임시 등록인 경우 Supabase를 우회하고 color와 isTemp 플래그 세팅
+                pendingMarkers.forEach(m => {
+                    m.isPending = false;
+                    m.isTemp = true;
+                    m.color = '#ef4444';
+                });
+            } else {
+                if (this.supabase) {
+                    this.showToast('Supabase로 전체 전송 중...');
+                    
+                    // 1. markers 벌크 데이터 생성
+                    const bulkMarkers = pendingMarkers.map(m => ({
+                        id: m.id,
+                        name: m.name,
+                        lat: m.lat,
+                        lng: m.lng,
+                        memo: m.memo || "",
+                        tags: m.tags || [],
+                        color: m.color || '#10b981',
+                        facility_code: m.facilityCode || null,
+                        road_address: m.roadAddress || "",
+                        jibun_address: m.jibunAddress || "",
+                        created_at: new Date().toISOString()
+                    }));
+
+                    const { error: markerErr } = await this.supabase
+                        .from('markers')
+                        .insert(bulkMarkers);
+                    
+                    if (markerErr) throw markerErr;
+
+                    // 2. information 벌크 upsert 처리
+                    const bulkInfo = pendingMarkers
+                        .filter(m => m.facilityCode)
+                        .map(m => ({
+                            facility_code: m.facilityCode,
+                            place_name: m.name,
+                            facility_year: m.facilityYear || "",
+                            project_code: m.projectCode || "",
+                            business_type: m.businessType || "",
+                            final_station_name: m.finalStationName || "",
+                            eq_class: m.eqClass || "",
+                            eq_type: m.eqType || "",
+                            install_date: DataManager.formatDateToYmd(m.installDate || ""),
+                            open_date: DataManager.formatDateToYmd(m.openDate || "")
+                        }));
+
+                    if (bulkInfo.length > 0) {
+                        const { error: infoErr } = await this.supabase
+                            .from('information')
+                            .upsert(bulkInfo);
+                        if (infoErr) throw infoErr;
+                    }
+                }
+                pendingMarkers.forEach(m => m.isPending = false);
+            }
+
+            // 로컬스토리지 저장 (syncLocalStorage에서 isTemp 필터링)
             this.syncLocalStorage();
 
             // UI 갱신
@@ -3637,9 +3690,11 @@ class MapMarkerApp {
             this.renderMarkersOnMap();
             this.renderMarkersList();
             this.closeExcelConfirmModal();
-            this.showToast(`성공적으로 ${pendingMarkers.length}개의 위치를 Supabase에 저장했습니다.`);
+            this.showToast(isTemp
+                ? `대기 마커 ${pendingMarkers.length}개가 임시 마커(빨간색)로 등록되었습니다.`
+                : `성공적으로 ${pendingMarkers.length}개의 위치를 Supabase에 저장했습니다.`);
         } catch (e) {
-            this.showToast('Supabase 일괄 전송 실패: ' + e.message, 5000);
+            this.showToast('일괄 등록 실패: ' + e.message, 5000);
         } finally {
             this.isUploadingPending = false;
             if (this.uploadPendingBtn) {
@@ -3649,6 +3704,10 @@ class MapMarkerApp {
             if (this.sendExcelConfirmBtn) {
                 this.sendExcelConfirmBtn.disabled = false;
                 this.sendExcelConfirmBtn.textContent = '전체 전송';
+            }
+            if (this.sendExcelTempBtn) {
+                this.sendExcelTempBtn.disabled = false;
+                this.sendExcelTempBtn.textContent = '임시 등록';
             }
         }
     }
@@ -3777,6 +3836,7 @@ class MapMarkerApp {
                     <td style="text-align: center;">
                         <button class="btn-table-action btn-table-move"><i class="fa-solid fa-crosshairs"></i> 이동</button>
                         <button class="btn-table-action btn-table-send"><i class="fa-solid fa-check"></i> 등록</button>
+                        <button class="btn-table-action btn-table-temp" style="background: rgba(239, 68, 68, 0.05); color: #ef4444; border: 1px solid #ef4444;"><i class="fa-solid fa-clock"></i> 임시</button>
                         <button class="btn-table-action btn-table-remove"><i class="fa-solid fa-trash-can"></i> 제외</button>
                     </td>
                 `;
@@ -3848,7 +3908,8 @@ class MapMarkerApp {
 
                 // 개별 버튼 이벤트 연결
                 tr.querySelector('.btn-table-move').addEventListener('click', () => this.handleExcelConfirmMove(marker.id));
-                tr.querySelector('.btn-table-send').addEventListener('click', () => this.handleExcelConfirmSend(marker.id, tr));
+                tr.querySelector('.btn-table-send').addEventListener('click', () => this.handleExcelConfirmSend(marker.id, tr, false));
+                tr.querySelector('.btn-table-temp').addEventListener('click', () => this.handleExcelConfirmSend(marker.id, tr, true));
                 tr.querySelector('.btn-table-remove').addEventListener('click', () => this.handleExcelConfirmRemove(marker.id, tr));
 
                 this.excelConfirmTableBody.appendChild(tr);
@@ -3894,7 +3955,7 @@ class MapMarkerApp {
     }
 
     // 엑셀 확인 모달 개별 등록 (전송)
-    async handleExcelConfirmSend(id, trElement) {
+    async handleExcelConfirmSend(id, trElement, isTemp = false) {
         // 전송 전 모달 행 내의 최신 input 값을 가져와 강제 동기화 수행
         const nameInput = trElement.querySelector('input[data-key="name"]');
         const latInput = trElement.querySelector('input[data-key="lat"]');
@@ -3919,7 +3980,7 @@ class MapMarkerApp {
             }
         }
 
-        await this.handleUploadSinglePending(id);
+        await this.handleUploadSinglePending(id, isTemp);
         
         // 데이터 전송에 성공하면 (isPending이 false로 바뀌었을 것임) 모달 표에서 행을 지움
         const updatedMarker = this.markersData.find(m => m.id === id);

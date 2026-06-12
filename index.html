@@ -445,7 +445,13 @@
                 </div>
             </div>
             <footer class="modal-footer">
-                <button id="delete-marker-modal-btn" class="btn btn-danger hidden">삭제</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button id="delete-marker-modal-btn" class="btn btn-danger hidden" style="margin-right: 12px;">삭제</button>
+                    <div id="temp-checkbox-wrapper" style="display: flex; align-items: center; gap: 6px; user-select: none;">
+                        <input type="checkbox" id="marker-is-temp" style="width: 14px; height: 14px; cursor: pointer; accent-color: #ef4444;">
+                        <label for="marker-is-temp" style="font-size: 11px; color: var(--text-secondary); cursor: pointer;">화면 확인용 임시 등록 (DB 미전송)</label>
+                    </div>
+                </div>
                 <div class="footer-right">
                     <button id="cancel-modal-btn" class="btn btn-text">취소</button>
                     <button id="save-marker-btn" class="btn btn-primary">저장</button>
@@ -540,6 +546,7 @@
             <footer class="modal-footer">
                 <div class="footer-right">
                     <button id="cancel-excel-confirm-btn" class="btn btn-text">닫기</button>
+                    <button id="send-excel-temp-btn" class="btn btn-secondary" style="border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.05);">임시 등록</button>
                     <button id="send-excel-confirm-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);">전체 전송</button>
                 </div>
             </footer>
