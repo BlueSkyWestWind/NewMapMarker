@@ -21,17 +21,26 @@
         <aside class="sidebar">
             <header class="sidebar-header">
                 <div class="logo">
-                    <i class="fa-solid fa-map-location-dot logo-icon"></i>
-                    <h1>MapMarker <span>Pro</span></h1>
+                    <i class="fa-solid fa-map-location-dot logo-icon" id="app-logo-icon"></i>
+                    <h1 id="app-logo-text">MapMarker <span>Pro</span></h1>
+                </div>
+                <!-- 모드 선택 탭 -->
+                <div class="mode-selector" style="margin-top: 15px; display: flex; background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 4px; border: 1px solid var(--border-color);">
+                    <button id="mode-eq-btn" class="mode-btn active" style="flex: 1; border: none; padding: 8px; border-radius: 6px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.3s;">
+                        <i class="fa-solid fa-server"></i> 장비
+                    </button>
+                    <button id="mode-battery-btn" class="mode-btn" style="flex: 1; border: none; padding: 8px; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.3s;">
+                        <i class="fa-solid fa-battery-three-quarters"></i> 축전지
+                    </button>
                 </div>
             </header>
             
-            <!-- Excel Import Section -->
-            <section class="section excel-section">
+            <!-- Excel Import Section (장비 모드용) -->
+            <section class="section excel-section" id="eq-excel-section">
                 <div class="accordion-header" id="excel-accordion-toggle">
                     <div class="title-left">
                         <i class="fa-solid fa-file-excel icon" style="color: #10b981;"></i>
-                        <span>엑셀로 위치 찍기</span>
+                        <span>엑셀로 위치 찍기 (장비)</span>
                     </div>
                     <i class="fa-solid fa-chevron-down accordion-icon"></i>
                 </div>
@@ -67,8 +76,8 @@
                 </div>
             </section>
 
-            <!-- 상세 장비 정보 업로드 Section -->
-            <section class="section info-upload-section">
+            <!-- 상세 장비 정보 업로드 Section (장비 모드용) -->
+            <section class="section info-upload-section" id="eq-info-upload-section">
                 <div class="accordion-header" id="info-accordion-toggle">
                     <div class="title-left">
                         <i class="fa-solid fa-server icon" style="color: #8b5cf6;"></i>
@@ -93,6 +102,34 @@
                 </div>
             </section>
 
+            <!-- 축전지 엑셀 업로드 Section (축전지 모드용, 기본 숨김) -->
+            <section class="section excel-section hidden" id="battery-excel-section">
+                <div class="accordion-header" id="battery-excel-accordion-toggle">
+                    <div class="title-left">
+                        <i class="fa-solid fa-file-excel icon" style="color: #10b981;"></i>
+                        <span>엑셀로 위치 찍기 (축전지)</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                </div>
+                <div class="accordion-content hidden" id="battery-excel-accordion-content">
+                    <div class="section-content" style="padding-top: 10px;">
+                        <p class="api-help-text" style="color: var(--text-secondary); font-size: 11px;">
+                            통합시설명칭(ERP), 주소, 용량(AH), 수량(Cell), 창고/국소/국사명이 포함된 Excel 파일 업로드
+                        </p>
+                        <div class="import-wrapper" style="margin-top: 8px;">
+                            <label for="import-excel-file-battery" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); width: 100%;">
+                                <i class="fa-solid fa-file-arrow-up"></i> 축전지 Excel 파일 업로드
+                            </label>
+                            <input type="file" id="import-excel-file-battery" accept=".xlsx, .xls, .csv" style="display: none;">
+                        </div>
+                        <div id="battery-excel-status" class="excel-status status-active hidden" style="margin-top: 10px; font-size: 11px; padding: 8px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.05); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            <span id="battery-excel-status-text">파일 분석 중...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
 
             <!-- Filter Accordion Section -->
             <section class="section filter-accordion-section">
@@ -104,7 +141,8 @@
                     <i class="fa-solid fa-chevron-down accordion-icon"></i>
                 </div>
                 <div class="accordion-content hidden" id="filter-accordion-content">
-                    <div class="filter-row" style="display: flex; gap: 12px; margin-top: 10px;">
+                    <!-- 장비 필터 (장비 모드용) -->
+                    <div class="filter-row" id="eq-filters-row" style="display: flex; gap: 12px; margin-top: 10px;">
                         <!-- 연도 선택 -->
                         <div class="filter-card" style="flex: 1; min-width: 0;">
                             <div class="filter-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -135,6 +173,60 @@
                                 </div>
                                 <div class="custom-options-container hidden" id="options-businesses-container" style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; max-height: 180px; overflow-y: auto; z-index: 100; box-shadow: var(--shadow-lg); padding: 4px;">
                                     <!-- Dynamic options will go here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 축전지 필터 (축전지 모드용, 기본 숨김) -->
+                    <div class="filter-row hidden" id="battery-filters-row" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                        <!-- 용량(AH) 필터 -->
+                        <div class="filter-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">용량(AH) 선택</span>
+                                <button type="button" class="btn-text-action" id="btn-select-all-capacities" style="background: none; border: none; color: var(--primary); font-size: 10px; cursor: pointer; padding: 0;">모두 선택</button>
+                            </div>
+                            <div class="custom-select-wrapper" id="select-capacities-wrapper" style="position: relative;">
+                                <div class="custom-select-trigger" id="select-capacities-trigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--text-primary); transition: var(--transition-smooth);">
+                                    <span id="selected-capacities-label">용량 선택</span>
+                                    <i class="fa-solid fa-chevron-down" style="font-size: 9px; opacity: 0.7;"></i>
+                                </div>
+                                <div class="custom-options-container hidden" id="options-capacities-container" style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; max-height: 180px; overflow-y: auto; z-index: 100; box-shadow: var(--shadow-lg); padding: 4px;">
+                                    <!-- 동적 렌더링 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 수량(Cell) 필터 -->
+                        <div class="filter-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">수량(Cell) 선택</span>
+                                <button type="button" class="btn-text-action" id="btn-select-all-quantities" style="background: none; border: none; color: var(--primary); font-size: 10px; cursor: pointer; padding: 0;">모두 선택</button>
+                            </div>
+                            <div class="custom-select-wrapper" id="select-quantities-wrapper" style="position: relative;">
+                                <div class="custom-select-trigger" id="select-quantities-trigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--text-primary); transition: var(--transition-smooth);">
+                                    <span id="selected-quantities-label">수량 선택</span>
+                                    <i class="fa-solid fa-chevron-down" style="font-size: 9px; opacity: 0.7;"></i>
+                                </div>
+                                <div class="custom-options-container hidden" id="options-quantities-container" style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; max-height: 180px; overflow-y: auto; z-index: 100; box-shadow: var(--shadow-lg); padding: 4px;">
+                                    <!-- 동적 렌더링 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 창고/국소/국사명 필터 -->
+                        <div class="filter-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">창고/국소/국사명 선택</span>
+                                <button type="button" class="btn-text-action" id="btn-select-all-stations" style="background: none; border: none; color: var(--primary); font-size: 10px; cursor: pointer; padding: 0;">모두 선택</button>
+                            </div>
+                            <div class="custom-select-wrapper" id="select-stations-wrapper" style="position: relative;">
+                                <div class="custom-select-trigger" id="select-stations-trigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--text-primary); transition: var(--transition-smooth);">
+                                    <span id="selected-stations-label">국소명 선택</span>
+                                    <i class="fa-solid fa-chevron-down" style="font-size: 9px; opacity: 0.7;"></i>
+                                </div>
+                                <div class="custom-options-container hidden" id="options-stations-container" style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; max-height: 180px; overflow-y: auto; z-index: 100; box-shadow: var(--shadow-lg); padding: 4px;">
+                                    <!-- 동적 렌더링 -->
                                 </div>
                             </div>
                         </div>
@@ -227,9 +319,9 @@
                 </div>
                 <div class="accordion-content hidden" id="backup-accordion-content" style="padding: 0 24px 20px 24px; display: flex; flex-direction: column; gap: 16px;">
                     <!-- 위치 마커 (markers) 관리 -->
-                    <div class="footer-section" style="border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-top: 10px;">
+                    <div class="footer-section" id="backup-section-1-wrapper" style="border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-top: 10px;">
                         <div style="font-size: 11px; font-weight: 600; color: var(--secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                            <i class="fa-solid fa-location-dot"></i> 위치 마커 (markers)
+                            <i class="fa-solid fa-location-dot" id="backup-section-1-icon"></i> <span id="backup-section-1-title">위치 마커 (markers)</span>
                         </div>
                         <div class="footer-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <button id="export-markers-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
@@ -249,7 +341,7 @@
                         </div>
                     </div>
                     <!-- 상세 장비 정보 (information) 관리 -->
-                    <div class="footer-section">
+                    <div class="footer-section" id="backup-section-2-wrapper">
                         <div style="font-size: 11px; font-weight: 600; color: #8b5cf6; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
                             <i class="fa-solid fa-server"></i> 상세 장비 (information)
                         </div>
@@ -311,7 +403,7 @@
             </header>
             <div class="modal-body" style="max-height: 65vh; overflow-y: auto; padding-right: 18px;">
                 <div class="form-group">
-                    <label for="marker-name">장소 이름 <span class="required">*</span></label>
+                    <label for="marker-name"><span id="marker-name-label">장소 이름</span> <span class="required">*</span></label>
                     <input type="text" id="marker-name" placeholder="예: 맛있는 카페, 거래처 A">
                 </div>
                 <div class="form-row">
@@ -352,14 +444,14 @@
                     </div>
                 </div>
                 
-                <!-- 구분선 및 상세 장비 정보 섹션 -->
-                <div style="border-top: 1px dashed var(--border-color); margin: 16px 0; padding-top: 16px;">
+                <!-- 구분선 및 상세 정보 서브 헤더 -->
+                <div style="border-top: 1px dashed var(--border-color); margin: 16px 0; padding-top: 16px;" id="modal-sub-header">
                     <h4 style="font-size: 13px; font-weight: 600; color: var(--secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-server"></i> 상세 장비 정보 (Supabase 연동)
+                        <i class="fa-solid fa-server" id="modal-sub-icon"></i> <span id="modal-sub-title">상세 장비 정보 (Supabase 연동)</span>
                     </h4>
                 </div>
                 
-                <!-- 입력 폼 Wrapper (신규/편집 시 사용) -->
+                <!-- 상세 장비 정보 입력 폼 Wrapper -->
                 <div id="detailed-info-form-wrapper">
                     <div class="form-row">
                         <div class="form-group">
@@ -409,7 +501,25 @@
                     </div>
                 </div>
 
-                <!-- 테이블 뷰 Wrapper (상세 보기 시 사용, 복사 최적화) -->
+                <!-- 축전지 스펙 입력 폼 Wrapper (축전지 모드용, 기본 숨김) -->
+                <div id="battery-info-form-wrapper" class="hidden">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="marker-capacity">용량 (AH) <span class="required">*</span></label>
+                            <input type="text" id="marker-capacity" placeholder="예: 600" value="600">
+                        </div>
+                        <div class="form-group">
+                            <label for="marker-quantity">수량 (Cell) <span class="required">*</span></label>
+                            <input type="text" id="marker-quantity" placeholder="예: 12" value="12">
+                        </div>
+                        <div class="form-group">
+                            <label for="marker-station">창고/국소/국사명 <span class="required">*</span></label>
+                            <input type="text" id="marker-station" placeholder="예: 기지국(현장)" value="기지국(현장)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 상세 장비 정보 테이블 뷰 Wrapper (상세 보기 시 사용, 복사 최적화) -->
                 <div id="detailed-info-table-wrapper" class="detailed-info-table-wrapper hidden">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-mouse-pointer"></i> 셀을 마우스로 드래그 선택 후 복사 또는 Ctrl+C를 누르세요.</span>
@@ -439,6 +549,39 @@
                             </thead>
                             <tbody id="detailed-info-table-body">
                                 <!-- 동적으로 연관 장비 여러 행이 추가됨 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 축전지 상세 정보 테이블 뷰 Wrapper (상세 보기 시 사용, 복사 최적화) -->
+                <div id="battery-info-table-wrapper" class="detailed-info-table-wrapper hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-mouse-pointer"></i> 셀을 마우스로 드래그 선택 후 복사 또는 Ctrl+C를 누르세요.</span>
+                        <div style="display: flex; gap: 6px;">
+                            <button id="battery-copy-selected-btn" class="btn btn-secondary hidden" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; display: flex; align-items: center; gap: 4px; height: 26px; background: rgba(99, 102, 241, 0.2); border-color: var(--primary); color: var(--text-primary);">
+                                <i class="fa-solid fa-square-check"></i> 선택 셀 복사
+                            </button>
+                            <button id="battery-copy-table-btn" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; display: flex; align-items: center; gap: 4px; height: 26px;">
+                                <i class="fa-solid fa-copy"></i> 표 전체 복사
+                            </button>
+                        </div>
+                    </div>
+                    <!-- 가로 스크롤 대응을 위해 래퍼 추가 -->
+                    <div style="width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                        <table class="info-table" id="battery-info-table" style="min-width: 800px; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th data-col="0" style="position: relative;">통합시설명칭(ERP) <i class="fa-regular fa-copy battery-col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="1" style="position: relative;">주소 <i class="fa-regular fa-copy battery-col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="2" style="position: relative;">용량(AH) <i class="fa-regular fa-copy battery-col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="3" style="position: relative;">수량(Cell) <i class="fa-regular fa-copy battery-col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="4" style="position: relative;">창고/국소/국사명 <i class="fa-regular fa-copy battery-col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                    <th data-col="5" style="position: relative;">등록일 <i class="fa-regular fa-copy battery-col-copy-btn" title="이 열 전체 복사" style="cursor: pointer; margin-left: 4px; opacity: 0.6; transition: opacity 0.2s;"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="battery-info-table-body">
+                                <!-- 동적으로 연관 축전지 여러 행이 추가됨 -->
                             </tbody>
                         </table>
                     </div>
@@ -553,6 +696,50 @@
         </div>
     </div>
 
+    <!-- 축전지 엑셀 위치 등록 확인 모달 -->
+    <div id="battery-excel-confirm-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 90%; width: 1100px;">
+            <header class="modal-header">
+                <h3>엑셀 축전지 위치 등록 확인</h3>
+                <button id="close-battery-excel-confirm-btn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto; padding-right: 14px;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+                    엑셀 파일 내 주소 정보를 활용해 카카오맵 Geocoding 변환을 거친 결과 목록입니다. 위치와 정보를 확인해 주세요.
+                </p>
+                <div style="width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <table class="info-table" style="min-width: 950px; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th>통합시설명칭(ERP)</th>
+                                <th>주소</th>
+                                <th>용량(AH)</th>
+                                <th>수량(Cell)</th>
+                                <th>창고/국소/국사명</th>
+                                <th>변환 좌표</th>
+                                <th style="width: 160px; text-align: center;">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="battery-excel-confirm-table-body">
+                            <!-- 동적 렌더링 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-circle-info" style="color: var(--secondary);"></i>
+                    <span>분석된 마커: <strong id="battery-excel-confirm-count" style="color: #f59e0b;">0</strong>건. [이동] 버튼 클릭 시 지도가 해당 위치로 이동합니다.</span>
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <div class="footer-right">
+                    <button id="cancel-battery-excel-confirm-btn" class="btn btn-text">닫기</button>
+                    <button id="send-battery-excel-temp-btn" class="btn btn-secondary" style="border-color: #f43f5e; color: #f43f5e; background: rgba(244, 63, 94, 0.05);">화면 임시 추가</button>
+                    <button id="send-battery-excel-confirm-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);">DB 저장</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
     <!-- Roadview Modal -->
     <div id="roadview-modal" class="modal-overlay hidden">
         <div class="modal-card" style="width: 1200px; height: 900px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; resize: both; overflow: hidden; min-width: 400px; min-height: 300px;">
@@ -586,6 +773,6 @@
     <script src="config.js"></script>
     <!-- Custom scripts -->
     <script src="data-manager.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=20260625"></script>
 </body>
 </html>

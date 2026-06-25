@@ -656,6 +656,220 @@ const DataManager = {
     },
 
     /**
+     * 업로드된 축전지 Excel(.xlsx, .xls) 또는 CSV 파일을 읽고 파싱하여 검증 및 정제합니다.
+     */
+    parseBatteryExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 빈 셀도 빈 문자열 ""로 수집하여 인덱스 밀림 방지
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                    
+                    if (rows.length === 0) {
+                        throw new Error("엑셀 파일에 데이터가 없습니다.");
+                    }
+                    
+                    // 스마트 열 감지 매핑 규칙
+                    const headers = Object.keys(rows[0]);
+                    
+                    // 정확히 일치하는 헤더 우선순위 적용
+                    const exactAddress = headers.find(h => h.includes('수거') && h.includes('위치')) || headers.find(h => h.trim() === '주소');
+                    const exactLocalAddress = headers.find(h => h.trim() === '국소주소');
+                    const exactStation = headers.find(h => h.trim() === '창고/국소/국사명');
+                    const exactERP = headers.find(h => h.trim() === '통합시설명칭(ERP)');
+                    const exactLocalStation = headers.find(h => h.trim() === '국소명');
+
+                    const mapping = {
+                        name: exactStation || exactERP || headers.find(h => /창고\/국소\/국사명|통합시설명칭|ERP|이름|상호|장소|명칭|지명|지점|국소|현장|사이트|name|title/i.test(h)),
+                        address: exactAddress || headers.find(h => h.trim() !== '국소주소' && /주소|소재지|도로명|지번|address|addr/i.test(h)),
+                        localAddress: exactLocalAddress || headers.find(h => /국소주소|국사주소/i.test(h)),
+                        capacity: headers.find(h => /용량|capacity|ah/i.test(h)),
+                        quantity: headers.find(h => /수량|quantity|cell/i.test(h)),
+                        stationName: exactStation || headers.find(h => /창고|국소|국사|현장명|station/i.test(h)),
+                        localStation: exactLocalStation || headers.find(h => /국소명|국사명/i.test(h)),
+                        lat: headers.find(h => /위도|lat|latitude|y/i.test(h)),
+                        lng: headers.find(h => /경도|lng|longitude|lon|x/i.test(h)),
+                        memo: exactERP || headers.find(h => /설명|메모|비고|특이사항|memo|desc|description/i.test(h)),
+                        tags: headers.find(h => /태그|구분|그룹|tag|category/i.test(h)),
+                        color: headers.find(h => /마커색상|색상|color/i.test(h))
+                    };
+                    
+                    // 통합시설명칭(ERP)과 주소는 필수
+                    if (!mapping.name) {
+                        throw new Error("통합시설명칭(ERP) 또는 창고/국소/국사명에 해당하는 열을 찾을 수 없습니다.");
+                    }
+                    if (!mapping.address && !mapping.lat) {
+                        throw new Error("위치 정보에 해당하는 열(주소 또는 위도)을 찾을 수 없습니다.");
+                    }
+                    
+                    const parsedData = rows.map((row, idx) => {
+                        const stationNameVal = mapping.stationName ? String(row[mapping.stationName]).trim() : "기지국(현장)";
+                        const localStationVal = mapping.localStation ? String(row[mapping.localStation]).trim() : "";
+                        
+                        let rawName = stationNameVal;
+                        if (rawName === '기지국' || rawName === '기지국(현장)') {
+                            if (localStationVal) {
+                                rawName = localStationVal;
+                            }
+                        }
+                        if (!rawName) {
+                            rawName = mapping.name ? String(row[mapping.name]).trim() : "";
+                        }
+                        if (!rawName) return null;
+                        
+                        const addressVal = mapping.address ? String(row[mapping.address]).trim() : "";
+                        const localAddressVal = mapping.localAddress ? String(row[mapping.localAddress]).trim() : "";
+                        const capacityVal = mapping.capacity ? parseInt(row[mapping.capacity], 10) : 600;
+                        const quantityVal = mapping.quantity ? parseInt(row[mapping.quantity], 10) : 12;
+                        
+                        const latVal = mapping.lat ? parseFloat(row[mapping.lat]) : NaN;
+                        const lngVal = mapping.lng ? parseFloat(row[mapping.lng]) : NaN;
+                        
+                        const memoVal = mapping.memo ? String(row[mapping.memo]).trim() : "";
+                        const tagsVal = mapping.tags ? String(row[mapping.tags]).trim() : "";
+                        const colorVal = mapping.color ? String(row[mapping.color]).trim() : "";
+                        
+                        const tags = tagsVal 
+                            ? tagsVal.split(/[,|/]/).map(t => t.trim()).filter(t => t.length > 0)
+                            : [];
+                        
+                        const validColor = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#10b981';
+                        
+                        const item = {
+                            id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                            name: rawName,
+                            address: addressVal,
+                            localAddress: localAddressVal,
+                            capacity: isNaN(capacityVal) ? 600 : capacityVal,
+                            quantity: isNaN(quantityVal) ? 12 : quantityVal,
+                            stationName: stationNameVal || "기지국(현장)",
+                            memo: memoVal,
+                            tags: tags,
+                            color: validColor,
+                            createdAt: new Date().toISOString().split('T')[0]
+                        };
+                        
+                        if (!isNaN(latVal) && !isNaN(lngVal)) {
+                            item.lat = latVal;
+                            item.lng = lngVal;
+                        } else if (addressVal) {
+                            item.address = addressVal;
+                        } else {
+                            console.warn(`[행 ${idx + 2}] 주소 및 위경도 정보가 부족합니다. (이름: ${rawName})`);
+                            return null;
+                        }
+                        
+                        return item;
+                    }).filter(item => item !== null);
+                    
+                    // 명칭(name)이 동일한 마커 병합 및 items 빌드
+                    const mergedMap = new Map();
+                    parsedData.forEach(item => {
+                        const key = item.name;
+                        if (mergedMap.has(key)) {
+                            const existing = mergedMap.get(key);
+                            existing.items.push({
+                                erpName: item.memo, 
+                                address: item.localAddress || item.address, 
+                                capacity: item.capacity,
+                                quantity: item.quantity,
+                                stationName: item.stationName,
+                                createdAt: item.createdAt
+                            });
+                            if ((existing.lat === undefined || isNaN(existing.lat)) && item.lat !== undefined && !isNaN(item.lat)) {
+                                existing.lat = item.lat;
+                                existing.lng = item.lng;
+                            }
+                            if (!existing.address && item.address) {
+                                existing.address = item.address;
+                            }
+                        } else {
+                            item.items = [{
+                                erpName: item.memo,
+                                address: item.localAddress || item.address, 
+                                capacity: item.capacity,
+                                quantity: item.quantity,
+                                stationName: item.stationName,
+                                createdAt: item.createdAt
+                            }];
+                            mergedMap.set(key, item);
+                        }
+                    });
+                    
+                    resolve(Array.from(mergedMap.values()));
+                } catch (error) {
+                    reject(new Error("Excel 파일 파싱 오류: " + error.message));
+                }
+            };
+            
+            reader.onerror = () => {
+                reject(new Error("파일을 읽는 도중 오류가 발생했습니다."));
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+    },
+
+    /**
+     * 축전지 데이터를 백업용 Excel(.xlsx) 파일로 내보냅니다.
+     */
+    exportBatteryMarkersToExcel(markers, filename) {
+        if (!markers || markers.length === 0) {
+            throw new Error("백업할 마커 데이터가 없습니다.");
+        }
+
+        const rows = [];
+        markers.forEach(marker => {
+            const items = marker.items && marker.items.length > 0 ? marker.items : [{
+                erpName: marker.memo || "",
+                capacity: marker.capacity || 600,
+                quantity: marker.quantity || 12,
+                stationName: marker.stationName || marker.name,
+                address: marker.address || "",
+                createdAt: marker.createdAt || ""
+            }];
+
+            items.forEach(item => {
+                rows.push({
+                    "통합시설명칭(ERP)": item.erpName || marker.memo || "",
+                    "주소": item.address || marker.address || "",
+                    "용량(AH)": item.capacity || 600,
+                    "수량(Cell)": item.quantity || 12,
+                    "창고/국소/국사명": item.stationName || marker.name || "",
+                    "위도": typeof marker.lat === "number" ? marker.lat.toString() : (marker.lat || ""),
+                    "경도": typeof marker.lng === "number" ? marker.lng.toString() : (marker.lng || ""),
+                    "메모": marker.memo || "",
+                    "태그": Array.isArray(marker.tags) ? marker.tags.join(", ") : "",
+                    "마커색상": marker.color || "#10b981",
+                    "등록일": item.createdAt || marker.createdAt || ""
+                });
+            });
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "battery_markers");
+
+        const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const dateStr = new Date().toISOString().split("T")[0];
+        this._triggerDownloadBuffer(
+            buffer,
+            filename || `battery_markers_backup_${dateStr}.xlsx`,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+
+        return rows.length;
+    },
+
+    /**
      * 브라우저에서 ArrayBuffer 기반 다운로드를 실행시키는 헬퍼 메서드
      * @private
      */
