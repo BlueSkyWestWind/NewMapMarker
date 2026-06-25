@@ -12,6 +12,7 @@ CREATE TABLE public.battery_markers (
     memo TEXT DEFAULT '',                 -- 비고 / 메모
     tags VARCHAR(255)[] DEFAULT '{}',     -- 태그 목록
     color VARCHAR(50) DEFAULT '#10b981',  -- 마커 색상
+    facility_team VARCHAR(10) DEFAULT '', -- 시설팀 (1,2,3,4,5,7)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

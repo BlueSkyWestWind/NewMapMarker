@@ -24,16 +24,71 @@ const MARKER_SVG_GOLD = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
 </svg>`);
 
 // 입력된 색상 코드를 기준으로 입체적인 그라디언트가 적용된 SVG 마커 이미지를 동적으로 생성
-function getMarkerSvg(colorHex) {
-    const gradients = {
-        '#10b981': { start: '#10b981', end: '#059669' }, // Emerald Green
-        '#6366f1': { start: '#6366f1', end: '#4f46e5' }, // Indigo Blue
-        '#f43f5e': { start: '#f43f5e', end: '#e11d48' }, // Rose Red
-        '#f59e0b': { start: '#f59e0b', end: '#d97706' }, // Orange Gold
-        '#8b5cf6': { start: '#8b5cf6', end: '#7c3aed' }  // Purple
-    };
+const MARKER_GRADIENTS = {
+    '#10b981': { start: '#10b981', end: '#059669' },
+    '#6366f1': { start: '#6366f1', end: '#4f46e5' },
+    '#f43f5e': { start: '#f43f5e', end: '#e11d48' },
+    '#f59e0b': { start: '#f59e0b', end: '#d97706' },
+    '#8b5cf6': { start: '#8b5cf6', end: '#7c3aed' },
+    '#2563eb': { start: '#2563eb', end: '#1d4ed8' },
+    '#d946ef': { start: '#d946ef', end: '#c026d3' },
+    '#84cc16': { start: '#84cc16', end: '#65a30d' },
+    '#9333ea': { start: '#9333ea', end: '#7e22ce' },
+    '#ea580c': { start: '#ea580c', end: '#c2410c' },
+    '#0891b2': { start: '#0891b2', end: '#0e7490' },
+    '#64748b': { start: '#64748b', end: '#475569' }
+};
 
-    const theme = gradients[colorHex] || { start: colorHex, end: colorHex };
+/** 축전지 모드: 태그 키워드별 마커 모양 (우선순위는 BATTERY_TAG_SHAPE_PRIORITY 순) */
+const BATTERY_TAG_MARKER_SHAPES = {
+    '통합국': 'star',
+    '창고': 'square',
+    '기지국': 'pin'
+};
+
+const BATTERY_TAG_SHAPE_PRIORITY = ['통합국', '창고', '기지국'];
+
+function getMarkerGradientTheme(colorHex) {
+    return MARKER_GRADIENTS[colorHex] || { start: colorHex, end: colorHex };
+}
+
+function getBatteryMarkerShapeFromTags(tags) {
+    if (!tags || tags.length === 0) return 'pin';
+
+    const normalizedTags = tags
+        .map(tag => tag.toString().trim())
+        .filter(tag => tag.length > 0);
+
+    for (const keyword of BATTERY_TAG_SHAPE_PRIORITY) {
+        const matched = normalizedTags.some(tag => tag === keyword || tag.includes(keyword));
+        if (matched) {
+            return BATTERY_TAG_MARKER_SHAPES[keyword];
+        }
+    }
+
+    return 'pin';
+}
+
+function getMarkerShapeBody(shape, gradId) {
+    if (shape === 'square') {
+        return `
+  <path d="M5,3 H19 a2.5,2.5 0 0 1 2.5,2.5 V16 L12,34 L2.5,16 V5.5 a2.5,2.5 0 0 1 2.5,-2.5 Z" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
+  <rect x="8" y="7" width="8" height="8" rx="1.2" fill="#ffffff"/>`;
+    }
+
+    if (shape === 'star') {
+        return `
+  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
+  <path d="M12,6.2 L13.45,10.1 H17.55 L14.3,12.55 L15.75,16.45 L12,14.1 L8.25,16.45 L9.7,12.55 L6.45,10.1 H10.55 Z" fill="#ffffff"/>`;
+    }
+
+    return `
+  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="12" cy="12" r="4.5" fill="#ffffff"/>`;
+}
+
+function getMarkerSvg(colorHex, shape = 'pin') {
+    const theme = getMarkerGradientTheme(colorHex);
     const gradId = 'grad-' + colorHex.replace('#', '');
 
     const svg = `
@@ -44,11 +99,100 @@ function getMarkerSvg(colorHex) {
       <stop offset="100%" stop-color="${theme.end}" />
     </linearGradient>
   </defs>
-  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,19.2 12,34 12,34 C12,34 22,19.2 22,12 C22,6.48 17.52,2 12,2 Z" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
-  <circle cx="12" cy="12" r="4.5" fill="#ffffff"/>
+  ${getMarkerShapeBody(shape, gradId)}
 </svg>`;
 
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.trim());
+}
+
+function getMarkerImageUri(marker, currentMode = 'equipment') {
+    if (marker.isPending) return MARKER_SVG_GOLD;
+
+    const color = getEffectiveMarkerColor(marker, currentMode);
+    const shape = currentMode === 'battery'
+        ? getBatteryMarkerShapeFromTags(marker.tags)
+        : 'pin';
+
+    return getMarkerSvg(color, shape);
+}
+
+/** 시설팀 정의 — 팀 선택 시 마커 색상이 자동 연동됩니다 */
+const FACILITY_TEAMS = {
+    '1': { label: '1팀', leader: '박경훈', color: '#2563eb' },
+    '2': { label: '2팀', leader: '김정배', color: '#d946ef' },
+    '3': { label: '3팀', leader: '정종연', color: '#84cc16' },
+    '4': { label: '4팀', leader: '이동화', color: '#9333ea' },
+    '5': { label: '5팀', leader: '김영남', color: '#ea580c' },
+    '7': { label: '7팀', leader: '김성범', color: '#0891b2' }
+};
+
+const DEFAULT_MARKER_COLOR = '#10b981';
+const BATTERY_UNASSIGNED_COLOR = '#64748b';
+
+const LEGACY_COLOR_NAMES = {
+    '#10b981': '에메랄드',
+    '#64748b': '미지정',
+    '#6366f1': '인디고',
+    '#f43f5e': '로즈',
+    '#f59e0b': '골드',
+    '#8b5cf6': '퍼플',
+    '#06b6d4': '시안',
+    '#ec4899': '핑크',
+    '#84cc16': '라임',
+    '#14b8a6': '틸',
+    '#f97316': '오렌지'
+};
+
+function getFacilityTeamColor(teamId) {
+    if (!teamId) return BATTERY_UNASSIGNED_COLOR;
+    return FACILITY_TEAMS[teamId]?.color || BATTERY_UNASSIGNED_COLOR;
+}
+
+function getFacilityTeamDisplayName(teamId) {
+    const team = FACILITY_TEAMS[teamId];
+    return team ? `${team.label}(${team.leader})` : '미지정';
+}
+
+function getMarkerColorLabel(colorHex) {
+    const normalized = (colorHex || '').toLowerCase().trim();
+    for (const [teamId, team] of Object.entries(FACILITY_TEAMS)) {
+        if (team.color.toLowerCase() === normalized) {
+            return getFacilityTeamDisplayName(teamId);
+        }
+    }
+    return LEGACY_COLOR_NAMES[normalized] || colorHex;
+}
+
+function getEffectiveMarkerColor(marker, currentMode = 'battery') {
+    if (marker.isTemp) return '#ef4444';
+    if (currentMode === 'battery') {
+        if (marker.facilityTeam && FACILITY_TEAMS[marker.facilityTeam]) {
+            return FACILITY_TEAMS[marker.facilityTeam].color;
+        }
+        return BATTERY_UNASSIGNED_COLOR;
+    }
+    return marker.color || DEFAULT_MARKER_COLOR;
+}
+
+function getBatteryOverlaySpecSummary(data) {
+    const rawSpecs = (data.items && data.items.length > 0)
+        ? data.items
+        : [{
+            capacity: data.capacity,
+            quantity: data.quantity
+        }];
+
+    const summaryByCapacity = new Map();
+    rawSpecs.forEach(spec => {
+        const capacity = parseInt(spec.capacity, 10);
+        const quantity = parseInt(spec.quantity, 10);
+        if (isNaN(capacity) || isNaN(quantity)) return;
+        summaryByCapacity.set(capacity, (summaryByCapacity.get(capacity) || 0) + quantity);
+    });
+
+    return Array.from(summaryByCapacity.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([capacity, totalQuantity]) => ({ capacity, totalQuantity }));
 }
 
 class MapMarkerApp {
@@ -72,10 +216,12 @@ class MapMarkerApp {
         this.currentMovingMarkerId = null; // 현재 위치 이동 수정 중인 마커 ID
         this.originalMarkerPosition = null; // 위치 수정 전 원래 좌표 (LatLng)
         this.mapClickMoveListener = null; // 위치 수정 중 지도 클릭 감지 리스너
-        this.selectedColor = '#10b981'; // 현재 모달에서 선택된 마커 색상 Hex
+        this.selectedColor = DEFAULT_MARKER_COLOR; // 현재 모달에서 선택된 마커 색상 Hex
+        this.selectedFacilityTeam = ''; // 현재 모달에서 선택된 시설팀 ID
         
         // 축전지 모드 관련 추가 상태 정의
         this.currentMode = 'equipment'; // 'equipment' or 'battery'
+        this.isDetailViewMode = false;
         this.eqMarkersData = [];
         this.batteryMarkersData = [];
         this.selectedCapacities = new Set(); // 축전지 용량 필터 셋
@@ -100,16 +246,14 @@ class MapMarkerApp {
         this.closeSearchBtn = document.getElementById('close-search-btn');
         
         this.markerFilter = document.getElementById('marker-filter');
+        this.markersSectionTitle = document.getElementById('markers-section-title');
         this.markersList = document.getElementById('markers-list');
         this.markerCount = document.getElementById('marker-count');
         
-        this.exportMarkersJsonBtn = document.getElementById('export-markers-json-btn');
         this.exportMarkersExcelBtn = document.getElementById('export-markers-excel-btn');
-        this.importMarkersJsonFile = document.getElementById('import-markers-json-file');
+        this.deleteAllBatteryMarkersBtn = document.getElementById('delete-all-battery-markers-btn');
         this.importMarkersExcelFile = document.getElementById('import-markers-excel-file');
-        this.exportInfoJsonBtn = document.getElementById('export-info-json-btn');
         this.exportInfoExcelBtn = document.getElementById('export-info-excel-btn');
-        this.importInfoJsonFile = document.getElementById('import-info-json-file');
         this.importInfoExcelFile = document.getElementById('import-info-excel-file');
         
         // 백업 아코디언 요소 캐시
@@ -158,6 +302,9 @@ class MapMarkerApp {
         this.deleteMarkerModalBtn = document.getElementById('delete-marker-modal-btn');
         this.copySelectedBtn = document.getElementById('copy-selected-btn');
         this.colorChips = document.querySelectorAll('.color-chip');
+        this.facilityTeamPicker = document.getElementById('facility-team-picker');
+        this.facilityTeamFormGroup = document.getElementById('facility-team-form-group');
+        this.facilityTeamChips = document.querySelectorAll('.facility-team-chip');
 
         // 사이드바 토글 관련 캐시
         this.sidebar = document.querySelector('.sidebar');
@@ -191,6 +338,7 @@ class MapMarkerApp {
         // 필터 요소 캐시
         this.filterAccordionToggle = document.getElementById('filter-accordion-toggle');
         this.filterAccordionContent = document.getElementById('filter-accordion-content');
+        this.filterAccordionTitle = document.getElementById('filter-accordion-title');
 
         // 업로드 섹션 아코디언 캐시
         this.excelAccordionToggle = document.getElementById('excel-accordion-toggle');
@@ -242,6 +390,8 @@ class MapMarkerApp {
 
         this.eqFiltersRow = document.getElementById('eq-filters-row');
         this.batteryFiltersRow = document.getElementById('battery-filters-row');
+        this.colorFiltersRow = document.getElementById('color-filters-row');
+        this.tagsFiltersRow = document.getElementById('tags-filters-row');
 
         this.selectCapacitiesTrigger = document.getElementById('select-capacities-trigger');
         this.optionsCapacitiesContainer = document.getElementById('options-capacities-container');
@@ -317,26 +467,17 @@ class MapMarkerApp {
                 this.backupAccordionContent.classList.toggle('hidden');
             });
         }
-        if (this.exportMarkersJsonBtn) {
-            this.exportMarkersJsonBtn.addEventListener('click', () => this.handleExportMarkersJSON());
-        }
         if (this.exportMarkersExcelBtn) {
             this.exportMarkersExcelBtn.addEventListener('click', () => this.handleExportMarkersExcel());
-        }
-        if (this.importMarkersJsonFile) {
-            this.importMarkersJsonFile.addEventListener('change', (e) => this.handleImportMarkersJSON(e));
         }
         if (this.importMarkersExcelFile) {
             this.importMarkersExcelFile.addEventListener('change', (e) => this.handleImportMarkersExcel(e));
         }
-        if (this.exportInfoJsonBtn) {
-            this.exportInfoJsonBtn.addEventListener('click', () => this.handleExportInfoJSON());
+        if (this.deleteAllBatteryMarkersBtn) {
+            this.deleteAllBatteryMarkersBtn.addEventListener('click', () => this.handleDeleteAllBatteryMarkers());
         }
         if (this.exportInfoExcelBtn) {
             this.exportInfoExcelBtn.addEventListener('click', () => this.handleExportInfoExcel());
-        }
-        if (this.importInfoJsonFile) {
-            this.importInfoJsonFile.addEventListener('change', (e) => this.handleImportInfoJSON(e));
         }
         if (this.importInfoExcelFile) {
             this.importInfoExcelFile.addEventListener('change', (e) => this.handleImportInfoExcelBackup(e));
@@ -363,14 +504,13 @@ class MapMarkerApp {
         this.saveMarkerBtn.addEventListener('click', () => this.handleSaveMarker());
         this.deleteMarkerModalBtn.addEventListener('click', () => this.handleDeleteMarker(this.currentEditingId));
         
-        // 색상 칩 선택 이벤트
-        if (this.colorChips) {
-            this.colorChips.forEach(chip => {
+        // 시설팀 칩 선택 이벤트
+        if (this.facilityTeamChips) {
+            this.facilityTeamChips.forEach(chip => {
                 chip.addEventListener('click', () => {
                     const isReadOnly = this.markerNameInput && this.markerNameInput.readOnly;
                     if (!isReadOnly) {
-                        const color = chip.getAttribute('data-color');
-                        this.selectColorChip(color);
+                        this.selectFacilityTeam(chip.getAttribute('data-team') || '');
                     }
                 });
             });
@@ -958,7 +1098,8 @@ class MapMarkerApp {
                         lng: row.lng,
                         memo: row.memo || "",
                         tags: row.tags || [],
-                        color: row.color || '#10b981',
+                        color: row.color || DEFAULT_MARKER_COLOR,
+                        facilityTeam: row.facility_team || '',
                         roadAddress: row.road_address || "",
                         jibunAddress: row.jibun_address || "",
                         facilityCode: row.facility_code || (repInfo ? repInfo.facility_code || "" : ""),
@@ -1015,12 +1156,13 @@ class MapMarkerApp {
                         address: row.address || "",
                         memo: row.memo || "",
                         tags: row.tags || [],
-                        color: row.color || '#10b981',
+                        color: row.color || DEFAULT_MARKER_COLOR,
+                        facilityTeam: row.facility_team || '',
                         createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
                         items: specs.map(s => ({
                             id: s.id,
                             erpName: s.erp_name || "",
-                            address: s.address || "",
+                            address: row.address || "",
                             capacity: s.capacity || 600,
                             quantity: s.quantity || 12,
                             stationName: s.station_name || "",
@@ -1053,6 +1195,9 @@ class MapMarkerApp {
         // 필터 옵션 동적 구성
         this.initFilters(true);
 
+        this.updateBatteryBulkDeleteButtonVisibility();
+        this.updateFacilityTeamVisibility();
+        this.updateFilterSectionVisibility();
         this.renderMarkersList();
     }
 
@@ -1099,7 +1244,7 @@ class MapMarkerApp {
             this.markersData.forEach(marker => {
                 const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
                 const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
-                const color = marker.color ? marker.color.toLowerCase().trim() : "#10b981";
+                const color = getEffectiveMarkerColor(marker, this.currentMode).toLowerCase().trim();
                 yearsSet.add(year);
                 businessesSet.add(business);
                 colorsSet.add(color);
@@ -1128,7 +1273,10 @@ class MapMarkerApp {
                 return a.localeCompare(b);
             });
  
-            const colorOrder = ['#10b981', '#6366f1', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#14b8a6', '#f97316'];
+            const colorOrder = [
+                '#2563eb', '#d946ef', '#84cc16', '#9333ea', '#ea580c', '#0891b2', '#64748b',
+                '#10b981', '#6366f1', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#14b8a6', '#f97316'
+            ];
             this.uniqueColors = Array.from(colorsSet).sort((a, b) => {
                 const idxA = colorOrder.indexOf(a);
                 const idxB = colorOrder.indexOf(b);
@@ -1176,17 +1324,13 @@ class MapMarkerApp {
                 this.selectedTags = newSelectedTags.size > 0 ? newSelectedTags : new Set(this.uniqueTags);
             }
         } else {
-            // --- 축전지 모드 필터 옵션 초기화 ---
-            const capacitiesSet = new Set();
-            const quantitiesSet = new Set();
-            const stationsSet = new Set();
             const colorsSet = new Set();
             const tagsSet = new Set();
- 
+
             this.markersData.forEach(marker => {
-                const color = marker.color ? marker.color.toLowerCase().trim() : "#10b981";
+                const color = getEffectiveMarkerColor(marker, this.currentMode).toLowerCase().trim();
                 colorsSet.add(color);
- 
+
                 if (marker.tags && marker.tags.length > 0) {
                     marker.tags.forEach(tag => {
                         const cleanTag = tag.toString().trim();
@@ -1195,44 +1339,12 @@ class MapMarkerApp {
                 } else {
                     tagsSet.add("미지정");
                 }
- 
-                // 1:N 스펙 수집
-                if (marker.items && marker.items.length > 0) {
-                    marker.items.forEach(item => {
-                        const cap = item.capacity ? item.capacity.toString().trim() + " AH" : "미지정";
-                        const qty = item.quantity ? item.quantity.toString().trim() + " Cell" : "미지정";
-                        const stName = item.stationName ? item.stationName.toString().trim() : "미지정";
-                        capacitiesSet.add(cap);
-                        quantitiesSet.add(qty);
-                        stationsSet.add(stName);
-                    });
-                } else {
-                    const cap = marker.capacity ? marker.capacity.toString().trim() + " AH" : "미지정";
-                    const qty = marker.quantity ? marker.quantity.toString().trim() + " Cell" : "미지정";
-                    const stName = marker.stationName ? marker.stationName.toString().trim() : (marker.name || "미지정");
-                    capacitiesSet.add(cap);
-                    quantitiesSet.add(qty);
-                    stationsSet.add(stName);
-                }
             });
- 
-            this.uniqueCapacities = Array.from(capacitiesSet).sort((a, b) => {
-                if (a === "미지정") return 1;
-                if (b === "미지정") return -1;
-                return parseInt(b) - parseInt(a);
-            });
-            this.uniqueQuantities = Array.from(quantitiesSet).sort((a, b) => {
-                if (a === "미지정") return 1;
-                if (b === "미지정") return -1;
-                return parseInt(b) - parseInt(a);
-            });
-            this.uniqueStations = Array.from(stationsSet).sort((a, b) => {
-                if (a === "미지정") return 1;
-                if (b === "미지정") return -1;
-                return a.localeCompare(b);
-            });
- 
-            const colorOrder = ['#10b981', '#6366f1', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#14b8a6', '#f97316'];
+
+            const colorOrder = [
+                '#2563eb', '#d946ef', '#84cc16', '#9333ea', '#ea580c', '#0891b2', '#64748b',
+                '#10b981', '#6366f1', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#14b8a6', '#f97316'
+            ];
             this.uniqueColors = Array.from(colorsSet).sort((a, b) => {
                 const idxA = colorOrder.indexOf(a);
                 const idxB = colorOrder.indexOf(b);
@@ -1246,38 +1358,17 @@ class MapMarkerApp {
                 if (b === "미지정") return -1;
                 return a.localeCompare(b);
             });
- 
+
             if (isFirstLoad) {
-                this.selectedCapacities = new Set(this.uniqueCapacities);
-                this.selectedQuantities = new Set(this.uniqueQuantities);
-                this.selectedStations = new Set(this.uniqueStations);
                 this.selectedColors = new Set(this.uniqueColors);
                 this.selectedTags = new Set(this.uniqueTags);
             } else {
-                const newSelectedCapacities = new Set();
-                this.uniqueCapacities.forEach(c => {
-                    if (this.selectedCapacities.has(c)) newSelectedCapacities.add(c);
-                });
-                this.selectedCapacities = newSelectedCapacities.size > 0 ? newSelectedCapacities : new Set(this.uniqueCapacities);
- 
-                const newSelectedQuantities = new Set();
-                this.uniqueQuantities.forEach(q => {
-                    if (this.selectedQuantities.has(q)) newSelectedQuantities.add(q);
-                });
-                this.selectedQuantities = newSelectedQuantities.size > 0 ? newSelectedQuantities : new Set(this.uniqueQuantities);
- 
-                const newSelectedStations = new Set();
-                this.uniqueStations.forEach(s => {
-                    if (this.selectedStations.has(s)) newSelectedStations.add(s);
-                });
-                this.selectedStations = newSelectedStations.size > 0 ? newSelectedStations : new Set(this.uniqueStations);
- 
                 const newSelectedColors = new Set();
                 this.uniqueColors.forEach(c => {
                     if (this.selectedColors.has(c)) newSelectedColors.add(c);
                 });
                 this.selectedColors = newSelectedColors.size > 0 ? newSelectedColors : new Set(this.uniqueColors);
- 
+
                 const newSelectedTags = new Set();
                 this.uniqueTags.forEach(t => {
                     if (this.selectedTags.has(t)) newSelectedTags.add(t);
@@ -1356,130 +1447,18 @@ class MapMarkerApp {
                     }
                 }
             }
-        } else {
-            // --- 용량(AH) 선택 드롭다운 ---
-            if (this.optionsCapacitiesContainer) {
-                this.optionsCapacitiesContainer.innerHTML = '';
-                this.uniqueCapacities.forEach(cap => {
-                    const item = document.createElement('div');
-                    const isSelected = this.selectedCapacities.has(cap);
-                    item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
-                    item.innerHTML = `
-                        <div class="filter-option-checkbox"></div>
-                        <span class="filter-option-text">${cap}</span>
-                    `;
-                    item.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.toggleFilterOption('capacity', cap);
-                    });
-                    this.optionsCapacitiesContainer.appendChild(item);
-                });
- 
-                if (this.selectedCapacitiesLabel) {
-                    const selectedCount = this.selectedCapacities.size;
-                    const totalCount = this.uniqueCapacities.length;
-                    
-                    if (selectedCount === totalCount) {
-                        this.selectedCapacitiesLabel.textContent = "용량 선택";
-                    } else if (selectedCount === 0) {
-                        this.selectedCapacitiesLabel.textContent = "선택 안함";
-                    } else {
-                        const firstSelected = Array.from(this.selectedCapacities)[0];
-                        this.selectedCapacitiesLabel.textContent = selectedCount === 1 ? firstSelected : `${firstSelected} 외 ${selectedCount - 1}`;
-                    }
-                }
-            }
- 
-            // --- 수량(Cell) 선택 드롭다운 ---
-            if (this.optionsQuantitiesContainer) {
-                this.optionsQuantitiesContainer.innerHTML = '';
-                this.uniqueQuantities.forEach(qty => {
-                    const item = document.createElement('div');
-                    const isSelected = this.selectedQuantities.has(qty);
-                    item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
-                    item.innerHTML = `
-                        <div class="filter-option-checkbox"></div>
-                        <span class="filter-option-text">${qty}</span>
-                    `;
-                    item.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.toggleFilterOption('quantity', qty);
-                    });
-                    this.optionsQuantitiesContainer.appendChild(item);
-                });
- 
-                if (this.selectedQuantitiesLabel) {
-                    const selectedCount = this.selectedQuantities.size;
-                    const totalCount = this.uniqueQuantities.length;
-                    
-                    if (selectedCount === totalCount) {
-                        this.selectedQuantitiesLabel.textContent = "수량 선택";
-                    } else if (selectedCount === 0) {
-                        this.selectedQuantitiesLabel.textContent = "선택 안함";
-                    } else {
-                        const firstSelected = Array.from(this.selectedQuantities)[0];
-                        this.selectedQuantitiesLabel.textContent = selectedCount === 1 ? firstSelected : `${firstSelected} 외 ${selectedCount - 1}`;
-                    }
-                }
-            }
- 
-            // --- 창고/국소/국사명 선택 드롭다운 ---
-            if (this.optionsStationsContainer) {
-                this.optionsStationsContainer.innerHTML = '';
-                this.uniqueStations.forEach(st => {
-                    const item = document.createElement('div');
-                    const isSelected = this.selectedStations.has(st);
-                    item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
-                    item.innerHTML = `
-                        <div class="filter-option-checkbox"></div>
-                        <span class="filter-option-text">${st}</span>
-                    `;
-                    item.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.toggleFilterOption('station', st);
-                    });
-                    this.optionsStationsContainer.appendChild(item);
-                });
- 
-                if (this.selectedStationsLabel) {
-                    const selectedCount = this.selectedStations.size;
-                    const totalCount = this.uniqueStations.length;
-                    
-                    if (selectedCount === totalCount) {
-                        this.selectedStationsLabel.textContent = "국소명 선택";
-                    } else if (selectedCount === 0) {
-                        this.selectedStationsLabel.textContent = "선택 안함";
-                    } else {
-                        const firstSelected = Array.from(this.selectedStations)[0];
-                        this.selectedStationsLabel.textContent = selectedCount === 1 ? firstSelected : `${firstSelected} 외 ${selectedCount - 1}`;
-                    }
-                }
-            }
         }
- 
+
         // --- 색상 선택 드롭다운 ---
         if (this.optionsColorsContainer) {
             this.optionsColorsContainer.innerHTML = '';
             
-            const COLOR_NAMES = {
-                '#10b981': '에메랄드',
-                '#6366f1': '인디고',
-                '#f43f5e': '로즈',
-                '#f59e0b': '골드',
-                '#8b5cf6': '퍼플',
-                '#06b6d4': '시안',
-                '#ec4899': '핑크',
-                '#84cc16': '라임',
-                '#14b8a6': '틸',
-                '#f97316': '오렌지'
-            };
- 
             this.uniqueColors.forEach(color => {
                 const item = document.createElement('div');
                 const isSelected = this.selectedColors.has(color);
                 item.className = `filter-option-item ${isSelected ? 'selected' : ''}`;
                 
-                const name = COLOR_NAMES[color] || color;
+                const name = getMarkerColorLabel(color);
                 
                 item.innerHTML = `
                     <div class="filter-option-checkbox"></div>
@@ -1503,7 +1482,7 @@ class MapMarkerApp {
                     this.selectedColorsLabel.textContent = "선택 안함";
                 } else {
                     const firstSelected = Array.from(this.selectedColors)[0];
-                    const firstLabel = COLOR_NAMES[firstSelected] || firstSelected;
+                    const firstLabel = getMarkerColorLabel(firstSelected);
                     this.selectedColorsLabel.textContent = selectedCount === 1 ? firstLabel : `${firstLabel} 외 ${selectedCount - 1}`;
                 }
             }
@@ -1737,6 +1716,7 @@ class MapMarkerApp {
     // 마커 생성 모달 열기
     openAddMarkerModal(lat, lng, defaultName = '') {
         this.currentEditingId = null;
+        this.isDetailViewMode = false;
         this.modalTitle.textContent = '위치 마커 등록';
         
         // 폼 초기화
@@ -1784,8 +1764,13 @@ class MapMarkerApp {
         
         this.deleteMarkerModalBtn.classList.add('hidden');
         
-        // 기본 색상(에메랄드) 선택 초기화
-        this.selectColorChip('#10b981');
+        // 기본 색상 초기화 (장비: 색상, 축전지: 시설팀)
+        if (this.currentMode === 'battery') {
+            this.selectFacilityTeam('');
+        } else {
+            this.selectColorChip(DEFAULT_MARKER_COLOR);
+        }
+        this.updateFacilityTeamVisibility();
 
         if (this.currentMode === 'equipment') {
             this.markerNameLabel.textContent = '장소 이름';
@@ -1836,15 +1821,18 @@ class MapMarkerApp {
         ];
         
         inputs.forEach(input => {
-            if (input) {
-                input.readOnly = isReadOnly;
-                if (isReadOnly) {
-                    input.classList.add('input-readonly');
-                } else {
-                    input.classList.remove('input-readonly');
-                }
-            }
+            this.setModalFieldEditable(input, !isReadOnly);
         });
+
+        if (this.facilityTeamPicker) {
+            this.facilityTeamPicker.classList.toggle('is-readonly', isReadOnly);
+        }
+    }
+
+    setModalFieldEditable(input, editable) {
+        if (!input) return;
+        input.readOnly = !editable;
+        input.classList.toggle('input-readonly', !editable);
     }
 
     // Supabase에서 국소명 기준으로 연관 상세 정보를 조회하여 테이블 및 폼에 바인딩
@@ -1949,12 +1937,20 @@ class MapMarkerApp {
             });
         }
 
-        // 저장된 색상으로 칩 동기화 (상세 보기 모드)
-        this.selectColorChip(markerData.color || '#10b981');
+        // 저장된 색상/시설팀 동기화 (상세 보기 모드)
+        if (this.currentMode === 'battery') {
+            this.selectFacilityTeam(markerData.facilityTeam || '');
+        } else {
+            this.selectColorChip(markerData.color || DEFAULT_MARKER_COLOR);
+        }
+        this.updateFacilityTeamVisibility();
  
         // 폼 잠금 및 버튼 숨김 설정
+        this.isDetailViewMode = true;
         this.toggleModalReadOnly(true);
-        this.saveMarkerBtn.classList.add('hidden');
+        this.setModalFieldEditable(this.markerTagsInput, true);
+        this.saveMarkerBtn.classList.remove('hidden');
+        this.saveMarkerBtn.textContent = '태그 저장';
         this.deleteMarkerModalBtn.classList.add('hidden');
         this.cancelModalBtn.textContent = '닫기';
 
@@ -2056,6 +2052,7 @@ class MapMarkerApp {
         if (!markerData) return;
         
         this.currentEditingId = id;
+        this.isDetailViewMode = false;
         this.modalTitle.textContent = '마커 정보 수정';
         
         this.markerNameInput.value = markerData.name;
@@ -2084,13 +2081,19 @@ class MapMarkerApp {
             });
         }
         
-        // 저장된 색상으로 칩 동기화 (수정 모드)
-        this.selectColorChip(markerData.color || '#10b981');
+        // 저장된 색상/시설팀 동기화 (수정 모드)
+        if (this.currentMode === 'battery') {
+            this.selectFacilityTeam(markerData.facilityTeam || '');
+        } else {
+            this.selectColorChip(markerData.color || DEFAULT_MARKER_COLOR);
+        }
+        this.updateFacilityTeamVisibility();
  
         // 폼 잠금 해제 및 저장 버튼 노출 설정
         this.toggleModalReadOnly(false);
         this.clearCellSelection(); // 편집 진입 시 기존 셀 선택 하이라이트 리셋
         this.saveMarkerBtn.classList.remove('hidden');
+        this.saveMarkerBtn.textContent = '저장';
         this.cancelModalBtn.textContent = '취소';
  
         // 대기 상태(isPending)가 아닐 때만 삭제 버튼 노출
@@ -2196,7 +2199,47 @@ class MapMarkerApp {
  
     closeModal() {
         this.markerModal.classList.add('hidden');
+        this.isDetailViewMode = false;
+        if (this.saveMarkerBtn) {
+            this.saveMarkerBtn.textContent = '저장';
+        }
         this.clearTempMarker();
+    }
+
+    async saveMarkerTagsOnly() {
+        if (!this.currentEditingId) return;
+
+        const tagsRaw = this.markerTagsInput.value.trim();
+        const tags = tagsRaw
+            ? tagsRaw.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+            : [];
+
+        const index = this.markersData.findIndex(m => m.id === this.currentEditingId);
+        if (index === -1) return;
+
+        const marker = this.markersData[index];
+        const updatedItem = { ...marker, tags };
+
+        if (this.supabase && !marker.isPending && !marker.isTemp) {
+            const table = this.currentMode === 'equipment' ? 'markers' : 'battery_markers';
+            const { error } = await this.supabase
+                .from(table)
+                .update({ tags })
+                .eq('id', this.currentEditingId);
+
+            if (error) {
+                this.showToast('태그 저장 실패: ' + error.message, 5000);
+                return;
+            }
+        }
+
+        this.markersData[index] = updatedItem;
+        this.syncLocalStorage();
+        this.initFilters(false);
+        this.renderMarkersOnMap();
+        this.renderMarkersList();
+        this.showToast('태그가 저장되었습니다.');
+        this.closeModal();
     }
 
     // 상세 정보 테이블 클립보드 복사 (TSV 포맷, 엑셀 바로 적용 가능)
@@ -2243,6 +2286,11 @@ class MapMarkerApp {
         }
 
         try {
+            if (this.isDetailViewMode) {
+                await this.saveMarkerTagsOnly();
+                return;
+            }
+
             const name = this.markerNameInput.value.trim();
             const lat = parseFloat(this.markerLatInput.value);
             const lng = parseFloat(this.markerLngInput.value);
@@ -2390,12 +2438,14 @@ class MapMarkerApp {
                     
                     if (this.currentMode === 'equipment') {
                         const repInfo = infoListToUpsert[0] || {};
+                        const teamSave = this.buildSaveTeamFields(isTempMarker);
                         const updatedItem = {
                             ...this.markersData[index],
                             name,
                             memo,
                             tags,
-                            color: isTempMarker ? '#ef4444' : (this.selectedColor || '#10b981'),
+                            facilityTeam: teamSave.facilityTeam,
+                            color: teamSave.color,
                             facilityCode: repInfo.facility_code || facilityCode || "",
                             projectCode: repInfo.project_code || projectCode || "",
                             facilityYear: repInfo.facility_year || facilityYear || "",
@@ -2424,7 +2474,8 @@ class MapMarkerApp {
                                         name: updatedItem.name,
                                         memo: updatedItem.memo,
                                         tags: updatedItem.tags,
-                                        color: updatedItem.color || '#10b981',
+                                        color: updatedItem.color || DEFAULT_MARKER_COLOR,
+                                        facility_team: updatedItem.facilityTeam || '',
                                         facility_code: updatedItem.facilityCode || null,
                                         road_address: updatedItem.roadAddress || "",
                                         jibun_address: updatedItem.jibunAddress || ""
@@ -2451,12 +2502,14 @@ class MapMarkerApp {
                         this.showToast(isTempMarker ? '임시 마커 정보가 수정되었습니다.' : '마커 정보가 수정되었습니다.');
                     } else {
                         // 축전지 모드 마커 수정
+                        const teamSave = this.buildSaveTeamFields(isTempMarker);
                         const updatedItem = {
                             ...this.markersData[index],
                             name,
                             memo,
                             tags,
-                            color: isTempMarker ? '#ef4444' : (this.selectedColor || '#10b981'),
+                            facilityTeam: teamSave.facilityTeam,
+                            color: teamSave.color,
                             items: batterySpecsToUpsert.map(s => ({
                                 id: s.id,
                                 erpName: s.erp_name,
@@ -2485,7 +2538,8 @@ class MapMarkerApp {
                                         name: updatedItem.name,
                                         memo: updatedItem.memo,
                                         tags: updatedItem.tags,
-                                        color: updatedItem.color || '#10b981',
+                                        color: updatedItem.color || DEFAULT_MARKER_COLOR,
+                                        facility_team: updatedItem.facilityTeam || '',
                                         address: updatedItem.address || ""
                                     })
                                     .eq('id', this.currentEditingId);
@@ -2504,8 +2558,7 @@ class MapMarkerApp {
                                     erp_name: s.erp_name,
                                     capacity: s.capacity,
                                     quantity: s.quantity,
-                                    station_name: s.station_name,
-                                    address: s.address || updatedItem.address || ""
+                                    station_name: s.station_name
                                 }));
                                 const { error: specErr } = await this.supabase
                                     .from('battery_specs')
@@ -2529,6 +2582,7 @@ class MapMarkerApp {
                     const repInfo = infoListToUpsert[0] || {};
                     // 신규 추가 시 역지오코딩 조회 실행
                     const addrObj = await this.resolveAddressPromise(lat, lng);
+                    const teamSave = this.buildSaveTeamFields(isTemp);
                     
                     const newMarker = {
                         id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
@@ -2537,7 +2591,8 @@ class MapMarkerApp {
                         lng, // 정밀한 Float 값 보존
                         memo,
                         tags,
-                        color: isTemp ? '#ef4444' : (this.selectedColor || '#10b981'),
+                        facilityTeam: teamSave.facilityTeam,
+                        color: teamSave.color,
                         roadAddress: addrObj.roadAddress || "",
                         jibunAddress: addrObj.jibunAddress || "",
                         facilityCode: repInfo.facility_code || facilityCode || "",
@@ -2568,7 +2623,8 @@ class MapMarkerApp {
                                     lng: newMarker.lng,
                                     memo: newMarker.memo,
                                     tags: newMarker.tags,
-                                    color: newMarker.color || '#10b981',
+                                    color: newMarker.color || DEFAULT_MARKER_COLOR,
+                                    facility_team: newMarker.facilityTeam || '',
                                     facility_code: newMarker.facilityCode || null,
                                     road_address: newMarker.roadAddress || "",
                                     jibun_address: newMarker.jibunAddress || "",
@@ -2596,6 +2652,7 @@ class MapMarkerApp {
                     // 축전지 모드 신규 추가
                     const addrObj = await this.resolveAddressPromise(lat, lng);
                     const finalAddr = addrObj.jibunAddress || addrObj.roadAddress || "";
+                    const teamSave = this.buildSaveTeamFields(isTemp);
 
                     const newMarker = {
                         id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
@@ -2604,7 +2661,8 @@ class MapMarkerApp {
                         lng,
                         memo,
                         tags,
-                        color: isTemp ? '#ef4444' : (this.selectedColor || '#10b981'),
+                        facilityTeam: teamSave.facilityTeam,
+                        color: teamSave.color,
                         address: finalAddr,
                         items: batterySpecsToUpsert.map(s => ({
                             erpName: s.erp_name,
@@ -2637,7 +2695,8 @@ class MapMarkerApp {
                                     address: newMarker.address || "",
                                     memo: newMarker.memo || "",
                                     tags: newMarker.tags || [],
-                                    color: newMarker.color || '#10b981',
+                                    color: newMarker.color || DEFAULT_MARKER_COLOR,
+                                    facility_team: newMarker.facilityTeam || '',
                                     created_at: new Date().toISOString()
                                 });
                             if (markerErr) throw markerErr;
@@ -2649,7 +2708,6 @@ class MapMarkerApp {
                                 capacity: s.capacity,
                                 quantity: s.quantity,
                                 station_name: s.station_name,
-                                address: s.address || newMarker.address || "",
                                 created_at: new Date().toISOString()
                             }));
                             const { error: specErr } = await this.supabase
@@ -2743,7 +2801,7 @@ class MapMarkerApp {
             if (marker._dragendHandler) {
                 kakao.maps.event.removeListener(marker, 'dragend', marker._dragendHandler);
             }
-            if (this.clusterer) {
+            if (this.clusterer && this.currentMode === 'equipment') {
                 this.clusterer.removeMarker(marker);
             }
             marker.setMap(null);
@@ -2797,40 +2855,35 @@ class MapMarkerApp {
         this.markersData.forEach(data => {
             // 필터링 적용 (대기 마커 및 임시 마커가 아닌 경우에만 연도 & 사업구분 & 색상 & 태그 필터 검사)
             if (!data.isPending && !data.isTemp) {
-                const color = data.color ? data.color.toLowerCase().trim() : "#10b981";
-
-                let hasMatchingTag = false;
-                if (data.tags && data.tags.length > 0) {
-                    hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
-                } else {
-                    hasMatchingTag = this.selectedTags.has("미지정");
-                }
-
-                if (!this.selectedColors.has(color) || !hasMatchingTag) {
+                const color = getEffectiveMarkerColor(data, this.currentMode).toLowerCase().trim();
+                if (!this.selectedColors.has(color)) {
                     return;
                 }
 
                 if (this.currentMode === 'equipment') {
+                    let hasMatchingTag = false;
+                    if (data.tags && data.tags.length > 0) {
+                        hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
+                    } else {
+                        hasMatchingTag = this.selectedTags.has("미지정");
+                    }
+                    if (!hasMatchingTag) {
+                        return;
+                    }
+
                     const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
                     const business = data.businessType ? data.businessType.toString().trim() : "미지정";
                     if (!this.selectedYears.has(year) || !this.selectedBusinesses.has(business)) {
                         return;
                     }
                 } else {
-                    // 축전지 모드 필터링
-                    const specs = data.items && data.items.length > 0 ? data.items : [{
-                        capacity: data.capacity,
-                        quantity: data.quantity,
-                        stationName: data.stationName || data.name
-                    }];
-                    const hasMatchingSpec = specs.some(spec => {
-                        const cap = spec.capacity ? spec.capacity.toString().trim() + " AH" : "미지정";
-                        const qty = spec.quantity ? spec.quantity.toString().trim() + " Cell" : "미지정";
-                        const stName = spec.stationName ? spec.stationName.toString().trim() : "미지정";
-                        
-                        return this.selectedCapacities.has(cap) && this.selectedQuantities.has(qty) && this.selectedStations.has(stName);
-                    });
-                    if (!hasMatchingSpec) {
+                    let hasMatchingTag = false;
+                    if (data.tags && data.tags.length > 0) {
+                        hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
+                    } else {
+                        hasMatchingTag = this.selectedTags.has("미지정");
+                    }
+                    if (!hasMatchingTag) {
                         return;
                     }
                 }
@@ -2839,9 +2892,7 @@ class MapMarkerApp {
             const position = new kakao.maps.LatLng(data.lat, data.lng);
             
             // 1. 마커 객체 생성 (대기 상태 마커인 경우 골드, 일반 마커인 경우 저장된 개별 색상의 커스텀 SVG 적용)
-            const markerSvgUri = data.isPending
-                ? MARKER_SVG_GOLD
-                : getMarkerSvg(data.color || '#10b981');
+            const markerSvgUri = getMarkerImageUri(data, this.currentMode);
             const markerImage = new kakao.maps.MarkerImage(markerSvgUri, new kakao.maps.Size(30, 45), { offset: new kakao.maps.Point(15, 45) });
 
             const isMovingThis = this.currentMovingMarkerId === data.id;
@@ -2856,8 +2907,8 @@ class MapMarkerApp {
             
             this.mapMarkers.set(data.id, marker);
             
-            if (isMovingThis || isPendingThis) {
-                marker.setMap(this.map); // 위치 수정 중이거나 대기 마커는 클러스터에서 제외하고 직접 맵에 꽂아야 드래그가 정상 작동함
+            if (isMovingThis || isPendingThis || this.currentMode === 'battery') {
+                marker.setMap(this.map); // 위치 수정/대기 마커, 축전지 모드는 클러스터 없이 직접 표시
             } else {
                 markersToCluster.push(marker);
             }
@@ -2899,7 +2950,7 @@ class MapMarkerApp {
             }
         });
 
-        if (this.clusterer) {
+        if (this.clusterer && this.currentMode === 'equipment') {
             this.clusterer.addMarkers(markersToCluster);
         }
     }
@@ -2977,7 +3028,7 @@ class MapMarkerApp {
             this.showToast(`대기 마커 '${markerData.name}'의 위치를 수정했습니다. (전송 시 반영)`);
         }
         
-        if (this.clusterer) {
+        if (this.clusterer && this.currentMode === 'equipment') {
             this.clusterer.redraw();
         }
     }
@@ -3036,12 +3087,78 @@ class MapMarkerApp {
         this.updateOverlayAddress(id, newLat, newLng);
 
         // 5. 클러스터러 갱신
-        if (this.clusterer) {
+        if (this.clusterer && this.currentMode === 'equipment') {
             this.clusterer.redraw();
         }
     }
 
-    // 선택된 색상 칩 업데이트
+    updateFacilityTeamVisibility() {
+        const show = this.currentMode === 'battery';
+        if (this.facilityTeamFormGroup) {
+            this.facilityTeamFormGroup.classList.toggle('hidden', !show);
+        }
+    }
+
+    updateFilterSectionVisibility() {
+        const isBattery = this.currentMode === 'battery';
+
+        if (this.filterAccordionTitle) {
+            this.filterAccordionTitle.textContent = isBattery
+                ? '마커 필터'
+                : '연도·사업·색상·태그 표시';
+        }
+        if (this.eqFiltersRow) {
+            this.eqFiltersRow.classList.toggle('hidden', isBattery);
+        }
+        if (this.batteryFiltersRow) {
+            this.batteryFiltersRow.classList.add('hidden');
+        }
+        if (this.tagsFiltersRow) {
+            this.tagsFiltersRow.classList.remove('hidden');
+        }
+        if (this.colorFiltersRow) {
+            this.colorFiltersRow.classList.remove('hidden');
+        }
+        if (this.markersSectionTitle) {
+            this.markersSectionTitle.textContent = '저장된 위치';
+        }
+        if (this.markerFilter) {
+            this.markerFilter.placeholder = isBattery
+                ? '이름·메모·태그로 검색...'
+                : '저장된 위치 필터링...';
+        }
+    }
+
+    // 선택된 시설팀 및 연동 마커 색상 업데이트
+    selectFacilityTeam(teamId) {
+        this.selectedFacilityTeam = teamId || '';
+        this.selectedColor = getFacilityTeamColor(this.selectedFacilityTeam);
+        if (this.facilityTeamChips) {
+            this.facilityTeamChips.forEach(chip => {
+                const chipTeam = chip.getAttribute('data-team') || '';
+                chip.classList.toggle('selected', chipTeam === this.selectedFacilityTeam);
+            });
+        }
+    }
+
+    buildSaveTeamFields(isTemp) {
+        if (isTemp) {
+            return { facilityTeam: '', color: '#ef4444' };
+        }
+        if (this.currentMode === 'battery') {
+            const facilityTeam = this.selectedFacilityTeam || '';
+            return {
+                facilityTeam,
+                color: getFacilityTeamColor(facilityTeam)
+            };
+        }
+        return {
+            facilityTeam: '',
+            color: this.selectedColor || DEFAULT_MARKER_COLOR
+        };
+    }
+
+    // 선택된 색상 칩 업데이트 (레거시 호환)
     selectColorChip(colorHex) {
         this.selectedColor = colorHex || '#10b981';
         if (this.colorChips) {
@@ -3236,6 +3353,78 @@ class MapMarkerApp {
         });
     }
 
+    // 마커 정보창(오버레이)에서 시설팀 선택 시 즉시 저장 (축전지 모드 전용)
+    async saveMarkerFacilityTeam(markerId, teamId, selectEl = null) {
+        if (this.currentMode !== 'battery') return;
+        if (this.isSavingFacilityTeam) return;
+
+        const markerData = this.markersData.find(m => m.id === markerId);
+        if (!markerData) return;
+
+        const previousTeam = markerData.facilityTeam || '';
+        const facilityTeam = teamId || '';
+        if (previousTeam === facilityTeam) return;
+
+        this.isSavingFacilityTeam = true;
+        if (selectEl) {
+            selectEl.disabled = true;
+        }
+
+        const isTemp = markerData.isTemp;
+        const color = isTemp ? '#ef4444' : getFacilityTeamColor(facilityTeam);
+
+        markerData.facilityTeam = facilityTeam;
+        markerData.color = color;
+
+        try {
+            if (this.supabase && !markerData.isPending && !isTemp) {
+                const table = this.currentMode === 'equipment' ? 'markers' : 'battery_markers';
+                const { error } = await this.supabase
+                    .from(table)
+                    .update({
+                        facility_team: facilityTeam,
+                        color
+                    })
+                    .eq('id', markerId);
+
+                if (error) throw error;
+            }
+
+            this.syncLocalStorage();
+            this.initFilters(false);
+
+            const mapMarker = this.mapMarkers.get(markerId);
+            if (mapMarker && !markerData.isPending && !isTemp) {
+                const markerSvgUri = getMarkerImageUri(markerData, 'battery');
+                const markerImage = new kakao.maps.MarkerImage(
+                    markerSvgUri,
+                    new kakao.maps.Size(30, 45),
+                    { offset: new kakao.maps.Point(15, 45) }
+                );
+                mapMarker.setImage(markerImage);
+            }
+
+            this.renderMarkersList();
+
+            const message = facilityTeam
+                ? `${getFacilityTeamDisplayName(facilityTeam)}으로 저장되었습니다.`
+                : '시설팀이 미지정으로 저장되었습니다.';
+            this.showToast(message);
+        } catch (e) {
+            markerData.facilityTeam = previousTeam;
+            markerData.color = isTemp ? '#ef4444' : getFacilityTeamColor(previousTeam);
+            if (selectEl) {
+                selectEl.value = previousTeam;
+            }
+            this.showToast('시설팀 저장 실패: ' + e.message, 5000);
+        } finally {
+            this.isSavingFacilityTeam = false;
+            if (selectEl) {
+                selectEl.disabled = false;
+            }
+        }
+    }
+
     // 세련된 형태의 HTML 커스텀 오버레이 빌딩
     createOverlayContent(data) {
         const container = document.createElement('div');
@@ -3347,6 +3536,69 @@ class MapMarkerApp {
                     }
                 });
             }
+        }
+
+        // 축전지 모드: 용량별 수량 합산 요약 표시
+        if (this.currentMode === 'battery') {
+            const specSummary = getBatteryOverlaySpecSummary(data);
+            const specSection = document.createElement('div');
+            specSection.className = 'overlay-battery-specs';
+
+            if (specSummary.length === 0) {
+                const emptyRow = document.createElement('div');
+                emptyRow.className = 'overlay-battery-spec-row';
+                emptyRow.innerHTML = '<span class="overlay-battery-spec-value">용량·수량 정보 없음</span>';
+                specSection.appendChild(emptyRow);
+            } else {
+                specSummary.forEach(spec => {
+                    const row = document.createElement('div');
+                    row.className = 'overlay-battery-spec-row';
+                    row.innerHTML = `<span class="overlay-battery-spec-value">${spec.capacity}Ah ${spec.totalQuantity} Cell</span>`;
+                    specSection.appendChild(row);
+                });
+            }
+
+            container.appendChild(specSection);
+        }
+
+        // 축전지 모드: 위치 변경 중이 아닐 때 시설팀 선택 (변경 시 즉시 저장)
+        if (this.currentMode === 'battery' && this.currentMovingMarkerId !== data.id) {
+            const teamSection = document.createElement('div');
+            teamSection.className = 'overlay-team-section';
+
+            const teamLabel = document.createElement('label');
+            teamLabel.className = 'overlay-team-label';
+            teamLabel.textContent = '시설팀';
+
+            const teamSelect = document.createElement('select');
+            teamSelect.className = 'overlay-team-select';
+            teamSelect.setAttribute('data-marker-id', data.id);
+
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '미지정';
+            teamSelect.appendChild(defaultOption);
+
+            Object.entries(FACILITY_TEAMS).forEach(([teamId, team]) => {
+                const option = document.createElement('option');
+                option.value = teamId;
+                option.textContent = `${team.label}(${team.leader})`;
+                option.style.color = team.color;
+                teamSelect.appendChild(option);
+            });
+
+            teamSelect.value = data.facilityTeam || '';
+
+            teamSelect.addEventListener('mousedown', stopPropagation);
+            teamSelect.addEventListener('click', stopPropagation);
+            teamSelect.addEventListener('change', (e) => {
+                e.stopPropagation();
+                this.saveMarkerFacilityTeam(data.id, e.target.value, teamSelect);
+            });
+
+            teamSection.appendChild(teamLabel);
+            teamSection.appendChild(teamSelect);
+            container.appendChild(teamSection);
         }
 
         // 위치 변경 모드용 안내 가이드
@@ -3497,7 +3749,8 @@ class MapMarkerApp {
                                 lng: marker.lng,
                                 memo: marker.memo || "",
                                 tags: marker.tags || [],
-                                color: marker.color || '#10b981',
+                                color: getEffectiveMarkerColor(marker, this.currentMode),
+                                facility_team: marker.facilityTeam || '',
                                 facility_code: marker.facilityCode || null,
                                 road_address: marker.roadAddress || "",
                                 jibun_address: marker.jibunAddress || "",
@@ -3536,7 +3789,8 @@ class MapMarkerApp {
                                 address: marker.address || "",
                                 memo: marker.memo || "",
                                 tags: marker.tags || [],
-                                color: marker.color || '#10b981',
+                                color: getEffectiveMarkerColor(marker, this.currentMode),
+                                facility_team: marker.facilityTeam || '',
                                 created_at: new Date().toISOString()
                             });
                         if (markerErr) throw markerErr;
@@ -3555,7 +3809,6 @@ class MapMarkerApp {
                             capacity: s.capacity || 600,
                             quantity: s.quantity || 12,
                             station_name: s.stationName || marker.name || "",
-                            address: s.address || marker.address || "",
                             created_at: new Date().toISOString()
                         }));
 
@@ -3602,36 +3855,35 @@ class MapMarkerApp {
         // 연도, 사업구분 및 색상, 태그 필터가 적용된 마커 선별 (대기 마커 및 임시 마커는 필터 선택 상태에 상관없이 무조건 포함)
         const filteredByDropdowns = this.markersData.filter(marker => {
             if (marker.isPending || marker.isTemp) return true;
-            
-            const color = marker.color ? marker.color.toLowerCase().trim() : "#10b981";
+
+            const color = getEffectiveMarkerColor(marker, this.currentMode).toLowerCase().trim();
+            if (!this.selectedColors.has(color)) {
+                return false;
+            }
+
+            if (this.currentMode === 'equipment') {
+                let hasMatchingTag = false;
+                if (marker.tags && marker.tags.length > 0) {
+                    hasMatchingTag = marker.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
+                } else {
+                    hasMatchingTag = this.selectedTags.has("미지정");
+                }
+                if (!hasMatchingTag) {
+                    return false;
+                }
+
+                const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
+                const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
+                return this.selectedYears.has(year) && this.selectedBusinesses.has(business);
+            }
+
             let hasMatchingTag = false;
             if (marker.tags && marker.tags.length > 0) {
                 hasMatchingTag = marker.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
             } else {
                 hasMatchingTag = this.selectedTags.has("미지정");
             }
-            
-            if (!this.selectedColors.has(color) || !hasMatchingTag) {
-                return false;
-            }
-
-            if (this.currentMode === 'equipment') {
-                const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
-                const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
-                return this.selectedYears.has(year) && this.selectedBusinesses.has(business);
-            } else {
-                const specs = marker.items && marker.items.length > 0 ? marker.items : [{
-                    capacity: marker.capacity,
-                    quantity: marker.quantity,
-                    stationName: marker.stationName || marker.name
-                }];
-                return specs.some(spec => {
-                    const cap = spec.capacity ? spec.capacity.toString().trim() + " AH" : "미지정";
-                    const qty = spec.quantity ? spec.quantity.toString().trim() + " Cell" : "미지정";
-                    const stName = spec.stationName ? spec.stationName.toString().trim() : "미지정";
-                    return this.selectedCapacities.has(cap) && this.selectedQuantities.has(qty) && this.selectedStations.has(stName);
-                });
-            }
+            return hasMatchingTag;
         });
         
         const pendingMarkers = filteredByDropdowns.filter(m => m.isPending);
@@ -4136,54 +4388,6 @@ class MapMarkerApp {
         }
     }
 
-    // 위치 마커 JSON 백업 (Supabase 실시간 데이터 반영)
-    async handleExportMarkersJSON() {
-        if (this.currentMode === 'battery') {
-            await this.handleExportBatteryMarkersJSON();
-            return;
-        }
-        let dataToExport = this.markersData;
-        if (this.supabase) {
-            try {
-                this.showToast('Supabase markers 테이블 전체 데이터 조회 중...');
-                const { data, error } = await this.supabase
-                    .from('markers')
-                    .select('*');
-                if (error) throw error;
-                dataToExport = data.map(m => ({
-                    id: m.id,
-                    name: m.name,
-                    lat: m.lat,
-                    lng: m.lng,
-                    memo: m.memo,
-                    tags: m.tags,
-                    color: m.color || '#10b981',
-                    facilityCode: m.facility_code,
-                    roadAddress: m.road_address || "",
-                    jibunAddress: m.jibun_address || "",
-                    createdAt: m.created_at
-                }));
-            } catch (e) {
-                console.error('Supabase 데이터 조회 실패:', e);
-                this.showToast('Supabase 데이터 조회 실패로 로컬 데이터로 백업합니다.', 4000);
-                dataToExport = this.markersData;
-            }
-        }
-        
-        if (dataToExport.length === 0) {
-            this.showToast('백업할 마커가 없습니다.');
-            return;
-        }
-        try {
-            const dateStr = new Date().toISOString().split('T')[0];
-            const jsonContent = JSON.stringify(dataToExport, null, 2);
-            DataManager._triggerDownload(jsonContent, `supabase_markers_backup_${dateStr}.json`, "application/json;charset=utf-8;");
-            this.showToast(`위치 마커 JSON 백업 완료 (총 ${dataToExport.length}건)`);
-        } catch (e) {
-            this.showToast('JSON 백업 오류: ' + e.message);
-        }
-    }
-
     // 위치 마커 Excel 백업 (Supabase 실시간 데이터 반영)
     async handleExportMarkersExcel() {
         if (this.currentMode === 'battery') {
@@ -4205,7 +4409,8 @@ class MapMarkerApp {
                     lng: m.lng,
                     memo: m.memo,
                     tags: m.tags,
-                    color: m.color || '#10b981',
+                    color: m.color || DEFAULT_MARKER_COLOR,
+                    facilityTeam: m.facility_team || '',
                     facilityCode: m.facility_code,
                     roadAddress: m.road_address || "",
                     jibunAddress: m.jibun_address || "",
@@ -4256,33 +4461,7 @@ class MapMarkerApp {
         }
     }
 
-    // 위치 마커 JSON 복원
-    handleImportMarkersJSON(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        if (this.currentMode === 'battery') {
-            DataManager.importFromJSON(file)
-                .then(async (newMarkers) => {
-                    await this.applyBatteryMarkersRestore(newMarkers, this.importMarkersJsonFile);
-                })
-                .catch(err => {
-                    this.showToast(err.message, 5000);
-                    this.importMarkersJsonFile.value = '';
-                });
-        } else {
-            DataManager.importFromJSON(file)
-                .then(async (newMarkers) => {
-                    await this.applyMarkersRestore(newMarkers, this.importMarkersJsonFile);
-                })
-                .catch(err => {
-                    this.showToast(err.message, 5000);
-                    this.importMarkersJsonFile.value = '';
-                });
-        }
-    }
-
-    // 위치 마커 복원 공통 처리 (JSON/Excel)
+    // 위치 마커 복원 공통 처리 (Excel)
     async applyMarkersRestore(newMarkers, fileInput) {
         if (newMarkers.length === 0) {
             this.showToast('복원할 마커 데이터가 없습니다.');
@@ -4301,7 +4480,8 @@ class MapMarkerApp {
                     lng: m.lng,
                     memo: m.memo || "",
                     tags: m.tags || [],
-                    color: m.color || '#10b981',
+                    color: m.color || DEFAULT_MARKER_COLOR,
+                    facility_team: m.facilityTeam || "",
                     facility_code: m.facilityCode || null,
                     road_address: m.roadAddress || "",
                     jibun_address: m.jibunAddress || "",
@@ -4334,31 +4514,6 @@ class MapMarkerApp {
         await this.init();
         this.showToast(`위치 마커 복원이 완료되었습니다. (총 ${newMarkers.length}건)`);
         if (fileInput) fileInput.value = '';
-    }
-
-    // 상세 장비 정보 JSON 백업
-    async handleExportInfoJSON() {
-        if (!this.supabase) {
-            this.showToast('Supabase가 연결되어 있지 않아 상세 장비 정보를 백업할 수 없습니다.', 5000);
-            return;
-        }
-        try {
-            this.showToast('Supabase information 테이블 전체 데이터 조회 중...');
-            const { data, error } = await this.supabase
-                .from('information')
-                .select('*');
-            if (error) throw error;
-            if (!data || data.length === 0) {
-                this.showToast('내보낼 상세 장비 데이터가 없습니다.');
-                return;
-            }
-            const dateStr = new Date().toISOString().split('T')[0];
-            const jsonContent = JSON.stringify(data, null, 2);
-            DataManager._triggerDownload(jsonContent, `supabase_information_backup_${dateStr}.json`, "application/json;charset=utf-8;");
-            this.showToast(`상세 장비 정보 JSON 백업 완료 (총 ${data.length}건)`);
-        } catch (e) {
-            this.showToast('information 백업 실패: ' + e.message, 5000);
-        }
     }
 
     // 상세 장비 정보 Excel 백업
@@ -4399,40 +4554,7 @@ class MapMarkerApp {
             });
     }
 
-    // 상세 장비 정보 JSON 복원
-    handleImportInfoJSON(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        if (!this.supabase) {
-            this.showToast('Supabase가 연결되어 있지 않아 복원할 수 없습니다.', 5000);
-            this.importInfoJsonFile.value = '';
-            return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                const parsedData = JSON.parse(e.target.result);
-                if (!Array.isArray(parsedData)) {
-                    throw new Error('올바르지 않은 JSON 데이터 형식입니다. (배열 형태여야 합니다)');
-                }
-                if (parsedData.length > 0 && !parsedData[0].hasOwnProperty('facility_code')) {
-                    throw new Error('상세 장비 정보 형식이 아닙니다. (facility_code 필드가 필요합니다)');
-                }
-                await this.applyInfoRestore(parsedData, this.importInfoJsonFile);
-            } catch (err) {
-                this.showToast('상세 장비 복원 실패: ' + err.message, 5000);
-                this.importInfoJsonFile.value = '';
-            }
-        };
-        reader.onerror = () => {
-            this.showToast('파일을 읽는 도중 오류가 발생했습니다.');
-            this.importInfoJsonFile.value = '';
-        };
-        reader.readAsText(file);
-    }
-
-    // 상세 장비 정보 복원 공통 처리 (JSON/Excel)
+    // 상세 장비 정보 복원 공통 처리 (Excel)
     async applyInfoRestore(parsedData, fileInput) {
         if (!this.supabase) {
             this.showToast('Supabase가 연결되어 있지 않아 복원할 수 없습니다.', 5000);
@@ -4667,7 +4789,8 @@ class MapMarkerApp {
                         lng: m.lng,
                         memo: m.memo || "",
                         tags: m.tags || [],
-                        color: m.color || '#10b981',
+                        color: getEffectiveMarkerColor(m, 'equipment'),
+                        facility_team: '',
                         facility_code: m.facilityCode || null,
                         road_address: m.roadAddress || "",
                         jibun_address: m.jibunAddress || "",
@@ -5515,6 +5638,103 @@ class MapMarkerApp {
 
     // --- 축전지 모드 관련 구현 ---
 
+    updateBatteryBulkDeleteButtonVisibility() {
+        if (!this.deleteAllBatteryMarkersBtn) return;
+        const show = this.currentMode === 'battery';
+        this.deleteAllBatteryMarkersBtn.classList.toggle('hidden', !show);
+    }
+
+    async handleDeleteAllBatteryMarkers() {
+        if (this.currentMode !== 'battery') return;
+        if (this.isDeletingAllBatteryMarkers) return;
+
+        const registeredMarkers = this.markersData.filter(m => !m.isPending && !m.isTemp);
+        const pendingCount = this.markersData.filter(m => m.isPending || m.isTemp).length;
+
+        let dbCountBefore = 0;
+        if (this.supabase) {
+            try {
+                const { count, error } = await this.supabase
+                    .from('battery_markers')
+                    .select('id', { count: 'exact', head: true });
+                if (error) throw error;
+                dbCountBefore = count || 0;
+            } catch (e) {
+                this.showToast('삭제 전 DB 건수 조회 실패: ' + e.message, 5000);
+                return;
+            }
+        }
+
+        if (registeredMarkers.length === 0 && dbCountBefore === 0) {
+            this.showToast('삭제할 등록된 축전지 데이터가 없습니다.');
+            return;
+        }
+
+        const confirmMessage = [
+            `화면 등록 ${registeredMarkers.length}건${this.supabase ? ` · DB ${dbCountBefore}건` : ''}을 모두 삭제합니다.`,
+            'Supabase DB(battery_markers·battery_specs)와 로컬 캐시에서 영구 삭제되며 복구할 수 없습니다.',
+            pendingCount > 0 ? `(대기/임시 마커 ${pendingCount}건은 유지됩니다.)` : '',
+            '',
+            '계속하시겠습니까?'
+        ].filter(Boolean).join('\n');
+
+        if (!confirm(confirmMessage)) return;
+
+        this.isDeletingAllBatteryMarkers = true;
+        this.deleteAllBatteryMarkersBtn.disabled = true;
+        this.deleteAllBatteryMarkersBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 삭제 중...';
+
+        const deletedCount = Math.max(registeredMarkers.length, dbCountBefore);
+
+        try {
+            if (this.supabase) {
+                if (dbCountBefore > 0) {
+                    const { error: markerErr } = await this.supabase
+                        .from('battery_markers')
+                        .delete()
+                        .neq('id', '');
+
+                    if (markerErr) throw markerErr;
+                }
+
+                const { count: dbCountAfter, error: verifyErr } = await this.supabase
+                    .from('battery_markers')
+                    .select('id', { count: 'exact', head: true });
+
+                if (verifyErr) throw verifyErr;
+                if (dbCountAfter > 0) {
+                    throw new Error(`삭제 검증 실패: DB에 ${dbCountAfter}건이 남아 있습니다.`);
+                }
+            }
+
+            registeredMarkers.forEach(m => this.removeMarkerFromMap(m.id));
+
+            this.markersData = this.markersData.filter(m => m.isPending || m.isTemp);
+            this.batteryMarkersData = [...this.markersData];
+            this.syncLocalStorage();
+
+            const remainingRegistered = this.markersData.filter(m => !m.isPending && !m.isTemp).length;
+            if (remainingRegistered !== 0) {
+                throw new Error(`로컬 삭제 검증 실패: 등록 데이터 ${remainingRegistered}건이 남아 있습니다.`);
+            }
+
+            this.closeModal();
+            this.initFilters(false);
+            this.renderMarkersOnMap();
+            this.renderMarkersList();
+            this.showToast(`등록된 축전지 ${deletedCount}건이 일괄 삭제되었습니다.`);
+        } catch (e) {
+            console.error('축전지 일괄 삭제 실패:', e);
+            this.showToast('축전지 일괄 삭제 실패: ' + e.message, 5000);
+        } finally {
+            this.isDeletingAllBatteryMarkers = false;
+            if (this.deleteAllBatteryMarkersBtn) {
+                this.deleteAllBatteryMarkersBtn.disabled = false;
+                this.deleteAllBatteryMarkersBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> 등록 데이터 일괄 삭제';
+            }
+        }
+    }
+
     switchMode(mode) {
         if (this.currentMode === mode) return;
         this.currentMode = mode;
@@ -5529,9 +5749,6 @@ class MapMarkerApp {
         const eqExcelSec = document.getElementById('eq-excel-section');
         const eqInfoSec = document.getElementById('eq-info-upload-section');
         const batExcelSec = document.getElementById('battery-excel-section');
-        
-        const eqFilters = document.getElementById('eq-filters-row');
-        const batFilters = document.getElementById('battery-filters-row');
 
         const backupSection1Title = document.getElementById('backup-section-1-title');
         const backupSection1Icon = document.getElementById('backup-section-1-icon');
@@ -5542,9 +5759,6 @@ class MapMarkerApp {
             if (eqExcelSec) eqExcelSec.classList.remove('hidden');
             if (eqInfoSec) eqInfoSec.classList.remove('hidden');
             if (batExcelSec) batExcelSec.classList.add('hidden');
-            
-            if (eqFilters) eqFilters.classList.remove('hidden');
-            if (batFilters) batFilters.classList.add('hidden');
 
             if (backupSection1Title) backupSection1Title.textContent = "위치 마커 (markers)";
             if (backupSection1Icon) backupSection1Icon.className = "fa-solid fa-location-dot";
@@ -5554,15 +5768,16 @@ class MapMarkerApp {
             if (eqExcelSec) eqExcelSec.classList.add('hidden');
             if (eqInfoSec) eqInfoSec.classList.add('hidden');
             if (batExcelSec) batExcelSec.classList.remove('hidden');
-            
-            if (eqFilters) eqFilters.classList.add('hidden');
-            if (batFilters) batFilters.classList.remove('hidden');
 
             if (backupSection1Title) backupSection1Title.textContent = "축전지 내역 (battery)";
             if (backupSection1Icon) backupSection1Icon.className = "fa-solid fa-battery-three-quarters";
             if (backupSection1Wrapper) backupSection1Wrapper.style.borderBottom = "none";
             if (backupSection2Wrapper) backupSection2Wrapper.style.display = "none";
         }
+
+        this.updateBatteryBulkDeleteButtonVisibility();
+        this.updateFacilityTeamVisibility();
+        this.updateFilterSectionVisibility();
         
         // 필터 및 마커 목록 갱신
         this.initFilters(false);
@@ -5969,7 +6184,8 @@ class MapMarkerApp {
                         address: m.address || "",
                         memo: m.memo || "",
                         tags: m.tags || [],
-                        color: m.color || '#10b981',
+                        color: getEffectiveMarkerColor(m, 'battery'),
+                        facility_team: m.facilityTeam || '',
                         created_at: new Date().toISOString()
                     }));
 
@@ -6039,6 +6255,9 @@ class MapMarkerApp {
     async fetchAndBindBatterySpecs(markerId) {
         if (!this.supabase) return;
 
+        const marker = this.markersData.find(m => m.id === markerId);
+        const markerAddress = marker?.address || '';
+
         try {
             const { data, error } = await this.supabase
                 .from('battery_specs')
@@ -6060,7 +6279,7 @@ class MapMarkerApp {
                         if (isEditable) {
                             tr.innerHTML = `
                                 <td><input type="text" class="table-input" data-key="erp_name" value="${row.erp_name || ''}"></td>
-                                <td><input type="text" class="table-input" data-key="address" value="${row.address || ''}"></td>
+                                <td><input type="text" class="table-input input-readonly" data-key="address" value="${markerAddress}" readonly></td>
                                 <td><input type="text" class="table-input" data-key="capacity" value="${row.capacity || ''}"></td>
                                 <td><input type="text" class="table-input" data-key="quantity" value="${row.quantity || ''}"></td>
                                 <td><input type="text" class="table-input" data-key="station_name" value="${row.station_name || ''}"></td>
@@ -6069,7 +6288,7 @@ class MapMarkerApp {
                         } else {
                             tr.innerHTML = `
                                 <td>${row.erp_name || ''}</td>
-                                <td>${row.address || ''}</td>
+                                <td>${markerAddress}</td>
                                 <td>${row.capacity || ''} AH</td>
                                 <td>${row.quantity || ''} Cell</td>
                                 <td>${row.station_name || ''}</td>
@@ -6220,7 +6439,8 @@ class MapMarkerApp {
                     address: m.address || "",
                     memo: m.memo || "",
                     tags: m.tags || [],
-                    color: m.color || '#10b981',
+                    color: m.color || DEFAULT_MARKER_COLOR,
+                    facility_team: m.facilityTeam || "",
                     created_at: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString()
                 }));
 
@@ -6248,7 +6468,6 @@ class MapMarkerApp {
                             capacity: typeof s.capacity === 'number' ? s.capacity : parseInt(s.capacity, 10) || 600,
                             quantity: typeof s.quantity === 'number' ? s.quantity : parseInt(s.quantity, 10) || 12,
                             station_name: s.stationName || m.name || "",
-                            address: s.address || m.address || "",
                             created_at: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString()
                         });
                     });
@@ -6281,77 +6500,6 @@ class MapMarkerApp {
         await this.init();
         this.showToast(`축전지 마커 복원이 완료되었습니다. (총 ${newMarkers.length}건)`);
         if (fileInput) fileInput.value = '';
-    }
-
-    async handleExportBatteryMarkersJSON() {
-        let dataToExport = this.markersData;
-        if (this.supabase) {
-            try {
-                this.showToast('Supabase battery_markers 및 specs 데이터 조회 중...');
-                const { data: bMarkers, error: bMarkersErr } = await this.supabase
-                    .from('battery_markers')
-                    .select('*');
-                if (bMarkersErr) throw bMarkersErr;
-
-                const { data: bSpecs, error: bSpecsErr } = await this.supabase
-                    .from('battery_specs')
-                    .select('*');
-                if (bSpecsErr) throw bSpecsErr;
-
-                const specsMap = new Map();
-                bSpecs.forEach(s => {
-                    if (s.marker_id) {
-                        if (!specsMap.has(s.marker_id)) specsMap.set(s.marker_id, []);
-                        specsMap.get(s.marker_id).push(s);
-                    }
-                });
-
-                dataToExport = bMarkers.map(m => {
-                    const specs = specsMap.get(m.id) || [];
-                    const repSpec = specs[0] || null;
-                    return {
-                        id: m.id,
-                        name: m.name,
-                        lat: m.lat,
-                        lng: m.lng,
-                        address: m.address || "",
-                        memo: m.memo || "",
-                        tags: m.tags || [],
-                        color: m.color || '#10b981',
-                        createdAt: m.created_at,
-                        items: specs.map(s => ({
-                            id: s.id,
-                            erpName: s.erp_name || "",
-                            address: s.address || "",
-                            capacity: s.capacity || 600,
-                            quantity: s.quantity || 12,
-                            stationName: s.station_name || "",
-                            createdAt: s.created_at
-                        })),
-                        capacity: repSpec ? repSpec.capacity : 600,
-                        quantity: repSpec ? repSpec.quantity : 12,
-                        stationName: repSpec ? repSpec.station_name : (m.name || "")
-                    };
-                });
-            } catch (e) {
-                console.error('Supabase 축전지 데이터 조회 실패:', e);
-                this.showToast('Supabase 데이터 조회 실패로 로컬 캐시 데이터로 백업합니다.', 4000);
-                dataToExport = this.markersData;
-            }
-        }
-        
-        if (dataToExport.length === 0) {
-            this.showToast('백업할 축전지 마커가 없습니다.');
-            return;
-        }
-        try {
-            const dateStr = new Date().toISOString().split('T')[0];
-            const jsonContent = JSON.stringify(dataToExport, null, 2);
-            DataManager._triggerDownload(jsonContent, `supabase_battery_markers_backup_${dateStr}.json`, "application/json;charset=utf-8;");
-            this.showToast(`축전지 마커 JSON 백업 완료 (총 ${dataToExport.length}건)`);
-        } catch (e) {
-            this.showToast('JSON 백업 오류: ' + e.message);
-        }
     }
 
     async handleExportBatteryMarkersExcel() {
@@ -6388,12 +6536,13 @@ class MapMarkerApp {
                         address: m.address || "",
                         memo: m.memo || "",
                         tags: m.tags || [],
-                        color: m.color || '#10b981',
+                        color: m.color || DEFAULT_MARKER_COLOR,
+                        facilityTeam: m.facility_team || '',
                         createdAt: m.created_at,
                         items: specs.map(s => ({
                             id: s.id,
                             erpName: s.erp_name || "",
-                            address: s.address || "",
+                            address: m.address || "",
                             capacity: s.capacity || 600,
                             quantity: s.quantity || 12,
                             stationName: s.station_name || "",

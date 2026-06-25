@@ -1042,6 +1042,65 @@ textarea:focus {
     flex-shrink: 0;
 }
 
+.overlay-team-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 10px;
+}
+
+.overlay-team-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.overlay-team-select {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-primary);
+    font-size: 11px;
+    cursor: pointer;
+    outline: none;
+}
+
+.overlay-team-select:hover:not(:disabled) {
+    border-color: rgba(99, 102, 241, 0.5);
+}
+
+.overlay-team-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.overlay-team-select option {
+    background: #1e293b;
+    color: #f8fafc;
+}
+
+.overlay-battery-specs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 8px;
+}
+
+.overlay-battery-spec-row {
+    display: flex;
+    align-items: center;
+}
+
+.overlay-battery-spec-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
 /* Modal Address Display Style */
 .marker-address-display {
     font-size: 13px;
@@ -1184,6 +1243,47 @@ textarea:focus {
 .color-chip.selected {
     box-shadow: 0 0 0 2px #0f172a, 0 0 0 4px #ffffff;
     transform: scale(1.15);
+}
+
+/* 시설팀 선택 칩 */
+.facility-team-picker.is-readonly {
+    pointer-events: none;
+    opacity: 0.85;
+}
+
+.facility-team-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.facility-team-chip:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: var(--text-primary);
+}
+
+.facility-team-chip.selected {
+    border-color: #ffffff;
+    background: rgba(99, 102, 241, 0.25);
+    color: #ffffff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.facility-team-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 /* Sidebar Toggle Layout & Styling */

@@ -6,6 +6,32 @@
  * 2. Excel 한글 깨짐 방지를 위해 UTF-8 BOM(\ufeff) 인코딩을 적용합니다.
  * 3. 빈 값(메모 없음 등)을 명시적으로 공백 문자열("")로 처리하여 칸이 밀리는 현상을 방지합니다.
  */
+const FACILITY_TEAM_MAP = {
+    '1': { label: '1팀(박경훈)', color: '#2563eb' },
+    '2': { label: '2팀(김정배)', color: '#d946ef' },
+    '3': { label: '3팀(정종연)', color: '#84cc16' },
+    '4': { label: '4팀(이동화)', color: '#9333ea' },
+    '5': { label: '5팀(김영남)', color: '#ea580c' },
+    '7': { label: '7팀(김성범)', color: '#0891b2' }
+};
+
+function parseFacilityTeamInput(rawValue) {
+    const val = String(rawValue || '').trim();
+    if (!val) {
+        return { facilityTeam: '', color: '#64748b' };
+    }
+    for (const [id, team] of Object.entries(FACILITY_TEAM_MAP)) {
+        if (val === id || val === team.label || val.startsWith(`${id}팀`)) {
+            return { facilityTeam: id, color: team.color };
+        }
+    }
+    return { facilityTeam: '', color: '#64748b' };
+}
+
+function getFacilityTeamExportLabel(teamId) {
+    return FACILITY_TEAM_MAP[teamId]?.label || '';
+}
+
 const DataManager = {
     /**
      * 지정한 연도, 월, 일이 유효한 달력상 날짜이며 1980년 ~ (현재년도 + 10년) 범위 내에 있는지 확인합니다.
@@ -168,91 +194,6 @@ const DataManager = {
     },
 
     /**
-     * 마커 데이터를 JSON 형식의 파일로 백업합니다.
-     * @param {Array} markers 저장된 마커 배열
-     */
-    exportToJSON(markers) {
-        if (!markers) {
-            throw new Error("백업할 마커 데이터가 없습니다.");
-        }
-
-        // 들여쓰기를 포함하여 가독성 있게 변환하되, 실수(float) 오차 없도록 함
-        const jsonContent = JSON.stringify(markers, null, 2);
-        this._triggerDownload(jsonContent, "map_markers_backup.json", "application/json;charset=utf-8;");
-        
-        return markers.length;
-    },
-
-    /**
-     * 업로드된 JSON 파일을 읽고 파싱하여 검증합니다.
-     * @param {File} file 업로드된 파일 객체
-     * @returns {Promise<Array>} 검증된 마커 배열
-     */
-    importFromJSON(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            
-            reader.onload = (event) => {
-                try {
-                    const data = JSON.parse(event.target.result);
-                    
-                    if (!Array.isArray(data)) {
-                        throw new Error("올바르지 않은 데이터 형식입니다. (배열 형태여야 합니다)");
-                    }
-
-                    // 데이터 정합성 검증 및 기본값 보정
-                    const validatedMarkers = data.map((item, index) => {
-                        if (!item.name) {
-                            throw new Error(`[행 ${index + 1}] 장소 이름은 필수 항목입니다.`);
-                        }
-                        
-                        // 위경도 좌표 검증 (수치형이거나 수치 파싱이 가능한 형태여야 함)
-                        const latNum = parseFloat(item.lat);
-                        const lngNum = parseFloat(item.lng);
-                        
-                        if (isNaN(latNum) || isNaN(lngNum)) {
-                            throw new Error(`[장소: ${item.name}] 위도 또는 경도 값이 올바르지 않은 숫자입니다.`);
-                        }
-
-                        // 복원 데이터 빌드 (상세 장비 정보 필드 보존 포함)
-                        return {
-                            id: item.id || 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                            name: item.name.trim(),
-                            lat: latNum, // Float 정밀도 보존
-                            lng: lngNum,
-                            memo: (item.memo || "").trim(),
-                            tags: Array.isArray(item.tags) ? item.tags.map(t => t.trim()) : [],
-                            facilityCode: item.facilityCode || "",
-                            projectCode: item.projectCode || "",
-                            facilityYear: item.facilityYear || "",
-                            businessType: item.businessType || "",
-                            finalStationName: item.finalStationName || "",
-                            eqClass: item.eqClass || "",
-                            eqType: item.eqType || "",
-                            installDate: item.installDate || "",
-                            openDate: item.openDate || "",
-                            color: item.color || '#10b981',
-                            roadAddress: item.roadAddress || "",
-                            jibunAddress: item.jibunAddress || "",
-                            createdAt: item.createdAt || new Date().toISOString()
-                        };
-                    });
-
-                    resolve(validatedMarkers);
-                } catch (error) {
-                    reject(new Error("JSON 파일 파싱 및 복원 실패: " + error.message));
-                }
-            };
-
-            reader.onerror = () => {
-                reject(new Error("파일을 읽는 도중 오류가 발생했습니다."));
-            };
-
-            reader.readAsText(file);
-        });
-    },
-
-    /**
      * 업로드된 Excel(.xlsx, .xls) 또는 CSV 파일을 읽고 파싱하여 검증 및 정제합니다.
      * @param {File} file 업로드된 파일 객체
      * @returns {Promise<Array>} 파싱된 위치 데이터 배열
@@ -294,6 +235,7 @@ const DataManager = {
                         eqType: headers.find(h => /장비타입|타입|type/i.test(h)),
                         installDate: headers.find(h => /시설일|설치일|install/i.test(h)),
                         openDate: headers.find(h => /개통일|개통|가동일|가동|open/i.test(h)),
+                        facilityTeam: headers.find(h => /시설팀|담당팀|team/i.test(h)),
                         color: headers.find(h => /마커색상|색상|color/i.test(h))
                     };
                     
@@ -333,20 +275,25 @@ const DataManager = {
                             ? this.formatDateToYmd(row[mapping.openDate])
                             : "";
                         const colorVal = mapping.color ? String(row[mapping.color]).trim() : "";
+                        const facilityTeamVal = mapping.facilityTeam ? String(row[mapping.facilityTeam]).trim() : "";
+                        const teamParsed = parseFacilityTeamInput(facilityTeamVal);
                         
                         // 태그 분리
                         const tags = tagsVal 
                             ? tagsVal.split(/[,|/]/).map(t => t.trim()).filter(t => t.length > 0)
                             : [];
                         
-                        // 색상 Hex 유효성 검증 (# 포함 7자리 또는 4자리)
-                        const validColor = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#10b981';
+                        // 시설팀 우선, 없으면 색상 Hex 검증
+                        const validColor = teamParsed.facilityTeam
+                            ? teamParsed.color
+                            : (/^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#10b981');
                         
                         const item = {
                             id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                             name: rawName,
                             memo: memoVal,
                             tags: tags,
+                            facilityTeam: teamParsed.facilityTeam,
                             color: validColor,
                             facilityCode: facilityCodeVal,
                             projectCode: projectCodeVal,
@@ -484,7 +431,7 @@ const DataManager = {
 
     /**
      * 마커 백업용 Excel(.xlsx) 파일로보냅니다.
-     * JSON 백업과 동일한 필드를 고정 열 헤더로 보존합니다.
+     * Excel 백업과 동일한 필드를 고정 열 헤더로 보존합니다.
      * @param {Array} markers 저장된 마커 배열
      * @param {string} [filename] 다운로드 파일명
      * @returns {number}보낸 행 수
@@ -501,7 +448,8 @@ const DataManager = {
             "경도": typeof marker.lng === "number" ? marker.lng.toString() : (marker.lng || ""),
             "메모": marker.memo || "",
             "태그": Array.isArray(marker.tags) ? marker.tags.join(", ") : "",
-            "마커색상": marker.color || "#10b981",
+            "시설팀": getFacilityTeamExportLabel(marker.facilityTeam),
+            "마커색상": marker.facilityTeam ? (FACILITY_TEAM_MAP[marker.facilityTeam]?.color || marker.color || "#10b981") : (marker.color || "#10b981"),
             "통합시설코드": marker.facilityCode || "",
             "도로명주소": marker.roadAddress || "",
             "지번주소": marker.jibunAddress || "",
@@ -563,7 +511,7 @@ const DataManager = {
     },
 
     /**
-     * 마커 백업 Excel 파일을 읽고 JSON 복원과 동일한 형식으로 검증합니다.
+     * 마커 백업 Excel 파일을 읽고 검증합니다.
      * @param {File} file 업로드된 Excel/CSV 파일
      * @returns {Promise<Array>} 검증된 마커 배열
      */
@@ -591,6 +539,7 @@ const DataManager = {
                         lng: headers.find(h => /경도|lng|lon/i.test(h)),
                         memo: headers.find(h => /메모|비고|memo/i.test(h)),
                         tags: headers.find(h => /태그|tag/i.test(h)),
+                        facilityTeam: headers.find(h => /시설팀|담당팀|team/i.test(h)),
                         color: headers.find(h => /마커색상|색상|color/i.test(h)),
                         facilityCode: headers.find(h => /통합시설코드|시설코드|facility/i.test(h)),
                         roadAddress: headers.find(h => /도로명주소|도로명/i.test(h)),
@@ -618,7 +567,11 @@ const DataManager = {
                         const rawId = mapping.id ? String(row[mapping.id] || "").trim() : "";
                         const tagsVal = mapping.tags ? String(row[mapping.tags] || "").trim() : "";
                         const colorVal = mapping.color ? String(row[mapping.color]).trim() : "";
-                        const validColor = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : "#10b981";
+                        const facilityTeamVal = mapping.facilityTeam ? String(row[mapping.facilityTeam] || "").trim() : "";
+                        const teamParsed = parseFacilityTeamInput(facilityTeamVal);
+                        const validColor = teamParsed.facilityTeam
+                            ? teamParsed.color
+                            : (/^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : "#10b981");
 
                         return {
                             id: rawId || "marker_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
@@ -629,6 +582,7 @@ const DataManager = {
                             tags: tagsVal
                                 ? tagsVal.split(/[,|/]/).map(t => t.trim()).filter(t => t.length > 0)
                                 : [],
+                            facilityTeam: teamParsed.facilityTeam,
                             color: validColor,
                             facilityCode: mapping.facilityCode ? String(row[mapping.facilityCode] || "").trim() : "",
                             roadAddress: mapping.roadAddress ? String(row[mapping.roadAddress] || "").trim() : "",
@@ -699,6 +653,7 @@ const DataManager = {
                         lng: headers.find(h => /경도|lng|longitude|lon|x/i.test(h)),
                         memo: exactERP || headers.find(h => /설명|메모|비고|특이사항|memo|desc|description/i.test(h)),
                         tags: headers.find(h => /태그|구분|그룹|tag|category/i.test(h)),
+                        facilityTeam: headers.find(h => /시설팀|담당팀|team/i.test(h)),
                         color: headers.find(h => /마커색상|색상|color/i.test(h))
                     };
                     
@@ -736,12 +691,16 @@ const DataManager = {
                         const memoVal = mapping.memo ? String(row[mapping.memo]).trim() : "";
                         const tagsVal = mapping.tags ? String(row[mapping.tags]).trim() : "";
                         const colorVal = mapping.color ? String(row[mapping.color]).trim() : "";
+                        const facilityTeamVal = mapping.facilityTeam ? String(row[mapping.facilityTeam]).trim() : "";
+                        const teamParsed = parseFacilityTeamInput(facilityTeamVal);
                         
                         const tags = tagsVal 
                             ? tagsVal.split(/[,|/]/).map(t => t.trim()).filter(t => t.length > 0)
                             : [];
                         
-                        const validColor = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#10b981';
+                        const validColor = teamParsed.facilityTeam
+                            ? teamParsed.color
+                            : (/^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#64748b');
                         
                         const item = {
                             id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
@@ -753,6 +712,7 @@ const DataManager = {
                             stationName: stationNameVal || "기지국(현장)",
                             memo: memoVal,
                             tags: tags,
+                            facilityTeam: teamParsed.facilityTeam,
                             color: validColor,
                             createdAt: new Date().toISOString().split('T')[0]
                         };
@@ -848,7 +808,8 @@ const DataManager = {
                     "경도": typeof marker.lng === "number" ? marker.lng.toString() : (marker.lng || ""),
                     "메모": marker.memo || "",
                     "태그": Array.isArray(marker.tags) ? marker.tags.join(", ") : "",
-                    "마커색상": marker.color || "#10b981",
+                    "시설팀": getFacilityTeamExportLabel(marker.facilityTeam),
+                    "마커색상": marker.facilityTeam ? (FACILITY_TEAM_MAP[marker.facilityTeam]?.color || marker.color || "#64748b") : (marker.color || "#64748b"),
                     "등록일": item.createdAt || marker.createdAt || ""
                 });
             });

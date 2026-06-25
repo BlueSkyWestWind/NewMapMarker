@@ -136,7 +136,7 @@
                 <div class="accordion-header" id="filter-accordion-toggle">
                     <div class="title-left">
                         <i class="fa-solid fa-filter icon" style="color: #6366f1;"></i>
-                        <span>연도·사업·색상·태그 표시</span>
+                        <span id="filter-accordion-title">연도·사업·색상·태그 표시</span>
                     </div>
                     <i class="fa-solid fa-chevron-down accordion-icon"></i>
                 </div>
@@ -233,7 +233,7 @@
                     </div>
 
                     <!-- 마커 색상 선택 -->
-                    <div class="filter-row" style="margin-top: 10px;">
+                    <div class="filter-row" id="color-filters-row" style="margin-top: 10px;">
                         <div class="filter-card" style="width: 100%;">
                             <div class="filter-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <span class="filter-card-title" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">마커 색상 선택</span>
@@ -252,7 +252,7 @@
                     </div>
 
                     <!-- 마커 태그 선택 -->
-                    <div class="filter-row" style="margin-top: 10px;">
+                    <div class="filter-row" id="tags-filters-row" style="margin-top: 10px;">
                         <div class="filter-card" style="width: 100%;">
                             <div class="filter-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <span class="filter-card-title" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">마커 태그 선택</span>
@@ -292,7 +292,7 @@
             <!-- Saved Markers Section -->
             <section class="section markers-section">
                 <div class="section-header">
-                    <h2><i class="fa-solid fa-bookmark icon"></i> 저장된 위치 (<span id="marker-count">0</span>)</h2>
+                    <h2><i class="fa-solid fa-bookmark icon"></i> <span id="markers-section-title">저장된 위치</span> (<span id="marker-count">0</span>)</h2>
                     <div class="marker-search">
                         <input type="text" id="marker-filter" placeholder="저장된 위치 필터링...">
                     </div>
@@ -324,20 +324,16 @@
                             <i class="fa-solid fa-location-dot" id="backup-section-1-icon"></i> <span id="backup-section-1-title">위치 마커 (markers)</span>
                         </div>
                         <div class="footer-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button id="export-markers-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
-                                <i class="fa-solid fa-file-code"></i> 백업 (JSON)
-                            </button>
                             <button id="export-markers-excel-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
                                 <i class="fa-solid fa-file-excel"></i> 백업 (Excel)
                             </button>
-                            <label for="import-markers-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
-                                <i class="fa-solid fa-file-import"></i> 복원 (JSON)
-                            </label>
                             <label for="import-markers-excel-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
                                 <i class="fa-solid fa-file-import"></i> 복원 (Excel)
                             </label>
-                            <input type="file" id="import-markers-json-file" accept=".json" style="display: none;">
                             <input type="file" id="import-markers-excel-file" accept=".xlsx,.xls,.csv" style="display: none;">
+                            <button id="delete-all-battery-markers-btn" class="btn btn-danger flex-btn hidden" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: 100%; margin-top: 4px;">
+                                <i class="fa-solid fa-trash-can"></i> 등록 데이터 일괄 삭제
+                            </button>
                         </div>
                     </div>
                     <!-- 상세 장비 정보 (information) 관리 -->
@@ -346,19 +342,12 @@
                             <i class="fa-solid fa-server"></i> 상세 장비 (information)
                         </div>
                         <div class="footer-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button id="export-info-json-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
-                                <i class="fa-solid fa-file-code"></i> 백업 (JSON)
-                            </button>
                             <button id="export-info-excel-btn" class="btn btn-secondary flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; flex: 1; min-width: calc(50% - 4px);">
                                 <i class="fa-solid fa-file-excel"></i> 백업 (Excel)
                             </button>
-                            <label for="import-info-json-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
-                                <i class="fa-solid fa-file-import"></i> 복원 (JSON)
-                            </label>
                             <label for="import-info-excel-file" class="btn btn-outline flex-btn" style="padding: 6px 10px; font-size: 11px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: calc(50% - 4px); margin: 0;">
                                 <i class="fa-solid fa-file-import"></i> 복원 (Excel)
                             </label>
-                            <input type="file" id="import-info-json-file" accept=".json" style="display: none;">
                             <input type="file" id="import-info-excel-file" accept=".xlsx,.xls,.csv" style="display: none;">
                         </div>
                     </div>
