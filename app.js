@@ -256,8 +256,11 @@ class MapMarkerApp {
             this.updateAuthUI(null);
         }
 
-        // Supabase 응답을 기다리지 않고 로컬 캐시로 우선 화면 구성
+        // 오프라인·DB 장애 대비 로컬 캐시 선로드 후, DB가 있으면 최신 데이터로 덮어씀
         this.loadFromLocalStorage();
+        if (this.supabase && typeof this.loadFromSupabase === 'function') {
+            await this.loadFromSupabase();
+        }
 
         // 정적 스크립트 로드 완료 후 지도 로딩 진행
         if (window.kakao && window.kakao.maps) {
@@ -268,18 +271,14 @@ class MapMarkerApp {
             this.showToast('카카오 지도 SDK가 로드되지 않았습니다. index.html 설정을 확인하세요.', 5000);
         }
         
-        // 필터 옵션 동적 구성
+        // DB 반영 후 필터·목록 구성 (로컬 캐시만으로 필터가 고정되면 신규 마커가 누락됨)
         this.initFilters(true);
 
         this.updateBatteryBulkDeleteButtonVisibility();
         this.updateFacilityTeamVisibility();
         this.updateFilterSectionVisibility();
         this.renderMarkersList();
-
-        // DB 데이터는 백그라운드 로드 — 네트워크 지연 시에도 지도·UI가 먼저 표시됨
-        if (this.supabase && typeof this.loadFromSupabase === 'function') {
-            this.loadFromSupabase();
-        }
+        this.logMarkerVisibilityIfFiltered();
     }
 
 

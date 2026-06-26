@@ -869,6 +869,118 @@ Object.assign(MapMarkerApp.prototype, {
         containers.forEach(c => c.classList.add('hidden'));
     },
 
+    expandFilterSelectionsForNewData() {
+        if (this.currentMode === 'equipment') {
+            this.uniqueYears.forEach(year => this.selectedYears.add(year));
+            this.uniqueBusinesses.forEach(business => this.selectedBusinesses.add(business));
+        }
+        this.uniqueColors.forEach(color => this.selectedColors.add(color));
+        this.uniqueTags.forEach(tag => this.selectedTags.add(tag));
+    },
+
+    markerPassesMapFilters(data) {
+        if (data.isPending || data.isTemp) {
+            return true;
+        }
+
+        const color = getEffectiveMarkerColor(data, this.currentMode).toLowerCase().trim();
+        if (!this.selectedColors.has(color)) {
+            return false;
+        }
+
+        let hasMatchingTag = false;
+        if (data.tags && data.tags.length > 0) {
+            hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
+        } else {
+            hasMatchingTag = this.selectedTags.has("미지정");
+        }
+        if (!hasMatchingTag) {
+            return false;
+        }
+
+        if (this.currentMode === 'equipment') {
+            const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
+            const business = data.businessType ? data.businessType.toString().trim() : "미지정";
+            return this.selectedYears.has(year) && this.selectedBusinesses.has(business);
+        }
+
+        return true;
+    },
+
+    getMarkerVisibilityStats() {
+        const registered = this.markersData.filter(m => !m.isPending && !m.isTemp);
+        let visible = 0;
+        let excludedByColor = 0;
+        let excludedByTag = 0;
+        let excludedByYear = 0;
+        let excludedByBusiness = 0;
+
+        registered.forEach(data => {
+            const color = getEffectiveMarkerColor(data, this.currentMode).toLowerCase().trim();
+            if (!this.selectedColors.has(color)) {
+                excludedByColor++;
+                return;
+            }
+
+            let hasMatchingTag = false;
+            if (data.tags && data.tags.length > 0) {
+                hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
+            } else {
+                hasMatchingTag = this.selectedTags.has("미지정");
+            }
+            if (!hasMatchingTag) {
+                excludedByTag++;
+                return;
+            }
+
+            if (this.currentMode === 'equipment') {
+                const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
+                const business = data.businessType ? data.businessType.toString().trim() : "미지정";
+                if (!this.selectedYears.has(year)) {
+                    excludedByYear++;
+                    return;
+                }
+                if (!this.selectedBusinesses.has(business)) {
+                    excludedByBusiness++;
+                    return;
+                }
+            }
+
+            visible++;
+        });
+
+        return {
+            total: registered.length,
+            visible,
+            excludedByColor,
+            excludedByTag,
+            excludedByYear,
+            excludedByBusiness
+        };
+    },
+
+    logMarkerVisibilityIfFiltered() {
+        const stats = this.getMarkerVisibilityStats();
+        if (stats.visible >= stats.total) {
+            return;
+        }
+        console.warn(
+            `[MapMarker] 지도 표시 ${stats.visible}건 / 전체 ${stats.total}건 — 필터로 ${stats.total - stats.visible}건 제외`,
+            stats
+        );
+    },
+
+    updateMarkerCountLabel(visibleCount, totalRegistered) {
+        if (!this.markerCount) {
+            return;
+        }
+        if (visibleCount === totalRegistered) {
+            this.markerCount.textContent = String(visibleCount);
+        } else {
+            this.markerCount.textContent = `${visibleCount} / ${totalRegistered}`;
+        }
+    },
+
     initFilters(isFirstLoad = false) {
         if (this.currentMode === 'equipment') {
             // 1. 고유 연도 및 사업구분, 색상, 태그 수집
@@ -1784,45 +1896,15 @@ Object.assign(MapMarkerApp.prototype, {
         // 목록 리셋
         this.markersList.innerHTML = '';
         
-        // 연도, 사업구분 및 색상, 태그 필터가 적용된 마커 선별 (대기 마커 및 임시 마커는 필터 선택 상태에 상관없이 무조건 포함)
-        const filteredByDropdowns = this.markersData.filter(marker => {
-            if (marker.isPending || marker.isTemp) return true;
-
-            const color = getEffectiveMarkerColor(marker, this.currentMode).toLowerCase().trim();
-            if (!this.selectedColors.has(color)) {
-                return false;
-            }
-
-            if (this.currentMode === 'equipment') {
-                let hasMatchingTag = false;
-                if (marker.tags && marker.tags.length > 0) {
-                    hasMatchingTag = marker.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
-                } else {
-                    hasMatchingTag = this.selectedTags.has("미지정");
-                }
-                if (!hasMatchingTag) {
-                    return false;
-                }
-
-                const year = marker.facilityYear ? marker.facilityYear.toString().trim() : "미지정";
-                const business = marker.businessType ? marker.businessType.toString().trim() : "미지정";
-                return this.selectedYears.has(year) && this.selectedBusinesses.has(business);
-            }
-
-            let hasMatchingTag = false;
-            if (marker.tags && marker.tags.length > 0) {
-                hasMatchingTag = marker.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
-            } else {
-                hasMatchingTag = this.selectedTags.has("미지정");
-            }
-            return hasMatchingTag;
-        });
+        const filteredByDropdowns = this.markersData.filter(marker => this.markerPassesMapFilters(marker));
+        const totalRegistered = this.markersData.filter(m => !m.isPending && !m.isTemp).length;
+        const visibleRegistered = filteredByDropdowns.filter(m => !m.isPending && !m.isTemp).length;
         
         const pendingMarkers = filteredByDropdowns.filter(m => m.isPending);
 
         // 검색어(필터)가 없는 경우 리스트를 렌더링하지 않으나, 대기 중인 마커가 있으면 대기 마커 리스트 노출
         if (!filterText) {
-            this.markerCount.textContent = filteredByDropdowns.length;
+            this.updateMarkerCountLabel(visibleRegistered, totalRegistered);
             
             if (pendingMarkers.length > 0) {
                 this.markerCount.textContent = `대기: ${pendingMarkers.length}`;

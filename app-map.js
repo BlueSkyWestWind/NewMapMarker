@@ -184,40 +184,8 @@ Object.assign(MapMarkerApp.prototype, {
         
         // 현재 데이터셋 순회하며 마커 생성
         this.markersData.forEach(data => {
-            // 필터링 적용 (대기 마커 및 임시 마커가 아닌 경우에만 연도 & 사업구분 & 색상 & 태그 필터 검사)
-            if (!data.isPending && !data.isTemp) {
-                const color = getEffectiveMarkerColor(data, this.currentMode).toLowerCase().trim();
-                if (!this.selectedColors.has(color)) {
-                    return;
-                }
-
-                if (this.currentMode === 'equipment') {
-                    let hasMatchingTag = false;
-                    if (data.tags && data.tags.length > 0) {
-                        hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
-                    } else {
-                        hasMatchingTag = this.selectedTags.has("미지정");
-                    }
-                    if (!hasMatchingTag) {
-                        return;
-                    }
-
-                    const year = data.facilityYear ? data.facilityYear.toString().trim() : "미지정";
-                    const business = data.businessType ? data.businessType.toString().trim() : "미지정";
-                    if (!this.selectedYears.has(year) || !this.selectedBusinesses.has(business)) {
-                        return;
-                    }
-                } else {
-                    let hasMatchingTag = false;
-                    if (data.tags && data.tags.length > 0) {
-                        hasMatchingTag = data.tags.some(tag => this.selectedTags.has(tag.toString().trim()));
-                    } else {
-                        hasMatchingTag = this.selectedTags.has("미지정");
-                    }
-                    if (!hasMatchingTag) {
-                        return;
-                    }
-                }
+            if (!this.markerPassesMapFilters(data)) {
+                return;
             }
 
             const position = new kakao.maps.LatLng(data.lat, data.lng);

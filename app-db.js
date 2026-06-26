@@ -358,14 +358,16 @@ Object.assign(MapMarkerApp.prototype, {
 
             this.markersData = this.currentMode === 'equipment' ? this.eqMarkersData : this.batteryMarkersData;
 
-            this.initFilters(false);
-            this.updateBatteryBulkDeleteButtonVisibility();
-            this.updateFacilityTeamVisibility();
-            this.updateFilterSectionVisibility();
+            this.syncLocalStorage();
+
+            const loadedCount = this.currentMode === 'equipment'
+                ? this.eqMarkersData.length
+                : this.batteryMarkersData.length;
+            console.info(`[MapMarker] DB 마커 ${loadedCount}건 로드 완료`);
+
             if (this.map) {
                 this.renderMarkersOnMap();
             }
-            this.renderMarkersList();
             return true;
         } catch (e) {
             console.error("Supabase 데이터 로드 실패, 로컬 캐시를 유지합니다:", e);
