@@ -16,9 +16,11 @@ CREATE TABLE public.battery_markers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- RLS 비활성화 및 권한 설정
-ALTER TABLE public.battery_markers DISABLE ROW LEVEL SECURITY;
-GRANT ALL ON TABLE public.battery_markers TO postgres, anon, authenticated, service_role;
+-- RLS 활성화 (정책 상세는 sql/enable_rls_policies.sql 실행)
+ALTER TABLE public.battery_markers ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON TABLE public.battery_markers TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON TABLE public.battery_markers TO authenticated;
+GRANT ALL ON TABLE public.battery_markers TO postgres, service_role;
 
 -- 3. battery_specs 테이블 생성 (국소에 속한 개별 축전지 스펙 정보)
 CREATE TABLE public.battery_specs (
@@ -31,9 +33,12 @@ CREATE TABLE public.battery_specs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- RLS 비활성화 및 권한 설정
-ALTER TABLE public.battery_specs DISABLE ROW LEVEL SECURITY;
-GRANT ALL ON TABLE public.battery_specs TO postgres, anon, authenticated, service_role;
+-- RLS 활성화 (정책 상세는 sql/enable_rls_policies.sql 실행)
+ALTER TABLE public.battery_specs ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON TABLE public.battery_specs TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON TABLE public.battery_specs TO authenticated;
+GRANT ALL ON TABLE public.battery_specs TO postgres, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.battery_specs_id_seq TO authenticated;
 
 -- 4. Supabase PostgREST API 스키마 캐시 즉시 강제 리로드
 NOTIFY pgrst, 'reload schema';

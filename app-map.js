@@ -348,6 +348,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     enterMarkerPositionChangeMode(id) {
+        if (!this.currentUser) {
+            this.showToast('위치 변경은 로그인 후 이용할 수 있습니다.');
+            return;
+        }
+
         // 이미 위치 수정 중인 마커가 있다면 취소 처리
         if (this.currentMovingMarkerId && this.currentMovingMarkerId !== id) {
             this.cancelMarkerPositionChange(this.currentMovingMarkerId);
@@ -498,7 +503,7 @@ Object.assign(MapMarkerApp.prototype, {
                     addressDiv.innerHTML = `<span class="road-addr">${resolvedAddr}</span>`;
                     data.address = resolvedAddr === "주소를 확인할 수 없음" ? "" : resolvedAddr;
                     
-                    if (!data.isPending && this.supabase && data.address) {
+                    if (!data.isPending && this.supabase && data.address && this.currentUser) {
                         try {
                             await this.supabase
                                 .from('battery_markers')
@@ -540,7 +545,7 @@ Object.assign(MapMarkerApp.prototype, {
                     data.jibunAddress = addrObj.jibunAddress;
                     
                     // 백그라운드 DB 마이그레이션 자동 갱신
-                    if (!data.isPending && this.supabase) {
+                    if (!data.isPending && this.supabase && this.currentUser) {
                         try {
                             await this.supabase
                                 .from('markers')
@@ -580,8 +585,8 @@ Object.assign(MapMarkerApp.prototype, {
             container.appendChild(specSection);
         }
 
-        // 축전지 모드: 위치 변경 중이 아닐 때 시설팀 선택 (변경 시 즉시 저장)
-        if (this.currentMode === 'battery' && this.currentMovingMarkerId !== data.id) {
+        // 축전지 모드: 위치 변경 중이 아닐 때 시설팀 선택 (로그인 시에만 변경 가능)
+        if (this.currentMode === 'battery' && this.currentMovingMarkerId !== data.id && this.currentUser) {
             const teamSection = document.createElement('div');
             teamSection.className = 'overlay-team-section';
 
@@ -635,8 +640,7 @@ Object.assign(MapMarkerApp.prototype, {
         const actions = document.createElement('div');
         actions.className = 'overlay-actions';
         
-        if (this.currentMovingMarkerId === data.id) {
-            // 위치 변경 모드인 경우: 저장, 취소 버튼 표시
+        if (this.currentMovingMarkerId === data.id && this.currentUser) {
             const saveBtn = document.createElement('button');
             saveBtn.className = 'overlay-btn overlay-btn-save';
             saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
@@ -661,7 +665,9 @@ Object.assign(MapMarkerApp.prototype, {
             actions.appendChild(saveBtn);
             actions.appendChild(cancelBtn);
         } else {
-            // 일반 상태인 경우: 로드뷰, 상세, 편집, 위치 변경 버튼 표시
+            const isLoggedIn = !!this.currentUser;
+
+            // 조회: 로드뷰·상세 (비로그인 포함) / 편집·위치변경은 로그인 시에만
             const roadviewBtn = document.createElement('button');
             roadviewBtn.className = 'overlay-btn overlay-btn-roadview';
             roadviewBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
@@ -703,8 +709,11 @@ Object.assign(MapMarkerApp.prototype, {
             
             actions.appendChild(roadviewBtn);
             actions.appendChild(detailBtn);
-            actions.appendChild(editBtn);
-            actions.appendChild(moveBtn);
+
+            if (isLoggedIn) {
+                actions.appendChild(editBtn);
+                actions.appendChild(moveBtn);
+            }
         }
         
         container.appendChild(actions);

@@ -230,6 +230,9 @@ class MapMarkerApp {
         this.selectedQuantities = new Set(); // 축전지 수량 필터 셋
         this.selectedStations = new Set(); // 축전지 국소명 필터 셋
         
+        // 인증 상태 정의
+        this.currentUser = null;
+        
         // DOM 요소 캐시
         this.cacheElements();
         
@@ -243,145 +246,19 @@ class MapMarkerApp {
 
 
     async init() {
-        // Supabase 초기화 검증 및 인스턴스 생성
-        this.supabase = null;
-        if (typeof supabase !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.URL && SUPABASE_CONFIG.URL !== "YOUR_SUPABASE_PROJECT_URL") {
-            try {
-                this.supabase = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY);
-            } catch (e) {
-                console.error("Supabase 초기화 실패:", e);
-            }
+        this.supabase = typeof this.createSupabaseClient === 'function'
+            ? this.createSupabaseClient()
+            : null;
+
+        if (this.supabase && typeof this.setupSupabaseAuth === 'function') {
+            this.setupSupabaseAuth();
+        } else if (typeof this.updateAuthUI === 'function') {
+            this.updateAuthUI(null);
         }
 
-        if (this.supabase) {
-            try {
-                // 1. markers 테이블 로드
-                const { data: markersList, error: markersError } = await this.supabase
-                    .from('markers')
-                    .select('*')
-                    .order('created_at', { ascending: false });
-                
-                if (markersError) throw markersError;
+        // Supabase 응답을 기다리지 않고 로컬 캐시로 우선 화면 구성
+        this.loadFromLocalStorage();
 
-                // 2. information 테이블 전체 로드 (메모리 조인용)
-                const { data: infoList, error: infoError } = await this.supabase
-                    .from('information')
-                    .select('*');
-                
-                if (infoError) throw infoError;
-
-                // 3. place_name을 key로 하는 Map 생성 (1:N 대응이므로 배열로 저장)
-                const infoMap = new Map();
-                if (infoList) {
-                    infoList.forEach(info => {
-                        const name = info.place_name ? info.place_name.trim() : "";
-                        if (name) {
-                            if (!infoMap.has(name)) {
-                                infoMap.set(name, []);
-                            }
-                            infoMap.get(name).push(info);
-                        }
-                    });
-                }
-                
-                // 4. eqMarkersData 구성
-                this.eqMarkersData = (markersList || []).map(row => {
-                    const markerName = row.name ? row.name.trim() : "";
-                    const infos = infoMap.get(markerName) || [];
-                    const repInfo = infos[0] || null;
-                    
-                    return {
-                        id: row.id,
-                        name: row.name,
-                        lat: row.lat,
-                        lng: row.lng,
-                        memo: row.memo || "",
-                        tags: row.tags || [],
-                        color: row.color || DEFAULT_MARKER_COLOR,
-                        facilityTeam: row.facility_team || '',
-                        roadAddress: row.road_address || "",
-                        jibunAddress: row.jibun_address || "",
-                        facilityCode: row.facility_code || (repInfo ? repInfo.facility_code || "" : ""),
-                        projectCode: repInfo ? repInfo.project_code || "" : "",
-                        facilityYear: repInfo ? repInfo.facility_year || "" : "",
-                        businessType: repInfo ? repInfo.business_type || "" : "",
-                        finalStationName: repInfo ? repInfo.final_station_name || "" : "",
-                        eqClass: repInfo ? repInfo.eq_class || "" : "",
-                        eqType: repInfo ? repInfo.eq_type || "" : "",
-                        installDate: repInfo ? repInfo.install_date || "" : "",
-                        openDate: repInfo ? repInfo.open_date || "" : "",
-                        createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
-                    };
-                });
-
-                // 5. battery_markers 테이블 로드
-                const { data: bMarkersList, error: bMarkersError } = await this.supabase
-                    .from('battery_markers')
-                    .select('*')
-                    .order('created_at', { ascending: false });
-
-                if (bMarkersError) throw bMarkersError;
-
-                // 6. battery_specs 테이블 전체 로드
-                const { data: bSpecsList, error: bSpecsError } = await this.supabase
-                    .from('battery_specs')
-                    .select('*');
-
-                if (bSpecsError) throw bSpecsError;
-
-                // 7. marker_id를 key로 하는 Map 생성
-                const specsMap = new Map();
-                if (bSpecsList) {
-                    bSpecsList.forEach(spec => {
-                        const markerId = spec.marker_id;
-                        if (markerId) {
-                            if (!specsMap.has(markerId)) {
-                                specsMap.set(markerId, []);
-                            }
-                            specsMap.get(markerId).push(spec);
-                        }
-                    });
-                }
-
-                // 8. batteryMarkersData 구성
-                this.batteryMarkersData = (bMarkersList || []).map(row => {
-                    const specs = specsMap.get(row.id) || [];
-                    const repSpec = specs[0] || null;
-                    return {
-                        id: row.id,
-                        name: row.name,
-                        lat: row.lat,
-                        lng: row.lng,
-                        address: row.address || "",
-                        memo: row.memo || "",
-                        tags: row.tags || [],
-                        color: row.color || DEFAULT_MARKER_COLOR,
-                        facilityTeam: row.facility_team || '',
-                        createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-                        items: specs.map(s => ({
-                            id: s.id,
-                            erpName: s.erp_name || "",
-                            address: row.address || "",
-                            capacity: s.capacity || 600,
-                            quantity: s.quantity || 12,
-                            stationName: s.station_name || "",
-                            createdAt: s.created_at ? s.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
-                        })),
-                        capacity: repSpec ? repSpec.capacity : 600,
-                        quantity: repSpec ? repSpec.quantity : 12,
-                        stationName: repSpec ? repSpec.station_name : (row.name || "")
-                    };
-                });
-
-                this.markersData = this.currentMode === 'equipment' ? this.eqMarkersData : this.batteryMarkersData;
-            } catch (e) {
-                console.error("Supabase 데이터 로드 실패, 로컬 캐시를 사용합니다:", e);
-                this.loadFromLocalStorage();
-            }
-        } else {
-            this.loadFromLocalStorage();
-        }
-        
         // 정적 스크립트 로드 완료 후 지도 로딩 진행
         if (window.kakao && window.kakao.maps) {
             kakao.maps.load(() => {
@@ -398,6 +275,11 @@ class MapMarkerApp {
         this.updateFacilityTeamVisibility();
         this.updateFilterSectionVisibility();
         this.renderMarkersList();
+
+        // DB 데이터는 백그라운드 로드 — 네트워크 지연 시에도 지도·UI가 먼저 표시됨
+        if (this.supabase && typeof this.loadFromSupabase === 'function') {
+            this.loadFromSupabase();
+        }
     }
 
 

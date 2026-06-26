@@ -21,6 +21,7 @@ Object.assign(MapMarkerApp.prototype, {
         this.importInfoExcelFile = document.getElementById('import-info-excel-file');
         
         // 백업 아코디언 요소 캐시
+        this.sidebarFooter = document.getElementById('sidebar-footer');
         this.backupAccordionToggle = document.getElementById('backup-accordion-toggle');
         this.backupAccordionContent = document.getElementById('backup-accordion-content');
         
@@ -195,9 +196,56 @@ Object.assign(MapMarkerApp.prototype, {
         this.batteryExcelConfirmTableBody = document.getElementById('battery-excel-confirm-table-body');
         this.batteryExcelConfirmCount = document.getElementById('battery-excel-confirm-count');
         this.pendingBatteryExcelData = [];
+        // 인증 관련 요소 캐시
+        this.authModalBtn = document.getElementById('auth-modal-btn');
+        this.closeAuthModalBtn = document.getElementById('close-auth-modal-btn');
+        this.btnLogout = document.getElementById('btn-logout');
+        this.authUserInfo = document.getElementById('auth-user-info');
+        this.authUserEmail = document.getElementById('auth-user-email');
+        this.authModal = document.getElementById('auth-modal');
+        this.authModalTitle = document.getElementById('auth-modal-title');
+        this.authTabLogin = document.getElementById('auth-tab-login');
+        this.authTabSignup = document.getElementById('auth-tab-signup');
+        this.authForm = document.getElementById('auth-form');
+        this.authEmailInput = document.getElementById('auth-email');
+        this.authPasswordInput = document.getElementById('auth-password');
+        this.authPasswordConfirmInput = document.getElementById('auth-password-confirm');
+        this.authPasswordConfirmGroup = document.getElementById('auth-password-confirm-group');
+        this.authErrorMsg = document.getElementById('auth-error-msg');
+        this.authErrorText = document.getElementById('auth-error-text');
+        this.authSuccessMsg = document.getElementById('auth-success-msg');
+        this.authSuccessText = document.getElementById('auth-success-text');
+        this.authSubmitBtn = document.getElementById('auth-submit-btn');
+        this.markerIsTemp = document.getElementById('marker-is-temp');
     },
 
     bindEvents() {
+        
+        // 인증 관련 이벤트 등록
+        if (this.authModalBtn) {
+            this.authModalBtn.addEventListener('click', () => this.openAuthModal());
+        }
+        if (this.closeAuthModalBtn) {
+            this.closeAuthModalBtn.addEventListener('click', () => this.closeAuthModal());
+        }
+        if (this.btnLogout) {
+            this.btnLogout.addEventListener('click', () => this.handleLogout());
+        }
+        if (this.authTabLogin) {
+            this.authTabLogin.addEventListener('click', () => this.switchAuthTab('login'));
+        }
+        if (this.authTabSignup) {
+            this.authTabSignup.addEventListener('click', () => this.switchAuthTab('signup'));
+        }
+        if (this.authForm) {
+            this.authForm.addEventListener('submit', (e) => this.handleAuthSubmit(e));
+        }
+        if (this.authModal) {
+            this.authModal.addEventListener('click', (e) => {
+                if (e.target === this.authModal) this.closeAuthModal();
+            });
+        }
+
         // 검색 이벤트
         this.searchBtn.addEventListener('click', () => this.handleSearch());
         this.searchInput.addEventListener('keydown', (e) => {
@@ -1446,6 +1494,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     openEditMarkerModal(id) {
+        if (!this.currentUser) {
+            this.showToast('편집은 로그인 후 이용할 수 있습니다.');
+            return;
+        }
+
         const markerData = this.markersData.find(m => m.id === id);
         if (!markerData) return;
         
@@ -2231,6 +2284,43 @@ Object.assign(MapMarkerApp.prototype, {
             });
     },
 
+    updateExcelUploadSectionsVisibility() {
+        const eqExcelSec = this.eqExcelSection || document.getElementById('eq-excel-section');
+        const eqInfoSec = this.eqInfoUploadSection || document.getElementById('eq-info-upload-section');
+        const batExcelSec = this.batteryExcelSection || document.getElementById('battery-excel-section');
+        const batteryAccordionContent = document.getElementById('battery-excel-accordion-content');
+        const isLoggedIn = !!this.currentUser;
+
+        if (!isLoggedIn) {
+            if (eqExcelSec) {
+                eqExcelSec.classList.add('hidden');
+                eqExcelSec.classList.remove('active');
+            }
+            if (eqInfoSec) {
+                eqInfoSec.classList.add('hidden');
+                eqInfoSec.classList.remove('active');
+            }
+            if (batExcelSec) {
+                batExcelSec.classList.add('hidden');
+                batExcelSec.classList.remove('active');
+            }
+            if (this.excelAccordionContent) this.excelAccordionContent.classList.add('hidden');
+            if (this.infoAccordionContent) this.infoAccordionContent.classList.add('hidden');
+            if (batteryAccordionContent) batteryAccordionContent.classList.add('hidden');
+            return;
+        }
+
+        if (this.currentMode === 'equipment') {
+            if (eqExcelSec) eqExcelSec.classList.remove('hidden');
+            if (eqInfoSec) eqInfoSec.classList.remove('hidden');
+            if (batExcelSec) batExcelSec.classList.add('hidden');
+        } else {
+            if (eqExcelSec) eqExcelSec.classList.add('hidden');
+            if (eqInfoSec) eqInfoSec.classList.add('hidden');
+            if (batExcelSec) batExcelSec.classList.remove('hidden');
+        }
+    },
+
     updateBatteryBulkDeleteButtonVisibility() {
         if (!this.deleteAllBatteryMarkersBtn) return;
         const show = this.currentMode === 'battery';
@@ -2248,19 +2338,12 @@ Object.assign(MapMarkerApp.prototype, {
         // 드롭다운 및 아코디언 토글
         this.closeAllDropdowns();
         
-        const eqExcelSec = document.getElementById('eq-excel-section');
-        const eqInfoSec = document.getElementById('eq-info-upload-section');
-        const batExcelSec = document.getElementById('battery-excel-section');
-
         const backupSection1Title = document.getElementById('backup-section-1-title');
         const backupSection1Icon = document.getElementById('backup-section-1-icon');
         const backupSection1Wrapper = document.getElementById('backup-section-1-wrapper');
         const backupSection2Wrapper = document.getElementById('backup-section-2-wrapper');
         
         if (mode === 'equipment') {
-            if (eqExcelSec) eqExcelSec.classList.remove('hidden');
-            if (eqInfoSec) eqInfoSec.classList.remove('hidden');
-            if (batExcelSec) batExcelSec.classList.add('hidden');
             if (this.clusterToggleBtn) this.clusterToggleBtn.classList.remove('hidden');
 
             if (backupSection1Title) backupSection1Title.textContent = "위치 마커 (markers)";
@@ -2268,9 +2351,6 @@ Object.assign(MapMarkerApp.prototype, {
             if (backupSection1Wrapper) backupSection1Wrapper.style.borderBottom = "1px dashed var(--border-color)";
             if (backupSection2Wrapper) backupSection2Wrapper.style.display = "block";
         } else {
-            if (eqExcelSec) eqExcelSec.classList.add('hidden');
-            if (eqInfoSec) eqInfoSec.classList.add('hidden');
-            if (batExcelSec) batExcelSec.classList.remove('hidden');
             if (this.clusterToggleBtn) this.clusterToggleBtn.classList.add('hidden');
 
             if (backupSection1Title) backupSection1Title.textContent = "축전지 내역 (battery)";
@@ -2278,6 +2358,8 @@ Object.assign(MapMarkerApp.prototype, {
             if (backupSection1Wrapper) backupSection1Wrapper.style.borderBottom = "none";
             if (backupSection2Wrapper) backupSection2Wrapper.style.display = "none";
         }
+
+        this.updateExcelUploadSectionsVisibility();
 
         this.updateBatteryBulkDeleteButtonVisibility();
         this.updateFacilityTeamVisibility();
@@ -2419,5 +2501,207 @@ Object.assign(MapMarkerApp.prototype, {
                 console.error('클립보드 복사 실패:', err);
                 this.showToast('복사에 실패했습니다. 직접 드래그하여 복사해 주세요.');
             });
+    },
+
+    updateAuthUI(user) {
+        if (user) {
+            if (this.authModalBtn) this.authModalBtn.classList.add('hidden');
+            if (this.authUserInfo) {
+                this.authUserInfo.classList.remove('hidden');
+                this.authUserInfo.style.display = 'flex';
+            }
+            if (this.authUserEmail) {
+                this.authUserEmail.textContent = user.email;
+                this.authUserEmail.title = user.email;
+            }
+            if (this.markerIsTemp) {
+                this.markerIsTemp.disabled = false;
+                this.markerIsTemp.checked = false;
+            }
+            const tempWrapper = document.getElementById('temp-checkbox-wrapper');
+            if (tempWrapper) {
+                tempWrapper.style.opacity = '1';
+                tempWrapper.title = '';
+            }
+            if (this.sidebarFooter) {
+                this.sidebarFooter.classList.remove('hidden');
+            }
+        } else {
+            if (this.authModalBtn) this.authModalBtn.classList.remove('hidden');
+            if (this.authUserInfo) {
+                this.authUserInfo.classList.add('hidden');
+                this.authUserInfo.style.display = '';
+            }
+            if (this.authUserEmail) this.authUserEmail.textContent = '';
+            if (this.markerIsTemp) {
+                this.markerIsTemp.checked = true;
+                this.markerIsTemp.disabled = true;
+            }
+            const tempWrapper = document.getElementById('temp-checkbox-wrapper');
+            if (tempWrapper) {
+                tempWrapper.style.opacity = '0.7';
+                tempWrapper.title = '로그인 시 DB 등록 기능을 잠금 해제할 수 있습니다.';
+            }
+            if (this.sidebarFooter) {
+                this.sidebarFooter.classList.add('hidden');
+                this.sidebarFooter.classList.remove('active');
+            }
+            if (this.backupAccordionContent) {
+                this.backupAccordionContent.classList.add('hidden');
+            }
+        }
+
+        this.updateExcelUploadSectionsVisibility();
+
+        if (!user && this.currentMovingMarkerId) {
+            this.cancelMarkerPositionChange(this.currentMovingMarkerId);
+        }
+        if (typeof this.renderMarkersOnMap === 'function') {
+            this.renderMarkersOnMap();
+        }
+    },
+
+    openAuthModal() {
+        if (!this.supabase) {
+            this.showToast('Supabase에 연결되지 않았습니다. index.html의 SDK 로드와 config.js(URL·ANON_KEY)를 확인해주세요.', 6000);
+            return;
+        }
+        if (this.authModal) {
+            this.authModal.classList.remove('hidden');
+            this.switchAuthTab('login');
+            if (this.authEmailInput) this.authEmailInput.value = '';
+            if (this.authPasswordInput) this.authPasswordInput.value = '';
+            if (this.authPasswordConfirmInput) this.authPasswordConfirmInput.value = '';
+            if (this.authErrorMsg) this.authErrorMsg.classList.add('hidden');
+            if (this.authSuccessMsg) this.authSuccessMsg.classList.add('hidden');
+        }
+    },
+
+    closeAuthModal() {
+        if (this.authModal) {
+            this.authModal.classList.add('hidden');
+        }
+    },
+
+    switchAuthTab(tab) {
+        if (!this.authTabLogin || !this.authTabSignup) return;
+        if (tab === 'login') {
+            this.authTabLogin.classList.add('active');
+            this.authTabLogin.style.background = 'var(--primary)';
+            this.authTabLogin.style.color = '#fff';
+            this.authTabSignup.classList.remove('active');
+            this.authTabSignup.style.background = 'transparent';
+            this.authTabSignup.style.color = 'var(--text-secondary)';
+            if (this.authModalTitle) this.authModalTitle.textContent = '관리자 로그인';
+            if (this.authSubmitBtn) this.authSubmitBtn.textContent = '로그인';
+            if (this.authPasswordConfirmGroup) {
+                this.authPasswordConfirmGroup.classList.add('hidden');
+                this.authPasswordConfirmGroup.style.display = 'none';
+            }
+            if (this.authPasswordConfirmInput) {
+                this.authPasswordConfirmInput.required = false;
+            }
+        } else {
+            this.authTabSignup.classList.add('active');
+            this.authTabSignup.style.background = 'var(--primary)';
+            this.authTabSignup.style.color = '#fff';
+            this.authTabLogin.classList.remove('active');
+            this.authTabLogin.style.background = 'transparent';
+            this.authTabLogin.style.color = 'var(--text-secondary)';
+            if (this.authModalTitle) this.authModalTitle.textContent = '계정 등록';
+            if (this.authSubmitBtn) this.authSubmitBtn.textContent = '회원가입';
+            if (this.authPasswordConfirmGroup) {
+                this.authPasswordConfirmGroup.classList.remove('hidden');
+                this.authPasswordConfirmGroup.style.display = 'flex';
+            }
+            if (this.authPasswordConfirmInput) {
+                this.authPasswordConfirmInput.required = true;
+            }
+        }
+        if (this.authErrorMsg) this.authErrorMsg.classList.add('hidden');
+        if (this.authSuccessMsg) this.authSuccessMsg.classList.add('hidden');
+    },
+
+    async handleAuthSubmit(e) {
+        e.preventDefault();
+        if (!this.authEmailInput || !this.authPasswordInput || !this.authSubmitBtn) return;
+        const email = this.authEmailInput.value.trim();
+        const password = this.authPasswordInput.value;
+
+        if (!email || !password) return;
+
+        const isLogin = this.authTabLogin.classList.contains('active');
+
+        if (!isLogin) {
+            if (password.length < 6) {
+                if (this.authErrorMsg && this.authErrorText) {
+                    this.authErrorMsg.classList.remove('hidden');
+                    this.authErrorText.textContent = '비밀번호는 6자 이상이어야 합니다.';
+                }
+                if (this.authSuccessMsg) this.authSuccessMsg.classList.add('hidden');
+                return;
+            }
+            const passwordConfirm = this.authPasswordConfirmInput ? this.authPasswordConfirmInput.value : '';
+            if (password !== passwordConfirm) {
+                if (this.authErrorMsg && this.authErrorText) {
+                    this.authErrorMsg.classList.remove('hidden');
+                    this.authErrorText.textContent = '비밀번호 확인이 일치하지 않습니다.';
+                }
+                if (this.authSuccessMsg) this.authSuccessMsg.classList.add('hidden');
+                return;
+            }
+        }
+
+        this.authSubmitBtn.disabled = true;
+        this.authSubmitBtn.textContent = isLogin ? '로그인 중...' : '가입 처리 중...';
+
+        if (this.authErrorMsg) this.authErrorMsg.classList.add('hidden');
+        if (this.authSuccessMsg) this.authSuccessMsg.classList.add('hidden');
+
+        let res;
+        if (isLogin) {
+            res = await this.handleLogin(email, password);
+        } else {
+            res = await this.handleSignUp(email, password);
+        }
+
+        this.authSubmitBtn.disabled = false;
+        this.authSubmitBtn.textContent = isLogin ? '로그인' : '회원가입';
+
+        if (res.error) {
+            if (this.authErrorMsg && this.authErrorText) {
+                this.authErrorMsg.classList.remove('hidden');
+                this.authErrorText.textContent = res.error.message || '인증 처리에 실패했습니다.';
+            }
+            return;
+        }
+
+        if (isLogin) {
+            if (res.data?.session) {
+                this.applyAuthSession(res.data.session);
+            }
+            this.closeAuthModal();
+            this.showToast('로그인되었습니다. DB 저장·수정이 가능합니다.');
+            return;
+        }
+
+        if (res.needsEmailConfirmation) {
+            if (this.authSuccessMsg && this.authSuccessText) {
+                this.authSuccessMsg.classList.remove('hidden');
+                this.authSuccessText.textContent =
+                    `${email}로 가입 요청이 접수되었습니다. Supabase에서 인증 메일을 확인한 뒤, 메일 링크 클릭 후 로그인해주세요. (Authentication → Users에서 미인증 사용자도 확인 가능)`;
+            }
+            this.switchAuthTab('login');
+            if (this.authPasswordInput) this.authPasswordInput.value = '';
+            if (this.authPasswordConfirmInput) this.authPasswordConfirmInput.value = '';
+            return;
+        }
+
+        this.closeAuthModal();
+        if (res.data?.session) {
+            this.applyAuthSession(res.data.session);
+        }
+        this.showToast('회원가입이 완료되었습니다. DB 저장·수정이 가능합니다.');
     }
+
 });

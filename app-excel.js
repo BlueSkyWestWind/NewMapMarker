@@ -220,26 +220,61 @@ Object.assign(MapMarkerApp.prototype, {
 
         this.showToast('상세 장비 데이터 복원 처리 중...');
 
-        const normalizedData = parsedData.map(row => DataManager.normalizeInfoRecord(row));
-
-        const { error } = await this.supabase
-            .from('information')
-            .upsert(normalizedData, { onConflict: 'facility_code' });
-
-        if (error) {
-            this.showToast('상세 장비 복원 실패: ' + error.message, 5000);
+        try {
+            await this.ensureAuthenticatedForDbWrite();
+        } catch (e) {
+            this.showToast(e.message, 7000);
             if (fileInput) fileInput.value = '';
             return;
         }
 
-        await this.init();
-        this.showToast(`상세 장비 정보 복원이 완료되었습니다. (총 ${parsedData.length}건)`);
+        let markersList = this.eqMarkersData || [];
+        try {
+            const { data, error: markersError } = await this.supabase
+                .from('markers')
+                .select('id, name, facility_code');
+            if (markersError) throw markersError;
+            if (data && data.length > 0) {
+                markersList = data;
+            }
+        } catch (e) {
+            console.warn('복원 시 markers 조회 실패, 로컬 캐시로 marker_id 연결 시도:', e);
+        }
+
+        try {
+            const result = await DataManager.upsertInformationToSupabase(
+                this.supabase,
+                parsedData,
+                markersList
+            );
+
+            await this.init();
+
+            let restoreMessage = `상세 장비 정보 복원이 완료되었습니다. (총 ${parsedData.length}건)`;
+            if (result.unlinkedCount > 0) {
+                restoreMessage += ` marker_id 미연결 ${result.unlinkedCount}건 — 장소이름·통합시설코드를 확인하세요.`;
+            }
+            if (result.warning) {
+                restoreMessage += ` ${result.warning}`;
+            }
+            this.showToast(restoreMessage, (result.unlinkedCount > 0 || result.warning) ? 7000 : 4000);
+        } catch (e) {
+            this.showToast('상세 장비 복원 실패: ' + e.message, 7000);
+            if (fileInput) fileInput.value = '';
+            return;
+        }
         if (fileInput) fileInput.value = '';
     },
 
     handleImportExcel(event) {
         const file = event.target.files[0];
         if (!file) return;
+
+        if (!this.currentUser) {
+            this.showToast('엑셀 위치 업로드는 로그인 후 사용할 수 있습니다.', 5000);
+            if (this.importExcelFile) this.importExcelFile.value = '';
+            return;
+        }
         
         // UI 로딩 표시
         this.excelStatus.classList.remove('hidden');
@@ -410,6 +445,12 @@ Object.assign(MapMarkerApp.prototype, {
     handleImportInfoExcel(event) {
         const file = event.target.files[0];
         if (!file) return;
+
+        if (!this.currentUser) {
+            this.showToast('상세 장비 업로드는 로그인 후 사용할 수 있습니다.', 5000);
+            if (this.importInfoFile) this.importInfoFile.value = '';
+            return;
+        }
 
         if (this.infoUploadStatus) {
             this.infoUploadStatus.classList.remove('hidden');
@@ -685,6 +726,12 @@ Object.assign(MapMarkerApp.prototype, {
     handleImportExcelBattery(event) {
         const file = event.target.files[0];
         if (!file) return;
+
+        if (!this.currentUser) {
+            this.showToast('축전지 엑셀 업로드는 로그인 후 사용할 수 있습니다.', 5000);
+            if (this.importExcelFileBattery) this.importExcelFileBattery.value = '';
+            return;
+        }
 
         const statusContainer = this.batteryExcelStatus || document.getElementById('battery-excel-status');
         const statusText = this.batteryExcelStatusText || document.getElementById('battery-excel-status-text');

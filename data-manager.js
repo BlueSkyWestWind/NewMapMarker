@@ -144,11 +144,296 @@ const DataManager = {
      * @returns {Object} 날짜가 정규화된 행 객체
      */
     normalizeInfoRecord(record) {
-        return {
+        const normalized = {
             ...record,
             install_date: this.formatDateToYmd(record.install_date),
             open_date: this.formatDateToYmd(record.open_date)
         };
+        const markerId = String(normalized.marker_id || "").trim();
+        if (markerId) {
+            normalized.marker_id = markerId;
+        } else {
+            delete normalized.marker_id;
+        }
+        return normalized;
+    },
+
+    /**
+     * markers 목록으로 information.marker_id 조회 인덱스를 만듭니다.
+     * @param {Array} markersList markers 테이블 행 또는 앱 마커 객체 배열
+     * @returns {{ byId: Map, byFacilityCode: Map, byPlaceName: Map }}
+     */
+    buildMarkerIndex(markersList) {
+        const byId = new Map();
+        const byFacilityCode = new Map();
+        const byPlaceName = new Map();
+
+        (markersList || []).forEach(marker => {
+            const id = String(marker.id || "").trim();
+            if (!id) return;
+
+            byId.set(id, id);
+
+            const facilityCode = String(marker.facility_code || marker.facilityCode || "").trim();
+            if (facilityCode) {
+                byFacilityCode.set(facilityCode, id);
+            }
+
+            const name = String(marker.name || "").trim();
+            if (name) {
+                if (!byPlaceName.has(name)) {
+                    byPlaceName.set(name, []);
+                }
+                byPlaceName.get(name).push(id);
+            }
+        });
+
+        return { byId, byFacilityCode, byPlaceName };
+    },
+
+    /**
+     * information 행에 marker_id를 보강합니다.
+     * 명시값 → 통합시설코드 → 장소이름(단일 마커) 순으로 연결합니다.
+     * @param {Object} record information 행
+     * @param {{ byId: Map, byFacilityCode: Map, byPlaceName: Map }} markerIndex
+     * @returns {Object} marker_id가 보강된 행
+     */
+    enrichInfoRecordMarkerId(record, markerIndex) {
+        const enriched = { ...record };
+        const explicitId = String(record.marker_id || "").trim();
+
+        if (explicitId && markerIndex.byId.has(explicitId)) {
+            enriched.marker_id = explicitId;
+            return enriched;
+        }
+
+        const facilityCode = String(record.facility_code || "").trim();
+        if (facilityCode && markerIndex.byFacilityCode.has(facilityCode)) {
+            enriched.marker_id = markerIndex.byFacilityCode.get(facilityCode);
+            return enriched;
+        }
+
+        const placeName = String(record.place_name || "").trim();
+        if (placeName && markerIndex.byPlaceName.has(placeName)) {
+            const candidates = markerIndex.byPlaceName.get(placeName);
+            if (candidates.length === 1) {
+                enriched.marker_id = candidates[0];
+                return enriched;
+            }
+        }
+
+        if (explicitId) {
+            delete enriched.marker_id;
+        }
+
+        return enriched;
+    },
+
+    /**
+     * information 행 배열에 marker_id를 일괄 보강합니다.
+     * @param {Array} records information 행 배열
+     * @param {Array} markersList markers 테이블 행 또는 앱 마커 객체 배열
+     * @returns {Array}
+     */
+    enrichInfoRecordsWithMarkerId(records, markersList) {
+        const markerIndex = this.buildMarkerIndex(markersList);
+        return records.map(record => this.enrichInfoRecordMarkerId(record, markerIndex));
+    },
+
+    /**
+     * information upsert용 payload를 DB 컬럼만 포함하도록 정제합니다.
+     * @param {Object} record information 행
+     * @param {{ includeMarkerId?: boolean }} [options]
+     * @returns {Object}
+     */
+    buildInfoUpsertRecord(record, options = {}) {
+        const includeMarkerId = options.includeMarkerId !== false;
+        const payload = {
+            facility_code: String(record.facility_code || "").trim(),
+            project_code: String(record.project_code || "").trim(),
+            facility_year: String(record.facility_year || "").trim(),
+            business_type: String(record.business_type || "").trim(),
+            place_name: String(record.place_name || "").trim(),
+            final_station_name: String(record.final_station_name || "").trim(),
+            eq_class: String(record.eq_class || "").trim(),
+            eq_type: String(record.eq_type || "").trim(),
+            install_date: String(record.install_date || "").trim(),
+            open_date: String(record.open_date || "").trim()
+        };
+
+        if (!payload.facility_code) {
+            throw new Error("통합시설코드가 비어 있습니다.");
+        }
+
+        const markerId = String(record.marker_id || "").trim();
+        if (includeMarkerId && markerId) {
+            payload.marker_id = markerId;
+        }
+
+        return payload;
+    },
+
+    /**
+     * marker_id 관련 DB 오류인지 판별합니다.
+     * @param {Object} error Supabase 오류 객체
+     * @returns {boolean}
+     */
+    isInformationMarkerIdError(error) {
+        const message = String(error?.message || error?.details || "").toLowerCase();
+        const code = String(error?.code || "");
+        return (
+            code === "PGRST204" ||
+            code === "23503" ||
+            message.includes("marker_id") ||
+            message.includes("foreign key")
+        );
+    },
+
+    /**
+     * information upsert 오류를 사용자 안내 문구로 변환합니다.
+     * @param {Object} error Supabase 오류 객체
+     * @returns {string}
+     */
+    translateInformationUpsertError(error) {
+        const message = String(error?.message || "");
+        const code = String(error?.code || "");
+
+        if (code === "PGRST204" && message.toLowerCase().includes("marker_id")) {
+            return "DB에 marker_id 컬럼이 없습니다. Supabase SQL Editor에서 sql/add_equipment_relationships.sql 을 실행하세요.";
+        }
+        if (code === "23503") {
+            return "마커 연결(marker_id)이 올바르지 않습니다. 마커아이디·장소이름·통합시설코드를 확인하세요.";
+        }
+        if (code === "42501" || message.toLowerCase().includes("permission denied")) {
+            return "DB 쓰기 권한이 없습니다. ① 로그아웃 후 다시 로그인 ② Supabase SQL Editor에서 sql/fix_db_write_permissions.sql 실행";
+        }
+        if (message.toLowerCase().includes("row-level security")) {
+            return "DB 보안 정책(RLS)에 의해 저장이 거부되었습니다. 로그인 후 다시 시도하거나 sql/fix_db_write_permissions.sql 을 실행하세요.";
+        }
+        return message || "알 수 없는 DB 오류";
+    },
+
+    /**
+     * information 행을 Supabase에 upsert합니다. marker_id 오류 시 연결 없이 재시도합니다.
+     * @param {Object} supabase Supabase 클라이언트
+     * @param {Array} records 파싱된 information 행 배열
+     * @param {Array} markersList markers 테이블 행 또는 앱 마커 객체 배열
+     * @returns {Promise<{ count: number, unlinkedCount: number, warning?: string }>}
+     */
+    async upsertInformationToSupabase(supabase, records, markersList) {
+        const enriched = this.enrichInfoRecordsWithMarkerId(
+            records.map(row => this.normalizeInfoRecord(row)),
+            markersList
+        );
+        const prepared = enriched.map(row => this.buildInfoUpsertRecord(row, { includeMarkerId: true }));
+        const unlinkedCount = prepared.filter(row => !row.marker_id).length;
+
+        let { error } = await supabase
+            .from("information")
+            .upsert(prepared, { onConflict: "facility_code" });
+
+        let warning = "";
+        if (error && this.isInformationMarkerIdError(error)) {
+            const fallbackPayload = enriched.map(row => this.buildInfoUpsertRecord(row, { includeMarkerId: false }));
+            ({ error } = await supabase
+                .from("information")
+                .upsert(fallbackPayload, { onConflict: "facility_code" }));
+            if (!error) {
+                warning = "marker_id 연동 없이 저장했습니다. sql/add_equipment_relationships.sql 실행 후 마커 연결을 확인하세요.";
+            }
+        }
+
+        if (error) {
+            throw new Error(this.translateInformationUpsertError(error));
+        }
+
+        return {
+            count: prepared.length,
+            unlinkedCount,
+            warning
+        };
+    },
+
+    /**
+     * 상세 장비 Excel 워크북에서 데이터 시트를 찾습니다.
+     * @param {Object} workbook XLSX 워크북
+     * @returns {Object} 워크시트
+     */
+    resolveInfoExcelSheet(workbook) {
+        const preferredNames = ["데이터", "data", "information", "Information"];
+        for (const name of preferredNames) {
+            if (workbook.SheetNames.includes(name)) {
+                return workbook.Sheets[name];
+            }
+        }
+
+        for (const sheetName of workbook.SheetNames) {
+            const worksheet = workbook.Sheets[sheetName];
+            const probe = XLSX.utils.sheet_to_json(worksheet, { defval: "", header: 1, range: 0 });
+            const headerRow = (probe[0] || []).map(cell => String(cell).trim());
+            if (headerRow.some(header => /통합시설코드|시설코드/i.test(header))) {
+                return worksheet;
+            }
+        }
+
+        return workbook.Sheets[workbook.SheetNames[0]];
+    },
+
+    /**
+     * 헤더 배열에서 정확한 이름 우선으로 열 키를 찾습니다.
+     * @param {Array<string>} headers
+     * @param {Array<string>} exactNames
+     * @param {RegExp} [fallbackRegex]
+     * @returns {string|undefined}
+     */
+    findHeaderByNames(headers, exactNames, fallbackRegex) {
+        const trimmedHeaders = headers.map(header => String(header).trim());
+        for (const exactName of exactNames) {
+            const index = trimmedHeaders.findIndex(header => header === exactName);
+            if (index !== -1) {
+                return headers[index];
+            }
+        }
+        if (fallbackRegex) {
+            return headers.find(header => fallbackRegex.test(String(header).trim()));
+        }
+        return undefined;
+    },
+
+    /**
+     * 상세 장비 Excel 헤더 매핑을 생성합니다.
+     * @param {Array<string>} headers
+     * @returns {Object}
+     */
+    resolveInfoHeaderMapping(headers) {
+        return {
+            facilityCode: this.findHeaderByNames(headers, ["통합시설코드", "시설코드"], /통합시설코드|시설코드|facility.*code/i),
+            markerId: this.findHeaderByNames(headers, ["마커아이디", "marker_id"], /마커.*아이디|마커id|marker.*id/i),
+            projectCode: this.findHeaderByNames(headers, ["프로젝트코드"], /프로젝트코드|프로젝트|project/i),
+            facilityYear: this.findHeaderByNames(headers, ["시설연도", "시설년도"], /시설연도|시설년도|연도|year/i),
+            businessType: this.findHeaderByNames(headers, ["사업구분"], /사업구분|사업|business/i),
+            placeName: this.findHeaderByNames(headers, ["장소이름", "장소 이름", "장소명"], /장소.*이름|장소명/i),
+            finalStationName: this.findHeaderByNames(headers, ["국소명-최종", "국소명_최종"], /국소명.*최종|국소명-최종|국소명_최종/i),
+            eqClass: this.findHeaderByNames(headers, ["장비분류"], /장비분류/i),
+            eqType: this.findHeaderByNames(headers, ["장비타입"], /장비타입|타입/i),
+            installDate: this.findHeaderByNames(headers, ["시설일"], /시설일|설치일|install/i),
+            openDate: this.findHeaderByNames(headers, ["개통일", "가동일"], /개통일|개통|가동일|가동|open/i)
+        };
+    },
+
+    /**
+     * 안내 문구 행인지 판별합니다.
+     * @param {string} facilityCodeValue
+     * @returns {boolean}
+     */
+    isInfoGuideRow(facilityCodeValue) {
+        const code = String(facilityCodeValue || "").trim();
+        if (!code) {
+            return true;
+        }
+        return /^(통합시설코드|시설코드|작성|안내|필수|선택|주의|예시)/i.test(code)
+            || code.includes("작성 안내")
+            || code.includes("yyyy-mm-dd");
     },
 
     /**
@@ -353,9 +638,7 @@ const DataManager = {
                 try {
                     const data = new Uint8Array(event.target.result);
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-                    
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+                    const worksheet = this.resolveInfoExcelSheet(workbook);
                     
                     const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
                     
@@ -364,26 +647,15 @@ const DataManager = {
                     }
                     
                     const headers = Object.keys(rows[0]);
-                    const mapping = {
-                        facilityCode: headers.find(h => /통합시설코드|시설코드|facility.*code/i.test(h)),
-                        projectCode: headers.find(h => /프로젝트코드|프로젝트|project/i.test(h)),
-                        facilityYear: headers.find(h => /시설연도|시설년도|연도|year/i.test(h)),
-                        businessType: headers.find(h => /사업구분|사업|business/i.test(h)),
-                        placeName: headers.find(h => /장소.*이름|장소명|이름|name|place/i.test(h)),
-                        finalStationName: headers.find(h => /국소명.*최종|국소명-최종|국소명_최종/i.test(h)),
-                        eqClass: headers.find(h => /장비분류|분류/i.test(h)),
-                        eqType: headers.find(h => /장비타입|타입/i.test(h)),
-                        installDate: headers.find(h => /시설일|설치일|install/i.test(h)),
-                        openDate: headers.find(h => /개통일|개통|가동일|가동|open/i.test(h))
-                    };
+                    const mapping = this.resolveInfoHeaderMapping(headers);
                     
                     if (!mapping.facilityCode) {
-                        throw new Error("통합시설코드에 해당하는 열(통합시설코드, 시설코드 등)을 찾을 수 없습니다.");
+                        throw new Error("통합시설코드 열을 찾을 수 없습니다. '데이터' 시트와 첫 행 헤더(통합시설코드·마커아이디 등)를 확인하세요.");
                     }
                     
-                    const parsedData = rows.map((row, idx) => {
+                    const parsedData = rows.map((row) => {
                         const facilityCode = String(row[mapping.facilityCode] || '').trim();
-                        if (!facilityCode) return null;
+                        if (this.isInfoGuideRow(facilityCode)) return null;
                         
                         return {
                             facility_code: facilityCode,
@@ -399,7 +671,8 @@ const DataManager = {
                                 : "",
                             open_date: mapping.openDate
                                 ? this.formatDateToYmd(row[mapping.openDate])
-                                : ""
+                                : "",
+                            marker_id: mapping.markerId ? String(row[mapping.markerId]).trim() : ""
                         };
                     }).filter(item => item !== null);
                     
@@ -484,6 +757,7 @@ const DataManager = {
 
         const rows = infoList.map(row => ({
             "통합시설코드": row.facility_code || "",
+            "마커아이디": row.marker_id || "",
             "프로젝트코드": row.project_code || "",
             "시설연도": row.facility_year || "",
             "사업구분": row.business_type || "",

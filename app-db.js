@@ -2,6 +2,211 @@
  * MapMarkerApp Prototype Extension - app-db.js
  */
 Object.assign(MapMarkerApp.prototype, {
+    createSupabaseClient() {
+        if (typeof SUPABASE_CONFIG === 'undefined' || !SUPABASE_CONFIG.URL || SUPABASE_CONFIG.URL === 'YOUR_SUPABASE_PROJECT_URL') {
+            return null;
+        }
+        if (!SUPABASE_CONFIG.ANON_KEY) {
+            console.error('Supabase ANON_KEY가 config.js에 설정되지 않았습니다.');
+            return null;
+        }
+
+        const sdk = typeof supabase !== 'undefined'
+            ? supabase
+            : (typeof window !== 'undefined' ? window.supabase : null);
+
+        if (!sdk || typeof sdk.createClient !== 'function') {
+            console.error('Supabase JS SDK가 로드되지 않았습니다. index.html의 CDN 스크립트를 확인하세요.');
+            return null;
+        }
+
+        try {
+            return sdk.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY, {
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: true
+                }
+            });
+        } catch (e) {
+            console.error('Supabase 초기화 실패:', e);
+            return null;
+        }
+    },
+
+    applyAuthSession(session) {
+        this.currentUser = session?.user ?? null;
+        this.authSession = session ?? null;
+        if (typeof this.updateAuthUI === 'function') {
+            this.updateAuthUI(this.currentUser);
+        }
+    },
+
+    /**
+     * DB 쓰기 전 로그인 JWT 세션을 검증·갱신합니다.
+     * UI에 로그인 표시만 있고 토큰이 없으면 anon 요청이 되어 permission denied 가 발생합니다.
+     * @returns {Promise<Object>} 유효한 세션
+     */
+    async ensureAuthenticatedForDbWrite() {
+        if (!this.supabase) {
+            throw new Error('Supabase가 연결되지 않았습니다. config.js를 확인하세요.');
+        }
+
+        let { data: { session }, error } = await this.supabase.auth.getSession();
+        if (error) {
+            throw new Error(this.translateAuthError(error));
+        }
+
+        if (!session?.access_token) {
+            this.applyAuthSession(null);
+            throw new Error('로그인 세션이 없습니다. 로그아웃 후 다시 로그인해주세요.');
+        }
+
+        const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
+        const shouldRefresh = expiresAtMs > 0 && (expiresAtMs - Date.now()) < 60_000;
+
+        if (shouldRefresh) {
+            const { data: refreshed, error: refreshError } = await this.supabase.auth.refreshSession();
+            if (refreshError || !refreshed?.session?.access_token) {
+                this.applyAuthSession(null);
+                throw new Error('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+            }
+            session = refreshed.session;
+        }
+
+        this.applyAuthSession(session);
+        return session;
+    },
+
+    setupSupabaseAuth() {
+        if (!this.supabase) return;
+
+        this.supabase.auth.onAuthStateChange((event, session) => {
+            this.applyAuthSession(session);
+
+            if (event === 'SIGNED_IN' && session?.user) {
+                const hash = window.location.hash || '';
+                if (hash.includes('access_token') || hash.includes('type=signup') || hash.includes('type=recovery')) {
+                    this.showToast('이메일 인증이 완료되었습니다. 로그인되었습니다.');
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                }
+            }
+        });
+
+        this.supabase.auth.getSession()
+            .then(({ data: { session } }) => this.applyAuthSession(session))
+            .catch((e) => console.error('인증 세션 조회 오류:', e));
+    },
+
+    getAuthRedirectUrl() {
+        if (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.AUTH_REDIRECT_URL) {
+            return SUPABASE_CONFIG.AUTH_REDIRECT_URL;
+        }
+        return window.location.origin;
+    },
+
+    translateAuthError(error) {
+        if (!error) return '인증 처리에 실패했습니다.';
+        const message = (error.message || '').toLowerCase();
+
+        if (message.includes('invalid login credentials')) {
+            return '이메일 또는 비밀번호가 올바르지 않습니다.';
+        }
+        if (message.includes('user already registered')) {
+            return '이미 등록된 이메일입니다. 로그인 탭을 이용해주세요.';
+        }
+        if (message.includes('password should be at least')) {
+            return '비밀번호는 6자 이상이어야 합니다.';
+        }
+        if (message.includes('unable to validate email address') || message.includes('invalid email')) {
+            return '유효한 이메일 주소를 입력해주세요.';
+        }
+        if (message.includes('email not confirmed')) {
+            return '이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.';
+        }
+        if (message.includes('signup is disabled')) {
+            return '회원가입이 비활성화되어 있습니다. 관리자에게 문의해주세요.';
+        }
+        if (message.includes('over_email_send_rate_limit') || message.includes('rate limit')) {
+            return '이메일 발송 한도를 초과했습니다. 잠시 후 다시 시도하거나 Supabase 대시보드에서 이메일 인증 설정을 확인해주세요.';
+        }
+        if (message.includes('invalid jwt') || message.includes('invalid api key')) {
+            return 'Supabase API 키가 올바르지 않습니다. config.js의 ANON_KEY를 대시보드 API 키와 일치시켜 주세요.';
+        }
+
+        return error.message || '인증 처리에 실패했습니다.';
+    },
+
+    async handleLogin(email, password) {
+        if (!this.supabase) {
+            return { error: new Error('Supabase가 연결되지 않았습니다. config.js를 확인해주세요.') };
+        }
+        try {
+            const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                return { error: new Error(this.translateAuthError(error)) };
+            }
+            if (data?.session) {
+                this.applyAuthSession(data.session);
+            }
+            return { data, error: null };
+        } catch (e) {
+            return { error: new Error(this.translateAuthError(e)) };
+        }
+    },
+
+    async handleSignUp(email, password) {
+        if (!this.supabase) {
+            return { error: new Error('Supabase가 연결되지 않았습니다. config.js를 확인해주세요.') };
+        }
+        try {
+            const { data, error } = await this.supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    emailRedirectTo: this.getAuthRedirectUrl()
+                }
+            });
+            if (error) {
+                return { error: new Error(this.translateAuthError(error)) };
+            }
+
+            // 이미 가입된 이메일이면 Supabase가 error 없이 identities=[] 로 응답하는 경우가 있음
+            if (!data?.user) {
+                return {
+                    error: new Error('회원가입에 실패했습니다. 이미 등록된 이메일이거나 입력 정보를 확인해주세요.')
+                };
+            }
+            if (!data.user.identities || data.user.identities.length === 0) {
+                return {
+                    error: new Error('이미 등록된 이메일입니다. 로그인 탭을 이용해주세요.')
+                };
+            }
+
+            if (data.session) {
+                this.applyAuthSession(data.session);
+            }
+
+            const needsEmailConfirmation = !data.session;
+            return { data, error: null, needsEmailConfirmation };
+        } catch (e) {
+            return { error: new Error(this.translateAuthError(e)) };
+        }
+    },
+
+    async handleLogout() {
+        if (!this.supabase) return;
+        try {
+            const { error } = await this.supabase.auth.signOut();
+            if (error) throw error;
+            this.applyAuthSession(null);
+            this.showToast('로그아웃되었습니다.');
+        } catch (e) {
+            console.error("로그아웃 오류:", e);
+            this.showToast('로그아웃에 실패했습니다.', 5000);
+        }
+    },
+
     loadFromLocalStorage() {
         const saved = localStorage.getItem('saved_markers');
         if (saved) {
@@ -25,15 +230,160 @@ Object.assign(MapMarkerApp.prototype, {
         this.markersData = this.currentMode === 'equipment' ? this.eqMarkersData : this.batteryMarkersData;
     },
 
+    async loadFromSupabase() {
+        if (!this.supabase) return false;
+
+        try {
+            const { data: markersList, error: markersError } = await this.supabase
+                .from('markers')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (markersError) throw markersError;
+
+            const { data: infoList, error: infoError } = await this.supabase
+                .from('information')
+                .select('*');
+
+            if (infoError) throw infoError;
+
+            const infoMap = new Map();
+            const infoByMarkerId = new Map();
+            if (infoList) {
+                infoList.forEach(info => {
+                    if (info.marker_id) {
+                        if (!infoByMarkerId.has(info.marker_id)) {
+                            infoByMarkerId.set(info.marker_id, []);
+                        }
+                        infoByMarkerId.get(info.marker_id).push(info);
+                    }
+
+                    const name = info.place_name ? info.place_name.trim() : "";
+                    if (name) {
+                        if (!infoMap.has(name)) {
+                            infoMap.set(name, []);
+                        }
+                        infoMap.get(name).push(info);
+                    }
+                });
+            }
+
+            this.eqMarkersData = (markersList || []).map(row => {
+                const markerName = row.name ? row.name.trim() : "";
+                const infos = infoByMarkerId.get(row.id) || infoMap.get(markerName) || [];
+                const repInfo = infos[0] || null;
+
+                return {
+                    id: row.id,
+                    name: row.name,
+                    lat: row.lat,
+                    lng: row.lng,
+                    memo: row.memo || "",
+                    tags: row.tags || [],
+                    color: row.color || DEFAULT_MARKER_COLOR,
+                    facilityTeam: row.facility_team || '',
+                    roadAddress: row.road_address || "",
+                    jibunAddress: row.jibun_address || "",
+                    facilityCode: row.facility_code || (repInfo ? repInfo.facility_code || "" : ""),
+                    projectCode: repInfo ? repInfo.project_code || "" : "",
+                    facilityYear: repInfo ? repInfo.facility_year || "" : "",
+                    businessType: repInfo ? repInfo.business_type || "" : "",
+                    finalStationName: repInfo ? repInfo.final_station_name || "" : "",
+                    eqClass: repInfo ? repInfo.eq_class || "" : "",
+                    eqType: repInfo ? repInfo.eq_type || "" : "",
+                    installDate: repInfo ? repInfo.install_date || "" : "",
+                    openDate: repInfo ? repInfo.open_date || "" : "",
+                    createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+                };
+            });
+
+            const { data: bMarkersList, error: bMarkersError } = await this.supabase
+                .from('battery_markers')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (bMarkersError) throw bMarkersError;
+
+            const { data: bSpecsList, error: bSpecsError } = await this.supabase
+                .from('battery_specs')
+                .select('*');
+
+            if (bSpecsError) throw bSpecsError;
+
+            const specsMap = new Map();
+            if (bSpecsList) {
+                bSpecsList.forEach(spec => {
+                    const markerId = spec.marker_id;
+                    if (markerId) {
+                        if (!specsMap.has(markerId)) {
+                            specsMap.set(markerId, []);
+                        }
+                        specsMap.get(markerId).push(spec);
+                    }
+                });
+            }
+
+            this.batteryMarkersData = (bMarkersList || []).map(row => {
+                const specs = specsMap.get(row.id) || [];
+                const repSpec = specs[0] || null;
+                return {
+                    id: row.id,
+                    name: row.name,
+                    lat: row.lat,
+                    lng: row.lng,
+                    address: row.address || "",
+                    memo: row.memo || "",
+                    tags: row.tags || [],
+                    color: row.color || DEFAULT_MARKER_COLOR,
+                    facilityTeam: row.facility_team || '',
+                    createdAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                    items: specs.map(s => ({
+                        id: s.id,
+                        erpName: s.erp_name || "",
+                        address: row.address || "",
+                        capacity: s.capacity || 600,
+                        quantity: s.quantity || 12,
+                        stationName: s.station_name || "",
+                        createdAt: s.created_at ? s.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+                    })),
+                    capacity: repSpec ? repSpec.capacity : 600,
+                    quantity: repSpec ? repSpec.quantity : 12,
+                    stationName: repSpec ? repSpec.station_name : (row.name || "")
+                };
+            });
+
+            this.markersData = this.currentMode === 'equipment' ? this.eqMarkersData : this.batteryMarkersData;
+
+            this.initFilters(false);
+            this.updateBatteryBulkDeleteButtonVisibility();
+            this.updateFacilityTeamVisibility();
+            this.updateFilterSectionVisibility();
+            if (this.map) {
+                this.renderMarkersOnMap();
+            }
+            this.renderMarkersList();
+            return true;
+        } catch (e) {
+            console.error("Supabase 데이터 로드 실패, 로컬 캐시를 유지합니다:", e);
+            return false;
+        }
+    },
+
     async fetchAndBindDetailedInfo(markerName, facilityCode) {
         if (!this.supabase) return;
         
         try {
-            // 장소명(place_name)에 마커 이름이 포함되어 있는 모든 장비 레코드 로드 (ILIKE 검색)
-            const { data, error } = await this.supabase
+            let query = this.supabase
                 .from('information')
-                .select('*')
-                .ilike('place_name', `%${markerName}%`);
+                .select('*');
+
+            if (this.currentEditingId) {
+                query = query.eq('marker_id', this.currentEditingId);
+            } else {
+                query = query.ilike('place_name', `%${markerName}%`);
+            }
+
+            const { data, error } = await query;
             
             if (error) throw error;
             
@@ -94,6 +444,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async saveMarkerTagsOnly() {
+        if (!this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (!this.currentEditingId) return;
 
         const tagsRaw = this.markerTagsInput.value.trim();
@@ -132,6 +487,35 @@ Object.assign(MapMarkerApp.prototype, {
     async handleSaveMarker() {
         if (this.isSavingMarker) return;
         this.isSavingMarker = true;
+        // 로그인 인증 체크 (임시 등록이 아닐 시 권한 검증)
+        const isEditing = !!this.currentEditingId;
+        let requiresAuth = false;
+        
+        if (isEditing) {
+            const index = this.markersData.findIndex(m => m.id === this.currentEditingId);
+            if (index !== -1) {
+                const markerItem = this.markersData[index];
+                if (!markerItem.isTemp && !markerItem.isPending) {
+                    requiresAuth = true;
+                }
+            }
+        } else {
+            const isTemp = this.markerIsTemp && this.markerIsTemp.checked;
+            if (!isTemp) {
+                requiresAuth = true;
+            }
+        }
+
+        if (requiresAuth && !this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 DB 저장이 가능합니다.');
+            if (this.saveMarkerBtn) {
+                this.saveMarkerBtn.disabled = false;
+                this.saveMarkerBtn.textContent = '저장';
+            }
+            this.isSavingMarker = false;
+            return;
+        }
+
 
         if (this.saveMarkerBtn) {
             this.saveMarkerBtn.disabled = true;
@@ -160,6 +544,11 @@ Object.assign(MapMarkerApp.prototype, {
             const tags = tagsRaw 
                 ? tagsRaw.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
                 : [];
+
+            let equipmentMarkerId = this.currentEditingId;
+            if (this.currentMode === 'equipment' && !equipmentMarkerId) {
+                equipmentMarkerId = 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
 
             // 상세 정보 테이블에서 여러 개의 행 데이터 수집 시도 (장비 모드용)
             const tbody = document.getElementById('detailed-info-table-body');
@@ -195,6 +584,7 @@ Object.assign(MapMarkerApp.prototype, {
                         const fCode = rowData.facility_code || tr.getAttribute('data-facility-code') || "";
                         if (fCode) {
                             infoListToUpsert.push({
+                                marker_id: equipmentMarkerId,
                                 facility_code: fCode,
                                 place_name: name, // 마커 이름으로 장소명 동기화
                                 facility_year: rowData.facility_year || "",
@@ -212,6 +602,7 @@ Object.assign(MapMarkerApp.prototype, {
                     // 폼 모드이거나 테이블 행이 없는 경우: 폼에 작성된 단일 건 수집
                     if (facilityCode) {
                         infoListToUpsert.push({
+                            marker_id: equipmentMarkerId,
                             facility_code: facilityCode,
                             place_name: name,
                             facility_year: facilityYear,
@@ -438,7 +829,7 @@ Object.assign(MapMarkerApp.prototype, {
                     const teamSave = this.buildSaveTeamFields(isTemp);
                     
                     const newMarker = {
-                        id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                        id: equipmentMarkerId,
                         name,
                         lat, // 정밀한 Float 값 보존
                         lng, // 정밀한 Float 값 보존
@@ -599,6 +990,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async handleDeleteMarker(id) {
+        if (!this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.isDeletingMarker) return;
         if (!confirm('이 마커를 삭제하시겠습니까?')) return;
         
@@ -725,6 +1121,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async saveMarkerPosition(id) {
+        if (!this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.isSavingPosition) return;
         this.isSavingPosition = true;
 
@@ -802,6 +1203,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async saveMarkerFacilityTeam(markerId, teamId, selectEl = null) {
+        if (!this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.currentMode !== 'battery') return;
         if (this.isSavingFacilityTeam) return;
 
@@ -873,6 +1279,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async handleUploadSinglePending(id, isTemp = false) {
+        if (!isTemp && !this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.isUploadingSingle) return;
         this.isUploadingSingle = true;
 
@@ -942,6 +1353,7 @@ Object.assign(MapMarkerApp.prototype, {
                             const { error: infoErr } = await this.supabase
                                 .from('information')
                                 .upsert({
+                                    marker_id: marker.id,
                                     facility_code: marker.facilityCode,
                                     place_name: marker.name,
                                     facility_year: marker.facilityYear || "",
@@ -1024,6 +1436,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async handleUploadPending(isTemp = false) {
+        if (!isTemp && !this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.isUploadingPending) return;
         this.isUploadingPending = true;
 
@@ -1121,6 +1538,7 @@ Object.assign(MapMarkerApp.prototype, {
                     const bulkInfo = pendingMarkers
                         .filter(m => m.facilityCode)
                         .map(m => ({
+                            marker_id: m.id,
                             facility_code: m.facilityCode,
                             place_name: m.name,
                             facility_year: m.facilityYear || "",
@@ -1175,6 +1593,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async handleSendInfoToSupabase() {
+        if (!this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.isSendingInfo) return;
         this.isSendingInfo = true;
 
@@ -1197,18 +1620,36 @@ Object.assign(MapMarkerApp.prototype, {
         }
 
         try {
-            const normalizedData = this.pendingInfoData.map(row => DataManager.normalizeInfoRecord(row));
-            const { error } = await this.supabase
-                .from('information')
-                .upsert(normalizedData, { onConflict: 'facility_code' });
+            await this.ensureAuthenticatedForDbWrite();
 
-            if (error) throw error;
+            let markersList = this.eqMarkersData || [];
+            const { data: markersData, error: markersError } = await this.supabase
+                .from('markers')
+                .select('id, name, facility_code');
+            if (markersError) throw markersError;
+            if (markersData && markersData.length > 0) {
+                markersList = markersData;
+            }
+
+            const result = await DataManager.upsertInformationToSupabase(
+                this.supabase,
+                this.pendingInfoData,
+                markersList
+            );
 
             const count = this.pendingInfoData.length;
             this.closeInfoConfirmModal();
-            this.showToast(`상세 장비 정보 ${count}건이 Supabase에 성공적으로 전송되었습니다.`, 5000);
+
+            let successMessage = `상세 장비 정보 ${count}건이 Supabase에 성공적으로 전송되었습니다.`;
+            if (result.unlinkedCount > 0) {
+                successMessage += ` (marker_id 미연결 ${result.unlinkedCount}건)`;
+            }
+            if (result.warning) {
+                successMessage += ` ${result.warning}`;
+            }
+            this.showToast(successMessage, (result.unlinkedCount > 0 || result.warning) ? 7000 : 5000);
         } catch (e) {
-            this.showToast('Supabase 전송 실패: ' + e.message, 5000);
+            this.showToast('Supabase 전송 실패: ' + e.message, 7000);
         } finally {
             this.isSendingInfo = false;
             if (this.sendInfoConfirmBtn) {
@@ -1219,6 +1660,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async handleDeleteAllBatteryMarkers() {
+        if (!this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.currentMode !== 'battery') return;
         if (this.isDeletingAllBatteryMarkers) return;
 
@@ -1310,6 +1756,11 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async handleSaveBatteryExcel(isTemp = false) {
+        if (!isTemp && !this.currentUser) {
+            this.showToast('관리자 권한이 없습니다. 로그인 후 사용해주세요.');
+            return;
+        }
+
         if (this.isSavingBatteryExcel) return;
         this.isSavingBatteryExcel = true;
 

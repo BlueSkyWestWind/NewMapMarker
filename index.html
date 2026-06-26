@@ -20,9 +20,23 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <header class="sidebar-header">
-                <div class="logo">
-                    <i class="fa-solid fa-map-location-dot logo-icon" id="app-logo-icon"></i>
-                    <h1 id="app-logo-text">MapMarker <span>Pro</span></h1>
+                <div class="logo" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <i class="fa-solid fa-map-location-dot logo-icon" id="app-logo-icon"></i>
+                        <h1 id="app-logo-text" style="font-size: 22px; font-weight: 700; margin: 0;">MapMarker <span style="background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Pro</span></h1>
+                    </div>
+                    <!-- 인증 제어 영역 -->
+                    <div id="auth-header-area" style="display: flex; align-items: center; gap: 8px;">
+                        <button id="auth-modal-btn" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px; height: 26px; border-radius: 6px; display: flex; align-items: center; gap: 4px; background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.4); color: #c7d2fe; border: 1px solid; cursor: pointer;">
+                            <i class="fa-solid fa-right-to-bracket"></i> 로그인 / 가입
+                        </button>
+                        <div id="auth-user-info" class="hidden" style="align-items: center; gap: 6px;">
+                            <span id="auth-user-email" style="font-size: 11px; color: var(--text-secondary); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title=""></span>
+                            <button id="btn-logout" class="btn-icon" style="color: var(--danger); font-size: 12px; padding: 4px; border-radius: 4px; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="로그아웃">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <!-- 모드 선택 탭 -->
                 <div class="mode-selector" style="margin-top: 15px; display: flex; background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 4px; border: 1px solid var(--border-color);">
@@ -35,8 +49,8 @@
                 </div>
             </header>
             
-            <!-- Excel Import Section (장비 모드용) -->
-            <section class="section excel-section" id="eq-excel-section">
+            <!-- Excel Import Section (장비 모드용, 로그인 시 표시) -->
+            <section class="section excel-section hidden" id="eq-excel-section">
                 <div class="accordion-header" id="excel-accordion-toggle">
                     <div class="title-left">
                         <i class="fa-solid fa-file-excel icon" style="color: #10b981;"></i>
@@ -47,6 +61,9 @@
                 <div class="accordion-content hidden" id="excel-accordion-content">
                     <div class="section-content" style="padding-top: 10px;">
                         <p class="api-help-text">위도/경도 또는 주소가 포함된 Excel/CSV 파일 업로드</p>
+                        <a href="templates/장비_엑셀위치찍기_양식.xlsx" download class="api-help-text" style="display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; color: #34d399; text-decoration: none; font-size: 11px;">
+                            <i class="fa-solid fa-download"></i> 엑셀 양식 다운로드
+                        </a>
                         <div class="import-wrapper" style="margin-top: 8px;">
                             <label for="import-excel-file" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); width: 100%;">
                                 <i class="fa-solid fa-file-arrow-up"></i> Excel/CSV 파일 업로드
@@ -76,8 +93,8 @@
                 </div>
             </section>
 
-            <!-- 상세 장비 정보 업로드 Section (장비 모드용) -->
-            <section class="section info-upload-section" id="eq-info-upload-section">
+            <!-- 상세 장비 정보 업로드 Section (장비 모드용, 로그인 시 표시) -->
+            <section class="section info-upload-section hidden" id="eq-info-upload-section">
                 <div class="accordion-header" id="info-accordion-toggle">
                     <div class="title-left">
                         <i class="fa-solid fa-server icon" style="color: #8b5cf6;"></i>
@@ -88,6 +105,9 @@
                 <div class="accordion-content hidden" id="info-accordion-content">
                     <div class="section-content" style="padding-top: 10px;">
                         <p class="api-help-text">통합시설코드가 포함된 Excel/CSV 파일 업로드</p>
+                        <a href="templates/상세장비정보_업로드_양식.xlsx" download class="api-help-text" style="display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; color: #a78bfa; text-decoration: none; font-size: 11px;">
+                            <i class="fa-solid fa-download"></i> 엑셀 양식 다운로드
+                        </a>
                         <div class="import-wrapper" style="margin-top: 8px;">
                             <label for="import-info-file" class="btn btn-primary flex-btn" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2); width: 100%;">
                                 <i class="fa-solid fa-file-arrow-up"></i> 상세장비 Excel 업로드
@@ -309,7 +329,7 @@
             </section>
 
             <!-- Data Operations (Accordion) -->
-            <footer class="sidebar-footer" style="padding: 0; display: flex; flex-direction: column;">
+            <footer id="sidebar-footer" class="sidebar-footer hidden" style="padding: 0; display: flex; flex-direction: column;">
                 <div class="accordion-header" id="backup-accordion-toggle" style="padding: 16px 24px; border-top: 1px solid var(--border-color); cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
                     <div class="title-left" style="display: flex; align-items: center; gap: 10px;">
                         <i class="fa-solid fa-database icon" style="color: #10b981; font-size: 16px;"></i>
@@ -757,19 +777,58 @@
             </div>
         </div>
     </div>
+    
+    <!-- Auth Modal (Login/Signup) -->
+    <div id="auth-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 400px; padding: 24px; border: 1px solid var(--border-color); background: rgba(30, 41, 59, 0.95); backdrop-filter: var(--glass-blur); border-radius: 12px; box-shadow: var(--card-shadow); width: 90%;">
+            <header class="modal-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="auth-modal-title" style="margin: 0; font-size: 16px; font-weight: 600;">관리자 로그인</h3>
+                <button id="close-auth-modal-btn" class="btn-icon" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 16px;"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="auth-tabs" style="display: flex; background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 4px; border: 1px solid var(--border-color); margin-bottom: 20px;">
+                <button id="auth-tab-login" class="mode-btn active" style="flex: 1; border: none; padding: 8px; border-radius: 6px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.3s;">로그인</button>
+                <button id="auth-tab-signup" class="mode-btn" style="flex: 1; border: none; padding: 8px; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.3s;">회원가입</button>
+            </div>
+            <form id="auth-form" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                    <label for="auth-email" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">이메일 주소 <span style="color: var(--danger);">*</span></label>
+                    <input type="email" id="auth-email" required placeholder="example@domain.com" style="width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 13px; outline: none;">
+                </div>
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                    <label for="auth-password" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">비밀번호 <span style="color: var(--danger);">*</span></label>
+                    <input type="password" id="auth-password" required placeholder="6자리 이상 비밀번호" style="width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 13px; outline: none;">
+                </div>
+                <div id="auth-password-confirm-group" class="hidden" style="display: none; flex-direction: column; gap: 6px;">
+                    <label for="auth-password-confirm" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">비밀번호 확인 <span style="color: var(--danger);">*</span></label>
+                    <input type="password" id="auth-password-confirm" placeholder="비밀번호를 다시 입력" style="width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 13px; outline: none;">
+                </div>
+                <div id="auth-success-msg" class="hidden" style="color: #34d399; font-size: 11px; display: flex; align-items: flex-start; gap: 6px; padding: 8px; border-radius: 6px; border: 1px solid rgba(52, 211, 153, 0.2); background: rgba(52, 211, 153, 0.05);">
+                    <i class="fa-solid fa-circle-check" style="margin-top: 2px;"></i>
+                    <span id="auth-success-text">회원가입이 완료되었습니다.</span>
+                </div>
+                <div id="auth-error-msg" class="hidden" style="color: var(--danger); font-size: 11px; display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 6px; border: 1px solid rgba(244, 63, 94, 0.2); background: rgba(244, 63, 94, 0.05);">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span id="auth-error-text">에러 메시지</span>
+                </div>
+                <button type="submit" id="auth-submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 12px; font-weight: 600; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 8px; color: #fff; cursor: pointer; border: none; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); margin-top: 10px;">
+                    로그인
+                </button>
+            </form>
+        </div>
+    </div>
 
     <!-- Kakao Map SDK -->
     <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=223e7ae08e4de052f9b928968c485d27&libraries=services,clusterer&autoload=false"></script>
-    <!-- Supabase SDK & Config -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Supabase SDK & Config (최신 버전 고정 — publishable API 키 호환) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.8/dist/umd/supabase.js"></script>
     <script src="config.js"></script>
     <!-- Custom scripts -->
-    <script src="data-manager.js"></script>
-    <script src="app.js?v=20260625"></script>
-    <script src="app-db.js?v=20260625"></script>
-    <script src="app-map.js?v=20260625"></script>
-    <script src="app-ui.js?v=20260625"></script>
-    <script src="app-excel.js?v=20260625"></script>
-    <script src="app-roadview.js?v=20260625"></script>
+    <script src="data-manager.js?v=20260626i"></script>
+    <script src="app.js?v=20260626d"></script>
+    <script src="app-db.js?v=20260626i"></script>
+    <script src="app-map.js?v=20260626e"></script>
+    <script src="app-ui.js?v=20260626j"></script>
+    <script src="app-excel.js?v=20260626j"></script>
+    <script src="app-roadview.js?v=20260626c"></script>
 </body>
 </html>
