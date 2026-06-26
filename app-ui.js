@@ -1233,6 +1233,12 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     openAddMarkerModal(lat, lng, defaultName = '') {
+        if (!this.canEditData()) {
+            this.showToast('마커 등록은 로그인 후 이용할 수 있습니다.');
+            this.clearTempMarker();
+            return;
+        }
+
         this.currentEditingId = null;
         this.isDetailViewMode = false;
         this.modalTitle.textContent = '위치 마커 등록';
@@ -1392,12 +1398,17 @@ Object.assign(MapMarkerApp.prototype, {
         }
         this.updateFacilityTeamVisibility();
  
-        // 폼 잠금 및 버튼 숨김 설정
+        // 폼 잠금 및 버튼 설정 (비로그인: 조회 전용, 태그·저장 불가)
         this.isDetailViewMode = true;
         this.toggleModalReadOnly(true);
-        this.setModalFieldEditable(this.markerTagsInput, true);
-        this.saveMarkerBtn.classList.remove('hidden');
-        this.saveMarkerBtn.textContent = '태그 저장';
+        const canEdit = this.canEditData();
+        this.setModalFieldEditable(this.markerTagsInput, canEdit);
+        if (canEdit) {
+            this.saveMarkerBtn.classList.remove('hidden');
+            this.saveMarkerBtn.textContent = '태그 저장';
+        } else {
+            this.saveMarkerBtn.classList.add('hidden');
+        }
         this.deleteMarkerModalBtn.classList.add('hidden');
         this.cancelModalBtn.textContent = '닫기';
 
@@ -1494,7 +1505,7 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     openEditMarkerModal(id) {
-        if (!this.currentUser) {
+        if (!this.canEditData()) {
             this.showToast('편집은 로그인 후 이용할 수 있습니다.');
             return;
         }
@@ -1887,7 +1898,7 @@ Object.assign(MapMarkerApp.prototype, {
                         ${marker.isTemp ? `<span style="color: #ef4444; font-size: 10px; margin-right: 4px; border: 1px solid #ef4444; padding: 1px 3px; border-radius: 3px; font-weight: bold; background: rgba(239, 68, 68, 0.05);">임시</span>` : ''}
                         ${marker.name}
                     </h3>
-                    ${marker.isPending ? `
+                    ${marker.isPending && this.canEditData() ? `
                         <div class="pending-item-actions" style="display: flex; gap: 4px; flex-shrink: 0;">
                             <button class="btn-send-single" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">
                                 등록
@@ -2160,7 +2171,9 @@ Object.assign(MapMarkerApp.prototype, {
                 });
                 
                 actions.appendChild(roadviewBtn);
-                actions.appendChild(addBtn);
+                if (this.canEditData()) {
+                    actions.appendChild(addBtn);
+                }
                 tempContent.appendChild(actions);
 
                 this.tempOverlay = new kakao.maps.CustomOverlay({
@@ -2549,6 +2562,13 @@ Object.assign(MapMarkerApp.prototype, {
             if (this.backupAccordionContent) {
                 this.backupAccordionContent.classList.add('hidden');
             }
+            if (this.markerModal && !this.markerModal.classList.contains('hidden')) {
+                this.closeModal();
+            }
+            if (typeof this.closeInfoConfirmModal === 'function') {
+                this.closeInfoConfirmModal();
+            }
+            this.clearTempMarker();
         }
 
         this.updateExcelUploadSectionsVisibility();

@@ -34,6 +34,10 @@ Object.assign(MapMarkerApp.prototype, {
         }
     },
 
+    canEditData() {
+        return !!this.currentUser;
+    },
+
     applyAuthSession(session) {
         this.currentUser = session?.user ?? null;
         this.authSession = session ?? null;
@@ -1048,6 +1052,10 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     async handleMarkerDragEnd(id, newPosition) {
+        if (!this.currentUser) {
+            return;
+        }
+
         if (this.currentMovingMarkerId === id) {
             this.moveMarkerTemporarily(id, newPosition);
             return;

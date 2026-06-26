@@ -228,12 +228,13 @@ Object.assign(MapMarkerApp.prototype, {
 
             const isMovingThis = this.currentMovingMarkerId === data.id;
             const isPendingThis = data.isPending;
+            const canDrag = this.currentUser && (isMovingThis || isPendingThis);
             const marker = new kakao.maps.Marker({
                 position: position,
                 title: data.name,
                 image: markerImage,
-                draggable: isMovingThis || isPendingThis, // 현재 위치 수정 중인 마커 및 대기 마커 드래그 가능
-                zIndex: (isMovingThis || isPendingThis) ? 100 : 3 // 위치 수정 중 또는 대기 중일 때는 높은 zIndex 부여
+                draggable: canDrag,
+                zIndex: canDrag ? 100 : 3
             });
             
             this.mapMarkers.set(data.id, marker);
@@ -266,7 +267,7 @@ Object.assign(MapMarkerApp.prototype, {
             kakao.maps.event.addListener(marker, 'click', clickHandler);
 
             // 마커 드래그 완료 시 좌표 갱신 및 DB/메모리 동기화 처리
-            if (isMovingThis || isPendingThis) {
+            if (canDrag) {
                 const dragstartHandler = () => {
                     this.map.setDraggable(false); // 드래그 시작 시 지도 이동 차단
                 };
@@ -348,7 +349,7 @@ Object.assign(MapMarkerApp.prototype, {
     },
 
     enterMarkerPositionChangeMode(id) {
-        if (!this.currentUser) {
+        if (!this.canEditData()) {
             this.showToast('위치 변경은 로그인 후 이용할 수 있습니다.');
             return;
         }
@@ -586,7 +587,7 @@ Object.assign(MapMarkerApp.prototype, {
         }
 
         // 축전지 모드: 위치 변경 중이 아닐 때 시설팀 선택 (로그인 시에만 변경 가능)
-        if (this.currentMode === 'battery' && this.currentMovingMarkerId !== data.id && this.currentUser) {
+        if (this.currentMode === 'battery' && this.currentMovingMarkerId !== data.id && this.canEditData()) {
             const teamSection = document.createElement('div');
             teamSection.className = 'overlay-team-section';
 
@@ -640,7 +641,7 @@ Object.assign(MapMarkerApp.prototype, {
         const actions = document.createElement('div');
         actions.className = 'overlay-actions';
         
-        if (this.currentMovingMarkerId === data.id && this.currentUser) {
+        if (this.currentMovingMarkerId === data.id && this.canEditData()) {
             const saveBtn = document.createElement('button');
             saveBtn.className = 'overlay-btn overlay-btn-save';
             saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
@@ -665,7 +666,7 @@ Object.assign(MapMarkerApp.prototype, {
             actions.appendChild(saveBtn);
             actions.appendChild(cancelBtn);
         } else {
-            const isLoggedIn = !!this.currentUser;
+            const isLoggedIn = this.canEditData();
 
             // 조회: 로드뷰·상세 (비로그인 포함) / 편집·위치변경은 로그인 시에만
             const roadviewBtn = document.createElement('button');

@@ -270,7 +270,7 @@ Object.assign(MapMarkerApp.prototype, {
         const file = event.target.files[0];
         if (!file) return;
 
-        if (!this.currentUser) {
+        if (!this.canEditData()) {
             this.showToast('엑셀 위치 업로드는 로그인 후 사용할 수 있습니다.', 5000);
             if (this.importExcelFile) this.importExcelFile.value = '';
             return;
@@ -446,7 +446,7 @@ Object.assign(MapMarkerApp.prototype, {
         const file = event.target.files[0];
         if (!file) return;
 
-        if (!this.currentUser) {
+        if (!this.canEditData()) {
             this.showToast('상세 장비 업로드는 로그인 후 사용할 수 있습니다.', 5000);
             if (this.importInfoFile) this.importInfoFile.value = '';
             return;
@@ -727,7 +727,7 @@ Object.assign(MapMarkerApp.prototype, {
         const file = event.target.files[0];
         if (!file) return;
 
-        if (!this.currentUser) {
+        if (!this.canEditData()) {
             this.showToast('축전지 엑셀 업로드는 로그인 후 사용할 수 있습니다.', 5000);
             if (this.importExcelFileBattery) this.importExcelFileBattery.value = '';
             return;
