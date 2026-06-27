@@ -26,27 +26,42 @@ export function markerPassesFilters(
   }
 
   const color = getEffectiveMarkerColor(marker, mode).toLowerCase().trim();
-  if (!filters.selectedColors.has(color)) {
+  if (
+    filters.selectedColors.size > 0 &&
+    !filters.selectedColors.has(color)
+  ) {
     return false;
   }
 
-  const hasMatchingTag =
-    marker.tags.length > 0
-      ? marker.tags.some((tag) => filters.selectedTags.has(tag.trim()))
-      : filters.selectedTags.has(UNSPECIFIED_FILTER_LABEL);
+  if (filters.selectedTags.size > 0) {
+    const hasMatchingTag =
+      marker.tags.length > 0
+        ? marker.tags.some((tag) => filters.selectedTags.has(tag.trim()))
+        : filters.selectedTags.has(UNSPECIFIED_FILTER_LABEL);
 
-  if (!hasMatchingTag) {
-    return false;
+    if (!hasMatchingTag) {
+      return false;
+    }
   }
 
   if (mode === 'equipment') {
     const equipment = marker as EquipmentMarker;
     const year = normalizeFilterValue(equipment.facilityYear);
     const business = normalizeFilterValue(equipment.businessType);
-    return (
-      filters.selectedYears.has(year) &&
-      filters.selectedBusinesses.has(business)
-    );
+
+    if (
+      filters.selectedYears.size > 0 &&
+      !filters.selectedYears.has(year)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.selectedBusinesses.size > 0 &&
+      !filters.selectedBusinesses.has(business)
+    ) {
+      return false;
+    }
   }
 
   return true;
@@ -199,30 +214,43 @@ export function getMarkerVisibilityStats(
 
   registered.forEach((marker) => {
     const color = getEffectiveMarkerColor(marker, mode).toLowerCase().trim();
-    if (!filters.selectedColors.has(color)) {
+    if (
+      filters.selectedColors.size > 0 &&
+      !filters.selectedColors.has(color)
+    ) {
       excludedByColor++;
       return;
     }
 
-    const hasMatchingTag =
-      marker.tags.length > 0
-        ? marker.tags.some((tag) => filters.selectedTags.has(tag.trim()))
-        : filters.selectedTags.has(UNSPECIFIED_FILTER_LABEL);
+    if (filters.selectedTags.size > 0) {
+      const hasMatchingTag =
+        marker.tags.length > 0
+          ? marker.tags.some((tag) => filters.selectedTags.has(tag.trim()))
+          : filters.selectedTags.has(UNSPECIFIED_FILTER_LABEL);
 
-    if (!hasMatchingTag) {
-      excludedByTag++;
-      return;
+      if (!hasMatchingTag) {
+        excludedByTag++;
+        return;
+      }
     }
 
     if (mode === 'equipment') {
       const equipment = marker as EquipmentMarker;
       const year = normalizeFilterValue(equipment.facilityYear);
       const business = normalizeFilterValue(equipment.businessType);
-      if (!filters.selectedYears.has(year)) {
+
+      if (
+        filters.selectedYears.size > 0 &&
+        !filters.selectedYears.has(year)
+      ) {
         excludedByYear++;
         return;
       }
-      if (!filters.selectedBusinesses.has(business)) {
+
+      if (
+        filters.selectedBusinesses.size > 0 &&
+        !filters.selectedBusinesses.has(business)
+      ) {
         excludedByBusiness++;
         return;
       }

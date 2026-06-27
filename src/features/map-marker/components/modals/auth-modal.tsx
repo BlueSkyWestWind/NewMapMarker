@@ -26,7 +26,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSignIn = async () => {
-    if (!supabase) return;
+    if (!supabase) {
+      toast({
+        variant: 'destructive',
+        description:
+          'Supabase 연결 정보가 없습니다. 배포 환경 변수(NEXT_PUBLIC_SUPABASE_*)를 확인하세요.',
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -45,7 +52,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   };
 
   const handleSignUp = async () => {
-    if (!supabase) return;
+    if (!supabase) {
+      toast({
+        variant: 'destructive',
+        description:
+          'Supabase 연결 정보가 없습니다. 배포 환경 변수(NEXT_PUBLIC_SUPABASE_*)를 확인하세요.',
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const { error } = await supabase.auth.signUp({

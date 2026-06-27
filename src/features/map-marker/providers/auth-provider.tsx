@@ -23,10 +23,14 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [supabase, setSupabase] = useState<SupabaseBrowserClient | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setSupabase(getSupabaseBrowserClient());
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -35,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
+    setIsLoading(true);
 
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;

@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getPublicEnv } from '@/lib/public-env';
 
 let browserClient: SupabaseClient | null = null;
+let cachedEnvSignature = '';
 
 export function getSupabaseBrowserClient(): SupabaseClient | null {
   if (typeof window === 'undefined') {
@@ -17,7 +18,8 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
     return null;
   }
 
-  if (!browserClient) {
+  const envSignature = `${supabaseUrl}|${supabaseAnonKey}`;
+  if (!browserClient || cachedEnvSignature !== envSignature) {
     browserClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -25,6 +27,7 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
         detectSessionInUrl: true,
       },
     });
+    cachedEnvSignature = envSignature;
   }
 
   return browserClient;

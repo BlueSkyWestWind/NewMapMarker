@@ -23,12 +23,12 @@ export function getServerPublicEnv(): PublicEnv {
 }
 
 export function getPublicEnv(key: PublicEnvKey): string {
-  if (typeof window !== 'undefined') {
-    const runtimeValue = window.__PUBLIC_ENV__?.[key];
-    if (runtimeValue) {
-      return runtimeValue;
-    }
+  const buildTimeValue = process.env[key] ?? '';
+
+  if (typeof window === 'undefined') {
+    return buildTimeValue;
   }
 
-  return process.env[key] ?? '';
+  const runtimeValue = window.__PUBLIC_ENV__?.[key] ?? '';
+  return runtimeValue || buildTimeValue;
 }

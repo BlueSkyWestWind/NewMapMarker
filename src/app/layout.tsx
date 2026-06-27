@@ -26,12 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html suppressHydrationWarning>
-      <head>
-        <PublicEnvScript />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <PublicEnvScript />
         <Providers>{children}</Providers>
       </body>
     </html>
