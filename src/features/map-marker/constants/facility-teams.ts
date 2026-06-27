@@ -1,0 +1,50 @@
+export const FACILITY_TEAMS = {
+  '1': { label: '1팀', leader: '박경훈', color: '#2563eb' },
+  '2': { label: '2팀', leader: '김정배', color: '#d946ef' },
+  '3': { label: '3팀', leader: '정종연', color: '#84cc16' },
+  '4': { label: '4팀', leader: '이동화', color: '#9333ea' },
+  '5': { label: '5팀', leader: '김영남', color: '#ea580c' },
+  '7': { label: '7팀', leader: '김성범', color: '#0891b2' },
+} as const;
+
+export type FacilityTeamId = keyof typeof FACILITY_TEAMS;
+
+export const DEFAULT_MARKER_COLOR = '#10b981';
+export const BATTERY_UNASSIGNED_COLOR = '#64748b';
+export const TEMP_MARKER_COLOR = '#ef4444';
+export const PENDING_MARKER_COLOR = '#f59e0b';
+
+export const LEGACY_COLOR_NAMES: Record<string, string> = {
+  '#10b981': '에메랄드',
+  '#64748b': '미지정',
+  '#6366f1': '인디고',
+  '#f43f5e': '로즈',
+  '#f59e0b': '골드',
+  '#8b5cf6': '퍼플',
+  '#06b6d4': '시안',
+  '#ec4899': '핑크',
+  '#84cc16': '라임',
+  '#14b8a6': '틸',
+  '#f97316': '오렌지',
+};
+
+export const COLOR_FILTER_ORDER = [
+  '#2563eb',
+  '#d946ef',
+  '#84cc16',
+  '#9333ea',
+  '#ea580c',
+  '#0891b2',
+  '#64748b',
+  '#10b981',
+  '#6366f1',
+  '#f43f5e',
+  '#f59e0b',
+  '#8b5cf6',
+  '#06b6d4',
+  '#ec4899',
+  '#14b8a6',
+  '#f97316',
+];
+
+export const UNSPECIFIED_FILTER_LABEL = '미지정';

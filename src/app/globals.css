@@ -67,3 +67,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .map-marker-shell {
+    @apply bg-slate-950 text-slate-100;
+  }
+}

@@ -1,0 +1,152 @@
+import { DEFAULT_MARKER_COLOR } from '@/features/map-marker/constants/facility-teams';
+import type {
+  BatteryMarker,
+  EquipmentMarker,
+  MapMarkersPayload,
+} from '@/features/map-marker/types/marker';
+import type { SupabaseBrowserClient } from '@/lib/supabase/client';
+
+interface InformationRow {
+  marker_id: string | null;
+  place_name: string | null;
+  facility_code: string | null;
+  project_code: string | null;
+  facility_year: string | null;
+  business_type: string | null;
+  final_station_name: string | null;
+  eq_class: string | null;
+  eq_type: string | null;
+  install_date: string | null;
+  open_date: string | null;
+}
+
+function formatDateOnly(value: string | null) {
+  return value ? value.split('T')[0] : '';
+}
+
+function buildInformationIndexes(infoList: InformationRow[]) {
+  const infoByMarkerId = new Map<string, InformationRow[]>();
+  const infoByName = new Map<string, InformationRow[]>();
+
+  infoList.forEach((info) => {
+    if (info.marker_id) {
+      const list = infoByMarkerId.get(info.marker_id) ?? [];
+      list.push(info);
+      infoByMarkerId.set(info.marker_id, list);
+    }
+
+    const name = info.place_name?.trim() ?? '';
+    if (name) {
+      const list = infoByName.get(name) ?? [];
+      list.push(info);
+      infoByName.set(name, list);
+    }
+  });
+
+  return { infoByMarkerId, infoByName };
+}
+
+export async function fetchMapMarkers(
+  supabase: SupabaseBrowserClient,
+): Promise<MapMarkersPayload> {
+  const [
+    { data: markersList, error: markersError },
+    { data: infoList, error: infoError },
+    { data: batteryMarkersList, error: batteryMarkersError },
+    { data: batterySpecsList, error: batterySpecsError },
+  ] = await Promise.all([
+    supabase.from('markers').select('*').order('created_at', { ascending: false }),
+    supabase.from('information').select('*'),
+    supabase
+      .from('battery_markers')
+      .select('*')
+      .order('created_at', { ascending: false }),
+    supabase.from('battery_specs').select('*'),
+  ]);
+
+  if (markersError) throw markersError;
+  if (infoError) throw infoError;
+  if (batteryMarkersError) throw batteryMarkersError;
+  if (batterySpecsError) throw batterySpecsError;
+
+  const { infoByMarkerId, infoByName } = buildInformationIndexes(
+    (infoList ?? []) as InformationRow[],
+  );
+
+  const equipmentMarkers: EquipmentMarker[] = (markersList ?? []).map((row) => {
+    const markerName = row.name?.trim() ?? '';
+    const infos =
+      infoByMarkerId.get(row.id) ?? infoByName.get(markerName) ?? [];
+    const repInfo = infos[0] ?? null;
+
+    return {
+      id: row.id,
+      name: row.name ?? '',
+      lat: Number(row.lat),
+      lng: Number(row.lng),
+      memo: row.memo ?? '',
+      tags: row.tags ?? [],
+      color: row.color ?? DEFAULT_MARKER_COLOR,
+      facilityTeam: row.facility_team ?? '',
+      roadAddress: row.road_address ?? '',
+      jibunAddress: row.jibun_address ?? '',
+      facilityCode:
+        row.facility_code ?? repInfo?.facility_code ?? '',
+      projectCode: repInfo?.project_code ?? '',
+      facilityYear: repInfo?.facility_year ?? '',
+      businessType: repInfo?.business_type ?? '',
+      finalStationName: repInfo?.final_station_name ?? '',
+      eqClass: repInfo?.eq_class ?? '',
+      eqType: repInfo?.eq_type ?? '',
+      installDate: repInfo?.install_date ?? '',
+      openDate: repInfo?.open_date ?? '',
+      createdAt: formatDateOnly(row.created_at) || new Date().toISOString().split('T')[0],
+    };
+  });
+
+  const specsMap = new Map<string, NonNullable<typeof batterySpecsList>>();
+  (batterySpecsList ?? []).forEach((spec) => {
+    if (!spec.marker_id) return;
+    const list = specsMap.get(spec.marker_id) ?? [];
+    list.push(spec);
+    specsMap.set(spec.marker_id, list);
+  });
+
+  const batteryMarkers: BatteryMarker[] = (batteryMarkersList ?? []).map(
+    (row) => {
+      const specs = specsMap.get(row.id) ?? [];
+      const repSpec = specs[0] ?? null;
+
+      return {
+        id: row.id,
+        name: row.name ?? '',
+        lat: Number(row.lat),
+        lng: Number(row.lng),
+        address: row.address ?? '',
+        memo: row.memo ?? '',
+        tags: row.tags ?? [],
+        color: row.color ?? DEFAULT_MARKER_COLOR,
+        facilityTeam: row.facility_team ?? '',
+        createdAt:
+          formatDateOnly(row.created_at) ||
+          new Date().toISOString().split('T')[0],
+        items: specs.map((spec) => ({
+          id: spec.id,
+          erpName: spec.erp_name ?? '',
+          address: row.address ?? '',
+          capacity: spec.capacity ?? 600,
+          quantity: spec.quantity ?? 12,
+          stationName: spec.station_name ?? '',
+          createdAt:
+            formatDateOnly(spec.created_at) ||
+            new Date().toISOString().split('T')[0],
+        })),
+        capacity: repSpec?.capacity ?? 600,
+        quantity: repSpec?.quantity ?? 12,
+        stationName: repSpec?.station_name ?? row.name ?? '',
+      };
+    },
+  );
+
+  return { equipmentMarkers, batteryMarkers };
+}
