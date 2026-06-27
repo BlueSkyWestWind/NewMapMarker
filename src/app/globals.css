@@ -73,3 +73,159 @@
     @apply bg-slate-950 text-slate-100;
   }
 }
+
+/* Custom Kakao Overlay Bubble styling */
+.custom-overlay {
+    position: relative;
+    background: #0f172a; /* Slate 900 */
+    border: 1px solid #1e293b; /* Slate 800 */
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+    color: #f8fafc; /* Slate 50 */
+    width: 280px;
+    box-sizing: border-box;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    transform: translateY(-56px);
+    animation: bubblePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.custom-overlay::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 16px;
+    height: 16px;
+    background: #0f172a; /* Slate 900 */
+    border-right: 1px solid #1e293b; /* Slate 800 */
+    border-bottom: 1px solid #1e293b; /* Slate 800 */
+    z-index: 1;
+}
+
+.overlay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 6px;
+    z-index: 2;
+}
+
+.overlay-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+
+.overlay-close {
+    cursor: pointer;
+    color: #94a3b8; /* Slate 400 */
+    font-size: 14px;
+    transition: color 0.15s ease;
+}
+
+.overlay-close:hover {
+    color: #f8fafc;
+}
+
+.overlay-address {
+    font-size: 11px;
+    color: #cbd5e1; /* Slate 300 */
+    line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 2;
+}
+
+.overlay-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 4px;
+    z-index: 2;
+}
+
+.overlay-btn {
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: none;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.overlay-btn-edit {
+    background: #3b82f6; /* Blue 500 */
+    color: white;
+}
+
+.overlay-btn-edit:hover {
+    background: #2563eb;
+}
+
+.overlay-btn-detail {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+}
+
+.overlay-btn-detail:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.overlay-btn-roadview {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.overlay-btn-roadview:hover {
+    opacity: 0.9;
+}
+
+.overlay-btn-save {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.overlay-btn-save:hover {
+    opacity: 0.9;
+}
+
+.overlay-btn-cancel {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+}
+
+.overlay-btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.overlay-btn-move {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+}
+
+.overlay-btn-move:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes bubblePop {
+    from {
+        opacity: 0;
+        transform: translateY(-40px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(-56px) scale(1);
+    }
+}

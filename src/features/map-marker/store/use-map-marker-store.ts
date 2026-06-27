@@ -13,6 +13,11 @@ interface MapMarkerUiState {
   filters: MarkerFilterState;
   pendingEquipmentMarkers: MarkerRecord[];
   pendingBatteryMarkers: MarkerRecord[];
+  selectedMarkerId: string | null;
+  isDetailOpen: boolean;
+  isEditOpen: boolean;
+  isRoadviewOpen: boolean;
+  roadviewPosition: { lat: number; lng: number; name: string } | null;
   setMode: (mode: MapMode) => void;
   toggleSidebar: () => void;
   setClusteringEnabled: (enabled: boolean) => void;
@@ -30,6 +35,10 @@ interface MapMarkerUiState {
     type: 'year' | 'business' | 'color' | 'tag',
     values: string[],
   ) => void;
+  openDetailModal: (id: string) => void;
+  openEditModal: (id: string | null) => void;
+  openRoadview: (lat: number, lng: number, name: string) => void;
+  closeAllModals: () => void;
 }
 
 const emptyFilterState: MarkerFilterState = {
@@ -55,6 +64,11 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       filters: emptyFilterState,
       pendingEquipmentMarkers: [],
       pendingBatteryMarkers: [],
+      selectedMarkerId: null,
+      isDetailOpen: false,
+      isEditOpen: false,
+      isRoadviewOpen: false,
+      roadviewPosition: null,
       setMode: (mode) =>
         set((state) =>
           state.mode === mode
@@ -141,6 +155,31 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
           },
         });
       },
+      openDetailModal: (id) =>
+        set({
+          selectedMarkerId: id,
+          isDetailOpen: true,
+          isEditOpen: false,
+        }),
+      openEditModal: (id) =>
+        set({
+          selectedMarkerId: id,
+          isEditOpen: true,
+          isDetailOpen: false,
+        }),
+      openRoadview: (lat, lng, name) =>
+        set({
+          roadviewPosition: { lat, lng, name },
+          isRoadviewOpen: true,
+        }),
+      closeAllModals: () =>
+        set({
+          selectedMarkerId: null,
+          isDetailOpen: false,
+          isEditOpen: false,
+          isRoadviewOpen: false,
+          roadviewPosition: null,
+        }),
     }),
     {
       name: 'map-marker-ui',

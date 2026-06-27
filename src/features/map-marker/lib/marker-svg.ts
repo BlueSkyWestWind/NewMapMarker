@@ -61,9 +61,23 @@ function getMarkerInnerShape(innerShape: 'star' | 'square' | 'circle') {
   return '<circle cx="12" cy="11" r="5.2" fill="#ffffff"/>';
 }
 
-function getBatteryMarkerShapeFromTags(tags: string[]) {
-  if (!tags.length) return 'circle' as const;
+function getBatteryMarkerShape(marker: MarkerRecord) {
+  const name = marker.name || '';
+  const tags = marker.tags || [];
 
+  // 1. 이름이나 태그에서 '통합국' 검사
+  const hasUnified = name.includes('통합국') || tags.some((t) => t.includes('통합국'));
+  if (hasUnified) return 'star' as const;
+
+  // 2. 이름이나 태그에서 '창고' 검사
+  const hasWarehouse = name.includes('창고') || tags.some((t) => t.includes('창고'));
+  if (hasWarehouse) return 'square' as const;
+
+  // 3. 이름이나 태그에서 '기지국' 검사
+  const hasBase = name.includes('기지국') || tags.some((t) => t.includes('기지국'));
+  if (hasBase) return 'circle' as const;
+
+  // 4. 그 외 기본 태그 우선순위 매칭
   for (const keyword of BATTERY_TAG_SHAPE_PRIORITY) {
     const matched = tags.some(
       (tag) => tag === keyword || tag.includes(keyword),
@@ -131,7 +145,7 @@ export function getMarkerImageUri(marker: MarkerRecord, mode: MapMode) {
   const color = getEffectiveMarkerColor(marker, mode);
   const innerShape =
     mode === 'battery'
-      ? getBatteryMarkerShapeFromTags(marker.tags)
+      ? getBatteryMarkerShape(marker)
       : ('circle' as const);
 
   return getMarkerSvg(color, innerShape);

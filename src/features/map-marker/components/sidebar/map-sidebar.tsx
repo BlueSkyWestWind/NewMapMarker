@@ -64,9 +64,7 @@ export function MapSidebar({
 
   const showAuthenticatedSections = hasMounted && isAuthenticated;
 
-  const defaultAccordion = showAuthenticatedSections
-    ? ['excel', 'filters', 'search', 'markers']
-    : ['filters', 'markers'];
+  const defaultAccordion = ['markers'];
 
   if (!isSidebarOpen) {
     return (

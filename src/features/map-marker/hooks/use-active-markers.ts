@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMapMarkersQuery } from '@/features/map-marker/hooks/use-map-markers-query';
+import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
+import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import {
   emptyFilterState,
   useMapMarkerStore,
@@ -35,6 +38,8 @@ function shouldUpdateFilters(
 }
 
 export function useActiveMarkers() {
+  const { supabase, isAuthenticated } = useAuthSession();
+  const queryClient = useQueryClient();
   const mode = useMapMarkerStore((state) => state.mode);
   const pendingEquipmentMarkers = useMapMarkerStore(
     (state) => state.pendingEquipmentMarkers,
@@ -52,6 +57,7 @@ export function useActiveMarkers() {
     tags: [],
   });
   const previousModeRef = useRef(mode);
+
 
   const markers = useMemo<MarkerRecord[]>(() => {
     const base = !data

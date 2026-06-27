@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 
 export function PlaceSearchSection() {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 pb-1">
       <div className="relative">
         <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
         <Input

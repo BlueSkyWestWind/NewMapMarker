@@ -89,10 +89,9 @@ export function useExcelUploadActions() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const mode = useMapMarkerStore((state) => state.mode);
-  const pendingMarkers =
-    mode === 'equipment'
-      ? useMapMarkerStore((state) => state.pendingEquipmentMarkers)
-      : useMapMarkerStore((state) => state.pendingBatteryMarkers);
+  const pendingEquipment = useMapMarkerStore((state) => state.pendingEquipmentMarkers);
+  const pendingBattery = useMapMarkerStore((state) => state.pendingBatteryMarkers);
+  const pendingMarkers = mode === 'equipment' ? pendingEquipment : pendingBattery;
   const addPendingMarkers = useMapMarkerStore((state) => state.addPendingMarkers);
   const clearPendingMarkers = useMapMarkerStore((state) => state.clearPendingMarkers);
   const removePendingMarkers = useMapMarkerStore((state) => state.removePendingMarkers);
@@ -358,14 +357,26 @@ export function useExcelUploadActions() {
             .insert(bulkMarkers);
           if (error) throw error;
 
-          const bulkSpecs = batteryPending.map((marker) => ({
-            marker_id: marker.id,
-            erp_name: marker.memo ?? marker.name,
-            capacity: marker.capacity ?? 600,
-            quantity: marker.quantity ?? 12,
-            station_name: marker.stationName ?? marker.name,
-            created_at: new Date().toISOString(),
-          }));
+          const bulkSpecs = batteryPending.flatMap((marker) => {
+            const specItems = Array.isArray(marker.items) && marker.items.length > 0
+              ? marker.items
+              : [{
+                  erpName: marker.memo ?? marker.name,
+                  capacity: marker.capacity ?? 600,
+                  quantity: marker.quantity ?? 12,
+                  stationName: marker.stationName ?? marker.name,
+                  createdAt: marker.createdAt,
+                }];
+
+            return specItems.map((item) => ({
+              marker_id: marker.id,
+              erp_name: item.erpName || marker.memo || marker.name || '',
+              capacity: Number(item.capacity) || Number(marker.capacity) || 600,
+              quantity: Number(item.quantity) || Number(marker.quantity) || 12,
+              station_name: item.stationName || marker.stationName || marker.name || '',
+              created_at: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+            }));
+          });
 
           if (bulkSpecs.length > 0) {
             const { error: specsError } = await supabase!

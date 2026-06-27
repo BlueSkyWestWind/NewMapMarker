@@ -4,6 +4,9 @@ import { useActiveMarkers } from '@/features/map-marker/hooks/use-active-markers
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import { MapSidebar } from '@/features/map-marker/components/sidebar/map-sidebar';
 import { KakaoMapCanvas } from '@/features/map-marker/components/map/kakao-map-canvas';
+import { RoadviewModal } from '@/features/map-marker/components/modals/roadview-modal';
+import { MarkerDetailModal } from '@/features/map-marker/components/modals/marker-detail-modal';
+import { MarkerEditModal } from '@/features/map-marker/components/modals/marker-edit-modal';
 
 export function MapMarkerPage() {
   const mode = useMapMarkerStore((state) => state.mode);
@@ -51,6 +54,10 @@ export function MapMarkerPage() {
           />
         )}
       </main>
+
+      <RoadviewModal />
+      <MarkerDetailModal />
+      <MarkerEditModal />
     </div>
   );
 }
