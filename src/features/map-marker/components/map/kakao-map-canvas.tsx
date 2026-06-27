@@ -83,6 +83,10 @@ export function KakaoMapCanvas({ markers, mode }: KakaoMapCanvasProps) {
     const markersToCluster: KakaoMarker[] = [];
 
     visibleMarkers.forEach((data) => {
+      if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) {
+        return;
+      }
+
       const position = new window.kakao.maps.LatLng(data.lat, data.lng);
       const markerImage = new window.kakao.maps.MarkerImage(
         getMarkerImageUri(data, mode),

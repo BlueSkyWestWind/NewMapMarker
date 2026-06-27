@@ -124,6 +124,67 @@ export function createDefaultFilterState(
   };
 }
 
+export function hasAnyFilterSelection(filters: MarkerFilterState) {
+  return (
+    filters.selectedColors.size > 0 ||
+    filters.selectedTags.size > 0 ||
+    filters.selectedYears.size > 0 ||
+    filters.selectedBusinesses.size > 0
+  );
+}
+
+export function mergeFilterState(
+  current: MarkerFilterState,
+  options: ReturnType<typeof collectFilterOptions>,
+  previousOptions?: ReturnType<typeof collectFilterOptions>,
+): MarkerFilterState {
+  if (!hasAnyFilterSelection(current)) {
+    return createDefaultFilterState(options);
+  }
+
+  const mergeDimension = (
+    selected: Set<string>,
+    allValues: string[],
+    prevValues?: string[],
+  ) => {
+    const retained = allValues.filter((value) => selected.has(value));
+    if (retained.length === 0) {
+      return new Set(allValues);
+    }
+
+    const merged = new Set(retained);
+    if (prevValues) {
+      for (const value of allValues) {
+        if (!prevValues.includes(value)) {
+          merged.add(value);
+        }
+      }
+    }
+    return merged;
+  };
+
+  return {
+    selectedYears: mergeDimension(current.selectedYears, options.years),
+    selectedBusinesses: mergeDimension(
+      current.selectedBusinesses,
+      options.businesses,
+    ),
+    selectedColors: mergeDimension(
+      current.selectedColors,
+      options.colors,
+      previousOptions?.colors,
+    ),
+    selectedTags: mergeDimension(
+      current.selectedTags,
+      options.tags,
+      previousOptions?.tags,
+    ),
+    selectedCapacities: current.selectedCapacities,
+    selectedQuantities: current.selectedQuantities,
+    selectedStations: current.selectedStations,
+  };
+}
+
 export function getMarkerVisibilityStats(
   markers: MarkerRecord[],
   mode: MapMode,

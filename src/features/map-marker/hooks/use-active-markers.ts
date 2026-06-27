@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMapMarkersQuery } from '@/features/map-marker/hooks/use-map-markers-query';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import {
   collectFilterOptions,
-  createDefaultFilterState,
+  mergeFilterState,
 } from '@/features/map-marker/lib/marker-filters';
 import type { MarkerFilterState, MarkerRecord } from '@/features/map-marker/types/marker';
 
@@ -15,36 +15,6 @@ function setsEqual(a: Set<string>, b: Set<string>) {
     if (!b.has(value)) return false;
   }
   return true;
-}
-
-function mergeFilterState(
-  current: MarkerFilterState,
-  options: ReturnType<typeof collectFilterOptions>,
-): MarkerFilterState {
-  const hasAnySelection =
-    current.selectedColors.size > 0 || current.selectedTags.size > 0;
-
-  if (!hasAnySelection) {
-    return createDefaultFilterState(options);
-  }
-
-  return {
-    ...current,
-    selectedYears: new Set(
-      options.years.filter((year) => current.selectedYears.has(year)),
-    ),
-    selectedBusinesses: new Set(
-      options.businesses.filter((business) =>
-        current.selectedBusinesses.has(business),
-      ),
-    ),
-    selectedColors: new Set(
-      options.colors.filter((color) => current.selectedColors.has(color)),
-    ),
-    selectedTags: new Set(
-      options.tags.filter((tag) => current.selectedTags.has(tag)),
-    ),
-  };
 }
 
 function shouldUpdateFilters(
@@ -70,6 +40,12 @@ export function useActiveMarkers() {
   const { data, isLoading, isError, error, refetch } = useMapMarkersQuery();
   const filters = useMapMarkerStore((state) => state.filters);
   const setFilters = useMapMarkerStore((state) => state.setFilters);
+  const prevFilterOptionsRef = useRef<ReturnType<typeof collectFilterOptions>>({
+    years: [],
+    businesses: [],
+    colors: [],
+    tags: [],
+  });
 
   const markers = useMemo<MarkerRecord[]>(() => {
     const base = !data
@@ -92,7 +68,13 @@ export function useActiveMarkers() {
   useEffect(() => {
     if (!markers.length) return;
 
-    const nextFilters = mergeFilterState(filters, filterOptions);
+    const nextFilters = mergeFilterState(
+      filters,
+      filterOptions,
+      prevFilterOptionsRef.current,
+    );
+    prevFilterOptionsRef.current = filterOptions;
+
     if (!shouldUpdateFilters(filters, nextFilters)) {
       return;
     }

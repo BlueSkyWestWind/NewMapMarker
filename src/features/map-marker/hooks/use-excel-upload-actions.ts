@@ -13,7 +13,11 @@ import MapMarkerExcelManager from '@/features/map-marker/lib/excel/data-manager'
 import { geocodeAddressQueue } from '@/features/map-marker/lib/geocode';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
-import type { EquipmentMarker, MarkerRecord } from '@/features/map-marker/types/marker';
+import type {
+  BatteryMarker,
+  EquipmentMarker,
+  MarkerRecord,
+} from '@/features/map-marker/types/marker';
 
 interface ParsedExcelRow {
   id?: string;
@@ -41,6 +45,17 @@ function resetFileInput(input: HTMLInputElement | null) {
   if (input) {
     input.value = '';
   }
+}
+
+function resolveStoredMarkerColor(color: string | undefined) {
+  if (!color || color === PENDING_MARKER_COLOR || color === TEMP_MARKER_COLOR) {
+    return DEFAULT_MARKER_COLOR;
+  }
+  return color;
+}
+
+function isValidCoordinate(value: number) {
+  return Number.isFinite(value);
 }
 
 function toEquipmentMarker(marker: ParsedExcelRow, isPending = true): EquipmentMarker {
@@ -81,6 +96,7 @@ export function useExcelUploadActions() {
   const addPendingMarkers = useMapMarkerStore((state) => state.addPendingMarkers);
   const clearPendingMarkers = useMapMarkerStore((state) => state.clearPendingMarkers);
   const removePendingMarkers = useMapMarkerStore((state) => state.removePendingMarkers);
+  const setFilters = useMapMarkerStore((state) => state.setFilters);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -314,15 +330,25 @@ export function useExcelUploadActions() {
 
         const currentMode = useMapMarkerStore.getState().mode;
         if (currentMode === 'battery') {
-          const bulkMarkers = pendingMarkers.map((marker) => ({
+          const batteryPending = pendingMarkers as BatteryMarker[];
+          const invalidCount = batteryPending.filter(
+            (marker) => !isValidCoordinate(marker.lat) || !isValidCoordinate(marker.lng),
+          ).length;
+          if (invalidCount > 0) {
+            throw new Error(
+              `좌표가 없는 축전지 마커 ${invalidCount}건이 있습니다. 주소 지오코딩을 확인하세요.`,
+            );
+          }
+
+          const bulkMarkers = batteryPending.map((marker) => ({
             id: marker.id,
             name: marker.name,
             lat: marker.lat,
             lng: marker.lng,
-            address: 'address' in marker ? marker.address : '',
+            address: marker.address ?? '',
             memo: marker.memo ?? '',
             tags: marker.tags ?? [],
-            color: marker.color ?? DEFAULT_MARKER_COLOR,
+            color: resolveStoredMarkerColor(marker.color),
             facility_team: marker.facilityTeam ?? '',
             created_at: new Date().toISOString(),
           }));
@@ -331,6 +357,22 @@ export function useExcelUploadActions() {
             .from('battery_markers')
             .insert(bulkMarkers);
           if (error) throw error;
+
+          const bulkSpecs = batteryPending.map((marker) => ({
+            marker_id: marker.id,
+            erp_name: marker.memo ?? marker.name,
+            capacity: marker.capacity ?? 600,
+            quantity: marker.quantity ?? 12,
+            station_name: marker.stationName ?? marker.name,
+            created_at: new Date().toISOString(),
+          }));
+
+          if (bulkSpecs.length > 0) {
+            const { error: specsError } = await supabase!
+              .from('battery_specs')
+              .insert(bulkSpecs);
+            if (specsError) throw specsError;
+          }
         } else {
           const equipmentPending = pendingMarkers as EquipmentMarker[];
           const bulkMarkers = equipmentPending.map((marker) => ({
@@ -380,6 +422,15 @@ export function useExcelUploadActions() {
         }
 
         clearPendingMarkers(mode);
+        setFilters({
+          selectedYears: new Set(),
+          selectedBusinesses: new Set(),
+          selectedColors: new Set(),
+          selectedTags: new Set(),
+          selectedCapacities: new Set(),
+          selectedQuantities: new Set(),
+          selectedStations: new Set(),
+        });
         await invalidateMarkers();
         toast({
           description: `성공적으로 ${pendingMarkers.length}개의 위치를 Supabase에 저장했습니다.`,
@@ -398,6 +449,7 @@ export function useExcelUploadActions() {
       pendingMarkers,
       removePendingMarkers,
       mode,
+      setFilters,
       supabase,
       toast,
     ],

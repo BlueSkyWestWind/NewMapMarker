@@ -53,7 +53,12 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       filters: emptyFilterState,
       pendingEquipmentMarkers: [],
       pendingBatteryMarkers: [],
-      setMode: (mode) => set({ mode }),
+      setMode: (mode) =>
+        set((state) =>
+          state.mode === mode
+            ? state
+            : { mode, filters: emptyFilterState },
+        ),
       toggleSidebar: () =>
         set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
       setClusteringEnabled: (enabled) => set({ isClusteringEnabled: enabled }),
