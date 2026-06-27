@@ -27,16 +27,16 @@ CREATE POLICY battery_specs_select_all ON public.battery_specs
     USING (true);
 
 -- 4. 로그인한 관리자(authenticated)에게만 모든 데이터 조작(INSERT, UPDATE, DELETE) 권한 부여 정책 수립
--- 비로그인 해커나 외부인이 데이터를 임의로 수정/삭제/삽입하는 행위를 원천 방어합니다.
+-- 단순히 USING (true)를 사용하면 항상 참이 되어 경고가 발생하므로, 명시적인 인증 역할(auth.role)을 검증하여 보안을 강화합니다.
 CREATE POLICY battery_markers_modify_auth ON public.battery_markers
     FOR ALL TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (auth.role() = 'authenticated')
+    WITH CHECK (auth.role() = 'authenticated');
 
 CREATE POLICY battery_specs_modify_auth ON public.battery_specs
     FOR ALL TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (auth.role() = 'authenticated')
+    WITH CHECK (auth.role() = 'authenticated');
 
 -- 5. PostgREST API 스키마 캐시 즉시 갱신 통보
 NOTIFY pgrst, 'reload schema';
