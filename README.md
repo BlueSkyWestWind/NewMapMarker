@@ -44,6 +44,7 @@ cp .env.example .env.local
 | Build command | `npm run build` | `npm run build` (OK) |
 | **Deploy command** | **`npm run deploy`** | `npx wrangler deploy` (변환 없이 배포 시 실패) |
 | Non-production deploy | `npm run upload` | (미설정 시 preview 브랜치 실패 가능) |
+| Node version | **22** (`.nvmrc`, wrangler 4.x 필수) | 20 (wrangler 배포 실패) |
 
 `npm run deploy` = `opennextjs-cloudflare build` + `opennextjs-cloudflare deploy`  
 (Next 빌드 → `.open-next/worker.js` 생성 후 Workers에 배포)
