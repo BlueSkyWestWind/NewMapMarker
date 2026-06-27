@@ -7,15 +7,19 @@ import {
   getMarkerVisibilityStats,
 } from '@/features/map-marker/lib/marker-filters';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
-import type { MapMode, MarkerRecord } from '@/features/map-marker/types/marker';
+import type { MapMode, MarkerFilterState, MarkerRecord } from '@/features/map-marker/types/marker';
 
 interface MarkersListPanelProps {
   mode: MapMode;
   markers: MarkerRecord[];
+  filters: MarkerFilterState;
 }
 
-export function MarkersListPanel({ mode, markers }: MarkersListPanelProps) {
-  const filters = useMapMarkerStore((state) => state.filters);
+export function MarkersListPanel({
+  mode,
+  markers,
+  filters,
+}: MarkersListPanelProps) {
   const markerListFilter = useMapMarkerStore((state) => state.markerListFilter);
   const setMarkerListFilter = useMapMarkerStore(
     (state) => state.setMarkerListFilter,

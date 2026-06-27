@@ -29,7 +29,7 @@ import { PlaceSearchSection } from '@/features/map-marker/components/sidebar/pla
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import { useHasMounted } from '@/hooks/use-has-mounted';
-import type { MapMode, MarkerRecord } from '@/features/map-marker/types/marker';
+import type { MapMode, MarkerFilterState, MarkerRecord } from '@/features/map-marker/types/marker';
 
 interface MapSidebarProps {
   markers: MarkerRecord[];
@@ -39,16 +39,20 @@ interface MapSidebarProps {
     colors: string[];
     tags: string[];
   };
+  filters: MarkerFilterState;
   equipmentCount: number;
   batteryCount: number;
+  invalidCoordinateCount: number;
   isLoading: boolean;
 }
 
 export function MapSidebar({
   markers,
   filterOptions,
+  filters,
   equipmentCount,
   batteryCount,
+  invalidCoordinateCount,
   isLoading,
 }: MapSidebarProps) {
   const { isAuthenticated } = useAuthSession();
@@ -93,6 +97,9 @@ export function MapSidebar({
                   ? `장비 ${equipmentCount}건`
                   : `축전지 ${batteryCount}건`}
                 {hasMounted && isLoading ? ' · 로딩 중' : ''}
+                {invalidCoordinateCount > 0
+                  ? ` · 좌표 없음 ${invalidCoordinateCount}건`
+                  : ''}
               </p>
             </div>
           </div>
@@ -188,7 +195,11 @@ export function MapSidebar({
               저장된 위치 ({markers.length})
             </AccordionTrigger>
             <AccordionContent className="pb-0">
-              <MarkersListPanel mode={mode as MapMode} markers={markers} />
+              <MarkersListPanel
+                mode={mode as MapMode}
+                markers={markers}
+                filters={filters}
+              />
             </AccordionContent>
           </AccordionItem>
         </Accordion>

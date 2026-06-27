@@ -6,6 +6,7 @@ declare global {
       maps: {
         load: (callback: () => void) => void;
         LatLng: new (lat: number, lng: number) => KakaoLatLng;
+        LatLngBounds: new () => KakaoLatLngBounds;
         Map: new (
           container: HTMLElement,
           options: { center: KakaoLatLng; level: number; mapTypeId: unknown },
@@ -68,11 +69,16 @@ declare global {
     getLng: () => number;
   }
 
+  interface KakaoLatLngBounds {
+    extend: (latlng: KakaoLatLng) => void;
+  }
+
   interface KakaoMap {
     setCenter: (latlng: KakaoLatLng) => void;
     setLevel: (level: number) => void;
     getLevel: () => number;
     panTo: (latlng: KakaoLatLng) => void;
+    setBounds: (bounds: KakaoLatLngBounds) => void;
     setDraggable: (flag: boolean) => void;
     addOverlayMapTypeId: (typeId: unknown) => void;
     removeOverlayMapTypeId: (typeId: unknown) => void;

@@ -42,6 +42,8 @@ const emptyFilterState: MarkerFilterState = {
   selectedStations: new Set(),
 };
 
+export { emptyFilterState };
+
 export const useMapMarkerStore = create<MapMarkerUiState>()(
   persist(
     (set, get) => ({

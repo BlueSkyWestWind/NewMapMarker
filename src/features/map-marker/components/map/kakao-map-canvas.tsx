@@ -9,25 +9,44 @@ import { markerPassesFilters } from '@/features/map-marker/lib/marker-filters';
 import { getMarkerImageUri } from '@/features/map-marker/lib/marker-svg';
 import { useKakaoMapSdk } from '@/features/map-marker/hooks/use-kakao-map-sdk';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
-import type { MapMode, MarkerRecord } from '@/features/map-marker/types/marker';
+import type { MapMode, MarkerFilterState, MarkerRecord } from '@/features/map-marker/types/marker';
 import { MapFloatingControls } from '@/features/map-marker/components/map/map-floating-controls';
 
 interface KakaoMapCanvasProps {
   markers: MarkerRecord[];
   mode: MapMode;
+  filters: MarkerFilterState;
 }
 
-export function KakaoMapCanvas({ markers, mode }: KakaoMapCanvasProps) {
+function isPlottableCoordinate(lat: number, lng: number) {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
+  );
+}
+
+function fitMapToMarkers(map: KakaoMap, plottedMarkers: MarkerRecord[]) {
+  if (!window.kakao?.maps || plottedMarkers.length === 0) return;
+
+  const bounds = new window.kakao.maps.LatLngBounds();
+  plottedMarkers.forEach((marker) => {
+    bounds.extend(new window.kakao.maps.LatLng(marker.lat, marker.lng));
+  });
+  map.setBounds(bounds);
+}
+
+export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<KakaoMap | null>(null);
   const clustererRef = useRef<KakaoMarkerClusterer | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
   const { isReady, error } = useKakaoMapSdk();
-  const filters = useMapMarkerStore((state) => state.filters);
   const isClusteringEnabled = useMapMarkerStore(
     (state) => state.isClusteringEnabled,
   );
   const isCadastralMode = useMapMarkerStore((state) => state.isCadastralMode);
+  const prevModeRef = useRef<MapMode | null>(null);
 
   useEffect(() => {
     if (!isReady || !mapRef.current || !window.kakao?.maps) return;
@@ -81,11 +100,14 @@ export function KakaoMapCanvas({ markers, mode }: KakaoMapCanvasProps) {
     );
 
     const markersToCluster: KakaoMarker[] = [];
+    const plottedMarkers: MarkerRecord[] = [];
 
     visibleMarkers.forEach((data) => {
-      if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) {
+      if (!isPlottableCoordinate(data.lat, data.lng)) {
         return;
       }
+
+      plottedMarkers.push(data);
 
       const position = new window.kakao.maps.LatLng(data.lat, data.lng);
       const markerImage = new window.kakao.maps.MarkerImage(
@@ -113,6 +135,16 @@ export function KakaoMapCanvas({ markers, mode }: KakaoMapCanvasProps) {
     if (clusterer && mode === 'equipment' && isClusteringEnabled) {
       clusterer.addMarkers(markersToCluster);
     }
+
+    const shouldFitBatteryBounds =
+      mode === 'battery' &&
+      plottedMarkers.length > 0 &&
+      prevModeRef.current !== 'battery';
+
+    if (shouldFitBatteryBounds) {
+      fitMapToMarkers(map, plottedMarkers);
+    }
+    prevModeRef.current = mode;
   }, [markers, mode, filters, isClusteringEnabled]);
 
   useEffect(() => {

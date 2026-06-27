@@ -2,9 +2,14 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useMapMarkersQuery } from '@/features/map-marker/hooks/use-map-markers-query';
-import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
+import {
+  emptyFilterState,
+  useMapMarkerStore,
+} from '@/features/map-marker/store/use-map-marker-store';
 import {
   collectFilterOptions,
+  createDefaultFilterState,
+  hasAnyFilterSelection,
   mergeFilterState,
 } from '@/features/map-marker/lib/marker-filters';
 import type { MarkerFilterState, MarkerRecord } from '@/features/map-marker/types/marker';
@@ -46,6 +51,7 @@ export function useActiveMarkers() {
     colors: [],
     tags: [],
   });
+  const previousModeRef = useRef(mode);
 
   const markers = useMemo<MarkerRecord[]>(() => {
     const base = !data
@@ -64,6 +70,40 @@ export function useActiveMarkers() {
     () => collectFilterOptions(markers, mode),
     [markers, mode],
   );
+
+  const invalidCoordinateCount = useMemo(
+    () =>
+      markers.filter(
+        (marker) =>
+          !marker.isPending &&
+          !marker.isTemp &&
+          (!Number.isFinite(marker.lat) ||
+            !Number.isFinite(marker.lng) ||
+            (marker.lat === 0 && marker.lng === 0)),
+      ).length,
+    [markers],
+  );
+
+  useEffect(() => {
+    if (previousModeRef.current === mode) {
+      return;
+    }
+    previousModeRef.current = mode;
+
+    prevFilterOptionsRef.current = {
+      years: [],
+      businesses: [],
+      colors: [],
+      tags: [],
+    };
+
+    if (markers.length === 0) {
+      setFilters(emptyFilterState);
+      return;
+    }
+
+    setFilters(createDefaultFilterState(filterOptions));
+  }, [mode, markers.length, filterOptions, setFilters]);
 
   useEffect(() => {
     if (!markers.length) return;
@@ -91,9 +131,18 @@ export function useActiveMarkers() {
     setFilters,
   ]);
 
+  const effectiveFilters = useMemo(() => {
+    if (!markers.length || !hasAnyFilterSelection(filters)) {
+      return createDefaultFilterState(filterOptions);
+    }
+    return filters;
+  }, [filters, filterOptions, markers.length]);
+
   return {
     markers,
     filterOptions,
+    effectiveFilters,
+    invalidCoordinateCount,
     isLoading,
     isError,
     error,

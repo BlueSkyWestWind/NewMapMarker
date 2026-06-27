@@ -10,6 +10,8 @@ export function MapMarkerPage() {
   const {
     markers,
     filterOptions,
+    effectiveFilters,
+    invalidCoordinateCount,
     equipmentCount,
     batteryCount,
     isLoading,
@@ -23,8 +25,10 @@ export function MapMarkerPage() {
       <MapSidebar
         markers={markers}
         filterOptions={filterOptions}
+        filters={effectiveFilters}
         equipmentCount={equipmentCount}
         batteryCount={batteryCount}
+        invalidCoordinateCount={invalidCoordinateCount}
         isLoading={isLoading}
       />
       <main className="relative min-w-0 flex-1">
@@ -40,7 +44,11 @@ export function MapMarkerPage() {
             </button>
           </div>
         ) : (
-          <KakaoMapCanvas markers={markers} mode={mode} />
+          <KakaoMapCanvas
+            markers={markers}
+            mode={mode}
+            filters={effectiveFilters}
+          />
         )}
       </main>
     </div>

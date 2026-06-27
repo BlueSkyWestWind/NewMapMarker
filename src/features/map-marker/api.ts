@@ -24,6 +24,44 @@ function formatDateOnly(value: string | null) {
   return value ? value.split('T')[0] : '';
 }
 
+function parseCoordinate(value: unknown): number {
+  if (value === null || value === undefined || value === '') {
+    return Number.NaN;
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function normalizeMarkerTags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((tag) => String(tag).trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed.map((tag) => String(tag).trim()).filter(Boolean);
+        }
+      } catch {
+        // 구분자 분리로 폴백
+      }
+    }
+
+    return trimmed
+      .split(/[,|/]/)
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 function buildInformationIndexes(infoList: InformationRow[]) {
   const infoByMarkerId = new Map<string, InformationRow[]>();
   const infoByName = new Map<string, InformationRow[]>();
@@ -82,10 +120,10 @@ export async function fetchMapMarkers(
     return {
       id: row.id,
       name: row.name ?? '',
-      lat: Number(row.lat),
-      lng: Number(row.lng),
+      lat: parseCoordinate(row.lat),
+      lng: parseCoordinate(row.lng),
       memo: row.memo ?? '',
-      tags: row.tags ?? [],
+      tags: normalizeMarkerTags(row.tags),
       color: row.color ?? DEFAULT_MARKER_COLOR,
       facilityTeam: row.facility_team ?? '',
       roadAddress: row.road_address ?? '',
@@ -120,11 +158,11 @@ export async function fetchMapMarkers(
       return {
         id: row.id,
         name: row.name ?? '',
-        lat: Number(row.lat),
-        lng: Number(row.lng),
+        lat: parseCoordinate(row.lat),
+        lng: parseCoordinate(row.lng),
         address: row.address ?? '',
         memo: row.memo ?? '',
-        tags: row.tags ?? [],
+        tags: normalizeMarkerTags(row.tags),
         color: row.color ?? DEFAULT_MARKER_COLOR,
         facilityTeam: row.facility_team ?? '',
         createdAt:
