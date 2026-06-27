@@ -32,6 +32,31 @@ cp .env.example .env.local
 
 기존 `001.MapMarker` Supabase DB를 그대로 사용할 수 있습니다.
 
+## Cloudflare Pages 배포
+
+이 프로젝트는 **Next.js 15** 앱입니다. 예전 `001.MapMarker`(정적 HTML)와 빌드 방식이 다릅니다.
+빌드가 실패하면 Cloudflare는 **마지막 성공 배포(구버전)** 를 그대로 보여줍니다.
+
+### 대시보드 설정 (Workers & Pages → 프로젝트 → Settings)
+
+| 항목 | 값 |
+|------|-----|
+| Production branch | `main` |
+| Framework preset | Next.js (또는 None) |
+| Build command | `npm run pages:build` |
+| Build output directory | `.vercel/output/static` |
+| Node version | `20` (`NODE_VERSION` 환경변수) |
+
+**Settings → Functions → Compatibility flags** 에 `nodejs_compat` 추가 (Production·Preview 모두).
+
+### 환경 변수 (필수)
+
+`.env.example`과 동일한 `NEXT_PUBLIC_*` 값을 Pages 프로젝트 **Environment variables**에 등록하세요.
+
+카카오 JavaScript 키에는 **배포 도메인**(예: `https://xxx.pages.dev`)도 등록해야 합니다.
+
+설정 변경 후 **Deployments → Retry deployment** 또는 `main`에 다시 push하세요.
+
 ## 실행
 
 ```bash

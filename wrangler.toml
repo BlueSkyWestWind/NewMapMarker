@@ -1,0 +1,9 @@
+# Cloudflare Pages (Next.js) 배포 설정
+# 대시보드: Workers & Pages > 프로젝트 > Settings > Builds & deployments
+name = "newmapmarker"
+compatibility_date = "2025-02-04"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+[vars]
+NODE_VERSION = "20"

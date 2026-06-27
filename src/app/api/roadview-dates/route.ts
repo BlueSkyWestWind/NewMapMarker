@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+
 export async function GET(request: NextRequest) {
   const panoId = request.nextUrl.searchParams.get('panoId');
   if (!panoId) {
@@ -13,7 +15,6 @@ export async function GET(request: NextRequest) {
 
   try {
     const response = await fetch(targetUrl, {
-      next: { revalidate: 3600 },
       signal: AbortSignal.timeout(5000),
     });
     const body = await response.text();
