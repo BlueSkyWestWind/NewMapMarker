@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^4",
+    "@opennextjs/cloudflare": "^1.20.1",
+    "esbuild": "^0.27.7",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-avatar": "^1.1.2",
     "@radix-ui/react-checkbox": "^1.1.1",
@@ -46,8 +48,7 @@
     "ts-pattern": "^5",
     "xlsx": "^0.18.5",
     "zod": "^3",
-    "zustand": "^4",
-    "@opennextjs/cloudflare": "^1.20.1"
+    "zustand": "^4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
