@@ -19,19 +19,6 @@ src/
 supabase/migrations/           # DB 마이그레이션 참조
 ```
 
-## 환경 설정
-
-`.env.example`을 `.env.local`로 복사 후 값을 입력하세요.
-
-```bash
-cp .env.example .env.local
-```
-
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` (카카오 디벨로퍼스 JavaScript 키, `http://localhost:3000` 도메인 등록)
-
-기존 `001.MapMarker` Supabase DB를 그대로 사용할 수 있습니다.
-
 ## Cloudflare Workers 배포
 
 이 프로젝트는 **Next.js 15** 앱입니다. Cloudflare **Workers**(Git 연동)로 배포할 때는 OpenNext 어댑터가 필요합니다.
