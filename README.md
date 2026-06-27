@@ -48,6 +48,9 @@ cp .env.example .env.local
 `npm run deploy` = `opennextjs-cloudflare build` + `opennextjs-cloudflare deploy`  
 (Next 빌드 → `.open-next/worker.js` 생성 후 Workers에 배포)
 
+`wrangler.jsonc`의 Worker 이름(`newmarker`)과 `WORKER_SELF_REFERENCE` service 이름이 **동일**해야 합니다.  
+`package.json`의 `name`도 `newmarker`로 맞춰 두었습니다.
+
 **Settings → Compatibility flags** 에 `nodejs_compat` 추가.
 
 ### 환경 변수 (필수)
