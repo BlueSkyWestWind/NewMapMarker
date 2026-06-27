@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { KAKAO_SDK_LIBRARIES } from '@/features/map-marker/constants/map-config';
+import { getPublicEnv } from '@/lib/public-env';
 
 let kakaoLoadPromise: Promise<void> | null = null;
 
@@ -45,7 +46,7 @@ function loadKakaoSdk(appKey: string) {
 }
 
 export function useKakaoMapSdk() {
-  const appKey = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY ?? '';
+  const appKey = getPublicEnv('NEXT_PUBLIC_KAKAO_MAP_APP_KEY');
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

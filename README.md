@@ -39,12 +39,18 @@ cp .env.example .env.local
 
 ### 대시보드 설정 (Workers & Pages → newmarker → Settings → Builds)
 
-| 항목 | 올바른 값 | 현재 로그에서 잘못된 값 |
-|------|-----------|-------------------------|
-| Build command | `npm run build` | `npm run build` (OK) |
-| **Deploy command** | **`npm run deploy`** | `npx wrangler deploy` (변환 없이 배포 시 실패) |
-| Non-production deploy | `npm run upload` | (미설정 시 preview 브랜치 실패 가능) |
-| Node version | **22** (`.nvmrc`, wrangler 4.x 필수) | 20 (wrangler 배포 실패) |
+**오류 `Could not find compiled Open Next config, did you run the build command?`**  
+→ Deploy command가 `npx wrangler deploy`만 실행되면 OpenNext 빌드(`.open-next/`)가 생성되지 않아 실패합니다.  
+`wrangler deploy`는 내부에서 `opennextjs-cloudflare deploy`만 호출하며, **빌드는 자동으로 하지 않습니다.**
+
+| 항목 | 권장 값 (택 1) |
+|------|----------------|
+| **방법 A — 한 줄 배포 (권장)** | Build command: *(비워 두기)* · **Deploy command: `npm run deploy`** |
+| **방법 B — 빌드·배포 분리** | Build command: `npx opennextjs-cloudflare build` · Deploy command: `npx opennextjs-cloudflare deploy` |
+| Non-production deploy | `npm run upload` |
+| Node version | **22** (`.nvmrc`, wrangler 4.x 필수) |
+
+**하지 말 것:** Deploy command를 `npx wrangler deploy`로 두는 것 (`npm run build`만으로는 `.open-next/`가 생기지 않음)
 
 `npm run deploy` = `opennextjs-cloudflare build` + `opennextjs-cloudflare deploy`  
 (Next 빌드 → `.open-next/worker.js` 생성 후 Workers에 배포)
@@ -56,7 +62,18 @@ cp .env.example .env.local
 
 ### 환경 변수 (필수)
 
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_KAKAO_MAP_APP_KEY`  
+Cloudflare **Workers & Pages → newmarker → Settings → Variables and Secrets** 에 아래 3개를 **Production** 환경에 등록하세요.  
+(`.env.local`은 Git에 포함되지 않아 CI 빌드·배포 환경에는 자동으로 전달되지 않습니다.)
+
+| 변수 | 설명 |
+|------|------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable 키 |
+| `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` | 카카오 JavaScript 키 |
+
+등록 후 **재배포**(또는 Variables만 추가했다면 페이지 새로고침)하세요.  
+앱은 서버에서 Worker 변수를 읽어 브라우저에 주입합니다.
+
 카카오 JavaScript 키에 **Workers 배포 URL** 도메인도 등록하세요.
 
 설정 변경 후 **Retry deployment** 하세요.
