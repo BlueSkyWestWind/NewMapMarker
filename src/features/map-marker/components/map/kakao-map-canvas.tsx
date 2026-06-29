@@ -147,6 +147,49 @@ export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) 
         title: data.name,
         image: markerImage,
         zIndex: 3,
+        draggable: true,
+      });
+
+      window.kakao.maps.event.addListener(marker, 'dragstart', () => {
+        if (activeOverlayRef.current) {
+          activeOverlayRef.current.setMap(null);
+          activeOverlayRef.current = null;
+        }
+      });
+
+      window.kakao.maps.event.addListener(marker, 'dragend', async () => {
+        const newPos = marker.getPosition();
+        const newLat = newPos.getLat();
+        const newLng = newPos.getLng();
+
+        if (!isAuthenticated) {
+          alert('마커의 위치를 변경하려면 로그인이 필요합니다.');
+          marker.setPosition(position);
+          return;
+        }
+
+        const confirmMove = window.confirm(
+          `"${data.name}" 마커의 위치를 여기로 변경하시겠습니까?\n(위도: ${newLat.toFixed(6)}, 경도: ${newLng.toFixed(6)})`
+        );
+
+        if (confirmMove) {
+          try {
+            const tableName = mode === 'battery' ? 'battery_markers' : 'markers';
+            const { error } = await supabase
+              .from(tableName)
+              .update({ lat: newLat, lng: newLng })
+              .eq('id', data.id);
+
+            if (error) throw error;
+            await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
+          } catch (err: any) {
+            console.error('마커 위치 이동 실패:', err);
+            alert(`마커 위치 저장 중 오류가 발생했습니다: ${err.message}`);
+            marker.setPosition(position);
+          }
+        } else {
+          marker.setPosition(position);
+        }
       });
 
       // 마커 클릭 시 정보창(CustomOverlay) 표시

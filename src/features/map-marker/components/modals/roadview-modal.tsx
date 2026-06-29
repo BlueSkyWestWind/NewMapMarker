@@ -20,12 +20,25 @@ export function RoadviewModal() {
   const roadviewPosition = useMapMarkerStore((state) => state.roadviewPosition);
   const closeAllModals = useMapMarkerStore((state) => state.closeAllModals);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    if (node !== null) {
+      setContainer(node);
+    } else {
+      setContainer(null);
+    }
+  }, []);
   const [dates, setDates] = useState<RoadviewDateItem[]>([]);
   const [currentPanoId, setCurrentPanoId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const addLog = useCallback((msg: string) => {
+    console.log(`[RoadviewDebug] ${msg}`);
+    setDebugLogs((prev) => [...prev.slice(-30), `${new Date().toLocaleTimeString()} - ${msg}`]);
+  }, []);
+
   const rvInstanceRef = useRef<any>(null);
   const lastFetchedPanoId = useRef<string | null>(null);
 
@@ -75,7 +88,20 @@ export function RoadviewModal() {
   }, []);
 
   useEffect(() => {
-    if (!isRoadviewOpen || !roadviewPosition || !containerRef.current || !window.kakao?.maps) {
+    if (!isRoadviewOpen || !roadviewPosition) {
+      return;
+    }
+
+    // 모달이 열릴 때마다 로그 초기화
+    setDebugLogs([]);
+    addLog("로드뷰 모달 감지: 로드 시작");
+
+    if (!container) {
+      addLog("대기: container DOM 노드가 아직 마운트되지 않았습니다.");
+      return;
+    }
+    if (!window.kakao?.maps) {
+      addLog("에러: window.kakao.maps 가 존재하지 않습니다 (SDK 로드 안 됨).");
       return;
     }
 
@@ -85,44 +111,102 @@ export function RoadviewModal() {
     setCurrentPanoId(null);
     lastFetchedPanoId.current = null;
 
-    const { lat, lng } = roadviewPosition;
-    const container = containerRef.current;
-    container.innerHTML = '';
+    const latRaw = roadviewPosition.lat;
+    const lngRaw = roadviewPosition.lng;
+    const latNum = Number(latRaw);
+    const lngNum = Number(lngRaw);
 
-    try {
-      const kakaoMaps = (window as any).kakao.maps;
-      const rv = new kakaoMaps.Roadview(container);
-      rvInstanceRef.current = rv;
+    addLog(`원본 좌표 수신: lat=${latRaw} (${typeof latRaw}), lng=${lngRaw} (${typeof lngRaw})`);
+    addLog(`변환 완료 좌표: lat=${latNum}, lng=${lngNum}`);
 
-      const rvClient = new kakaoMaps.RoadviewClient();
-      const position = new kakaoMaps.LatLng(lat, lng);
-
-      rvClient.getNearestPanoId(position, 100, (panoId: any) => {
-        setIsLoading(false);
-        if (panoId === null) {
-          setIsError(true);
-        } else {
-          rv.setPanoId(panoId, position);
-          setCurrentPanoId(panoId);
-        }
-      });
-
-      // 파노라마 변경 시 촬영 날짜 목록 갱신
-      window.kakao.maps.event.addListener(rv, 'pano_changed', () => {
-        const nextPanoId = rv.getPanoId();
-        setCurrentPanoId(nextPanoId);
-        updateRoadviewDates(nextPanoId);
-      });
-    } catch (e) {
-      console.error('로드뷰 초기화 실패:', e);
+    if (isNaN(latNum) || isNaN(lngNum) || latNum === 0 || lngNum === 0) {
+      addLog("에러: 유효하지 않은 위경도 좌표입니다. 로드를 취소합니다.");
       setIsLoading(false);
       setIsError(true);
+      return;
     }
 
+    container.innerHTML = '';
+
+    // Dialog 애니메이션 트랜지션(약 150-200ms)이 완료될 때까지 대기하여
+    // 컨테이너 크기(width, height)가 정상적으로 결정된 후 카카오 로드뷰를 초기화합니다.
+    const timer = setTimeout(() => {
+      try {
+        addLog("setTimeout 내부: 카카오 로드뷰 초기화 시작");
+        const kakaoMaps = (window as any).kakao.maps;
+        
+        addLog("kakaoMaps.Roadview 인스턴스 생성 시도");
+        const rv = new kakaoMaps.Roadview(container);
+        rvInstanceRef.current = rv;
+        addLog("kakaoMaps.Roadview 인스턴스 생성 성공");
+
+        addLog("kakaoMaps.RoadviewClient 인스턴스 생성 시도");
+        const rvClient = new kakaoMaps.RoadviewClient();
+        addLog("kakaoMaps.RoadviewClient 인스턴스 생성 성공");
+        
+        const position = new kakaoMaps.LatLng(latNum, lngNum);
+        addLog(`LatLng 생성 완료: LatLng(${latNum}, ${lngNum})`);
+
+        addLog("rvClient.getNearestPanoId 호출 시도 (검색 반경 100m)");
+        rvClient.getNearestPanoId(position, 100, (panoId: any) => {
+          try {
+            addLog(`getNearestPanoId 비동기 콜백 호출됨. panoId = ${panoId}`);
+            setIsLoading(false);
+            if (panoId === null) {
+              addLog("경고: 주변 100m 이내에 유효한 로드뷰 파노라마 ID가 없습니다 (null).");
+              setIsError(true);
+            } else {
+              addLog(`rv.setPanoId(${panoId}) 실행 시도`);
+              rv.setPanoId(panoId, position);
+              setCurrentPanoId(panoId);
+              addLog(`rv.setPanoId 실행 성공. 현재 panoId 설정됨: ${panoId}`);
+              
+              // 로드뷰 로드 완료 후 컨테이너 크기에 맞춰 정상적으로 표시될 수 있도록 relayout()을 강제 실행합니다.
+              setTimeout(() => {
+                try {
+                  if (rvInstanceRef.current) {
+                    addLog("rv.relayout() 실행 시도");
+                    rvInstanceRef.current.relayout();
+                    addLog("rv.relayout() 실행 완료");
+                  }
+                } catch (relayoutErr: any) {
+                  addLog(`relayout() 도중 에러: ${relayoutErr.message}`);
+                }
+              }, 100);
+            }
+          } catch (callbackErr: any) {
+            addLog(`비동기 콜백 실행 중 예외 발생: ${callbackErr.message}`);
+            console.error(callbackErr);
+            setIsLoading(false);
+            setIsError(true);
+          }
+        });
+
+        // 파노라마 변경 시 촬영 날짜 목록 갱신
+        window.kakao.maps.event.addListener(rv, 'pano_changed', () => {
+          try {
+            const nextPanoId = rv.getPanoId();
+            addLog(`이벤트 감지 (pano_changed): nextPanoId = ${nextPanoId}`);
+            setCurrentPanoId(nextPanoId);
+            updateRoadviewDates(nextPanoId);
+          } catch (eventErr: any) {
+            addLog(`pano_changed 리스너 에러: ${eventErr.message}`);
+          }
+        });
+      } catch (e: any) {
+        addLog(`로드뷰 초기화 중 예외 발생: ${e.message}`);
+        console.error('로드뷰 초기화 실패:', e);
+        setIsLoading(false);
+        setIsError(true);
+      }
+    }, 250); // 트랜지션 타임을 보다 넉넉하게 250ms로 설정
+
     return () => {
+      addLog("useEffect cleanup: 타이머 클리어");
+      clearTimeout(timer);
       rvInstanceRef.current = null;
     };
-  }, [isRoadviewOpen, roadviewPosition, updateRoadviewDates]);
+  }, [isRoadviewOpen, roadviewPosition, updateRoadviewDates, addLog, container]);
 
   const handleDateChange = (panoId: string) => {
     if (rvInstanceRef.current && panoId) {
@@ -132,14 +216,14 @@ export function RoadviewModal() {
 
   return (
     <Dialog open={isRoadviewOpen} onOpenChange={(open) => !open && closeAllModals()}>
-      <DialogContent className="max-w-[90vw] md:max-w-[1000px] w-full bg-slate-900 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl rounded-2xl">
+      <DialogContent className="max-w-[95vw] md:max-w-[1400px] w-full bg-slate-900 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl rounded-2xl">
         <DialogHeader className="p-4 border-b border-slate-800 flex flex-row items-center justify-between">
           <DialogTitle className="text-base font-bold bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
             {roadviewPosition?.name ? `${roadviewPosition.name} - 현장 로드뷰` : '현장 로드뷰'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="relative w-full h-[60vh] md:h-[70vh] bg-slate-950 flex items-center justify-center">
+        <div className="relative w-full h-[60vh] md:h-[75vh] bg-slate-950 flex items-center justify-center">
           {isLoading && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-950/80">
               <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />

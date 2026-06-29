@@ -87,6 +87,8 @@ declare global {
   interface KakaoMarker {
     setMap: (map: KakaoMap | null) => void;
     getPosition: () => KakaoLatLng;
+    setPosition: (latlng: KakaoLatLng) => void;
+    setDraggable: (flag: boolean) => void;
     _clickHandler?: () => void;
   }
 

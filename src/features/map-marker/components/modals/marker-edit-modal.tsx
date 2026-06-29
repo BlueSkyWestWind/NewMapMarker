@@ -288,7 +288,6 @@ export function MarkerEditModal() {
           tags: parsedTags,
           color,
           facility_code: equipmentItems[0]?.facilityCode || '', // 대표 코드로 첫 번째 코드 기재
-          updated_at: new Date().toISOString(),
         };
 
         const { error: markerError } = await supabase
@@ -384,8 +383,11 @@ export function MarkerEditModal() {
       queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
       closeAllModals();
     } catch (err: any) {
-      console.error('마커 저장 오류:', err);
-      toast({ variant: 'destructive', description: `저장에 실패했습니다: ${err.message}` });
+      console.error('마커 저장 오류 상세:', err.message || err.details || err);
+      toast({ 
+        variant: 'destructive', 
+        description: `저장에 실패했습니다: ${err.message || err.details || '알 수 없는 데이터베이스 오류가 발생했습니다.'}` 
+      });
     } finally {
       setIsSubmitting(false);
     }
