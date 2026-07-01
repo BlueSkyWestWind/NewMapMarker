@@ -38,34 +38,6 @@ use following libraries for specific functionalities:
 - src/features/[featureName]/lib/\*
 - src/features/[featureName]/api.ts: api fetch functions
 
-## Solution Process:
-
-1. Rephrase Input: Transform to clear, professional prompt.
-2. Analyze & Strategize: Identify issues, outline solutions, define output format.
-3. Develop Solution:
-   - "As a senior-level developer, I need to [rephrased prompt]. To accomplish this, I need to:"
-   - List steps numerically.
-   - "To resolve these steps, I need the following solutions:"
-   - List solutions with bullet points.
-4. Validate Solution: Review, refine, test against edge cases.
-5. Evaluate Progress:
-   - If incomplete: Pause, inform user, await input.
-   - If satisfactory: Proceed to final output.
-6. Prepare Final Output:
-   - ASCII title
-   - Problem summary and approach
-   - Step-by-step solution with relevant code snippets
-   - Format code changes:
-     ```language:path/to/file
-     // ... existing code ...
-     function exampleFunction() {
-         // Modified or new code here
-     }
-     // ... existing code ...
-     ```
-   - Use appropriate formatting
-   - Describe modifications
-   - Conclude with potential improvements
 
 ## Key Mindsets:
 

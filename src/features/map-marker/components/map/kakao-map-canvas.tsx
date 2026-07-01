@@ -390,8 +390,31 @@ function createOverlayContent(
   if (mode === 'battery') {
     const bat = data as BatteryMarker;
     const specSummary = document.createElement('div');
-    specSummary.className = 'text-[10px] text-emerald-400 mt-1';
-    specSummary.textContent = `축전지: ${bat.capacity}AH / ${bat.quantity}Cell (${bat.stationName})`;
+    specSummary.className = 'text-[10px] text-emerald-400 mt-1 flex flex-col gap-0.5';
+
+    if (bat.items && bat.items.length > 0) {
+      const capGroups: { [key: number]: number } = {};
+      bat.items.forEach((item) => {
+        const cap = Number(item.capacity || 0);
+        const qty = Number(item.quantity || 0);
+        capGroups[cap] = (capGroups[cap] || 0) + qty;
+      });
+      const sortedCapacities = Object.keys(capGroups)
+        .map(Number)
+        .sort((a, b) => b - a);
+      const parts = sortedCapacities.map((cap) => `${cap}AH / ${capGroups[cap]}Cell`);
+      
+      specSummary.innerHTML = `
+        <div class="flex flex-col gap-0.5">
+          ${parts.map((part) => `<div>• ${part}</div>`).join('')}
+        </div>
+      `;
+    } else {
+      specSummary.innerHTML = `
+        <div>• ${bat.capacity}AH / ${bat.quantity}Cell</div>
+      `;
+    }
+
     addressDiv.appendChild(specSummary);
 
     // 시설팀 선택 드롭다운 UI 추가
