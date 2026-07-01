@@ -77,6 +77,9 @@ export function MarkersListPanel({
               <li
                 key={marker.id}
                 className="cursor-pointer px-3 py-2 text-xs hover:bg-slate-800/50"
+                onClick={() => {
+                  useMapMarkerStore.getState().setSelectedMarkerId(marker.id);
+                }}
               >
                 <p className="font-medium text-slate-100">{marker.name}</p>
                 {marker.memo ? (

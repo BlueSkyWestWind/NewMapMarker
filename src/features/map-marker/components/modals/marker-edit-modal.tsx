@@ -379,6 +379,10 @@ export function MarkerEditModal() {
         }
       }
 
+      if (marker?.isPending) {
+        useMapMarkerStore.getState().removePendingMarkers(mode, [id]);
+      }
+
       toast({ description: '마커 정보가 성공적으로 저장되었습니다.' });
       queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
       closeAllModals();
@@ -395,6 +399,15 @@ export function MarkerEditModal() {
 
   const handleDelete = async () => {
     if (!selectedMarkerId) return;
+
+    if (marker?.isPending) {
+      if (confirm('대기 마커 등록을 취소하고 목록에서 삭제하시겠습니까?')) {
+        useMapMarkerStore.getState().removePendingMarkers(mode, [selectedMarkerId]);
+        toast({ description: '대기 마커가 취소되었습니다.' });
+        closeAllModals();
+      }
+      return;
+    }
 
     if (!isAuthenticated || !supabase) {
       toast({

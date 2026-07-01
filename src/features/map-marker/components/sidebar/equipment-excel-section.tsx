@@ -1,9 +1,11 @@
 'use client';
 
 import { useRef } from 'react';
-import { FileSpreadsheet, Loader2, Trash2, Upload } from 'lucide-react';
+import { FileSpreadsheet, Loader2, Trash2, Upload, Eye, Edit, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useExcelUploadActions } from '@/features/map-marker/hooks/use-excel-upload-actions';
+import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
+import type { EquipmentMarker } from '@/features/map-marker/types/marker';
 
 export function EquipmentExcelSection() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -11,10 +13,13 @@ export function EquipmentExcelSection() {
     statusText,
     isUploading,
     pendingCount,
+    pendingMarkers,
     uploadEquipmentExcel,
     cancelPendingMarkers,
     submitPendingMarkers,
+    submitSinglePendingMarker,
   } = useExcelUploadActions();
+  const removePendingMarkers = useMapMarkerStore((state) => state.removePendingMarkers);
 
   return (
     <div className="space-y-2">
@@ -81,6 +86,69 @@ export function EquipmentExcelSection() {
               <FileSpreadsheet className="mr-1 h-3 w-3" />
               전체 전송
             </Button>
+          </div>
+
+          <div className="mt-2.5 max-h-48 overflow-y-auto rounded border border-amber-500/20 bg-amber-950/20 divide-y divide-amber-500/10">
+            {pendingMarkers
+              .filter((m) => m.isPending)
+              .map((marker) => (
+                <div key={marker.id} className="p-1.5 flex items-center justify-between gap-1 text-[10px]">
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer hover:text-amber-300"
+                    onClick={() => useMapMarkerStore.getState().setSelectedMarkerId(marker.id)}
+                    title="지도로 위치 확인"
+                  >
+                    <p className="font-semibold truncate text-amber-200">{marker.name || '이름 없음'}</p>
+                    <p className="text-slate-400 truncate text-[9px]">
+                      {(marker as EquipmentMarker).roadAddress || `${marker.lat.toFixed(5)}, ${marker.lng.toFixed(5)}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-slate-400 hover:text-slate-200"
+                      onClick={() => useMapMarkerStore.getState().setSelectedMarkerId(marker.id)}
+                      title="위치 확인"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-slate-400 hover:text-amber-300"
+                      onClick={() => useMapMarkerStore.getState().openEditModal(marker.id)}
+                      title="수정"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                      disabled={isUploading}
+                      onClick={() => void submitSinglePendingMarker(marker.id)}
+                      title="개별 등록"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                      disabled={isUploading}
+                      onClick={() => removePendingMarkers('equipment', [marker.id])}
+                      title="취소"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       ) : null}

@@ -466,8 +466,130 @@ export function useExcelUploadActions() {
     ],
   );
 
+  const submitSinglePendingMarker = useCallback(
+    async (markerId: string) => {
+      const marker = pendingMarkers.find((m) => m.id === markerId);
+      if (!marker) return;
+
+      if (!supabase) {
+        toast({
+          variant: 'destructive',
+          description: 'Supabase가 연결되어 있지 않습니다.',
+        });
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        const currentMode = useMapMarkerStore.getState().mode;
+        if (currentMode === 'battery') {
+          const bat = marker as BatteryMarker;
+          if (!isValidCoordinate(bat.lat) || !isValidCoordinate(bat.lng)) {
+            throw new Error('좌표가 유효하지 않습니다. 주소 지오코딩을 확인하세요.');
+          }
+
+          const dbMarker = {
+            id: bat.id,
+            name: bat.name,
+            lat: bat.lat,
+            lng: bat.lng,
+            address: bat.address ?? '',
+            memo: bat.memo ?? '',
+            tags: bat.tags ?? [],
+            color: resolveStoredMarkerColor(bat.color),
+            facility_team: bat.facilityTeam ?? '',
+            created_at: new Date().toISOString(),
+          };
+
+          const { error } = await supabase.from('battery_markers').insert(dbMarker);
+          if (error) throw error;
+
+          const specItems = Array.isArray(bat.items) && bat.items.length > 0
+            ? bat.items
+            : [{
+                erpName: bat.memo ?? bat.name,
+                capacity: bat.capacity ?? 600,
+                quantity: bat.quantity ?? 12,
+                stationName: bat.stationName ?? bat.name,
+                createdAt: bat.createdAt,
+              }];
+
+          const dbSpecs = specItems.map((item) => ({
+            marker_id: bat.id,
+            erp_name: item.erpName || bat.memo || bat.name || '',
+            capacity: Number(item.capacity) || Number(bat.capacity) || 600,
+            quantity: Number(item.quantity) || Number(bat.quantity) || 12,
+            station_name: item.stationName || bat.stationName || bat.name || '',
+            created_at: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+          }));
+
+          const { error: specsError } = await supabase
+            .from('battery_specs')
+            .insert(dbSpecs);
+          if (specsError) throw specsError;
+        } else {
+          const eq = marker as EquipmentMarker;
+          const dbMarker = {
+            id: eq.id,
+            name: eq.name,
+            lat: eq.lat,
+            lng: eq.lng,
+            memo: eq.memo ?? '',
+            tags: eq.tags ?? [],
+            color: eq.color ?? DEFAULT_MARKER_COLOR,
+            facility_team: eq.facilityTeam ?? '',
+            facility_code: eq.facilityCode || null,
+            road_address: eq.roadAddress ?? '',
+            jibun_address: eq.jibunAddress ?? '',
+            created_at: new Date().toISOString(),
+          };
+
+          const { error: markerError } = await supabase
+            .from('markers')
+            .insert(dbMarker);
+          if (markerError) throw markerError;
+
+          if (eq.facilityCode) {
+            const dbInfo = {
+              marker_id: eq.id,
+              facility_code: eq.facilityCode,
+              place_name: eq.name,
+              facility_year: eq.facilityYear ?? '',
+              project_code: eq.projectCode ?? '',
+              business_type: eq.businessType ?? '',
+              final_station_name: eq.finalStationName ?? '',
+              eq_class: eq.eqClass ?? '',
+              eq_type: eq.eqType ?? '',
+              install_date: MapMarkerExcelManager.formatDateToYmd(eq.installDate ?? ''),
+              open_date: MapMarkerExcelManager.formatDateToYmd(eq.openDate ?? ''),
+            };
+
+            const { error: infoError } = await supabase
+              .from('information')
+              .upsert(dbInfo);
+            if (infoError) throw infoError;
+          }
+        }
+
+        // Remove from pending list
+        removePendingMarkers(mode, [markerId]);
+        await invalidateMarkers();
+        toast({
+          description: `"${marker.name}" 위치를 성공적으로 Supabase에 등록했습니다.`,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '알 수 없는 오류';
+        toast({ variant: 'destructive', description: `개별 등록 실패: ${message}` });
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [pendingMarkers, supabase, toast, removePendingMarkers, mode, invalidateMarkers]
+  );
+
   return {
     pendingCount: pendingMarkers.filter((marker) => marker.isPending).length,
+    pendingMarkers,
     statusText,
     isUploading,
     uploadEquipmentExcel,
@@ -475,5 +597,6 @@ export function useExcelUploadActions() {
     uploadBatteryExcel,
     cancelPendingMarkers,
     submitPendingMarkers,
+    submitSinglePendingMarker,
   };
 }

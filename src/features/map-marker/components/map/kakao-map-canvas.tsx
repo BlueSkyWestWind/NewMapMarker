@@ -14,6 +14,8 @@ import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import type { MapMode, MarkerFilterState, MarkerRecord, EquipmentMarker, BatteryMarker } from '@/features/map-marker/types/marker';
 import { MapFloatingControls } from '@/features/map-marker/components/map/map-floating-controls';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface KakaoMapCanvasProps {
   markers: MarkerRecord[];
@@ -57,6 +59,12 @@ export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) 
   const openDetailModal = useMapMarkerStore((state) => state.openDetailModal);
   const openEditModal = useMapMarkerStore((state) => state.openEditModal);
   const openRoadview = useMapMarkerStore((state) => state.openRoadview);
+  const updatePendingMarker = useMapMarkerStore((state) => state.updatePendingMarker);
+  const setSelectedMarkerId = useMapMarkerStore((state) => state.setSelectedMarkerId);
+  const selectedMarkerId = useMapMarkerStore((state) => state.selectedMarkerId);
+  const isDetailOpen = useMapMarkerStore((state) => state.isDetailOpen);
+  const isEditOpen = useMapMarkerStore((state) => state.isEditOpen);
+  const { toast } = useToast();
   
   const prevModeRef = useRef<MapMode | null>(null);
 
@@ -81,6 +89,7 @@ export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) 
         activeOverlayRef.current.setMap(null);
         activeOverlayRef.current = null;
       }
+      setSelectedMarkerId(null);
     });
 
     mapInstanceRef.current = map;
@@ -149,6 +158,7 @@ export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) 
         zIndex: 3,
         draggable: true,
       });
+      (marker as any).markerId = data.id;
 
       window.kakao.maps.event.addListener(marker, 'dragstart', () => {
         if (activeOverlayRef.current) {
@@ -173,19 +183,24 @@ export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) 
         );
 
         if (confirmMove) {
-          try {
-            const tableName = mode === 'battery' ? 'battery_markers' : 'markers';
-            const { error } = await supabase
-              .from(tableName)
-              .update({ lat: newLat, lng: newLng })
-              .eq('id', data.id);
+          if (data.isPending) {
+            updatePendingMarker(mode, data.id, { lat: newLat, lng: newLng });
+            toast({ description: `"${data.name}" 대기 마커의 임시 위치가 변경되었습니다.` });
+          } else {
+            try {
+              const tableName = mode === 'battery' ? 'battery_markers' : 'markers';
+              const { error } = await supabase
+                .from(tableName)
+                .update({ lat: newLat, lng: newLng })
+                .eq('id', data.id);
 
-            if (error) throw error;
-            await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
-          } catch (err: any) {
-            console.error('마커 위치 이동 실패:', err);
-            alert(`마커 위치 저장 중 오류가 발생했습니다: ${err.message}`);
-            marker.setPosition(position);
+              if (error) throw error;
+              await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
+            } catch (err: any) {
+              console.error('마커 위치 이동 실패:', err);
+              alert(`마커 위치 저장 중 오류가 발생했습니다: ${err.message}`);
+              marker.setPosition(position);
+            }
           }
         } else {
           marker.setPosition(position);
@@ -206,6 +221,7 @@ export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) 
               activeOverlayRef.current.setMap(null);
               activeOverlayRef.current = null;
             }
+            setSelectedMarkerId(null);
           },
           (lat, lng, name) => openRoadview(lat, lng, name),
           (id) => openDetailModal(id),
@@ -260,6 +276,24 @@ export function KakaoMapCanvas({ markers, mode, filters }: KakaoMapCanvasProps) 
     }
     prevModeRef.current = mode;
   }, [markers, mode, filters, isClusteringEnabled, openDetailModal, openEditModal, openRoadview, queryClient, supabase, isAuthenticated]);
+
+  useEffect(() => {
+    if (!selectedMarkerId || !mapInstanceRef.current || isDetailOpen || isEditOpen) return;
+
+    // markersRef.current에서 해당 ID를 가진 카카오 마커 찾기
+    const kakaoMarker = markersRef.current.find(
+      (m: any) => m.markerId === selectedMarkerId
+    );
+
+    if (kakaoMarker) {
+      // 마커로 확대 (기존 줌 레벨이 3보다 크면 3으로 축소/확대)
+      if (mapInstanceRef.current.getLevel() > 3) {
+        mapInstanceRef.current.setLevel(3);
+      }
+      mapInstanceRef.current.panTo(kakaoMarker.getPosition());
+      (window.kakao.maps.event as any).trigger(kakaoMarker, 'click');
+    }
+  }, [selectedMarkerId, isDetailOpen, isEditOpen, markers]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;

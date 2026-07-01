@@ -27,6 +27,12 @@ interface MapMarkerUiState {
   addPendingMarkers: (mode: MapMode, markers: MarkerRecord[]) => void;
   removePendingMarkers: (mode: MapMode, ids: string[]) => void;
   clearPendingMarkers: (mode: MapMode) => void;
+  setSelectedMarkerId: (id: string | null) => void;
+  updatePendingMarker: (
+    mode: MapMode,
+    id: string,
+    updates: Partial<MarkerRecord>
+  ) => void;
   toggleFilterValue: (
     type: 'year' | 'business' | 'color' | 'tag',
     value: string,
@@ -117,6 +123,23 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             ? { pendingEquipmentMarkers: [] }
             : { pendingBatteryMarkers: [] },
         ),
+      setSelectedMarkerId: (id) => set({ selectedMarkerId: id }),
+      updatePendingMarker: (mode, id, updates) =>
+        set((state) => {
+          if (mode === 'equipment') {
+            return {
+              pendingEquipmentMarkers: state.pendingEquipmentMarkers.map((m) =>
+                m.id === id ? { ...m, ...updates } : m
+              ),
+            };
+          } else {
+            return {
+              pendingBatteryMarkers: state.pendingBatteryMarkers.map((m) =>
+                m.id === id ? { ...m, ...updates } : m
+              ),
+            };
+          }
+        }),
       toggleFilterValue: (type, value) => {
         const filters = get().filters;
         const keyMap = {
