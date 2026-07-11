@@ -1,15 +1,17 @@
-'use client';
+"use client";
 
 import {
+  CircleDot,
   Layers,
   LocateFixed,
   Minus,
+  PieChart,
   Plus,
   Shapes,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
-import { DEFAULT_MAP_CENTER } from '@/features/map-marker/constants/map-config';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
+import { DEFAULT_MAP_CENTER } from "@/features/map-marker/constants/map-config";
 
 interface MapFloatingControlsProps {
   map: KakaoMap | null;
@@ -20,9 +22,13 @@ export function MapFloatingControls({ map }: MapFloatingControlsProps) {
   const isClusteringEnabled = useMapMarkerStore(
     (state) => state.isClusteringEnabled,
   );
+  const clusterIconStyle = useMapMarkerStore((state) => state.clusterIconStyle);
   const isCadastralMode = useMapMarkerStore((state) => state.isCadastralMode);
   const setClusteringEnabled = useMapMarkerStore(
     (state) => state.setClusteringEnabled,
+  );
+  const setClusterIconStyle = useMapMarkerStore(
+    (state) => state.setClusterIconStyle,
   );
   const setCadastralMode = useMapMarkerStore((state) => state.setCadastralMode);
 
@@ -54,6 +60,10 @@ export function MapFloatingControls({ map }: MapFloatingControlsProps) {
     map.setLevel(6);
   };
 
+  const handleToggleClusterStyle = () => {
+    setClusterIconStyle(clusterIconStyle === "donut" ? "pie" : "donut");
+  };
+
   return (
     <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
       <Button
@@ -74,9 +84,9 @@ export function MapFloatingControls({ map }: MapFloatingControlsProps) {
         onClick={() => setCadastralMode(!isCadastralMode)}
         title="지적편집도"
       >
-        <Layers className={isCadastralMode ? 'text-emerald-400' : ''} />
+        <Layers className={isCadastralMode ? "text-emerald-400" : ""} />
       </Button>
-      {mode === 'equipment' ? (
+      {mode === "equipment" ? (
         <Button
           type="button"
           size="icon"
@@ -85,7 +95,27 @@ export function MapFloatingControls({ map }: MapFloatingControlsProps) {
           onClick={() => setClusteringEnabled(!isClusteringEnabled)}
           title="클러스터"
         >
-          <Shapes className={isClusteringEnabled ? 'text-emerald-400' : ''} />
+          <Shapes className={isClusteringEnabled ? "text-emerald-400" : ""} />
+        </Button>
+      ) : null}
+      {mode === "equipment" && isClusteringEnabled ? (
+        <Button
+          type="button"
+          size="icon"
+          variant="secondary"
+          className="h-9 w-9 bg-slate-900/90 text-slate-100"
+          onClick={handleToggleClusterStyle}
+          title={
+            clusterIconStyle === "donut"
+              ? "클러스터 스타일: 도넛 (클릭 시 파이)"
+              : "클러스터 스타일: 파이 (클릭 시 도넛)"
+          }
+        >
+          {clusterIconStyle === "donut" ? (
+            <CircleDot className="h-4 w-4 text-emerald-400" />
+          ) : (
+            <PieChart className="h-4 w-4 text-emerald-400" />
+          )}
         </Button>
       ) : null}
       <Button

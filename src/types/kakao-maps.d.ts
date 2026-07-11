@@ -38,6 +38,7 @@ declare global {
           minLevel?: number;
           disableClickZoom?: boolean;
           styles?: Array<Record<string, string | number>>;
+          texts?: string[] | ((size: number) => string);
         }) => KakaoMarkerClusterer;
         MapTypeId: {
           HYBRID: unknown;
@@ -107,6 +108,12 @@ declare global {
   interface KakaoCustomOverlay {
     setMap: (map: KakaoMap | null) => void;
     getContent: () => HTMLElement;
+    setContent: (content: HTMLElement | string) => void;
+  }
+
+  interface KakaoCluster {
+    getMarkers: () => KakaoMarker[];
+    getClusterMarker: () => KakaoCustomOverlay;
   }
 
   interface KakaoMarkerClusterer {
