@@ -29,6 +29,7 @@ import {
   downloadBlob,
   waitForCaptureOverlays,
   waitForKakaoMapIdle,
+  waitForMapTilesReady,
 } from "@/features/map-marker/lib/map-viewport-capture";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type { MarkerRecord } from "@/features/map-marker/types/marker";
@@ -45,6 +46,8 @@ interface MapRegionCapturePanelProps {
   bounds: MapBoundsLiteral;
   /** 현재 지도에 표시 중인 마커 (필터 반영) */
   markers: MarkerRecord[];
+  /** 캡처에서 제외할 타일 인덱스 (격자 순서 기준) */
+  excludedTiles?: Set<number>;
   onClose: () => void;
   onReselectRegion: () => void;
   onGuideChange?: (guide: CaptureGuideState) => void;
@@ -72,6 +75,7 @@ export function MapRegionCapturePanel({
   mapContainer,
   bounds,
   markers,
+  excludedTiles,
   onClose,
   onReselectRegion,
   onGuideChange,
@@ -130,90 +134,55 @@ export function MapRegionCapturePanel({
   useEffect(() => {
     if (phaseRef.current === "capturing") return;
 
-    let cancelled = false;
+    // 미리보기는 지도를 실제로 줌하지 않고, 현재 레벨의 뷰포트 span을
+    // 목표 레벨로 환산해 격자를 즉시 계산한다. (레벨 변경 시 실시간 반영)
+    setIsPreparing(true);
+    setErrorMessage("");
 
-    const rebuildPlan = async () => {
-      setIsPreparing(true);
-      setErrorMessage("");
+    try {
+      const viewportSize = {
+        width: mapContainer.clientWidth || 1,
+        height: mapContainer.clientHeight || 1,
+      };
+      const currentLevel = map.getLevel();
+      const currentSpan = measureViewportSpan(map, viewportSize);
+      const span =
+        currentLevel === captureLevel
+          ? currentSpan
+          : estimateSpanAtLevel(currentSpan, currentLevel, captureLevel);
+      // 지도를 줌하지 않고, 화면 투영 픽셀 기준으로 목표 레벨 격자를 정밀 계산
+      const plan = buildCaptureGridPlan({
+        map,
+        captureLevel,
+        bounds,
+        viewportSpan: span,
+        viewportSize,
+        overlapRatio: Math.min(0.4, Math.max(0, overlapPercent / 100)),
+      });
 
-      try {
-        if (map.getLevel() !== captureLevel) {
-          map.setLevel(captureLevel);
-          await waitForKakaoMapIdle(map);
-        }
-
-        if (cancelled || cancelledRef.current) return;
-
-        const viewportSize = {
-          width: mapContainer.clientWidth || 1,
-          height: mapContainer.clientHeight || 1,
-        };
-        const span = measureViewportSpan(map, viewportSize);
-        const plan = buildCaptureGridPlan({
-          map,
-          bounds,
-          viewportSpan: span,
-          viewportSize,
-          overlapRatio: Math.min(0.4, Math.max(0, overlapPercent / 100)),
-        });
-
-        if (cancelled || cancelledRef.current) return;
-
-        setViewportSpan(span);
-        setGridPlan(plan);
-        setCurrentMapLevel(map.getLevel());
-        setPhase("preview");
-        setProgressCurrent(0);
-        setStitchedCanvas(null);
-        setCapturedTiles([]);
-        setPreviewUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return null;
-        });
-      } catch (error) {
-        if (cancelled || cancelledRef.current) return;
-
-        try {
-          const viewportSize = {
-            width: mapContainer.clientWidth || 1,
-            height: mapContainer.clientHeight || 1,
-          };
-          const currentLevel = map.getLevel();
-          const currentSpan = measureViewportSpan(map, viewportSize);
-          const span = estimateSpanAtLevel(
-            currentSpan,
-            currentLevel,
-            captureLevel,
-          );
-          const plan = buildCaptureGridPlan({
-            bounds,
-            viewportSpan: span,
-            viewportSize,
-            overlapRatio: Math.min(0.4, Math.max(0, overlapPercent / 100)),
-          });
-          setViewportSpan(span);
-          setGridPlan(plan);
-          setPhase("preview");
-        } catch {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "격자 계획을 만들지 못했습니다.";
-          setErrorMessage(message);
-          setGridPlan(null);
-          setViewportSpan(null);
-          setPhase("error");
-        }
-      } finally {
-        if (!cancelled) setIsPreparing(false);
-      }
-    };
-
-    void rebuildPlan();
-
-    return () => {
-      cancelled = true;
-    };
+      setViewportSpan(span);
+      setGridPlan(plan);
+      setCurrentMapLevel(currentLevel);
+      setPhase("preview");
+      setProgressCurrent(0);
+      setStitchedCanvas(null);
+      setCapturedTiles([]);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "격자 계획을 만들지 못했습니다.";
+      setErrorMessage(message);
+      setGridPlan(null);
+      setViewportSpan(null);
+      setPhase("error");
+    } finally {
+      setIsPreparing(false);
+    }
   }, [bounds, captureLevel, map, mapContainer, overlapPercent]);
 
   useEffect(() => {
@@ -238,7 +207,14 @@ export function MapRegionCapturePanel({
   }, [map]);
 
   const tileCount = gridPlan?.tiles.length ?? 0;
-  const isOverRecommended = tileCount > MAX_RECOMMENDED_CAPTURE_TILES;
+  const excludedCount = gridPlan
+    ? gridPlan.tiles.reduce(
+        (acc, _tile, index) => acc + (excludedTiles?.has(index) ? 1 : 0),
+        0,
+      )
+    : 0;
+  const activeTileCount = Math.max(0, tileCount - excludedCount);
+  const isOverRecommended = activeTileCount > MAX_RECOMMENDED_CAPTURE_TILES;
   const isLevelMismatch = currentMapLevel !== captureLevel;
   const isBusy = phase === "capturing" || isPreparing;
   const markersInBoundsCount = getMarkerIdsInBounds(markers, bounds).length;
@@ -330,21 +306,28 @@ export function MapRegionCapturePanel({
         await waitForKakaoMapIdle(map);
       }
 
-      // 레벨 적용 후 화면 투영 기준으로 격자 재계산
-      const viewportSize = {
-        width: mapContainer.clientWidth || 1,
-        height: mapContainer.clientHeight || 1,
-      };
-      const span = measureViewportSpan(map, viewportSize);
-      const plan = buildCaptureGridPlan({
-        map,
-        bounds,
-        viewportSpan: span,
-        viewportSize,
-        overlapRatio: Math.min(0.4, Math.max(0, overlapPercent / 100)),
-      });
-      setViewportSpan(span);
-      setGridPlan(plan);
+      // 미리보기에서 사용자가 본 격자를 그대로 사용한다.
+      // (타일 중심은 위경도라 레벨과 무관하게 유효하고, dest는 촬영 후
+      //  실제 중심으로 재보정되므로 여기서 투영 재계산은 하지 않는다 →
+      //  제외 인덱스가 미리보기와 항상 일치)
+      const fullPlan = gridPlan;
+
+      // 사용자가 격자에서 제외한 타일을 건너뛴다 (dest 좌표는 유지 → 위치 보존)
+      const plan: CaptureGridPlan = excludedTiles?.size
+        ? {
+            ...fullPlan,
+            tiles: fullPlan.tiles.filter(
+              (_tile, index) => !excludedTiles.has(index),
+            ),
+          }
+        : fullPlan;
+
+      if (plan.tiles.length === 0) {
+        setErrorMessage("캡처할 격자가 없습니다. 최소 한 칸은 포함하세요.");
+        setPhase("preview");
+        return;
+      }
+
       setProgressTotal(plan.tiles.length);
 
       const openedCount = await openInfoWindowsInBounds();
@@ -356,18 +339,26 @@ export function MapRegionCapturePanel({
       const result = await runGridCapture({
         plan,
         map,
-        settleMs: 500,
+        // idle + 타일 100% 로드를 별도로 기다리므로 고정 대기는 최소화
+        settleMs: 150,
         setCenter: async (center) => {
           if (cancelledRef.current) {
             throw new Error("CAPTURE_CANCELLED");
           }
           map.setCenter(new window.kakao.maps.LatLng(center.lat, center.lng));
+          // 이동 완료(idle)까지 대기
+          await waitForKakaoMapIdle(map);
         },
         getCenter: () => {
           const center = map.getCenter();
           return { lat: center.getLat(), lng: center.getLng() };
         },
         captureViewport: async () => {
+          if (cancelledRef.current) {
+            throw new Error("CAPTURE_CANCELLED");
+          }
+          // 지도 타일이 100% 로드될 때까지 대기한 뒤 촬영 (빈/흐린 타일 방지)
+          await waitForMapTilesReady(mapContainer);
           if (cancelledRef.current) {
             throw new Error("CAPTURE_CANCELLED");
           }
@@ -468,6 +459,8 @@ export function MapRegionCapturePanel({
       isPreparing={isPreparing}
       gridPlan={gridPlan}
       tileCount={tileCount}
+      activeTileCount={activeTileCount}
+      excludedCount={excludedCount}
       isOverRecommended={isOverRecommended}
       progressCurrent={progressCurrent}
       progressTotal={progressTotal}

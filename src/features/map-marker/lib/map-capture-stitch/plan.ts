@@ -41,6 +41,12 @@ function buildCaptureGridPlanFromProjection(
   const stepX = Math.max(1, tileWidth - overlapX);
   const stepY = Math.max(1, tileHeight - overlapY);
 
+  // 목표 레벨의 화면 픽셀은 현재 레벨 컨테이너 픽셀의 factor배다.
+  // (레벨이 낮을수록 확대 → 픽셀 수 증가) factor = 2^(현재레벨 - 목표레벨)
+  const currentLevel = map.getLevel();
+  const targetLevel = options.captureLevel ?? currentLevel;
+  const factor = 2 ** (currentLevel - targetLevel);
+
   const swContainer = readPointXY(
     projection.containerPointFromCoords(
       new window.kakao.maps.LatLng(
@@ -70,26 +76,31 @@ function buildCaptureGridPlanFromProjection(
   minY -= padY;
   maxY += padY;
 
-  const regionWidth = Math.max(1, maxX - minX);
-  const regionHeight = Math.max(1, maxY - minY);
+  // 현재 레벨 컨테이너 픽셀 기준 중심
   const regionCenterX = (minX + maxX) / 2;
   const regionCenterY = (minY + maxY) / 2;
+
+  // 목표 레벨 픽셀로 환산한 영역 크기
+  const regionWidth = Math.max(1, (maxX - minX) * factor);
+  const regionHeight = Math.max(1, (maxY - minY) * factor);
 
   const cols = Math.max(1, Math.ceil((regionWidth - tileWidth) / stepX) + 1);
   const rows = Math.max(1, Math.ceil((regionHeight - tileHeight) / stepY) + 1);
 
-  // 격자 전체 커버 영역을 선택 범위 중심에 맞춤 (좌상단 고정 → 우측 쏠림 방지)
+  // 격자 전체 커버 영역(목표 레벨 픽셀)을 선택 범위 중심에 맞춤
   const coverageWidth = tileWidth + (cols - 1) * stepX;
   const coverageHeight = tileHeight + (rows - 1) * stepY;
-  const originLeft = regionCenterX - coverageWidth / 2;
-  const originTop = regionCenterY - coverageHeight / 2;
 
   const tiles: CaptureTilePlan[] = [];
 
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
-      const centerX = originLeft + tileWidth / 2 + col * stepX;
-      const centerY = originTop + tileHeight / 2 + row * stepY;
+      // 목표 레벨 픽셀에서 중심의 상대 오프셋
+      const relX = -coverageWidth / 2 + tileWidth / 2 + col * stepX;
+      const relY = -coverageHeight / 2 + tileHeight / 2 + row * stepY;
+      // 현재 레벨 컨테이너 픽셀로 되돌려 좌표를 정확히 투영
+      const centerX = regionCenterX + relX / factor;
+      const centerY = regionCenterY + relY / factor;
       const centerLatLng = projection.coordsFromContainerPoint(
         new window.kakao.maps.Point(centerX, centerY),
       );
@@ -116,6 +127,7 @@ function buildCaptureGridPlanFromProjection(
     overlapY,
     outputWidth: coverageWidth,
     outputHeight: coverageHeight,
+    captureLevel: targetLevel,
     tiles,
   };
 }

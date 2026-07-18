@@ -46,6 +46,51 @@ export interface ReverseGeocodeResult {
   address: string;
 }
 
+/**
+ * 한국 주소가 도로명(road)인지 지번(jibun)인지 대략 판별한다.
+ * - 지번: '동/리/가 + 번지 숫자', '산 30-1', '…번지' (예: 명산리 114-4)
+ * - 도로명: '○○로/○○길' 뒤에 건물번호 숫자 (예: 테헤란로 152)
+ * 애매하면 지번으로 본다. (업로드가 대부분 지번인 워크플로 기준)
+ */
+export function classifyKoreanAddress(address: string): "road" | "jibun" {
+  const a = (address || "").replace(/\s+/g, " ").trim();
+  if (!a) return "jibun";
+
+  // 지번 강한 신호 우선
+  if (/번지/.test(a)) return "jibun";
+  if (/(^|\s)산\s?\d/.test(a)) return "jibun";
+
+  // 도로명 신호: '로/길' + 건물번호. 번호 뒤에 가/동/리 등이 붙으면 지번(예: 을지로 2가)
+  if (/[가-힣A-Za-z0-9]+(로|길)\s?\d+(-\d+)?(?![가-힣\d])/.test(a)) {
+    return "road";
+  }
+
+  return "jibun";
+}
+
+/**
+ * roadAddress/jibunAddress가 비어 있고 address만 있을 때 종류를 판별해 나눈다.
+ */
+export function splitAddressFields(input: {
+  roadAddress?: string;
+  jibunAddress?: string;
+  address?: string;
+}): { roadAddress: string; jibunAddress: string } {
+  let roadAddress = (input.roadAddress ?? "").trim();
+  let jibunAddress = (input.jibunAddress ?? "").trim();
+  const address = (input.address ?? "").trim();
+
+  if (!roadAddress && !jibunAddress && address) {
+    if (classifyKoreanAddress(address) === "road") {
+      roadAddress = address;
+    } else {
+      jibunAddress = address;
+    }
+  }
+
+  return { roadAddress, jibunAddress };
+}
+
 export function geocodeAddress(address: string): Promise<GeocodeCoords | null> {
   return new Promise((resolve) => {
     const services = getKakaoServices();

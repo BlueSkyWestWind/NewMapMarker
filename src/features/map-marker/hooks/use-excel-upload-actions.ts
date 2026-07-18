@@ -9,7 +9,10 @@ import {
   TEMP_MARKER_COLOR,
 } from "@/features/map-marker/constants/facility-teams";
 import { MAP_MARKER_QUERY_KEY } from "@/features/map-marker/constants/map-config";
-import { geocodeAddressQueue } from "@/features/map-marker/lib/geocode";
+import {
+  geocodeAddressQueue,
+  splitAddressFields,
+} from "@/features/map-marker/lib/geocode";
 import { createLocationMarkerFromExcelRow } from "@/features/map-marker/lib/location-marker";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
@@ -62,6 +65,11 @@ function toEquipmentMarker(
   marker: ParsedExcelRow,
   isPending = true,
 ): EquipmentMarker {
+  const { roadAddress, jibunAddress } = splitAddressFields({
+    roadAddress: marker.roadAddress,
+    jibunAddress: marker.jibunAddress,
+    address: marker.address,
+  });
   return {
     id: String(
       marker.id ??
@@ -76,8 +84,8 @@ function toEquipmentMarker(
       ? PENDING_MARKER_COLOR
       : String(marker.color ?? DEFAULT_MARKER_COLOR),
     facilityTeam: "",
-    roadAddress: String(marker.roadAddress ?? marker.address ?? ""),
-    jibunAddress: String(marker.jibunAddress ?? ""),
+    roadAddress,
+    jibunAddress,
     facilityCode: String(marker.facilityCode ?? ""),
     projectCode: String(marker.projectCode ?? ""),
     facilityYear: String(marker.facilityYear ?? ""),
@@ -172,8 +180,8 @@ export function useExcelUploadActions() {
           );
           geocodeResults = geocoded.results.map((item) => ({
             ...item,
-            roadAddress: item.address ?? "",
-            jibunAddress: "",
+            // 사용자가 입력한 주소가 도로명/지번 중 어느 쪽인지 판별해 배정
+            ...splitAddressFields({ address: item.address }),
           }));
           failCount = geocoded.failCount;
         }
@@ -248,8 +256,8 @@ export function useExcelUploadActions() {
           );
           geocodeResults = geocoded.results.map((item) => ({
             ...item,
-            roadAddress: item.address ?? "",
-            jibunAddress: "",
+            // 사용자가 입력한 주소가 도로명/지번 중 어느 쪽인지 판별해 배정
+            ...splitAddressFields({ address: item.address }),
           }));
           failCount = geocoded.failCount;
         }

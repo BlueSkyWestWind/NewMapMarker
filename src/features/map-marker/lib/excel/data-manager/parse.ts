@@ -4,6 +4,7 @@ import {
   parseFacilityTeamInput,
   getFacilityTeamExportLabel,
 } from './shared';
+import { classifyKoreanAddress } from '@/features/map-marker/lib/geocode';
 
 export const parseMethods: Record<string, any> & ThisType<any> = {
 
@@ -118,8 +119,9 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                             eqType: eqTypeVal,
                             installDate: installDateVal,
                             openDate: openDateVal,
-                            roadAddress: addressVal, // 엑셀에 기입된 주소가 있다면 기본 할당
-                            jibunAddress: "",
+                            // 엑셀 주소 컬럼의 값이 도로명인지 지번인지 판별해 올바른 필드에 넣는다
+                            roadAddress: addressVal && classifyKoreanAddress(addressVal) === "road" ? addressVal : "",
+                            jibunAddress: addressVal && classifyKoreanAddress(addressVal) === "jibun" ? addressVal : "",
                             createdAt: new Date().toISOString().split('T')[0]
                         };
                         

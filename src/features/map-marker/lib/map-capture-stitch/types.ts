@@ -45,6 +45,8 @@ export interface CaptureGridPlan {
   /** 최종 이미지 크기 */
   outputWidth: number;
   outputHeight: number;
+  /** 이 격자가 촬영될 지도 레벨 (가이드가 화면 셀 크기를 정밀 계산하는 데 사용) */
+  captureLevel?: number;
   tiles: CaptureTilePlan[];
 }
 
@@ -63,6 +65,11 @@ export interface BuildCaptureGridOptions {
    * 없을 때만 viewportSpan 폴백을 쓴다.
    */
   map?: KakaoMap;
+  /**
+   * 격자를 만들 목표 지도 레벨. map과 함께 주면 지도를 실제로 줌하지 않고도
+   * 목표 레벨의 화면 픽셀 기준으로 정밀 계산한다. (없으면 현재 map 레벨)
+   */
+  captureLevel?: number;
   /** map 없을 때 폴백: 현재 줌에서 화면 1칸이 커버하는 위도/경도 폭 */
   viewportSpan?: {
     latSpan: number;

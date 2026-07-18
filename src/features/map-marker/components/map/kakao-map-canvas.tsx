@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_MAP_CENTER,
@@ -121,6 +121,32 @@ export function KakaoMapCanvas({
     viewportSpan: null,
     capturedCount: 0,
   });
+  const [excludedTiles, setExcludedTiles] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const prevTileCountRef = useRef(0);
+
+  // 격자 구성(레벨·겹침·범위)이 바뀌어 타일 수가 달라지면 제외 선택을 초기화한다.
+  const handleCaptureGuideChange = useCallback((guide: CaptureGuideState) => {
+    const count = guide.plan?.tiles.length ?? 0;
+    if (count !== prevTileCountRef.current) {
+      prevTileCountRef.current = count;
+      setExcludedTiles(new Set());
+    }
+    setCaptureGuide(guide);
+  }, []);
+
+  const handleToggleExcludedTile = useCallback((index: number) => {
+    setExcludedTiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
   const clustererRef = useRef<KakaoMarkerClusterer | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
   const overlaysRef = useRef<Map<string, KakaoCustomOverlay>>(new Map());
@@ -288,7 +314,9 @@ export function KakaoMapCanvas({
       (...args: unknown[]) => {
         const clusters = args[0] as KakaoCluster[] | undefined;
         if (!Array.isArray(clusters)) return;
-        applyClusterPieStyles(clusters, clusterIconStyleRef.current);
+        applyClusterPieStyles(clusters, clusterIconStyleRef.current, (cluster) =>
+          zoomMapToCluster(map, cluster),
+        );
       },
     );
   }, [isReady, clearSelectedMarkers]);
@@ -776,6 +804,9 @@ export function KakaoMapCanvas({
           plan={captureGuide.plan}
           viewportSpan={captureGuide.viewportSpan}
           capturedCount={captureGuide.capturedCount}
+          excludedIndices={excludedTiles}
+          onToggleTile={handleToggleExcludedTile}
+          interactive={captureGuide.capturedCount === 0}
         />
       ) : null}
       <MapFloatingControls
@@ -783,6 +814,8 @@ export function KakaoMapCanvas({
         onStartRegionCapture={() => {
           setIsCapturePanelOpen(false);
           setCaptureBounds(null);
+          setExcludedTiles(new Set());
+          prevTileCountRef.current = 0;
           setCaptureGuide({
             plan: null,
             viewportSpan: null,
@@ -801,10 +834,13 @@ export function KakaoMapCanvas({
               markerPassesFilters(marker, mode, filters) &&
               isPlottableCoordinate(marker.lat, marker.lng),
           )}
-          onGuideChange={setCaptureGuide}
+          excludedTiles={excludedTiles}
+          onGuideChange={handleCaptureGuideChange}
           onClose={() => {
             setIsCapturePanelOpen(false);
             setCaptureBounds(null);
+            setExcludedTiles(new Set());
+            prevTileCountRef.current = 0;
             setCaptureGuide({
               plan: null,
               viewportSpan: null,
@@ -814,6 +850,8 @@ export function KakaoMapCanvas({
           onReselectRegion={() => {
             setIsCapturePanelOpen(false);
             setCaptureBounds(null);
+            setExcludedTiles(new Set());
+            prevTileCountRef.current = 0;
             setCaptureGuide({
               plan: null,
               viewportSpan: null,

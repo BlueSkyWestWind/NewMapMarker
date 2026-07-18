@@ -37,6 +37,8 @@ export interface CapturePanelViewProps {
   isPreparing: boolean;
   gridPlan: CaptureGridPlan | null;
   tileCount: number;
+  activeTileCount: number;
+  excludedCount: number;
   isOverRecommended: boolean;
   progressCurrent: number;
   progressTotal: number;
@@ -73,6 +75,8 @@ export function CapturePanelView({
   isPreparing,
   gridPlan,
   tileCount,
+  activeTileCount,
+  excludedCount,
   isOverRecommended,
   progressCurrent,
   progressTotal,
@@ -124,9 +128,13 @@ export function CapturePanelView({
           <SelectTrigger className="h-8 border-slate-600 bg-slate-800 text-slate-100">
             <SelectValue placeholder="레벨" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="border-slate-600 bg-slate-800 text-slate-100">
             {levelOptions.map((level) => (
-              <SelectItem key={level} value={String(level)}>
+              <SelectItem
+                key={level}
+                value={String(level)}
+                className="text-slate-100 focus:bg-slate-700 focus:text-slate-100"
+              >
                 Lv {level}
                 {level === 0
                   ? " (최대 확대)"
@@ -186,9 +194,15 @@ export function CapturePanelView({
           </span>
         ) : gridPlan ? (
           <>
-            캡처 격자 {gridPlan.rows} × {gridPlan.cols} ({tileCount}장)
+            캡처 격자 {gridPlan.rows} × {gridPlan.cols} (
+            {excludedCount > 0 ? `${activeTileCount}/${tileCount}` : tileCount}장)
             <span className="mt-0.5 block text-slate-500">
               출력 약 {gridPlan.outputWidth}×{gridPlan.outputHeight}px
+            </span>
+            <span className="mt-0.5 block text-slate-500">
+              {excludedCount > 0
+                ? `격자 ${excludedCount}칸 제외됨 · 지도의 칸을 클릭해 조정하세요`
+                : "지도의 격자 칸을 클릭하면 해당 칸을 캡처에서 제외합니다"}
             </span>
           </>
         ) : (
@@ -242,7 +256,7 @@ export function CapturePanelView({
           <Button
             type="button"
             className="bg-sky-600 hover:bg-sky-500"
-            disabled={!gridPlan || isBusy || tileCount === 0}
+            disabled={!gridPlan || isBusy || activeTileCount === 0}
             onClick={onStartCapture}
           >
             {isPreparing ? (

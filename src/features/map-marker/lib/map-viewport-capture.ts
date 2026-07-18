@@ -159,6 +159,35 @@ export async function waitForCaptureOverlays(
   return mapContainer.querySelectorAll(".custom-overlay").length;
 }
 
+/**
+ * 현재 뷰포트의 지도 타일(위성 포함)이 모두 로드될 때까지 대기한다.
+ * kakao의 "tilesloaded" 이벤트가 로딩 완료 신호다.
+ * 이미 로드가 끝나 이벤트가 오지 않을 수 있으므로 timeout 폴백을 둔다.
+ */
+export function waitForKakaoMapTilesLoaded(
+  map: KakaoMap,
+  timeoutMs: number = 8000,
+): Promise<void> {
+  return new Promise((resolve) => {
+    if (!window.kakao?.maps) {
+      resolve();
+      return;
+    }
+
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.kakao?.maps.event.removeListener(map, "tilesloaded", onLoaded);
+      resolve();
+    };
+
+    const onLoaded = () => finish();
+    window.kakao.maps.event.addListener(map, "tilesloaded", onLoaded);
+    window.setTimeout(finish, timeoutMs);
+  });
+}
+
 export function waitForKakaoMapIdle(
   map: KakaoMap,
   timeoutMs: number = 6000,
@@ -409,6 +438,8 @@ export async function captureMapViewport(
 
     for (let attempt = 1; attempt <= MAX_CAPTURE_ATTEMPTS; attempt += 1) {
       await waitForKakaoMapIdle(map, 6000);
+      // 위성 타일까지 완전히 로드된 뒤 촬영 (흰/빈 타일 방지)
+      await waitForKakaoMapTilesLoaded(map, 8000);
       await waitForMapTilesReady(mapContainer, {
         timeoutMs: 10000 + attempt * 1000,
       });

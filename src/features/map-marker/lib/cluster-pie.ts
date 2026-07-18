@@ -74,6 +74,7 @@ function buildConicGradient(
 export function createClusterPieElement(
   colors: string[],
   style: ClusterIconStyle,
+  onClick?: (event: MouseEvent) => void,
 ): HTMLDivElement {
   const total = colors.length;
   const slices = aggregateClusterColorSlices(colors);
@@ -124,6 +125,14 @@ export function createClusterPieElement(
     root.appendChild(label);
   }
 
+  // 커스텀 콘텐츠는 kakao 기본 clusterclick이 발생하지 않을 수 있어 직접 바인딩
+  if (onClick) {
+    root.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onClick(event);
+    });
+  }
+
   return root;
 }
 
@@ -133,6 +142,7 @@ export function createClusterPieElement(
 export function applyClusterPieStyles(
   clusters: KakaoCluster[],
   style: ClusterIconStyle,
+  onClusterClick?: (cluster: KakaoCluster) => void,
 ): void {
   for (const cluster of clusters) {
     const markers = cluster.getMarkers?.() ?? [];
@@ -147,7 +157,13 @@ export function applyClusterPieStyles(
     const clusterMarker = cluster.getClusterMarker?.();
     if (!clusterMarker) continue;
 
-    clusterMarker.setContent(createClusterPieElement(colors, style));
+    clusterMarker.setContent(
+      createClusterPieElement(
+        colors,
+        style,
+        onClusterClick ? () => onClusterClick(cluster) : undefined,
+      ),
+    );
   }
 }
 
