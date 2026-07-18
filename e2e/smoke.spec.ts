@@ -15,21 +15,28 @@ test.describe("앱 스모크", () => {
     // 문서 타이틀
     await expect(page).toHaveTitle(/MapMarker Pro/i);
 
-    // 사이드바 모드 탭(장비/축전지)이 렌더되는지
+    // 사이드바 모드 탭(장비/축전지/위치)이 렌더되는지
     await expect(page.getByRole("button", { name: "장비" })).toBeVisible();
     await expect(page.getByRole("button", { name: "축전지" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "위치" })).toBeVisible();
 
     // 치명적 런타임 예외(무한 렌더 등)가 없어야 한다
     expect(errors, `page errors:\n${errors.join("\n")}`).toHaveLength(0);
   });
 
-  test("모드 탭 전환이 동작한다(장비 ↔ 축전지)", async ({ page }) => {
+  test("모드 탭 전환이 동작한다(장비 ↔ 축전지 ↔ 위치)", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
     const battery = page.getByRole("button", { name: "축전지" });
     await battery.click();
-    // 클릭 후에도 두 탭이 계속 보이면(크래시 없음) 통과
     await expect(page.getByRole("button", { name: "장비" })).toBeVisible();
     await expect(battery).toBeVisible();
+
+    const location = page.getByRole("button", { name: "위치" });
+    await location.click();
+    await expect(
+      page.getByText(/지도를 클릭하면 위치가 바로 등록됩니다/),
+    ).toBeVisible();
+    await expect(location).toBeVisible();
   });
 });

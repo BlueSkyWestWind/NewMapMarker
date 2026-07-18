@@ -10,18 +10,15 @@ export interface LatLngLiteral {
   lng: number;
 }
 
-
 export interface MapBoundsLiteral {
   sw: LatLngLiteral;
   ne: LatLngLiteral;
 }
 
-
 export interface ViewportSize {
   width: number;
   height: number;
 }
-
 
 export interface CaptureTilePlan {
   /** 행(위에서 아래) */
@@ -35,7 +32,6 @@ export interface CaptureTilePlan {
   /** 합성 결과 이미지에서의 좌상단 y(px) */
   destY: number;
 }
-
 
 export interface CaptureGridPlan {
   rows: number;
@@ -52,13 +48,12 @@ export interface CaptureGridPlan {
   tiles: CaptureTilePlan[];
 }
 
-
 export interface BuildCaptureGridOptions {
   bounds: MapBoundsLiteral;
   viewportSize: ViewportSize;
   /**
    * 인접 타일과 겹치는 비율 (0~0.4 권장)
-   * 예: 0.2 = 20% 겹침 → 이음새 오차·타일 로딩 경계 완화
+   * 예: 0.05 = 5% 겹침 → 이음새 오차·타일 로딩 경계 완화
    */
   overlapRatio?: number;
   /** 격자 안전 여유 (bounds 바깥으로 조금 더 커버) */
@@ -75,22 +70,18 @@ export interface BuildCaptureGridOptions {
   };
 }
 
-
-export const DEFAULT_OVERLAP_RATIO = 0.2;
+export const DEFAULT_OVERLAP_RATIO = 0.05;
 
 export const DEFAULT_PADDING_RATIO = 0.05;
 
-
 /** 타일이 너무 많으면 미리보기에서 경고 */
 export const MAX_RECOMMENDED_CAPTURE_TILES = 36;
-
 
 export interface CapturedTileImage {
   row: number;
   col: number;
   canvas: HTMLCanvasElement;
 }
-
 
 export interface GridCaptureResult {
   stitched: HTMLCanvasElement;

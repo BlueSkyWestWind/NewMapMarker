@@ -92,7 +92,7 @@
   height: 10px;
   margin: -5px 0 0 -5px;
   border-radius: 50%;
-  background: #38bdf8;
+  background: #ef4444;
   border: 2px solid #ffffff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
   z-index: 4;
@@ -104,7 +104,7 @@
   left: 0;
   top: 0;
   height: 2px;
-  background: #38bdf8;
+  background: #ef4444;
   transform-origin: 0 50%;
   pointer-events: none;
   z-index: 2;
@@ -123,12 +123,16 @@
     0 10px 15px -3px rgba(0, 0, 0, 0.5),
     0 4px 6px -4px rgba(0, 0, 0, 0.5);
   color: #f8fafc; /* Slate 50 */
-  width: 280px;
+  /* 긴 국소명이 한 줄로 들어가도록 내용 너비에 맞춰 확장 */
+  width: max-content;
+  min-width: 280px;
+  max-width: min(560px, 92vw);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 8px;
   z-index: 3;
+  overflow: hidden;
   animation: bubblePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -138,10 +142,12 @@
   border: none;
   box-shadow: none;
   padding: 0;
-  width: auto;
-  max-width: 300px;
+  width: max-content;
+  min-width: 0;
+  max-width: min(560px, 92vw);
   gap: 2px;
   animation: none;
+  overflow: visible;
   text-shadow:
     0 0 3px rgba(0, 0, 0, 0.95),
     0 1px 3px rgba(0, 0, 0, 0.95),
@@ -159,9 +165,8 @@
   font-size: 15px;
   font-weight: 700;
   color: #ffffff;
-  white-space: normal;
-  overflow: visible;
-  max-width: 300px;
+  white-space: nowrap;
+  max-width: none;
 }
 
 .custom-overlay.text-label .overlay-address {
@@ -169,6 +174,7 @@
   font-weight: 500;
   color: #f1f5f9;
   line-height: 1.35;
+  white-space: nowrap;
 }
 
 /* 마커를 가리키는 삼각형. JS에서 위치·회전을 갱신한다 */
@@ -186,7 +192,8 @@
 .overlay-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 8px;
   border-bottom: 1px solid #1e293b;
   padding-bottom: 6px;
   z-index: 2;
@@ -202,18 +209,39 @@
 }
 
 .overlay-title {
+  flex: 1;
   font-size: 13px;
   font-weight: 600;
   color: #f8fafc;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 220px;
+}
+
+/* 같은 지번 다중 국소명: 주소 기준으로 위쪽에 쌓아 표시 (줄바꿈 없음) */
+.overlay-title.overlay-title-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.overlay-title-line {
+  display: block;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.custom-overlay.text-label .overlay-title.overlay-title-stack,
+.custom-overlay.text-label .overlay-title-line {
+  white-space: nowrap;
+  max-width: none;
 }
 
 /* 격자 캡처 시 정보창 글씨·버튼 판독용 임시 확대 */
 .capture-readable .custom-overlay {
-  width: 360px;
+  width: max-content;
+  min-width: 360px;
+  max-width: min(560px, 92vw);
   padding: 16px 18px;
   gap: 10px;
   border-width: 2px;
@@ -225,7 +253,8 @@
   height: 14px;
   margin: -7px 0 0 -7px;
   border-width: 3px;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.45);
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45);
   z-index: 6;
 }
 
@@ -269,6 +298,7 @@
 }
 
 .overlay-close {
+  flex-shrink: 0;
   cursor: pointer;
   color: #94a3b8; /* Slate 400 */
   font-size: 14px;
@@ -287,6 +317,7 @@
   flex-direction: column;
   gap: 4px;
   z-index: 2;
+  white-space: nowrap;
 }
 
 .overlay-actions {

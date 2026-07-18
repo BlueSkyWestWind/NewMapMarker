@@ -3,13 +3,20 @@ interface KakaoGeocodeResult {
   x: string;
 }
 
+interface KakaoCoord2AddressResult {
+  road_address?: { address_name?: string };
+  address?: { address_name?: string };
+}
+
 interface KakaoGeocoder {
   addressSearch: (
     address: string,
-    callback: (
-      result: KakaoGeocodeResult[],
-      status: string,
-    ) => void,
+    callback: (result: KakaoGeocodeResult[], status: string) => void,
+  ) => void;
+  coord2Address: (
+    lng: number,
+    lat: number,
+    callback: (result: KakaoCoord2AddressResult[], status: string) => void,
   ) => void;
 }
 
@@ -19,7 +26,9 @@ interface KakaoMapsServices {
 }
 
 function getKakaoServices(): KakaoMapsServices | null {
-  const kakao = (window as Window & { kakao?: { maps?: { services?: KakaoMapsServices } } }).kakao;
+  const kakao = (
+    window as Window & { kakao?: { maps?: { services?: KakaoMapsServices } } }
+  ).kakao;
   return kakao?.maps?.services ?? null;
 }
 
@@ -28,6 +37,13 @@ const GEOCODE_DELAY_MS = 50;
 export interface GeocodeCoords {
   lat: number;
   lng: number;
+}
+
+export interface ReverseGeocodeResult {
+  roadAddress: string;
+  jibunAddress: string;
+  /** 표시용 주소 (도로명 우선, 없으면 지번) */
+  address: string;
 }
 
 export function geocodeAddress(address: string): Promise<GeocodeCoords | null> {
@@ -52,6 +68,40 @@ export function geocodeAddress(address: string): Promise<GeocodeCoords | null> {
   });
 }
 
+/**
+ * 좌표를 주소로 변환한다. (도로명 우선)
+ */
+export function reverseGeocode(
+  lat: number,
+  lng: number,
+): Promise<ReverseGeocodeResult | null> {
+  return new Promise((resolve) => {
+    const services = getKakaoServices();
+    if (!services) {
+      resolve(null);
+      return;
+    }
+
+    const geocoder = new services.Geocoder();
+    geocoder.coord2Address(lng, lat, (result, status) => {
+      if (status !== services.Status.OK || !result[0]) {
+        resolve(null);
+        return;
+      }
+
+      const roadAddress = result[0].road_address?.address_name?.trim() ?? "";
+      const jibunAddress = result[0].address?.address_name?.trim() ?? "";
+      const address = roadAddress || jibunAddress;
+      if (!address) {
+        resolve(null);
+        return;
+      }
+
+      resolve({ roadAddress, jibunAddress, address });
+    });
+  });
+}
+
 export async function geocodeAddressQueue<T extends { address?: string }>(
   items: T[],
   onProgress?: (current: number, total: number) => void,
@@ -68,7 +118,7 @@ export async function geocodeAddressQueue<T extends { address?: string }>(
     const item = items[index];
     onProgress?.(index + 1, items.length);
 
-    const address = item.address?.trim() ?? '';
+    const address = item.address?.trim() ?? "";
     if (!address) {
       failCount += 1;
       continue;

@@ -1,5 +1,6 @@
 "use client";
 
+import { match } from "ts-pattern";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ClusterIconStyle } from "@/features/map-marker/lib/cluster-pie";
@@ -19,6 +20,8 @@ interface MapMarkerUiState {
   filters: MarkerFilterState;
   pendingEquipmentMarkers: MarkerRecord[];
   pendingBatteryMarkers: MarkerRecord[];
+  /** 위치 모드 전용 — persist 하지 않음 (새로고침 시 소멸) */
+  pendingLocationMarkers: MarkerRecord[];
   selectedMarkerId: string | null;
   selectedMarkerIds: string[];
   /** 캡처 중 정보창을 마커에서 떨어뜨려 배치 */
@@ -73,6 +76,14 @@ const emptyFilterState: MarkerFilterState = {
 
 export { emptyFilterState };
 
+function getPendingKey(mode: MapMode) {
+  return match(mode)
+    .with("equipment", () => "pendingEquipmentMarkers" as const)
+    .with("battery", () => "pendingBatteryMarkers" as const)
+    .with("location", () => "pendingLocationMarkers" as const)
+    .exhaustive();
+}
+
 export const useMapMarkerStore = create<MapMarkerUiState>()(
   persist(
     (set, get) => ({
@@ -85,6 +96,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       filters: emptyFilterState,
       pendingEquipmentMarkers: [],
       pendingBatteryMarkers: [],
+      pendingLocationMarkers: [],
       selectedMarkerId: null,
       selectedMarkerIds: [],
       isInfoWindowCaptureMode: false,
@@ -111,41 +123,18 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       setMarkerListFilter: (value) => set({ markerListFilter: value }),
       setFilters: (filters) => set({ filters }),
       addPendingMarkers: (mode, markers) =>
-        set((state) =>
-          mode === "equipment"
-            ? {
-                pendingEquipmentMarkers: [
-                  ...state.pendingEquipmentMarkers,
-                  ...markers,
-                ],
-              }
-            : {
-                pendingBatteryMarkers: [
-                  ...state.pendingBatteryMarkers,
-                  ...markers,
-                ],
-              },
-        ),
+        set((state) => {
+          const key = getPendingKey(mode);
+          return { [key]: [...state[key], ...markers] };
+        }),
       removePendingMarkers: (mode, ids) =>
-        set((state) =>
-          mode === "equipment"
-            ? {
-                pendingEquipmentMarkers: state.pendingEquipmentMarkers.filter(
-                  (marker) => !ids.includes(marker.id),
-                ),
-              }
-            : {
-                pendingBatteryMarkers: state.pendingBatteryMarkers.filter(
-                  (marker) => !ids.includes(marker.id),
-                ),
-              },
-        ),
-      clearPendingMarkers: (mode) =>
-        set(
-          mode === "equipment"
-            ? { pendingEquipmentMarkers: [] }
-            : { pendingBatteryMarkers: [] },
-        ),
+        set((state) => {
+          const key = getPendingKey(mode);
+          return {
+            [key]: state[key].filter((marker) => !ids.includes(marker.id)),
+          };
+        }),
+      clearPendingMarkers: (mode) => set({ [getPendingKey(mode)]: [] }),
       setSelectedMarkerId: (id) =>
         set({
           selectedMarkerId: id,
@@ -175,19 +164,12 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
         }),
       updatePendingMarker: (mode, id, updates) =>
         set((state) => {
-          if (mode === "equipment") {
-            return {
-              pendingEquipmentMarkers: state.pendingEquipmentMarkers.map((m) =>
-                m.id === id ? { ...m, ...updates } : m,
-              ),
-            };
-          } else {
-            return {
-              pendingBatteryMarkers: state.pendingBatteryMarkers.map((m) =>
-                m.id === id ? { ...m, ...updates } : m,
-              ),
-            };
-          }
+          const key = getPendingKey(mode);
+          return {
+            [key]: state[key].map((marker) =>
+              marker.id === id ? { ...marker, ...updates } : marker,
+            ),
+          };
         }),
       toggleFilterValue: (type, value) => {
         const filters = get().filters;

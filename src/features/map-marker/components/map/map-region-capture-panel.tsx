@@ -82,7 +82,7 @@ export function MapRegionCapturePanel({
   const setInfoWindowCaptureMode = useMapMarkerStore(
     (state) => state.setInfoWindowCaptureMode,
   );
-  const [overlapPercent, setOverlapPercent] = useState(20);
+  const [overlapPercent, setOverlapPercent] = useState(5);
   const [includeInfoWindows, setIncludeInfoWindows] = useState(true);
   const [captureLevel, setCaptureLevel] = useState(() =>
     clampMapLevel(map.getLevel()),
@@ -266,7 +266,9 @@ export function MapRegionCapturePanel({
 
     if (!store.isInfoWindowCaptureMode) setInfoWindowCaptureMode(true);
 
-    const desiredIds = desiredMarkerIdsKey ? desiredMarkerIdsKey.split(",") : [];
+    const desiredIds = desiredMarkerIdsKey
+      ? desiredMarkerIdsKey.split(",")
+      : [];
     if (store.selectedMarkerIds.join(",") !== desiredMarkerIdsKey) {
       setSelectedMarkerIds(desiredIds);
     }

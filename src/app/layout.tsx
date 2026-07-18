@@ -1,22 +1,23 @@
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
-import { PublicEnvScript } from '@/components/public-env-script';
-import './globals.css';
-import Providers from './providers';
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { KakaoSdkScript } from "@/components/kakao-sdk-script";
+import { PublicEnvScript } from "@/components/public-env-script";
+import "./globals.css";
+import Providers from "./providers";
 
 const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: 'MapMarker Pro',
-  description: '장비·축전지 위치 관리 지도 대시보드',
+  title: "MapMarker Pro",
+  description: "장비·축전지 위치 관리 지도 대시보드",
 };
 
 export default function RootLayout({
@@ -30,6 +31,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <PublicEnvScript />
+        <KakaoSdkScript />
         <Providers>{children}</Providers>
       </body>
     </html>

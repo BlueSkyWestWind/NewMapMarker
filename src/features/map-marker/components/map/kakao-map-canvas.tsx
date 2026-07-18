@@ -23,6 +23,7 @@ import {
   type OverlayPanelOffset,
 } from "@/features/map-marker/lib/overlay-drag";
 import {
+  CAPTURE_DOT_SIZE,
   getEffectiveMarkerColor,
   getMarkerImageUri,
 } from "@/features/map-marker/lib/marker-svg";
@@ -30,6 +31,10 @@ import {
   createCaptureLabelContent,
   createOverlayContent,
 } from "@/features/map-marker/lib/overlay-content";
+import {
+  collectLocationGroupNames,
+  pickLocationOverlayRepresentatives,
+} from "@/features/map-marker/lib/location-marker-groups";
 import { useKakaoMapSdk } from "@/features/map-marker/hooks/use-kakao-map-sdk";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
@@ -126,7 +131,7 @@ export function KakaoMapCanvas({
     shift: false,
   });
   const skipNextFocusRef = useRef(false);
-  const { isReady, error } = useKakaoMapSdk();
+  const { isReady, error, retry } = useKakaoMapSdk();
 
   const isClusteringEnabled = useMapMarkerStore(
     (state) => state.isClusteringEnabled,
@@ -316,10 +321,19 @@ export function KakaoMapCanvas({
       markerDataByIdRef.current.set(data.id, data);
 
       const position = new window.kakao.maps.LatLng(data.lat, data.lng);
+      // 캡처 모드: 핀 대신 작은 동그라미만 표시
+      const useCaptureDot = isInfoWindowCaptureMode;
+      const markerWidth = useCaptureDot ? CAPTURE_DOT_SIZE : 30;
+      const markerHeight = useCaptureDot ? CAPTURE_DOT_SIZE : 45;
       const markerImage = new window.kakao.maps.MarkerImage(
-        getMarkerImageUri(data, mode),
-        new window.kakao.maps.Size(30, 45),
-        { offset: new window.kakao.maps.Point(15, 45) },
+        getMarkerImageUri(data, mode, { captureDot: useCaptureDot }),
+        new window.kakao.maps.Size(markerWidth, markerHeight),
+        {
+          offset: new window.kakao.maps.Point(
+            markerWidth / 2,
+            useCaptureDot ? markerHeight / 2 : markerHeight,
+          ),
+        },
       );
 
       const marker = new window.kakao.maps.Marker({
@@ -327,7 +341,7 @@ export function KakaoMapCanvas({
         title: data.name,
         image: markerImage,
         zIndex: 3,
-        draggable: true,
+        draggable: !useCaptureDot,
       });
       marker.markerId = data.id;
       marker.markerColor = getEffectiveMarkerColor(data, mode);
@@ -340,6 +354,36 @@ export function KakaoMapCanvas({
         const newPos = marker.getPosition();
         const newLat = newPos.getLat();
         const newLng = newPos.getLng();
+
+        // 위치 모드: 로그인/DB 없이 브라우저 메모리만 갱신
+        if (mode === "location") {
+          const confirmMove = window.confirm(
+            `"${data.name}" 마커의 위치를 여기로 변경하시겠습니까?\n(위도: ${newLat.toFixed(6)}, 경도: ${newLng.toFixed(6)})`,
+          );
+          if (!confirmMove) {
+            marker.setPosition(position);
+            return;
+          }
+
+          updatePendingMarker("location", data.id, {
+            lat: newLat,
+            lng: newLng,
+            address: "",
+          });
+
+          const { reverseGeocode } =
+            await import("@/features/map-marker/lib/geocode");
+          const geocoded = await reverseGeocode(newLat, newLng);
+          updatePendingMarker("location", data.id, {
+            lat: newLat,
+            lng: newLng,
+            address: geocoded?.address ?? "",
+          });
+          toast({
+            description: `"${data.name}" 임시 위치가 변경되었습니다.`,
+          });
+          return;
+        }
 
         if (!isAuthenticated) {
           alert("마커의 위치를 변경하려면 로그인이 필요합니다.");
@@ -406,10 +450,10 @@ export function KakaoMapCanvas({
 
       markersRef.current.push(marker);
 
-      if (mode === "battery" || !isClusteringEnabled) {
-        marker.setMap(map);
-      } else {
+      if (mode === "equipment" && isClusteringEnabled) {
         markersToCluster.push(marker);
+      } else {
+        marker.setMap(map);
       }
     });
 
@@ -431,6 +475,7 @@ export function KakaoMapCanvas({
     mode,
     filters,
     isClusteringEnabled,
+    isInfoWindowCaptureMode,
     queryClient,
     supabase,
     isAuthenticated,
@@ -465,26 +510,56 @@ export function KakaoMapCanvas({
     // 정보창 위치는 항상 사용자가 드래그한 수동 오프셋을 사용한다.
     // (자동 배치를 쓰지 않고, 캡처 시에도 사용자가 옮긴 위치 그대로 촬영)
 
-    selectedMarkerIds.forEach((markerId) => {
-      const data =
-        markerDataByIdRef.current.get(markerId) ??
-        markers.find((marker) => marker.id === markerId);
+    // 위치 모드: 같은 지번의 국소명을 한 라벨에 모아 표시 (그룹당 오버레이 1개)
+    const overlayTargets =
+      mode === "location"
+        ? pickLocationOverlayRepresentatives(selectedMarkerIds, markers)
+        : selectedMarkerIds
+            .map((markerId) => {
+              const marker =
+                markerDataByIdRef.current.get(markerId) ??
+                markers.find((item) => item.id === markerId);
+              return marker
+                ? {
+                    markerId,
+                    marker,
+                    groupNames: [marker.name],
+                  }
+                : null;
+            })
+            .filter(
+              (
+                item,
+              ): item is {
+                markerId: string;
+                marker: MarkerRecord;
+                groupNames: string[];
+              } => item !== null,
+            );
+
+    overlayTargets.forEach(({ markerId, marker: data, groupNames }) => {
       const kakaoMarker = markersRef.current.find(
         (marker) => marker.markerId === markerId,
       );
 
-      if (!data || !kakaoMarker) return;
+      if (!kakaoMarker) return;
+
+      const resolvedGroupNames =
+        mode === "location"
+          ? groupNames.length > 0
+            ? groupNames
+            : collectLocationGroupNames(data, markers)
+          : undefined;
 
       // 캡처 모드에서는 정보창 대신 국소명 + 주소만 텍스트 라벨로 표시한다.
       const content = isInfoWindowCaptureMode
-        ? createCaptureLabelContent(data, mode)
+        ? createCaptureLabelContent(data, mode, resolvedGroupNames)
         : createOverlayContent(
             data,
             mode,
             () => {
               overlayOffsetsRef.current.delete(markerId);
-              const currentIds =
-                useMapMarkerStore.getState().selectedMarkerIds;
+              const currentIds = useMapMarkerStore.getState().selectedMarkerIds;
               if (currentIds.length <= 1) {
                 clearSelectedMarkers();
                 return;
@@ -511,6 +586,7 @@ export function KakaoMapCanvas({
             },
             isAuthenticated,
             disableDetailEdit,
+            resolvedGroupNames,
           );
 
       // 오버레이 좌표는 항상 마커에 고정. 패널만 오프셋으로 이동한다.
@@ -620,8 +696,36 @@ export function KakaoMapCanvas({
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-950 p-6 text-center text-sm text-rose-300">
-        {error}
+      <div className="flex h-full items-center justify-center bg-slate-950 p-6">
+        <div className="max-w-md space-y-3 text-center text-sm">
+          <p className="font-medium text-rose-300">{error}</p>
+          <ul className="space-y-1.5 text-left text-[12px] leading-relaxed text-slate-400">
+            <li>
+              1. 브라우저 주소가{" "}
+              <span className="text-slate-200">http://localhost:3000</span> 인지
+              확인 (3001·IP 주소면 Kakao 콘솔에 해당 도메인도 등록)
+            </li>
+            <li>
+              2. Kakao Developers → 앱 → 플랫폼(Web)에 localhost:3000 등록
+            </li>
+            <li>
+              3. 광고 차단/프라이버시 확장을 끄고 F12 → Network에서{" "}
+              <span className="text-slate-200">sdk.js</span> 상태 확인
+            </li>
+            <li>
+              4. `.env.local`의 키가{" "}
+              <span className="text-slate-200">JavaScript 키</span>인지 확인 후
+              dev 서버 재시작
+            </li>
+          </ul>
+          <button
+            type="button"
+            className="rounded-md bg-slate-800 px-3 py-1.5 text-xs text-slate-100 hover:bg-slate-700"
+            onClick={retry}
+          >
+            다시 시도
+          </button>
+        </div>
       </div>
     );
   }

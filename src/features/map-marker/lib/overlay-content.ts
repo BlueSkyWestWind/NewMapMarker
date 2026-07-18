@@ -1,9 +1,32 @@
 import type {
   BatteryMarker,
   EquipmentMarker,
+  LocationMarker,
   MapMode,
   MarkerRecord,
 } from "@/features/map-marker/types/marker";
+
+function getOverlayAddressParts(data: MarkerRecord, mode: MapMode) {
+  if (mode === "equipment") {
+    const equipment = data as EquipmentMarker;
+    return {
+      jibun: equipment.jibunAddress,
+      road: equipment.roadAddress,
+    };
+  }
+
+  if (mode === "battery") {
+    return {
+      jibun: "",
+      road: (data as BatteryMarker).address,
+    };
+  }
+
+  return {
+    jibun: (data as LocationMarker).address,
+    road: "",
+  };
+}
 
 /**
  * 지도 정보창(CustomOverlay)용 DOM 콘텐츠 빌더.
@@ -18,6 +41,37 @@ function formatJibunAddress(addr: string | null | undefined): string {
     return trimmed + "번지";
   }
   return trimmed;
+}
+
+/** 위치 모드는 도로명/지번 혼합 주소라 번지 보정을 하지 않는다. */
+function formatPrimaryAddress(addr: string, mode: MapMode) {
+  if (mode === "location") return addr;
+  return formatJibunAddress(addr);
+}
+
+/**
+ * 국소명 목록을 주소 위쪽에 쌓아 표시한다.
+ * DOM 순서는 아래에서 위(column-reverse)로, 추가 국소명이 위로 올라간다.
+ */
+function createStackedTitleElement(names: string[]): HTMLDivElement {
+  const title = document.createElement("div");
+  title.className = "overlay-title";
+
+  const uniqueNames = names.map((name) => name.trim()).filter(Boolean);
+  if (uniqueNames.length <= 1) {
+    title.textContent = uniqueNames[0] ?? "";
+    return title;
+  }
+
+  title.classList.add("overlay-title-stack");
+  uniqueNames.forEach((name) => {
+    const line = document.createElement("div");
+    line.className = "overlay-title-line";
+    line.textContent = name;
+    title.appendChild(line);
+  });
+
+  return title;
 }
 
 /** innerHTML 삽입 전 문자열을 이스케이프해 XSS를 방지한다. */
@@ -40,6 +94,7 @@ export function createOverlayContent(
   onTeamChange: (teamId: string, color: string) => Promise<void>,
   isAuthenticated: boolean,
   disableDetailEdit: boolean,
+  groupNames?: string[],
 ): HTMLDivElement {
   const root = document.createElement("div");
   root.className = "overlay-root";
@@ -67,9 +122,11 @@ export function createOverlayContent(
   const header = document.createElement("div");
   header.className = "overlay-header";
 
-  const title = document.createElement("div");
-  title.className = "overlay-title";
-  title.textContent = data.name;
+  const titleNames =
+    mode === "location" && groupNames && groupNames.length > 0
+      ? groupNames
+      : [data.name];
+  const title = createStackedTitleElement(titleNames);
 
   const closeBtn = document.createElement("span");
   closeBtn.className = "overlay-close";
@@ -86,17 +143,12 @@ export function createOverlayContent(
   const addressDiv = document.createElement("div");
   addressDiv.className = "overlay-address";
 
-  const jibun =
-    mode === "equipment" ? (data as EquipmentMarker).jibunAddress : "";
-  const road =
-    mode === "equipment"
-      ? (data as EquipmentMarker).roadAddress
-      : (data as BatteryMarker).address;
+  const { jibun, road } = getOverlayAddressParts(data, mode);
 
   if (jibun || road) {
     let html = "";
     if (jibun) {
-      html += `<span class="road-addr font-medium">${escapeHtml(formatJibunAddress(jibun))}</span>`;
+      html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibun, mode))}</span>`;
     }
     if (road) {
       html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(road)}</span>`;
@@ -127,7 +179,7 @@ export function createOverlayContent(
 
             let html = "";
             if (jibunAddr) {
-              html += `<span class="road-addr font-medium">${escapeHtml(formatJibunAddress(jibunAddr))}</span>`;
+              html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibunAddr, mode))}</span>`;
             }
             if (roadAddr) {
               html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
@@ -267,34 +319,37 @@ export function createOverlayContent(
   });
   actions.appendChild(roadviewBtn);
 
-  const detailBtn = document.createElement("button");
-  detailBtn.className = "overlay-btn overlay-btn-detail";
-  detailBtn.textContent = "상세";
-  detailBtn.disabled = disableDetailEdit;
-  detailBtn.title = disableDetailEdit
-    ? "다중 선택 중에는 상세를 사용할 수 없습니다"
-    : "상세 정보";
-  detailBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (disableDetailEdit) return;
-    onDetail(data.id);
-  });
-  actions.appendChild(detailBtn);
-
-  if (isAuthenticated) {
-    const editBtn = document.createElement("button");
-    editBtn.className = "overlay-btn overlay-btn-edit";
-    editBtn.textContent = "편집";
-    editBtn.disabled = disableDetailEdit;
-    editBtn.title = disableDetailEdit
-      ? "다중 선택 중에는 편집을 사용할 수 없습니다"
-      : "편집";
-    editBtn.addEventListener("click", (e) => {
+  // 위치 모드는 임시 확인용이라 상세/편집 없이 로드뷰만 제공한다.
+  if (mode !== "location") {
+    const detailBtn = document.createElement("button");
+    detailBtn.className = "overlay-btn overlay-btn-detail";
+    detailBtn.textContent = "상세";
+    detailBtn.disabled = disableDetailEdit;
+    detailBtn.title = disableDetailEdit
+      ? "다중 선택 중에는 상세를 사용할 수 없습니다"
+      : "상세 정보";
+    detailBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       if (disableDetailEdit) return;
-      onEdit(data.id);
+      onDetail(data.id);
     });
-    actions.appendChild(editBtn);
+    actions.appendChild(detailBtn);
+
+    if (isAuthenticated) {
+      const editBtn = document.createElement("button");
+      editBtn.className = "overlay-btn overlay-btn-edit";
+      editBtn.textContent = "편집";
+      editBtn.disabled = disableDetailEdit;
+      editBtn.title = disableDetailEdit
+        ? "다중 선택 중에는 편집을 사용할 수 없습니다"
+        : "편집";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (disableDetailEdit) return;
+        onEdit(data.id);
+      });
+      actions.appendChild(editBtn);
+    }
   }
 
   container.appendChild(actions);
@@ -313,6 +368,7 @@ export function createOverlayContent(
 export function createCaptureLabelContent(
   data: MarkerRecord,
   mode: MapMode,
+  groupNames?: string[],
 ): HTMLDivElement {
   const root = document.createElement("div");
   root.className = "overlay-root";
@@ -337,36 +393,33 @@ export function createCaptureLabelContent(
   root.addEventListener("mousedown", stopPropagation);
   root.addEventListener("touchstart", stopPropagation);
 
-  // 국소명 (드래그 핸들 역할)
+  // 국소명 (드래그 핸들 역할) — 같은 지번이면 위쪽으로 쌓아 표시
   const header = document.createElement("div");
   header.className = "overlay-header";
 
-  const title = document.createElement("div");
-  title.className = "overlay-title";
-  title.textContent = data.name;
-  header.appendChild(title);
+  const titleNames =
+    mode === "location" && groupNames && groupNames.length > 0
+      ? groupNames
+      : [data.name];
+  header.appendChild(createStackedTitleElement(titleNames));
   container.appendChild(header);
 
   // 주소
   const addressDiv = document.createElement("div");
   addressDiv.className = "overlay-address";
 
-  const jibun =
-    mode === "equipment" ? (data as EquipmentMarker).jibunAddress : "";
-  const road =
-    mode === "equipment"
-      ? (data as EquipmentMarker).roadAddress
-      : (data as BatteryMarker).address;
+  const { jibun, road } = getOverlayAddressParts(data, mode);
 
   const renderAddress = (jibunAddr: string, roadAddr: string) => {
     let html = "";
     if (jibunAddr) {
-      html += `<span class="road-addr font-medium">${escapeHtml(formatJibunAddress(jibunAddr))}</span>`;
+      html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibunAddr, mode))}</span>`;
     }
     if (roadAddr) {
       html += `<span class="jibun-addr" style="display:block;margin-top:2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
     }
-    if (!jibunAddr && !roadAddr) html = '<span class="road-addr">주소 없음</span>';
+    if (!jibunAddr && !roadAddr)
+      html = '<span class="road-addr">주소 없음</span>';
     addressDiv.innerHTML = html;
   };
 

@@ -1,4 +1,4 @@
-export type MapMode = 'equipment' | 'battery';
+export type MapMode = "equipment" | "battery" | "location";
 
 export interface BatterySpecItem {
   id?: string;
@@ -46,7 +46,12 @@ export interface BatteryMarker extends BaseMarker {
   stationName: string;
 }
 
-export type MarkerRecord = EquipmentMarker | BatteryMarker;
+/** 브라우저 전용 임시 위치 마커 (DB 미저장) */
+export interface LocationMarker extends BaseMarker {
+  address: string;
+}
+
+export type MarkerRecord = EquipmentMarker | BatteryMarker | LocationMarker;
 
 export interface MarkerFilterState {
   selectedYears: Set<string>;

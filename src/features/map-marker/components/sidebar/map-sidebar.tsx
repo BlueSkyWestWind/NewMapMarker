@@ -1,5 +1,6 @@
-'use client';
+"use client";
 
+import { match } from "ts-pattern";
 import {
   Database,
   FileSpreadsheet,
@@ -9,27 +10,31 @@ import {
   PanelLeftOpen,
   Search,
   Server,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
-import { AuthHeader } from '@/features/map-marker/components/sidebar/auth-header';
-import { BackupRestoreSection } from '@/features/map-marker/components/sidebar/backup-restore-section';
-import { BatteryExcelSection } from '@/features/map-marker/components/sidebar/battery-excel-section';
-import { EquipmentExcelSection } from '@/features/map-marker/components/sidebar/equipment-excel-section';
-import { EquipmentInfoSection } from '@/features/map-marker/components/sidebar/equipment-info-section';
-import { FilterPanel } from '@/features/map-marker/components/sidebar/filter-panel';
-import { MarkersListPanel } from '@/features/map-marker/components/sidebar/markers-list-panel';
-import { ModeTabs } from '@/features/map-marker/components/sidebar/mode-tabs';
-import { PlaceSearchSection } from '@/features/map-marker/components/sidebar/place-search-section';
-import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
-import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
-import { useHasMounted } from '@/hooks/use-has-mounted';
-import type { MapMode, MarkerFilterState, MarkerRecord } from '@/features/map-marker/types/marker';
+} from "@/components/ui/accordion";
+import { AuthHeader } from "@/features/map-marker/components/sidebar/auth-header";
+import { BackupRestoreSection } from "@/features/map-marker/components/sidebar/backup-restore-section";
+import { BatteryExcelSection } from "@/features/map-marker/components/sidebar/battery-excel-section";
+import { EquipmentExcelSection } from "@/features/map-marker/components/sidebar/equipment-excel-section";
+import { EquipmentInfoSection } from "@/features/map-marker/components/sidebar/equipment-info-section";
+import { FilterPanel } from "@/features/map-marker/components/sidebar/filter-panel";
+import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
+import { MarkersListPanel } from "@/features/map-marker/components/sidebar/markers-list-panel";
+import { ModeTabs } from "@/features/map-marker/components/sidebar/mode-tabs";
+import { PlaceSearchSection } from "@/features/map-marker/components/sidebar/place-search-section";
+import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
+import { useHasMounted } from "@/hooks/use-has-mounted";
+import type {
+  MarkerFilterState,
+  MarkerRecord,
+} from "@/features/map-marker/types/marker";
 
 interface MapSidebarProps {
   markers: MarkerRecord[];
@@ -42,6 +47,7 @@ interface MapSidebarProps {
   filters: MarkerFilterState;
   equipmentCount: number;
   batteryCount: number;
+  locationCount: number;
   invalidCoordinateCount: number;
   isLoading: boolean;
 }
@@ -52,6 +58,7 @@ export function MapSidebar({
   filters,
   equipmentCount,
   batteryCount,
+  locationCount,
   invalidCoordinateCount,
   isLoading,
 }: MapSidebarProps) {
@@ -61,10 +68,21 @@ export function MapSidebar({
   const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
   const setMode = useMapMarkerStore((state) => state.setMode);
   const toggleSidebar = useMapMarkerStore((state) => state.toggleSidebar);
+  const clearPendingMarkers = useMapMarkerStore(
+    (state) => state.clearPendingMarkers,
+  );
 
-  const showAuthenticatedSections = hasMounted && isAuthenticated;
+  const showAuthenticatedSections =
+    hasMounted && isAuthenticated && mode !== "location";
+  const isLocationMode = mode === "location";
 
-  const defaultAccordion = ['markers'];
+  const countLabel = match(mode)
+    .with("equipment", () => `장비 ${equipmentCount}건`)
+    .with("battery", () => `축전지 ${batteryCount}건`)
+    .with("location", () => `위치 ${locationCount}건 · 임시`)
+    .exhaustive();
+
+  const defaultAccordion = ["markers"];
 
   if (!isSidebarOpen) {
     return (
@@ -91,13 +109,11 @@ export function MapSidebar({
                 MapMarker <span className="text-indigo-400">Pro</span>
               </h1>
               <p className="text-[10px] text-slate-500">
-                {mode === 'equipment'
-                  ? `장비 ${equipmentCount}건`
-                  : `축전지 ${batteryCount}건`}
-                {hasMounted && isLoading ? ' · 로딩 중' : ''}
-                {invalidCoordinateCount > 0
+                {countLabel}
+                {hasMounted && isLoading ? " · 로딩 중" : ""}
+                {!isLocationMode && invalidCoordinateCount > 0
                   ? ` · 좌표 없음 ${invalidCoordinateCount}건`
-                  : ''}
+                  : ""}
               </p>
             </div>
           </div>
@@ -118,12 +134,35 @@ export function MapSidebar({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {isLocationMode ? (
+          <div className="mb-3 rounded-lg border border-emerald-800/50 bg-emerald-950/40 px-3 py-2 text-[11px] leading-relaxed text-emerald-200/90">
+            엑셀 업로드로 위치를 등록하세요. 이름·주소만 표시하며, 새로고침 시
+            사라집니다. 우측 카메라로 영역 캡처할 수 있습니다.
+          </div>
+        ) : null}
+
         <Accordion
           type="multiple"
-          defaultValue={defaultAccordion}
+          defaultValue={
+            isLocationMode ? ["location-excel", "markers"] : defaultAccordion
+          }
           className="space-y-2"
         >
-          {showAuthenticatedSections && mode === 'equipment' ? (
+          {isLocationMode ? (
+            <AccordionItem value="location-excel" className="border-slate-800">
+              <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                <span className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+                  엑셀로 위치 찍기
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <LocationExcelSection />
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+
+          {showAuthenticatedSections && mode === "equipment" ? (
             <>
               <AccordionItem value="excel" className="border-slate-800">
                 <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
@@ -150,7 +189,7 @@ export function MapSidebar({
             </>
           ) : null}
 
-          {showAuthenticatedSections && mode === 'battery' ? (
+          {showAuthenticatedSections && mode === "battery" ? (
             <AccordionItem value="battery-excel" className="border-slate-800">
               <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
                 <span className="flex items-center gap-2">
@@ -164,37 +203,56 @@ export function MapSidebar({
             </AccordionItem>
           ) : null}
 
-          <AccordionItem value="filters" className="border-slate-800">
-            <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-              <span className="flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5 text-indigo-400" />
-                연도·사업·색상·태그 표시
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <FilterPanel mode={mode as MapMode} filterOptions={filterOptions} />
-            </AccordionContent>
-          </AccordionItem>
+          {!isLocationMode ? (
+            <>
+              <AccordionItem value="filters" className="border-slate-800">
+                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <Filter className="h-3.5 w-3.5 text-indigo-400" />
+                    연도·사업·색상·태그 표시
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <FilterPanel mode={mode} filterOptions={filterOptions} />
+                </AccordionContent>
+              </AccordionItem>
 
-          <AccordionItem value="search" className="border-slate-800">
-            <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-              <span className="flex items-center gap-2">
-                <Search className="h-3.5 w-3.5 text-slate-400" />
-                장소 검색
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <PlaceSearchSection />
-            </AccordionContent>
-          </AccordionItem>
+              <AccordionItem value="search" className="border-slate-800">
+                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <Search className="h-3.5 w-3.5 text-slate-400" />
+                    장소 검색
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <PlaceSearchSection />
+                </AccordionContent>
+              </AccordionItem>
+            </>
+          ) : null}
 
           <AccordionItem value="markers" className="border-slate-800">
             <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-              저장된 위치 ({markers.length})
+              {isLocationMode
+                ? `임시 위치 (${markers.length})`
+                : `저장된 위치 (${markers.length})`}
             </AccordionTrigger>
             <AccordionContent className="pb-0">
+              {isLocationMode && markers.length > 0 ? (
+                <div className="mb-2 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-[11px] text-rose-300 hover:text-rose-200"
+                    onClick={() => clearPendingMarkers("location")}
+                  >
+                    전체 삭제
+                  </Button>
+                </div>
+              ) : null}
               <MarkersListPanel
-                mode={mode as MapMode}
+                mode={mode}
                 markers={markers}
                 filters={filters}
               />
@@ -214,7 +272,7 @@ export function MapSidebar({
                 </span>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4">
-                <BackupRestoreSection mode={mode as MapMode} />
+                <BackupRestoreSection mode={mode} />
               </AccordionContent>
             </AccordionItem>
           </Accordion>

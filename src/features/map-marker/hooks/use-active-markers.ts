@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useMapMarkersQuery } from '@/features/map-marker/hooks/use-map-markers-query';
-import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
-import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
+import { useEffect, useMemo, useRef } from "react";
+import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import {
   emptyFilterState,
   useMapMarkerStore,
-} from '@/features/map-marker/store/use-map-marker-store';
+} from "@/features/map-marker/store/use-map-marker-store";
 import {
   collectFilterOptions,
   createDefaultFilterState,
   hasAnyFilterSelection,
   mergeFilterState,
-} from '@/features/map-marker/lib/marker-filters';
-import type { MarkerFilterState, MarkerRecord } from '@/features/map-marker/types/marker';
+} from "@/features/map-marker/lib/marker-filters";
+import type {
+  MarkerFilterState,
+  MarkerRecord,
+} from "@/features/map-marker/types/marker";
 
 function setsEqual(a: Set<string>, b: Set<string>) {
   if (a.size !== b.size) return false;
@@ -38,14 +38,15 @@ function shouldUpdateFilters(
 }
 
 export function useActiveMarkers() {
-  const { supabase, isAuthenticated } = useAuthSession();
-  const queryClient = useQueryClient();
   const mode = useMapMarkerStore((state) => state.mode);
   const pendingEquipmentMarkers = useMapMarkerStore(
     (state) => state.pendingEquipmentMarkers,
   );
   const pendingBatteryMarkers = useMapMarkerStore(
     (state) => state.pendingBatteryMarkers,
+  );
+  const pendingLocationMarkers = useMapMarkerStore(
+    (state) => state.pendingLocationMarkers,
   );
   const { data, isLoading, isError, error, refetch } = useMapMarkersQuery();
   const filters = useMapMarkerStore((state) => state.filters);
@@ -58,19 +59,28 @@ export function useActiveMarkers() {
   });
   const previousModeRef = useRef(mode);
 
-
   const markers = useMemo<MarkerRecord[]>(() => {
+    // 위치 모드는 DB 없이 브라우저 메모리 목록만 사용한다.
+    if (mode === "location") {
+      return pendingLocationMarkers;
+    }
+
     const base = !data
       ? []
-      : mode === 'equipment'
+      : mode === "equipment"
         ? data.equipmentMarkers
         : data.batteryMarkers;
     const pending =
-      mode === 'equipment' ? pendingEquipmentMarkers : pendingBatteryMarkers;
+      mode === "equipment" ? pendingEquipmentMarkers : pendingBatteryMarkers;
     const pendingIds = new Set(pending.map((marker) => marker.id));
-    const merged = [...base.filter((marker) => !pendingIds.has(marker.id)), ...pending];
-    return merged;
-  }, [data, mode, pendingEquipmentMarkers, pendingBatteryMarkers]);
+    return [...base.filter((marker) => !pendingIds.has(marker.id)), ...pending];
+  }, [
+    data,
+    mode,
+    pendingEquipmentMarkers,
+    pendingBatteryMarkers,
+    pendingLocationMarkers,
+  ]);
 
   const filterOptions = useMemo(
     () => collectFilterOptions(markers, mode),
@@ -113,11 +123,11 @@ export function useActiveMarkers() {
 
   // 복잡 표현식을 의존성 배열에서 정적으로 검사 가능하도록 key 변수로 추출한다.
   const filterOptionsKey = [
-    filterOptions.years.join(','),
-    filterOptions.businesses.join(','),
-    filterOptions.colors.join(','),
-    filterOptions.tags.join(','),
-  ].join('|');
+    filterOptions.years.join(","),
+    filterOptions.businesses.join(","),
+    filterOptions.colors.join(","),
+    filterOptions.tags.join(","),
+  ].join("|");
 
   useEffect(() => {
     if (!markers.length) return;
@@ -150,11 +160,12 @@ export function useActiveMarkers() {
     filterOptions,
     effectiveFilters,
     invalidCoordinateCount,
-    isLoading,
-    isError,
+    isLoading: mode === "location" ? false : isLoading,
+    isError: mode === "location" ? false : isError,
     error,
     refetch,
     equipmentCount: data?.equipmentMarkers.length ?? 0,
     batteryCount: data?.batteryMarkers.length ?? 0,
+    locationCount: pendingLocationMarkers.length,
   };
 }
