@@ -189,7 +189,9 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
     },
 
     /**
-     * information 행을 Supabase에 upsert합니다. marker_id 오류 시 연결 없이 재시도합니다.
+     * information 행을 갱신한다.
+     * facility_code 에 UNIQUE 가 없으므로 ON CONFLICT upsert 대신
+     * marker_id / facility_code 로 기존 행을 update 하고, 없으면 insert 한다.
      * @param {Object} supabase Supabase 클라이언트
      * @param {Array} records 파싱된 information 행 배열
      * @param {Array} markersList markers 테이블 행 또는 앱 마커 객체 배열
@@ -203,29 +205,65 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
         const prepared = enriched.map(row => this.buildInfoUpsertRecord(row, { includeMarkerId: true }));
         const unlinkedCount = prepared.filter(row => !row.marker_id).length;
 
-        let { error } = await supabase
-            .from("information")
-            .upsert(prepared, { onConflict: "facility_code" });
+        let updatedCount = 0;
+        let insertedCount = 0;
 
-        let warning = "";
-        if (error && this.isInformationMarkerIdError(error)) {
-            const fallbackPayload = enriched.map(row => this.buildInfoUpsertRecord(row, { includeMarkerId: false }));
-            ({ error } = await supabase
-                .from("information")
-                .upsert(fallbackPayload, { onConflict: "facility_code" }));
-            if (!error) {
-                warning = "marker_id 연동 없이 저장했습니다. sql/add_equipment_relationships.sql 실행 후 마커 연결을 확인하세요.";
+        for (const row of prepared) {
+            const markerId = String(row.marker_id || "").trim();
+            const facilityCode = String(row.facility_code || "").trim();
+
+            let existingId = null;
+
+            if (markerId) {
+                const { data, error } = await supabase
+                    .from("information")
+                    .select("id")
+                    .eq("marker_id", markerId)
+                    .limit(1);
+                if (error) {
+                    throw new Error(this.translateInformationUpsertError(error));
+                }
+                existingId = data?.[0]?.id ?? null;
             }
-        }
 
-        if (error) {
-            throw new Error(this.translateInformationUpsertError(error));
+            if (existingId == null && facilityCode) {
+                const { data, error } = await supabase
+                    .from("information")
+                    .select("id")
+                    .eq("facility_code", facilityCode)
+                    .limit(1);
+                if (error) {
+                    throw new Error(this.translateInformationUpsertError(error));
+                }
+                existingId = data?.[0]?.id ?? null;
+            }
+
+            if (existingId != null) {
+                const { error } = await supabase
+                    .from("information")
+                    .update(row)
+                    .eq("id", existingId);
+                if (error) {
+                    throw new Error(this.translateInformationUpsertError(error));
+                }
+                updatedCount += 1;
+                continue;
+            }
+
+            const { error } = await supabase.from("information").insert(row);
+            if (error) {
+                throw new Error(this.translateInformationUpsertError(error));
+            }
+            insertedCount += 1;
         }
 
         return {
-            count: prepared.length,
+            count: updatedCount + insertedCount,
             unlinkedCount,
-            warning
+            warning:
+                insertedCount > 0
+                    ? `신규 information ${insertedCount}건 추가 · 갱신 ${updatedCount}건`
+                    : undefined,
         };
     },
 };

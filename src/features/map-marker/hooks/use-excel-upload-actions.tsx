@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -14,6 +14,11 @@ import {
   splitAddressFields,
 } from "@/features/map-marker/lib/geocode";
 import { createLocationMarkerFromExcelRow } from "@/features/map-marker/lib/location-marker";
+import {
+  parseErpSheet,
+  type ErpParsedRow,
+} from "@/features/map-marker/lib/excel/data-manager/erp-parse";
+import { assignMarkerParentsByLotAddress } from "@/features/map-marker/lib/address-group";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type {
@@ -50,6 +55,54 @@ function resetFileInput(input: HTMLInputElement | null) {
   }
 }
 
+/**
+ * 지오코딩 실패 항목을 주소별로 묶어 사람이 읽을 목록으로 만든다.
+ * (같은 주소가 여러 행이면 "주소 (N건)" 형태)
+ */
+function formatFailedAddresses(
+  items: Array<{ address?: string; name?: string }>,
+): string[] {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key =
+      (item.address ?? "").trim() || (item.name ?? "").trim() || "(주소 없음)";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([address, count]) =>
+    count > 1 ? `${address} (${count}건)` : address,
+  );
+}
+
+const FAILED_ADDRESS_DISPLAY_LIMIT = 10;
+
+/**
+ * 업로드 결과 토스트 본문. 실패 주소가 있으면 요약 아래에 목록으로 노출한다.
+ */
+function buildUploadResultDescription(
+  summary: string,
+  failedAddresses: string[],
+): ReactNode {
+  if (failedAddresses.length === 0) return summary;
+
+  const shown = failedAddresses.slice(0, FAILED_ADDRESS_DISPLAY_LIMIT);
+  const rest = failedAddresses.length - shown.length;
+
+  return (
+    <div className="space-y-1">
+      <p>{summary}</p>
+      <div className="text-[11px] leading-snug opacity-90">
+        <p className="font-medium">주소 찾기 실패 {failedAddresses.length}종:</p>
+        <ul className="list-disc space-y-0.5 pl-4">
+          {shown.map((address) => (
+            <li key={address}>{address}</li>
+          ))}
+        </ul>
+        {rest > 0 ? <p className="pl-4">…외 {rest}종</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function resolveStoredMarkerColor(color: string | undefined) {
   if (!color || color === PENDING_MARKER_COLOR || color === TEMP_MARKER_COLOR) {
     return DEFAULT_MARKER_COLOR;
@@ -59,6 +112,16 @@ function resolveStoredMarkerColor(color: string | undefined) {
 
 function isValidCoordinate(value: number) {
   return Number.isFinite(value);
+}
+
+function hasStoredCoordinates(lat: unknown, lng: unknown): boolean {
+  const latNumber = typeof lat === "number" ? lat : Number(lat);
+  const lngNumber = typeof lng === "number" ? lng : Number(lng);
+  return (
+    Number.isFinite(latNumber) &&
+    Number.isFinite(lngNumber) &&
+    !(latNumber === 0 && lngNumber === 0)
+  );
 }
 
 function toEquipmentMarker(
@@ -132,6 +195,10 @@ export function useExcelUploadActions() {
   const setFilters = useMapMarkerStore((state) => state.setFilters);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  // uploadErpExcel 은 아래에서 정의되므로, 위치 업로드에서 참조할 수 있도록 ref 로 우회한다.
+  const uploadErpExcelRef = useRef<
+    ((file: File, input?: HTMLInputElement | null) => Promise<void>) | null
+  >(null);
 
   const invalidateMarkers = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
@@ -139,6 +206,20 @@ export function useExcelUploadActions() {
 
   const uploadEquipmentExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
+      // 공정관리(ERP) 시트면 DB(공정)로 바로 저장 — 한 번 업로드로 저장 + 지도 표시.
+      if (isAuthenticated && supabase) {
+        let isErp = false;
+        try {
+          isErp = (await parseErpSheet(file)).length > 0;
+        } catch {
+          isErp = false;
+        }
+        if (isErp) {
+          await uploadErpExcelRef.current?.(file, input);
+          return;
+        }
+      }
+
       const MapMarkerExcelManager = (
         await import("@/features/map-marker/lib/excel/data-manager")
       ).default;
@@ -167,6 +248,7 @@ export function useExcelUploadActions() {
 
         let geocodeResults: typeof parsedData = [];
         let failCount = 0;
+        let failedItems: ParsedExcelRow[] = [];
 
         if (needGeocoding.length > 0) {
           setStatusText(
@@ -184,6 +266,7 @@ export function useExcelUploadActions() {
             ...splitAddressFields({ address: item.address }),
           }));
           failCount = geocoded.failCount;
+          failedItems = geocoded.failedItems;
         }
 
         const finalMarkers = [...withCoords, ...geocodeResults].map((marker) =>
@@ -204,7 +287,12 @@ export function useExcelUploadActions() {
         if (failCount > 0) {
           summary += ` (주소 찾기 실패: ${failCount}건)`;
         }
-        toast({ description: summary });
+        toast({
+          description: buildUploadResultDescription(
+            summary,
+            formatFailedAddresses(failedItems),
+          ),
+        });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "알 수 없는 오류";
@@ -215,7 +303,7 @@ export function useExcelUploadActions() {
         resetFileInput(input ?? null);
       }
     },
-    [addPendingMarkers, isAuthenticated, pendingMarkers, toast],
+    [addPendingMarkers, isAuthenticated, pendingMarkers, toast, supabase],
   );
 
   /**
@@ -223,6 +311,21 @@ export function useExcelUploadActions() {
    */
   const uploadLocationExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
+      // 공정관리(ERP) 시트 + 로그인 상태면, 임시 표시 대신 DB(공정)에 바로 저장한다.
+      // → 한 번 업로드로 "지도 표시 + DB 저장"을 함께 처리.
+      if (isAuthenticated && supabase) {
+        let isErp = false;
+        try {
+          isErp = (await parseErpSheet(file)).length > 0;
+        } catch {
+          isErp = false;
+        }
+        if (isErp) {
+          await uploadErpExcelRef.current?.(file, input);
+          return;
+        }
+      }
+
       const MapMarkerExcelManager = (
         await import("@/features/map-marker/lib/excel/data-manager")
       ).default;
@@ -231,9 +334,21 @@ export function useExcelUploadActions() {
       setStatusText("Excel 파일 분석 중...");
 
       try {
-        const parsedData = (await MapMarkerExcelManager.parseExcelOrCSV(
-          file,
-        )) as ParsedExcelRow[];
+        // 공정관리(ERP) 시트면 전용 파서로 이름+주소만 뽑고, 아니면 단순 파서로 폴백.
+        // (위치 모드는 임시 표시용이라 이름·주소만 있으면 충분)
+        let parsedData: ParsedExcelRow[];
+        try {
+          const erpRows = await parseErpSheet(file);
+          parsedData = erpRows.length
+            ? erpRows.map((r) => ({ name: r.name, address: r.address }))
+            : ((await MapMarkerExcelManager.parseExcelOrCSV(
+                file,
+              )) as ParsedExcelRow[]);
+        } catch {
+          parsedData = (await MapMarkerExcelManager.parseExcelOrCSV(
+            file,
+          )) as ParsedExcelRow[];
+        }
         const withCoords = parsedData.filter(
           (item) => item.lat !== undefined && item.lng !== undefined,
         );
@@ -243,6 +358,7 @@ export function useExcelUploadActions() {
 
         let geocodeResults: ParsedExcelRow[] = [];
         let failCount = 0;
+        let failedItems: ParsedExcelRow[] = [];
 
         if (needGeocoding.length > 0) {
           setStatusText(
@@ -260,6 +376,7 @@ export function useExcelUploadActions() {
             ...splitAddressFields({ address: item.address }),
           }));
           failCount = geocoded.failCount;
+          failedItems = geocoded.failedItems;
         }
 
         const existingIds = new Set(pendingLocation.map((marker) => marker.id));
@@ -283,7 +400,12 @@ export function useExcelUploadActions() {
         if (failCount > 0) {
           summary += ` (주소 찾기 실패: ${failCount}건)`;
         }
-        toast({ description: summary });
+        toast({
+          description: buildUploadResultDescription(
+            summary,
+            formatFailedAddresses(failedItems),
+          ),
+        });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "알 수 없는 오류";
@@ -294,9 +416,13 @@ export function useExcelUploadActions() {
         resetFileInput(input ?? null);
       }
     },
-    [addPendingMarkers, pendingLocation, toast],
+    [addPendingMarkers, pendingLocation, toast, isAuthenticated, supabase],
   );
 
+  /**
+   * 공정관리 양식(또는 information 양식)의 추가 입력 항목만 갱신한다.
+   * 통합시설코드로 기존 markers 에 연결된 information 만 업데이트(신규 마커 생성 없음).
+   */
   const uploadInfoExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
       const MapMarkerExcelManager = (
@@ -305,21 +431,47 @@ export function useExcelUploadActions() {
       if (!isAuthenticated || !supabase) {
         toast({
           variant: "destructive",
-          description: "상세 장비 업로드는 로그인 후 사용할 수 있습니다.",
+          description: "추가항목 업데이트는 로그인 후 사용할 수 있습니다.",
         });
         resetFileInput(input ?? null);
         return;
       }
 
       setIsUploading(true);
-      setStatusText("상세 장비 정보 파일 분석 중...");
+      setStatusText("추가항목 파일 분석 중...");
 
       try {
-        const parsedData = (await MapMarkerExcelManager.parseInfoExcel(
-          file,
-        )) as Record<string, unknown>[];
+        let parsedData: Record<string, unknown>[] = [];
+
+        // 공정관리(ERP) 양식이면 추가항목 필드로 변환
+        try {
+          const erpRows = await parseErpSheet(file);
+          if (erpRows.length > 0) {
+            parsedData = erpRows.map((row) => ({
+              facility_code: row.facilityCode,
+              project_code: row.projectCode,
+              facility_year: row.facilityYear,
+              business_type: row.businessType,
+              place_name: row.name,
+              final_station_name: row.finalStationName,
+              eq_class: row.eqClass,
+              eq_type: row.eqType,
+              install_date: row.installDate,
+              open_date: row.openDate,
+            }));
+          }
+        } catch {
+          // ERP 형식이 아니면 information 양식으로 파싱
+        }
+
         if (!parsedData.length) {
-          toast({ description: "업로드할 상세 장비 데이터가 없습니다." });
+          parsedData = (await MapMarkerExcelManager.parseInfoExcel(
+            file,
+          )) as Record<string, unknown>[];
+        }
+
+        if (!parsedData.length) {
+          toast({ description: "업데이트할 추가항목 데이터가 없습니다." });
           return;
         }
 
@@ -328,17 +480,40 @@ export function useExcelUploadActions() {
           .select("id, name, facility_code");
         if (error) throw error;
 
+        const knownCodes = new Set(
+          (markersList ?? [])
+            .map((row) => String(row.facility_code ?? "").trim())
+            .filter(Boolean),
+        );
+        const matched = parsedData.filter((row) =>
+          knownCodes.has(String(row.facility_code ?? "").trim()),
+        );
+        const skipped = parsedData.length - matched.length;
+
+        if (!matched.length) {
+          throw new Error(
+            "기존 마커와 일치하는 통합시설코드가 없습니다. 공정관리 시트 업로드 후 다시 시도하세요.",
+          );
+        }
+
+        setStatusText(`추가항목 업데이트 중... (${matched.length}건)`);
         const result = await MapMarkerExcelManager.upsertInformationToSupabase(
           supabase,
-          parsedData,
+          matched,
           markersList ?? [],
         );
 
         await invalidateMarkers();
 
-        let message = `상세 장비 정보 업로드 완료 (총 ${parsedData.length}건)`;
+        let message = `공정관리 추가항목 업데이트 완료 (갱신 ${result.count}건)`;
+        if (skipped > 0) {
+          message += ` · 미매칭 스킵 ${skipped}건`;
+        }
         if (result.unlinkedCount > 0) {
           message += ` · marker_id 미연결 ${result.unlinkedCount}건`;
+        }
+        if (result.warning) {
+          message += ` · ${result.warning}`;
         }
         toast({ description: message });
       } catch (error) {
@@ -385,6 +560,8 @@ export function useExcelUploadActions() {
         let results = parsed.filter(
           (item) => item.lat !== undefined && item.lng !== undefined,
         );
+        let failCount = 0;
+        let failedItems: ParsedExcelRow[] = [];
 
         if (needGeocoding.length > 0) {
           setStatusText(`주소 좌표 변환 중... (총 ${needGeocoding.length}건)`);
@@ -395,6 +572,8 @@ export function useExcelUploadActions() {
             },
           );
           results = [...results, ...geocoded.results];
+          failCount = geocoded.failCount;
+          failedItems = geocoded.failedItems;
         }
 
         const pendingBatteryMarkers = results.map((marker) => ({
@@ -408,8 +587,15 @@ export function useExcelUploadActions() {
         })) as MarkerRecord[];
 
         addPendingMarkers("battery", pendingBatteryMarkers);
+        let batterySummary = `축전지 ${pendingBatteryMarkers.length}건이 대기 목록에 추가되었습니다. 전체 전송으로 DB에 저장하세요.`;
+        if (failCount > 0) {
+          batterySummary += ` (주소 찾기 실패: ${failCount}건)`;
+        }
         toast({
-          description: `축전지 ${pendingBatteryMarkers.length}건이 대기 목록에 추가되었습니다. 전체 전송으로 DB에 저장하세요.`,
+          description: buildUploadResultDescription(
+            batterySummary,
+            formatFailedAddresses(failedItems),
+          ),
         });
       } catch (error) {
         const message =
@@ -423,6 +609,270 @@ export function useExcelUploadActions() {
     },
     [addPendingMarkers, isAuthenticated, toast],
   );
+
+  /**
+   * 공정관리(ERP) 시트를 파싱해 markers·information·erp_details 에 직접 저장한다.
+   * 위·경도는 최초 등록(또는 기존 좌표가 없을 때)에만 지오코딩한다.
+   * 이미 좌표가 있는 마커는 위치등록/추가항목에서 덮어쓰지 않는다(백업·복원에서만 수정).
+   */
+  const uploadErpExcel = useCallback(
+    async (file: File, input?: HTMLInputElement | null) => {
+      if (!isAuthenticated || !supabase) {
+        toast({
+          variant: "destructive",
+          description: "공정관리 시트 업로드는 로그인 후 사용할 수 있습니다.",
+        });
+        resetFileInput(input ?? null);
+        return;
+      }
+
+      setIsUploading(true);
+      setStatusText("공정관리 시트 분석 중...");
+      try {
+        const rows = await parseErpSheet(file);
+        if (!rows.length) {
+          throw new Error("가져올 수 있는 데이터가 없습니다.");
+        }
+
+        const { data: existingMarkers, error: existingError } = await supabase
+          .from("markers")
+          .select("id, facility_code, lat, lng, created_at");
+        if (existingError) throw existingError;
+
+        const existingByFacilityCode = new Map<
+          string,
+          { id: string; lat: unknown; lng: unknown; created_at: string | null }
+        >();
+        const existingById = new Map<
+          string,
+          { id: string; lat: unknown; lng: unknown; created_at: string | null }
+        >();
+        for (const marker of existingMarkers ?? []) {
+          const entry = {
+            id: String(marker.id),
+            lat: marker.lat,
+            lng: marker.lng,
+            created_at: marker.created_at ?? null,
+          };
+          existingById.set(entry.id, entry);
+          const code = String(marker.facility_code ?? "").trim();
+          if (code && !existingByFacilityCode.has(code)) {
+            existingByFacilityCode.set(code, entry);
+          }
+        }
+
+        const rowsNeedingGeocode: ErpParsedRow[] = [];
+        const rowsWithPreservedCoords: Array<
+          ErpParsedRow & { lat: number | null; lng: number | null; existingId?: string }
+        > = [];
+
+        for (const row of rows) {
+          const code = String(row.facilityCode ?? "").trim();
+          const preferredId = code ? `erp_${code}` : "";
+          const existing =
+            (code ? existingByFacilityCode.get(code) : undefined) ??
+            (preferredId ? existingById.get(preferredId) : undefined);
+
+          if (existing && hasStoredCoordinates(existing.lat, existing.lng)) {
+            rowsWithPreservedCoords.push({
+              ...row,
+              lat: Number(existing.lat),
+              lng: Number(existing.lng),
+              existingId: existing.id,
+            });
+            continue;
+          }
+
+          rowsNeedingGeocode.push(row);
+        }
+
+        let geocodedResults: Array<
+          ErpParsedRow & { lat: number | null; lng: number | null }
+        > = [];
+        let geocodeFailCount = 0;
+        let geocodeFailedItems: ErpParsedRow[] = [];
+
+        if (rowsNeedingGeocode.length > 0) {
+          setStatusText(
+            `주소 좌표 변환 시작... (신규/무좌표 ${rowsNeedingGeocode.length}건)`,
+          );
+          const geocoded = await geocodeAddressQueue(
+            rowsNeedingGeocode,
+            (current, total) => {
+              setStatusText(`주소 좌표 변환 중... (${current}/${total})`);
+            },
+          );
+          geocodedResults = [
+            ...geocoded.results.map((r) => ({ ...r, lat: r.lat, lng: r.lng })),
+            ...geocoded.failedItems.map((r) => ({
+              ...r,
+              lat: null as number | null,
+              lng: null as number | null,
+            })),
+          ];
+          geocodeFailCount = geocoded.failCount;
+          geocodeFailedItems = geocoded.failedItems;
+        }
+
+        const allRows: Array<
+          ErpParsedRow & {
+            lat: number | null;
+            lng: number | null;
+            existingId?: string;
+          }
+        > = [...rowsWithPreservedCoords, ...geocodedResults];
+
+        const usedIds = new Set<string>();
+        const makeId = (facilityCode: string, existingId?: string) => {
+          if (existingId && !usedIds.has(existingId)) {
+            usedIds.add(existingId);
+            return existingId;
+          }
+          const base = facilityCode
+            ? `erp_${facilityCode}`
+            : `erp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          let id = base;
+          let n = 1;
+          while (usedIds.has(id)) id = `${base}_${n++}`;
+          usedIds.add(id);
+          return id;
+        };
+
+        const nowIso = new Date().toISOString();
+        const markerRows: Record<string, unknown>[] = [];
+        const infoRows: Record<string, unknown>[] = [];
+        const erpRows: Record<string, unknown>[] = [];
+        let preservedCoordCount = 0;
+        let newCoordCount = 0;
+
+        for (const row of allRows) {
+          const code = String(row.facilityCode ?? "").trim();
+          const preferredId = code ? `erp_${code}` : "";
+          const existing =
+            (row.existingId ? existingById.get(row.existingId) : undefined) ??
+            (code ? existingByFacilityCode.get(code) : undefined) ??
+            (preferredId ? existingById.get(preferredId) : undefined);
+
+          const id = makeId(row.facilityCode, existing?.id);
+          const { roadAddress, jibunAddress } = splitAddressFields({
+            address: row.address,
+          });
+
+          const keepExistingCoords =
+            existing !== undefined &&
+            hasStoredCoordinates(existing.lat, existing.lng);
+          if (keepExistingCoords) {
+            preservedCoordCount += 1;
+          } else {
+            newCoordCount += 1;
+          }
+
+          markerRows.push({
+            id,
+            name: row.name,
+            lat: keepExistingCoords ? Number(existing.lat) : row.lat,
+            lng: keepExistingCoords ? Number(existing.lng) : row.lng,
+            memo: "",
+            tags: [],
+            color: DEFAULT_MARKER_COLOR,
+            facility_team: "",
+            facility_code: row.facilityCode || null,
+            road_address: roadAddress,
+            jibun_address: jibunAddress,
+            // 기존 등록일은 유지, 신규만 현재 시각
+            created_at: existing?.created_at || nowIso,
+          });
+          infoRows.push({
+            marker_id: id,
+            place_name: row.name,
+            facility_code: row.facilityCode || null,
+            project_code: row.projectCode,
+            facility_year: row.facilityYear || "",
+            business_type: row.businessType,
+            final_station_name: row.finalStationName,
+            eq_class: row.eqClass,
+            eq_type: row.eqType,
+            install_date: row.installDate,
+            open_date: row.openDate,
+          });
+          erpRows.push({
+            marker_id: id,
+            ...row.erp,
+            facility_code: row.facilityCode || row.erp.facility_code || null,
+            raw: row.raw,
+          });
+        }
+
+        const chunk = <T,>(arr: T[], size: number): T[][] => {
+          const out: T[][] = [];
+          for (let i = 0; i < arr.length; i += size) {
+            out.push(arr.slice(i, i + size));
+          }
+          return out;
+        };
+        const ids = markerRows.map((m) => m.id as string);
+
+        // 재import 대비: 같은 marker_id 의 기존 자식행 제거 후 재삽입
+        setStatusText("기존 데이터 정리 중...");
+        for (const c of chunk(ids, 100)) {
+          await supabase.from("erp_details").delete().in("marker_id", c);
+          await supabase.from("information").delete().in("marker_id", c);
+        }
+
+        setStatusText(`저장 중... (총 ${markerRows.length}건)`);
+        for (const c of chunk(markerRows, 200)) {
+          const { error } = await supabase
+            .from("markers")
+            .upsert(c, { onConflict: "id" });
+          if (error) throw error;
+        }
+        for (const c of chunk(infoRows, 200)) {
+          const { error } = await supabase.from("information").insert(c);
+          if (error) throw error;
+        }
+        for (const c of chunk(erpRows, 100)) {
+          const { error } = await supabase.from("erp_details").insert(c);
+          if (error) throw error;
+        }
+
+        setStatusText("동일 번지 주소 대표·서브 취합 중...");
+        const regroup = await assignMarkerParentsByLotAddress(supabase);
+
+        await invalidateMarkers();
+
+        let summary = `위치등록 ${markerRows.length}건을 저장했습니다.`;
+        if (preservedCoordCount > 0) {
+          summary += ` (기존 위경도 유지 ${preservedCoordCount}건`;
+          if (newCoordCount > 0) {
+            summary += ` · 신규 좌표 ${newCoordCount}건`;
+          }
+          summary += ")";
+        }
+        if (regroup.subCount > 0) {
+          summary += ` (동일 번지 취합: 그룹 ${regroup.groupCount} · 서브 ${regroup.subCount}건)`;
+        }
+        if (geocodeFailCount > 0) {
+          summary += ` (주소 찾기 실패: ${geocodeFailCount}건 — 좌표 없이 저장됨)`;
+        }
+        toast({
+          description: buildUploadResultDescription(
+            summary,
+            formatFailedAddresses(geocodeFailedItems),
+          ),
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "알 수 없는 오류";
+        toast({ variant: "destructive", description: `업로드 실패: ${message}` });
+      } finally {
+        setIsUploading(false);
+        setStatusText(null);
+        resetFileInput(input ?? null);
+      }
+    },
+    [isAuthenticated, supabase, toast, invalidateMarkers],
+  );
+  uploadErpExcelRef.current = uploadErpExcel;
 
   const cancelPendingMarkers = useCallback(() => {
     if (!pendingMarkers.length) return;
@@ -780,6 +1230,7 @@ export function useExcelUploadActions() {
     uploadLocationExcel,
     uploadInfoExcel,
     uploadBatteryExcel,
+    uploadErpExcel,
     cancelPendingMarkers,
     submitPendingMarkers,
     submitSinglePendingMarker,

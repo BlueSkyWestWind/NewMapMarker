@@ -36,6 +36,10 @@ export interface EquipmentMarker extends BaseMarker {
   eqType: string;
   installDate: string;
   openDate: string;
+  /** null/undefined = 대표 국소, 값 있음 = 해당 대표의 서브 */
+  parentMarkerId?: string | null;
+  /** DB/백업 구분: 대표 | SUB */
+  groupRole?: string | null;
 }
 
 export interface BatteryMarker extends BaseMarker {

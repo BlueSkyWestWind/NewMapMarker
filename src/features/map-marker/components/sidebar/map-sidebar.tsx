@@ -9,7 +9,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
-  Server,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,6 +81,16 @@ export function MapSidebar({
     .with("location", () => `위치 ${locationCount}건 · 임시`)
     .exhaustive();
 
+  const countSummary = [
+    countLabel,
+    hasMounted && isLoading ? "로딩 중" : "",
+    !isLocationMode && invalidCoordinateCount > 0
+      ? `좌표 없음 ${invalidCoordinateCount}건`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const defaultAccordion = ["markers"];
 
   if (!isSidebarOpen) {
@@ -102,18 +111,17 @@ export function MapSidebar({
     <aside className="flex h-full w-[340px] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95 text-slate-100 backdrop-blur">
       <header className="border-b border-slate-800 p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-emerald-400" />
-            <div>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <MapPin className="h-5 w-5 shrink-0 text-emerald-400" />
+            <div className="min-w-0">
               <h1 className="text-lg font-bold leading-tight">
                 MapMarker <span className="text-indigo-400">Pro</span>
               </h1>
-              <p className="text-[10px] text-slate-500">
-                {countLabel}
-                {hasMounted && isLoading ? " · 로딩 중" : ""}
-                {!isLocationMode && invalidCoordinateCount > 0
-                  ? ` · 좌표 없음 ${invalidCoordinateCount}건`
-                  : ""}
+              <p
+                className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-500"
+                title={countSummary}
+              >
+                {countSummary}
               </p>
             </div>
           </div>
@@ -163,30 +171,20 @@ export function MapSidebar({
           ) : null}
 
           {showAuthenticatedSections && mode === "equipment" ? (
-            <>
-              <AccordionItem value="excel" className="border-slate-800">
-                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
-                    엑셀로 위치 찍기 (장비)
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
+            <AccordionItem value="equipment-location" className="border-slate-800">
+              <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                <span className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-400" />
+                  위치 등록 및 관리
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2">
                   <EquipmentExcelSection />
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="info" className="border-slate-800">
-                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <Server className="h-3.5 w-3.5 text-violet-400" />
-                    상세장비정보 업로드
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
                   <EquipmentInfoSection />
-                </AccordionContent>
-              </AccordionItem>
-            </>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
           ) : null}
 
           {showAuthenticatedSections && mode === "battery" ? (
@@ -235,7 +233,7 @@ export function MapSidebar({
             <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
               {isLocationMode
                 ? `임시 위치 (${markers.length})`
-                : `저장된 위치 (${markers.length})`}
+                : '위치 찾기'}
             </AccordionTrigger>
             <AccordionContent className="pb-0">
               {isLocationMode && markers.length > 0 ? (

@@ -16,3 +16,6 @@
 8. `fix_db_write_permissions.sql` (필요 시)
 
 `20260626000000_map_marker_schema_reference.sql`은 스키마 요약 참조용입니다.
+
+추가 마이그레이션:
+- `20260718120000_recreate_full_schema_with_erp.sql` — 전체 스키마(+ ERP, `parent_marker_id`, `group_role`)

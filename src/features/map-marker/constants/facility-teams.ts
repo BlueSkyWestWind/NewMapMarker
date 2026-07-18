@@ -28,6 +28,68 @@ export const LEGACY_COLOR_NAMES: Record<string, string> = {
   '#f97316': '오렌지',
 };
 
+/** 한글 이름·오타 → hex (백업 복원용) */
+const COLOR_NAME_ALIASES: Record<string, string> = {
+  에멜랄드: '#10b981',
+  에메랄드: '#10b981',
+  미지정: '#64748b',
+  인디고: '#6366f1',
+  로즈: '#f43f5e',
+  골드: '#f59e0b',
+  퍼플: '#8b5cf6',
+  시안: '#06b6d4',
+  핑크: '#ec4899',
+  라임: '#84cc16',
+  틸: '#14b8a6',
+  오렌지: '#f97316',
+};
+
+export function getColorDisplayName(colorHex: string): string {
+  const normalized = (colorHex || '').toLowerCase().trim();
+  if (!normalized) {
+    return LEGACY_COLOR_NAMES[DEFAULT_MARKER_COLOR];
+  }
+  for (const team of Object.values(FACILITY_TEAMS)) {
+    if (team.color.toLowerCase() === normalized) {
+      return team.label;
+    }
+  }
+  return LEGACY_COLOR_NAMES[normalized] ?? colorHex;
+}
+
+/** 백업 엑셀 색상 셀 → DB hex (`에메랄드`, `#10b981` 모두 허용) */
+export function resolveColorToHex(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    return DEFAULT_MARKER_COLOR;
+  }
+  if (/^#[0-9A-Fa-f]{6}$/.test(raw)) {
+    return raw.toLowerCase();
+  }
+  if (/^[0-9A-Fa-f]{6}$/.test(raw)) {
+    return `#${raw.toLowerCase()}`;
+  }
+
+  const byAlias = COLOR_NAME_ALIASES[raw];
+  if (byAlias) {
+    return byAlias;
+  }
+
+  const lower = raw.toLowerCase();
+  for (const [hex, label] of Object.entries(LEGACY_COLOR_NAMES)) {
+    if (label === raw || label.toLowerCase() === lower) {
+      return hex;
+    }
+  }
+  for (const team of Object.values(FACILITY_TEAMS)) {
+    if (team.label === raw || team.leader === raw) {
+      return team.color;
+    }
+  }
+
+  return DEFAULT_MARKER_COLOR;
+}
+
 export const COLOR_FILTER_ORDER = [
   '#2563eb',
   '#d946ef',

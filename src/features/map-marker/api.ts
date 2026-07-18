@@ -138,6 +138,8 @@ export async function fetchMapMarkers(
       eqType: repInfo?.eq_type ?? '',
       installDate: repInfo?.install_date ?? '',
       openDate: repInfo?.open_date ?? '',
+      parentMarkerId: row.parent_marker_id ?? null,
+      groupRole: row.group_role ?? null,
       createdAt: formatDateOnly(row.created_at) || new Date().toISOString().split('T')[0],
     };
   });

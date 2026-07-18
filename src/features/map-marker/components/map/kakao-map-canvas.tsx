@@ -39,10 +39,15 @@ import { useKakaoMapSdk } from "@/features/map-marker/hooks/use-kakao-map-sdk";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type {
+  EquipmentMarker,
   MapMode,
   MarkerFilterState,
   MarkerRecord,
 } from "@/features/map-marker/types/marker";
+
+function isEquipmentSubMarker(marker: { parentMarkerId?: string | null }) {
+  return Boolean(marker.parentMarkerId);
+}
 import {
   screenRectToMapBounds,
   type MapBoundsLiteral,
@@ -333,9 +338,15 @@ export function KakaoMapCanvas({
     markerDataByIdRef.current = new Map();
     clusterer?.clear();
 
-    const visibleMarkers = markers.filter((marker) =>
-      markerPassesFilters(marker, mode, filters),
-    );
+    const visibleMarkers = markers.filter((marker) => {
+      if (
+        mode === "equipment" &&
+        isEquipmentSubMarker(marker as EquipmentMarker)
+      ) {
+        return false;
+      }
+      return markerPassesFilters(marker, mode, filters);
+    });
 
     const markersToCluster: KakaoMarker[] = [];
     const plottedMarkers: MarkerRecord[] = [];
@@ -572,12 +583,21 @@ export function KakaoMapCanvas({
 
       if (!kakaoMarker) return;
 
+      const equipmentSubCount =
+        mode === "equipment"
+          ? markers.filter(
+              (item) => (item as EquipmentMarker).parentMarkerId === data.id,
+            ).length
+          : 0;
+
       const resolvedGroupNames =
         mode === "location"
           ? groupNames.length > 0
             ? groupNames
             : collectLocationGroupNames(data, markers)
-          : undefined;
+          : equipmentSubCount > 0
+            ? [`${data.name} (+${equipmentSubCount})`]
+            : undefined;
 
       // 캡처 모드에서는 정보창 대신 국소명 + 주소만 텍스트 라벨로 표시한다.
       const content = isInfoWindowCaptureMode
@@ -829,11 +849,18 @@ export function KakaoMapCanvas({
           map={mapInstance}
           mapContainer={mapRef.current}
           bounds={captureBounds}
-          markers={markers.filter(
-            (marker) =>
+          markers={markers.filter((marker) => {
+            if (
+              mode === "equipment" &&
+              isEquipmentSubMarker(marker as EquipmentMarker)
+            ) {
+              return false;
+            }
+            return (
               markerPassesFilters(marker, mode, filters) &&
-              isPlottableCoordinate(marker.lat, marker.lng),
-          )}
+              isPlottableCoordinate(marker.lat, marker.lng)
+            );
+          })}
           excludedTiles={excludedTiles}
           onGuideChange={handleCaptureGuideChange}
           onClose={() => {

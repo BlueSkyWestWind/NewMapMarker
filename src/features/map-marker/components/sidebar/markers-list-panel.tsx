@@ -73,24 +73,26 @@ export function MarkersListPanel({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-100">
-          {isLocationMode ? "임시 위치" : "저장된 위치"} ({countLabel})
-        </h2>
-      </div>
+      {isLocationMode ? (
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-100">
+            임시 위치 ({countLabel})
+          </h2>
+        </div>
+      ) : null}
       <Input
         value={markerListFilter}
         onChange={(e) => setMarkerListFilter(e.target.value)}
         placeholder={
-          isLocationMode ? "이름·주소로 필터링..." : "저장된 위치 필터링..."
+          isLocationMode ? "이름·주소로 필터링..." : "이름·주소로 위치 찾기..."
         }
         className="mb-3 h-8 border-slate-700 bg-slate-900/60 text-xs"
       />
       <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-700/50 bg-slate-900/30">
         {!isLocationMode && !markerListFilter.trim() ? (
           <div className="flex h-full flex-col items-center justify-center p-6 text-center text-xs text-slate-500">
-            <p>필터링 검색어를 입력하면</p>
-            <p>저장된 위치 목록이 여기에 표시됩니다.</p>
+            <p>검색어를 입력하면</p>
+            <p>위치 목록이 여기에 표시됩니다.</p>
           </div>
         ) : filteredMarkers.length === 0 ? (
           <div className="p-6 text-center text-xs text-slate-500">

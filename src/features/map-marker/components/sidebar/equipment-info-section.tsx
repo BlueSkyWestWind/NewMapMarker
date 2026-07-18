@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useExcelUploadActions } from '@/features/map-marker/hooks/use-excel-upload-actions';
 
@@ -11,17 +11,14 @@ export function EquipmentInfoSection() {
 
   return (
     <div className="space-y-2">
-      <p className="text-[11px] text-slate-400">
-        통합시설코드가 포함된 Excel/CSV 파일 업로드
-      </p>
       <Button
         type="button"
         className="h-8 w-full bg-violet-600 text-xs hover:bg-violet-500"
         disabled={isUploading}
         onClick={() => fileInputRef.current?.click()}
       >
-        <Upload className="mr-1.5 h-3.5 w-3.5" />
-        상세장비 Excel 업로드
+        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+        추가항목 업데이트
       </Button>
       <input
         ref={fileInputRef}

@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/features/map-marker/providers/auth-provider';
+import { Toaster } from '@/components/ui/toaster';
 
 function makeQueryClient() {
   return new QueryClient({
@@ -55,6 +56,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>{children}</AuthProvider>
       </QueryClientProvider>
+      {/* 업로드 결과·실패 주소 등 toast() 알림이 실제로 렌더되도록 마운트 */}
+      <Toaster />
     </ThemeProvider>
   );
 }

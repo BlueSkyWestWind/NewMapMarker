@@ -3,36 +3,52 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { DEFAULT_MARKER_COLOR } from '@/features/map-marker/constants/facility-teams';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
+import {
+  FULL_BACKUP_TABLE_NAMES,
+  buildDatedBackupFilename,
+  type FullBackupTables,
+} from '@/features/map-marker/lib/excel/data-manager/full-backup';
+import { applyMarkerRolesFromStoredGroupRole } from '@/features/map-marker/lib/address-group';
 import type { MapMode } from '@/features/map-marker/types/marker';
 
-type ParsedMarkerRow = {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  memo?: string;
-  tags?: string[];
-  color?: string;
-  facilityTeam?: string;
-  facilityCode?: string | null;
-  roadAddress?: string;
-  jibunAddress?: string;
-  address?: string;
-  createdAt?: string;
-};
-
-function toIsoTimestamp(value?: string) {
-  return value ? new Date(value).toISOString() : new Date().toISOString();
-}
+const INSERT_CHUNK_SIZE = 200;
+const ERP_INSERT_CHUNK_SIZE = 100;
 
 function resetFileInput(input: HTMLInputElement | null) {
   if (input) {
     input.value = '';
   }
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
+
+function stripIdentityId(rows: Record<string, unknown>[]) {
+  return rows.map((row) => {
+    const clone = { ...row };
+    delete clone.id;
+    return clone;
+  });
+}
+
+/**
+ * 복원 시 self-FK 충돌을 피하기 위해 parent_marker_id 는 나중에 맞춘다.
+ * group_role(구분) 값은 유지해 백업에서 수정한 대표/SUB 를 복원에 반영한다.
+ */
+function stripParentMarkerId(rows: Record<string, unknown>[]) {
+  return rows.map((row) => {
+    const clone = { ...row };
+    delete clone.parent_marker_id;
+    return clone;
+  });
 }
 
 export function useDataBackupActions() {
@@ -45,258 +61,6 @@ export function useDataBackupActions() {
   const invalidateMarkers = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
   }, [queryClient]);
-
-  const exportMarkersExcel = useCallback(async () => {
-      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
-    if (!supabase) {
-      toast({
-        variant: 'destructive',
-        description: 'Supabase가 연결되어 있지 않습니다.',
-      });
-      return;
-    }
-
-    setIsBusy(true);
-    try {
-      const table = mode === 'battery' ? 'battery_markers' : 'markers';
-      toast({ description: `Supabase ${table} 테이블 조회 중...` });
-
-      const { data, error } = await supabase.from(table).select('*');
-      if (error) throw error;
-
-      if (!data?.length) {
-        toast({ description: '백업할 마커가 없습니다.' });
-        return;
-      }
-
-      if (mode === 'battery') {
-        const dateStr = new Date().toISOString().split('T')[0];
-        const count = MapMarkerExcelManager.exportBatteryMarkersToExcel(
-          data.map((row) => ({
-            id: row.id,
-            name: row.name,
-            lat: row.lat,
-            lng: row.lng,
-            address: row.address ?? '',
-            memo: row.memo ?? '',
-            tags: row.tags ?? [],
-            color: row.color ?? DEFAULT_MARKER_COLOR,
-            facilityTeam: row.facility_team ?? '',
-            createdAt: row.created_at,
-          })),
-          `battery_markers_backup_${dateStr}.xlsx`,
-        );
-        toast({ description: `축전지 마커 Excel 백업 완료 (총 ${count}건)` });
-        return;
-      }
-
-      const dateStr = new Date().toISOString().split('T')[0];
-      const count = MapMarkerExcelManager.exportMarkersToExcel(
-        data.map((row) => ({
-          id: row.id,
-          name: row.name,
-          lat: row.lat,
-          lng: row.lng,
-          memo: row.memo ?? '',
-          tags: row.tags ?? [],
-          color: row.color ?? DEFAULT_MARKER_COLOR,
-          facilityTeam: row.facility_team ?? '',
-          facilityCode: row.facility_code,
-          roadAddress: row.road_address ?? '',
-          jibunAddress: row.jibun_address ?? '',
-          createdAt: row.created_at,
-        })),
-        `markers_backup_${dateStr}.xlsx`,
-      );
-      toast({ description: `위치 마커 Excel 백업 완료 (총 ${count}건)` });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '알 수 없는 오류';
-      toast({ variant: 'destructive', description: `Excel 백업 오류: ${message}` });
-    } finally {
-      setIsBusy(false);
-    }
-  }, [mode, supabase, toast]);
-
-  const importMarkersExcel = useCallback(
-    async (file: File, input?: HTMLInputElement | null) => {
-      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
-      if (!supabase) {
-        toast({
-          variant: 'destructive',
-          description: 'Supabase가 연결되어 있지 않습니다.',
-        });
-        resetFileInput(input ?? null);
-        return;
-      }
-
-      setIsBusy(true);
-      try {
-        toast({ description: '데이터 복원 처리 중...' });
-
-        const parsed = (mode === 'battery'
-          ? await MapMarkerExcelManager.parseBatteryExcel(file)
-          : await MapMarkerExcelManager.importMarkersFromExcel(file)) as ParsedMarkerRow[];
-
-        if (!parsed.length) {
-          toast({ description: '복원할 마커 데이터가 없습니다.' });
-          return;
-        }
-
-        if (mode === 'battery') {
-          const bulkData = parsed.map((marker) => ({
-            id: marker.id,
-            name: marker.name,
-            lat: marker.lat,
-            lng: marker.lng,
-            address: marker.address ?? '',
-            memo: marker.memo ?? '',
-            tags: marker.tags ?? [],
-            color: marker.color ?? DEFAULT_MARKER_COLOR,
-            facility_team: marker.facilityTeam ?? '',
-            created_at: toIsoTimestamp(marker.createdAt),
-          }));
-
-          const { error } = await supabase
-            .from('battery_markers')
-            .upsert(bulkData, { onConflict: 'id' });
-          if (error) throw error;
-        } else {
-          const bulkData = parsed.map((marker) => ({
-            id: marker.id,
-            name: marker.name,
-            lat: marker.lat,
-            lng: marker.lng,
-            memo: marker.memo ?? '',
-            tags: marker.tags ?? [],
-            color: marker.color ?? DEFAULT_MARKER_COLOR,
-            facility_team: marker.facilityTeam ?? '',
-            facility_code: marker.facilityCode ?? null,
-            road_address: marker.roadAddress ?? '',
-            jibun_address: marker.jibunAddress ?? '',
-            created_at: toIsoTimestamp(marker.createdAt),
-          }));
-
-          const { error } = await supabase
-            .from('markers')
-            .upsert(bulkData, { onConflict: 'id' });
-          if (error) throw error;
-        }
-
-        await invalidateMarkers();
-        toast({
-          description: `위치 마커 복원이 완료되었습니다. (총 ${parsed.length}건)`,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '알 수 없는 오류';
-        toast({
-          variant: 'destructive',
-          description: `복원 실패: ${message}`,
-        });
-      } finally {
-        setIsBusy(false);
-        resetFileInput(input ?? null);
-      }
-    },
-    [invalidateMarkers, mode, supabase, toast],
-  );
-
-  const exportInfoExcel = useCallback(async () => {
-      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
-    if (!supabase) {
-      toast({
-        variant: 'destructive',
-        description: 'Supabase가 연결되어 있지 않아 상세 장비 정보를 백업할 수 없습니다.',
-      });
-      return;
-    }
-
-    setIsBusy(true);
-    try {
-      toast({ description: 'Supabase information 테이블 조회 중...' });
-      const { data, error } = await supabase.from('information').select('*');
-      if (error) throw error;
-
-      if (!data?.length) {
-        toast({ description: '백업할 상세 장비 데이터가 없습니다.' });
-        return;
-      }
-
-      const dateStr = new Date().toISOString().split('T')[0];
-      const count = MapMarkerExcelManager.exportInfoToExcel(
-        data,
-        `information_backup_${dateStr}.xlsx`,
-      );
-      toast({ description: `상세 장비 정보 Excel 백업 완료 (총 ${count}건)` });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '알 수 없는 오류';
-      toast({
-        variant: 'destructive',
-        description: `information Excel 백업 실패: ${message}`,
-      });
-    } finally {
-      setIsBusy(false);
-    }
-  }, [supabase, toast]);
-
-  const importInfoExcel = useCallback(
-    async (file: File, input?: HTMLInputElement | null) => {
-      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
-      if (!supabase) {
-        toast({
-          variant: 'destructive',
-          description: 'Supabase가 연결되어 있지 않아 복원할 수 없습니다.',
-        });
-        resetFileInput(input ?? null);
-        return;
-      }
-
-      setIsBusy(true);
-      try {
-        toast({ description: '상세 장비 데이터 복원 처리 중...' });
-        const parsedData = (await MapMarkerExcelManager.parseInfoExcel(
-          file,
-        )) as Record<string, unknown>[];
-
-        if (!parsedData.length) {
-          toast({ description: '복원할 상세 장비 데이터가 없습니다.' });
-          return;
-        }
-
-        const { data: markersList, error: markersError } = await supabase
-          .from('markers')
-          .select('id, name, facility_code');
-        if (markersError) throw markersError;
-
-        const result = await MapMarkerExcelManager.upsertInformationToSupabase(
-          supabase,
-          parsedData,
-          markersList ?? [],
-        );
-
-        await invalidateMarkers();
-
-        let message = `상세 장비 정보 복원이 완료되었습니다. (총 ${parsedData.length}건)`;
-        if (result.unlinkedCount > 0) {
-          message += ` marker_id 미연결 ${result.unlinkedCount}건 — 장소이름·통합시설코드를 확인하세요.`;
-        }
-        if (result.warning) {
-          message += ` ${result.warning}`;
-        }
-
-        toast({ description: message });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '알 수 없는 오류';
-        toast({
-          variant: 'destructive',
-          description: `상세 장비 복원 실패: ${message}`,
-        });
-      } finally {
-        setIsBusy(false);
-        resetFileInput(input ?? null);
-      }
-    },
-    [invalidateMarkers, supabase, toast],
-  );
 
   const deleteAllBatteryMarkers = useCallback(async () => {
     if (!supabase) {
@@ -363,13 +127,171 @@ export function useDataBackupActions() {
     }
   }, [invalidateMarkers, supabase, toast]);
 
+  /**
+   * 전체 스냅샷 백업(Excel 1시트). `yyyymmdd_mapmarker_backup.xlsx` 형식으로 다운로드.
+   */
+  const exportFullExcel = useCallback(async () => {
+    const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager'))
+      .default;
+    if (!supabase) {
+      toast({
+        variant: 'destructive',
+        description: 'Supabase가 연결되어 있지 않습니다.',
+      });
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      toast({ description: '전체 데이터 조회 중...' });
+      const tables = {
+        markers: [],
+        information: [],
+        erp_details: [],
+        battery_markers: [],
+        battery_specs: [],
+      } as FullBackupTables;
+
+      for (const name of FULL_BACKUP_TABLE_NAMES) {
+        const { data, error } = await supabase.from(name).select('*');
+        if (error) throw error;
+        tables[name] = (data ?? []) as Record<string, unknown>[];
+      }
+
+      if (!tables.erp_details.length && !tables.markers.length) {
+        throw new Error('백업할 장비 데이터가 없습니다.');
+      }
+
+      const filename = buildDatedBackupFilename('mapmarker_backup');
+      const result = MapMarkerExcelManager.exportFullBackupToExcel(tables, filename) as {
+        headerCount: number;
+        tables: {
+          markers: number;
+          information: number;
+          erp_details: number;
+          battery_markers: number;
+          battery_specs: number;
+        };
+      };
+
+      const stationCount = result.tables.erp_details || result.tables.markers;
+      toast({
+        title: '전체 백업 완료',
+        description:
+          `${filename} · 열 ${result.headerCount}개 · 국소 ${stationCount}건` +
+          (result.tables.battery_markers || result.tables.battery_specs
+            ? ` · 축전지 ${result.tables.battery_markers}/${result.tables.battery_specs}`
+            : ''),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류';
+      toast({ variant: 'destructive', description: `전체 백업 실패: ${message}` });
+    } finally {
+      setIsBusy(false);
+    }
+  }, [supabase, toast]);
+
+  /**
+   * 전체 스냅샷 복원(Excel 1시트). 기존 DB를 비운 뒤 파일 내용으로 전면 교체한다.
+   */
+  const importFullExcel = useCallback(
+    async (file: File, input?: HTMLInputElement | null) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager'))
+        .default;
+      if (!supabase) {
+        toast({
+          variant: 'destructive',
+          description: 'Supabase가 연결되어 있지 않습니다.',
+        });
+        resetFileInput(input ?? null);
+        return;
+      }
+
+      const confirmed = window.confirm(
+        [
+          '전체 데이터를 이 백업 엑셀로 전면 교체합니다.',
+          '현재 markers·information·erp_details·battery 데이터는 모두 삭제됩니다.',
+          '',
+          '계속하시겠습니까?',
+        ].join('\n'),
+      );
+      if (!confirmed) {
+        resetFileInput(input ?? null);
+        return;
+      }
+
+      setIsBusy(true);
+      try {
+        toast({ description: '전체 복원 처리 중...' });
+        const tables = (await MapMarkerExcelManager.parseFullBackupExcel(file)) as FullBackupTables;
+        const markers = tables.markers;
+        const information = tables.information;
+        const erpDetails = tables.erp_details;
+        const batteryMarkers = tables.battery_markers;
+        const batterySpecs = tables.battery_specs;
+
+        const { error: clearMarkersError } = await supabase
+          .from('markers')
+          .delete()
+          .neq('id', '');
+        if (clearMarkersError) throw clearMarkersError;
+
+        const { error: clearBatteryError } = await supabase
+          .from('battery_markers')
+          .delete()
+          .neq('id', '');
+        if (clearBatteryError) throw clearBatteryError;
+
+        for (const batch of chunkArray(stripParentMarkerId(markers), INSERT_CHUNK_SIZE)) {
+          const { error } = await supabase.from('markers').insert(batch);
+          if (error) throw error;
+        }
+
+        for (const batch of chunkArray(stripIdentityId(information), INSERT_CHUNK_SIZE)) {
+          const { error } = await supabase.from('information').insert(batch);
+          if (error) throw error;
+        }
+        for (const batch of chunkArray(stripIdentityId(erpDetails), ERP_INSERT_CHUNK_SIZE)) {
+          const { error } = await supabase.from('erp_details').insert(batch);
+          if (error) throw error;
+        }
+
+        for (const batch of chunkArray(batteryMarkers, INSERT_CHUNK_SIZE)) {
+          const { error } = await supabase.from('battery_markers').insert(batch);
+          if (error) throw error;
+        }
+        for (const batch of chunkArray(stripIdentityId(batterySpecs), INSERT_CHUNK_SIZE)) {
+          const { error } = await supabase.from('battery_specs').insert(batch);
+          if (error) throw error;
+        }
+
+        const regroup = await applyMarkerRolesFromStoredGroupRole(supabase);
+
+        await invalidateMarkers();
+        toast({
+          description:
+            `전체 복원 완료 — markers ${markers.length} · information ${information.length} · ` +
+            `erp_details ${erpDetails.length} · battery ${batteryMarkers.length}/${batterySpecs.length}` +
+            (regroup.subCount > 0
+              ? ` · ${regroup.usedStoredRoles ? '구분열' : '자동'} 서브 ${regroup.subCount}건`
+              : ''),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '알 수 없는 오류';
+        toast({ variant: 'destructive', description: `전체 복원 실패: ${message}` });
+      } finally {
+        setIsBusy(false);
+        resetFileInput(input ?? null);
+      }
+    },
+    [invalidateMarkers, supabase, toast],
+  );
+
   return {
     mode: mode as MapMode,
     isBusy,
-    exportMarkersExcel,
-    importMarkersExcel,
-    exportInfoExcel,
-    importInfoExcel,
+    exportFullExcel,
+    importFullExcel,
     deleteAllBatteryMarkers,
   };
 }
