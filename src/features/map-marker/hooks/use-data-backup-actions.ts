@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_MARKER_COLOR } from '@/features/map-marker/constants/facility-teams';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
-import MapMarkerExcelManager from '@/features/map-marker/lib/excel/data-manager';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import type { MapMode } from '@/features/map-marker/types/marker';
@@ -48,6 +47,7 @@ export function useDataBackupActions() {
   }, [queryClient]);
 
   const exportMarkersExcel = useCallback(async () => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
     if (!supabase) {
       toast({
         variant: 'destructive',
@@ -119,6 +119,7 @@ export function useDataBackupActions() {
 
   const importMarkersExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
       if (!supabase) {
         toast({
           variant: 'destructive',
@@ -200,6 +201,7 @@ export function useDataBackupActions() {
   );
 
   const exportInfoExcel = useCallback(async () => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
     if (!supabase) {
       toast({
         variant: 'destructive',
@@ -238,6 +240,7 @@ export function useDataBackupActions() {
 
   const importInfoExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
       if (!supabase) {
         toast({
           variant: 'destructive',

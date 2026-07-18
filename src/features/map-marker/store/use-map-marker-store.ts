@@ -20,6 +20,9 @@ interface MapMarkerUiState {
   pendingEquipmentMarkers: MarkerRecord[];
   pendingBatteryMarkers: MarkerRecord[];
   selectedMarkerId: string | null;
+  selectedMarkerIds: string[];
+  /** 캡처 중 정보창을 마커에서 떨어뜨려 배치 */
+  isInfoWindowCaptureMode: boolean;
   isDetailOpen: boolean;
   isEditOpen: boolean;
   isRoadviewOpen: boolean;
@@ -35,6 +38,10 @@ interface MapMarkerUiState {
   removePendingMarkers: (mode: MapMode, ids: string[]) => void;
   clearPendingMarkers: (mode: MapMode) => void;
   setSelectedMarkerId: (id: string | null) => void;
+  setSelectedMarkerIds: (ids: string[]) => void;
+  setInfoWindowCaptureMode: (enabled: boolean) => void;
+  toggleSelectedMarkerId: (id: string) => void;
+  clearSelectedMarkers: () => void;
   updatePendingMarker: (
     mode: MapMode,
     id: string,
@@ -79,13 +86,22 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       pendingEquipmentMarkers: [],
       pendingBatteryMarkers: [],
       selectedMarkerId: null,
+      selectedMarkerIds: [],
+      isInfoWindowCaptureMode: false,
       isDetailOpen: false,
       isEditOpen: false,
       isRoadviewOpen: false,
       roadviewPosition: null,
       setMode: (mode) =>
         set((state) =>
-          state.mode === mode ? state : { mode, filters: emptyFilterState },
+          state.mode === mode
+            ? state
+            : {
+                mode,
+                filters: emptyFilterState,
+                selectedMarkerId: null,
+                selectedMarkerIds: [],
+              },
         ),
       toggleSidebar: () =>
         set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
@@ -130,7 +146,33 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             ? { pendingEquipmentMarkers: [] }
             : { pendingBatteryMarkers: [] },
         ),
-      setSelectedMarkerId: (id) => set({ selectedMarkerId: id }),
+      setSelectedMarkerId: (id) =>
+        set({
+          selectedMarkerId: id,
+          selectedMarkerIds: id ? [id] : [],
+        }),
+      setSelectedMarkerIds: (ids) =>
+        set({
+          selectedMarkerIds: ids,
+          selectedMarkerId: ids[ids.length - 1] ?? null,
+        }),
+      setInfoWindowCaptureMode: (enabled) =>
+        set({ isInfoWindowCaptureMode: enabled }),
+      toggleSelectedMarkerId: (id) =>
+        set((state) => {
+          const isSelected = state.selectedMarkerIds.includes(id);
+          const selectedMarkerIds = isSelected
+            ? state.selectedMarkerIds.filter((markerId) => markerId !== id)
+            : [...state.selectedMarkerIds, id];
+          const selectedMarkerId =
+            selectedMarkerIds[selectedMarkerIds.length - 1] ?? null;
+          return { selectedMarkerIds, selectedMarkerId };
+        }),
+      clearSelectedMarkers: () =>
+        set({
+          selectedMarkerId: null,
+          selectedMarkerIds: [],
+        }),
       updatePendingMarker: (mode, id, updates) =>
         set((state) => {
           if (mode === "equipment") {
@@ -188,12 +230,14 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       openDetailModal: (id) =>
         set({
           selectedMarkerId: id,
+          selectedMarkerIds: [id],
           isDetailOpen: true,
           isEditOpen: false,
         }),
       openEditModal: (id) =>
         set({
           selectedMarkerId: id,
+          selectedMarkerIds: id ? [id] : [],
           isEditOpen: true,
           isDetailOpen: false,
         }),
@@ -205,6 +249,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       closeAllModals: () =>
         set({
           selectedMarkerId: null,
+          selectedMarkerIds: [],
           isDetailOpen: false,
           isEditOpen: false,
           isRoadviewOpen: false,

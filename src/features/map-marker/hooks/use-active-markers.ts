@@ -111,6 +111,14 @@ export function useActiveMarkers() {
     setFilters(createDefaultFilterState(filterOptions));
   }, [mode, markers.length, filterOptions, setFilters]);
 
+  // 복잡 표현식을 의존성 배열에서 정적으로 검사 가능하도록 key 변수로 추출한다.
+  const filterOptionsKey = [
+    filterOptions.years.join(','),
+    filterOptions.businesses.join(','),
+    filterOptions.colors.join(','),
+    filterOptions.tags.join(','),
+  ].join('|');
+
   useEffect(() => {
     if (!markers.length) return;
 
@@ -126,16 +134,9 @@ export function useActiveMarkers() {
     }
 
     setFilters(nextFilters);
-  }, [
-    markers.length,
-    mode,
-    filterOptions.years.join(','),
-    filterOptions.businesses.join(','),
-    filterOptions.colors.join(','),
-    filterOptions.tags.join(','),
-    filters,
-    setFilters,
-  ]);
+    // filterOptions는 filterOptionsKey(내용 해시)로 변화를 감지하므로 객체 자체는 제외한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markers.length, mode, filterOptionsKey, filters, setFilters]);
 
   const effectiveFilters = useMemo(() => {
     if (!markers.length || !hasAnyFilterSelection(filters)) {

@@ -9,7 +9,6 @@ import {
   TEMP_MARKER_COLOR,
 } from '@/features/map-marker/constants/facility-teams';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
-import MapMarkerExcelManager from '@/features/map-marker/lib/excel/data-manager';
 import { geocodeAddressQueue } from '@/features/map-marker/lib/geocode';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
@@ -105,6 +104,7 @@ export function useExcelUploadActions() {
 
   const uploadEquipmentExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
       if (!isAuthenticated) {
         toast({
           variant: 'destructive',
@@ -175,6 +175,7 @@ export function useExcelUploadActions() {
 
   const uploadInfoExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
       if (!isAuthenticated || !supabase) {
         toast({
           variant: 'destructive',
@@ -228,6 +229,7 @@ export function useExcelUploadActions() {
 
   const uploadBatteryExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
       if (!isAuthenticated) {
         toast({
           variant: 'destructive',
@@ -300,6 +302,7 @@ export function useExcelUploadActions() {
 
   const submitPendingMarkers = useCallback(
     async (isTemp = false) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
       if (!pendingMarkers.length) return;
 
       if (!isTemp && !supabase) {
@@ -468,6 +471,7 @@ export function useExcelUploadActions() {
 
   const submitSinglePendingMarker = useCallback(
     async (markerId: string) => {
+      const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager')).default;
       const marker = pendingMarkers.find((m) => m.id === markerId);
       if (!marker) return;
 

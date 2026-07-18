@@ -150,3 +150,49 @@ export function applyClusterPieStyles(
     clusterMarker.setContent(createClusterPieElement(colors, style));
   }
 }
+
+/**
+ * 클러스터에 포함된 마커 영역으로 지도를 이동·확대한다.
+ */
+export function zoomMapToCluster(map: KakaoMap, cluster: KakaoCluster): void {
+  if (!window.kakao?.maps) return;
+
+  const markers = cluster.getMarkers?.() ?? [];
+  if (markers.length === 0) return;
+
+  const center =
+    typeof cluster.getCenter === "function"
+      ? cluster.getCenter()
+      : markers[0].getPosition();
+
+  if (markers.length === 1) {
+    map.panTo(center);
+    if (map.getLevel() > 3) {
+      map.setLevel(3, { anchor: center, animate: true });
+    }
+    return;
+  }
+
+  const bounds =
+    typeof cluster.getBounds === "function"
+      ? cluster.getBounds()
+      : (() => {
+          const nextBounds = new window.kakao.maps.LatLngBounds();
+          markers.forEach((marker) => {
+            nextBounds.extend(marker.getPosition());
+          });
+          return nextBounds;
+        })();
+
+  map.setBounds(bounds);
+
+  // 좌표가 거의 같으면 setBounds 확대가 부족할 수 있어, 중심 기준으로 추가 확대
+  window.setTimeout(() => {
+    const levelAfterBounds = map.getLevel();
+    if (levelAfterBounds <= 5) return;
+    map.setLevel(levelAfterBounds - 2, {
+      anchor: center,
+      animate: true,
+    });
+  }, 120);
+}

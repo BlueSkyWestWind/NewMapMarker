@@ -1,21 +1,35 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_LEVEL,
   MAP_MARKER_QUERY_KEY,
+  MAX_MAP_LEVEL,
+  MIN_MAP_LEVEL,
 } from "@/features/map-marker/constants/map-config";
 import { markerPassesFilters } from "@/features/map-marker/lib/marker-filters";
 import {
   applyClusterPieStyles,
+  zoomMapToCluster,
   type ClusterIconStyle,
 } from "@/features/map-marker/lib/cluster-pie";
+import { registerCaptureOverlayLayoutRunner } from "@/features/map-marker/lib/capture-overlay-layout";
+import {
+  applyOverlayOffset,
+  DEFAULT_OVERLAY_OFFSET,
+  enableOverlayDrag,
+  type OverlayPanelOffset,
+} from "@/features/map-marker/lib/overlay-drag";
 import {
   getEffectiveMarkerColor,
   getMarkerImageUri,
 } from "@/features/map-marker/lib/marker-svg";
+import {
+  createCaptureLabelContent,
+  createOverlayContent,
+} from "@/features/map-marker/lib/overlay-content";
 import { useKakaoMapSdk } from "@/features/map-marker/hooks/use-kakao-map-sdk";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
@@ -23,16 +37,29 @@ import type {
   MapMode,
   MarkerFilterState,
   MarkerRecord,
-  EquipmentMarker,
-  BatteryMarker,
 } from "@/features/map-marker/types/marker";
+import {
+  screenRectToMapBounds,
+  type MapBoundsLiteral,
+} from "@/features/map-marker/lib/map-capture-stitch";
 import { MapFloatingControls } from "@/features/map-marker/components/map/map-floating-controls";
+import {
+  MapRegionCapturePanel,
+  type CaptureGuideState,
+} from "@/features/map-marker/components/map/map-region-capture-panel";
+import { MapRegionSelectOverlay } from "@/features/map-marker/components/map/map-region-select-overlay";
+import { MapRegionBoundsGuide } from "@/features/map-marker/components/map/map-region-bounds-guide";
 import { useToast } from "@/hooks/use-toast";
 
 interface KakaoMapCanvasProps {
   markers: MarkerRecord[];
   mode: MapMode;
   filters: MarkerFilterState;
+}
+
+interface ModifierKeysState {
+  ctrl: boolean;
+  shift: boolean;
 }
 
 function isPlottableCoordinate(lat: number, lng: number) {
@@ -51,6 +78,24 @@ function fitMapToMarkers(map: KakaoMap, plottedMarkers: MarkerRecord[]) {
   map.setBounds(bounds);
 }
 
+function closeAllOverlays(overlays: Map<string, KakaoCustomOverlay>) {
+  overlays.forEach((overlay) => overlay.setMap(null));
+  overlays.clear();
+}
+
+function isMultiSelectGesture(
+  mouseEvent: MouseEvent | undefined,
+  modifierKeys: ModifierKeysState,
+) {
+  return Boolean(
+    mouseEvent?.ctrlKey ||
+    mouseEvent?.metaKey ||
+    mouseEvent?.shiftKey ||
+    modifierKeys.ctrl ||
+    modifierKeys.shift,
+  );
+}
+
 export function KakaoMapCanvas({
   markers,
   mode,
@@ -60,9 +105,27 @@ export function KakaoMapCanvas({
   const queryClient = useQueryClient();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<KakaoMap | null>(null);
+  const [mapInstance, setMapInstance] = useState<KakaoMap | null>(null);
+  const [isRegionSelectMode, setIsRegionSelectMode] = useState(false);
+  const [isCapturePanelOpen, setIsCapturePanelOpen] = useState(false);
+  const [captureBounds, setCaptureBounds] = useState<MapBoundsLiteral | null>(
+    null,
+  );
+  const [captureGuide, setCaptureGuide] = useState<CaptureGuideState>({
+    plan: null,
+    viewportSpan: null,
+    capturedCount: 0,
+  });
   const clustererRef = useRef<KakaoMarkerClusterer | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
-  const activeOverlayRef = useRef<any>(null);
+  const overlaysRef = useRef<Map<string, KakaoCustomOverlay>>(new Map());
+  const overlayOffsetsRef = useRef<Map<string, OverlayPanelOffset>>(new Map());
+  const markerDataByIdRef = useRef<Map<string, MarkerRecord>>(new Map());
+  const modifierKeysRef = useRef<ModifierKeysState>({
+    ctrl: false,
+    shift: false,
+  });
+  const skipNextFocusRef = useRef(false);
   const { isReady, error } = useKakaoMapSdk();
 
   const isClusteringEnabled = useMapMarkerStore(
@@ -82,12 +145,45 @@ export function KakaoMapCanvas({
   const setSelectedMarkerId = useMapMarkerStore(
     (state) => state.setSelectedMarkerId,
   );
+  const toggleSelectedMarkerId = useMapMarkerStore(
+    (state) => state.toggleSelectedMarkerId,
+  );
+  const clearSelectedMarkers = useMapMarkerStore(
+    (state) => state.clearSelectedMarkers,
+  );
   const selectedMarkerId = useMapMarkerStore((state) => state.selectedMarkerId);
+  const selectedMarkerIds = useMapMarkerStore(
+    (state) => state.selectedMarkerIds,
+  );
+  const isInfoWindowCaptureMode = useMapMarkerStore(
+    (state) => state.isInfoWindowCaptureMode,
+  );
   const isDetailOpen = useMapMarkerStore((state) => state.isDetailOpen);
   const isEditOpen = useMapMarkerStore((state) => state.isEditOpen);
   const { toast } = useToast();
 
   const prevModeRef = useRef<MapMode | null>(null);
+
+  useEffect(() => {
+    const syncModifierKeys = (event: KeyboardEvent) => {
+      modifierKeysRef.current = {
+        ctrl: event.ctrlKey || event.metaKey,
+        shift: event.shiftKey,
+      };
+    };
+    const resetModifierKeys = () => {
+      modifierKeysRef.current = { ctrl: false, shift: false };
+    };
+
+    window.addEventListener("keydown", syncModifierKeys);
+    window.addEventListener("keyup", syncModifierKeys);
+    window.addEventListener("blur", resetModifierKeys);
+    return () => {
+      window.removeEventListener("keydown", syncModifierKeys);
+      window.removeEventListener("keyup", syncModifierKeys);
+      window.removeEventListener("blur", resetModifierKeys);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isReady || !mapRef.current || !window.kakao?.maps) return;
@@ -98,28 +194,59 @@ export function KakaoMapCanvas({
       DEFAULT_MAP_CENTER.lng,
     );
 
-    const map = new window.kakao.maps.Map(mapRef.current, {
+    const mapContainer = mapRef.current;
+    const map = new window.kakao.maps.Map(mapContainer, {
       center,
       level: DEFAULT_MAP_LEVEL,
       mapTypeId: window.kakao.maps.MapTypeId.HYBRID,
     });
 
-    // 지도 클릭 시 열려있는 커스텀 오버레이 닫기
+    // 기본 휠 줌은 한 번에 여러 레벨이 건너뛰어질 수 있어, 1단계씩 세밀 조절한다
+    map.setZoomable(false);
+    let lastWheelZoomAt = 0;
+    const WHEEL_ZOOM_THROTTLE_MS = 80;
+
+    const handleWheelZoom = (event: WheelEvent) => {
+      event.preventDefault();
+
+      const now = Date.now();
+      if (now - lastWheelZoomAt < WHEEL_ZOOM_THROTTLE_MS) return;
+      lastWheelZoomAt = now;
+
+      const direction = event.deltaY > 0 ? 1 : -1;
+      const nextLevel = Math.min(
+        MAX_MAP_LEVEL,
+        Math.max(MIN_MAP_LEVEL, map.getLevel() + direction),
+      );
+      if (nextLevel === map.getLevel()) return;
+
+      const rect = mapContainer.getBoundingClientRect();
+      const point = new window.kakao.maps.Point(
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+      );
+      const anchor = map.getProjection().coordsFromContainerPoint(point);
+      map.setLevel(nextLevel, { anchor, animate: true });
+    };
+
+    mapContainer.addEventListener("wheel", handleWheelZoom, {
+      passive: false,
+    });
+
     window.kakao.maps.event.addListener(map, "click", () => {
-      if (activeOverlayRef.current) {
-        activeOverlayRef.current.setMap(null);
-        activeOverlayRef.current = null;
-      }
-      setSelectedMarkerId(null);
+      closeAllOverlays(overlaysRef.current);
+      overlayOffsetsRef.current.clear();
+      clearSelectedMarkers();
     });
 
     mapInstanceRef.current = map;
+    setMapInstance(map);
     clustererRef.current = new window.kakao.maps.MarkerClusterer({
       map,
       averageCenter: true,
       minLevel: 6,
-      disableClickZoom: false,
-      // 실제 아이콘은 clustered 이벤트에서 파이/도넛으로 교체한다
+      // 커스텀 파이/도넛 아이콘이 기본 클릭 확대를 가로채므로 직접 처리한다
+      disableClickZoom: true,
       styles: [
         {
           width: "48px",
@@ -136,6 +263,20 @@ export function KakaoMapCanvas({
       texts: () => "",
     });
 
+    const handleClusterClick = (cluster: KakaoCluster) => {
+      zoomMapToCluster(map, cluster);
+    };
+
+    window.kakao.maps.event.addListener(
+      clustererRef.current,
+      "clusterclick",
+      (...args: unknown[]) => {
+        const cluster = args[0] as KakaoCluster | undefined;
+        if (!cluster) return;
+        handleClusterClick(cluster);
+      },
+    );
+
     window.kakao.maps.event.addListener(
       clustererRef.current,
       "clustered",
@@ -145,21 +286,18 @@ export function KakaoMapCanvas({
         applyClusterPieStyles(clusters, clusterIconStyleRef.current);
       },
     );
-  }, [isReady]);
+  }, [isReady, clearSelectedMarkers]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
     const clusterer = clustererRef.current;
     if (!map || !window.kakao?.maps) return;
 
-    // 필터/모드 변경 시 열려있는 오버레이 닫기
-    if (activeOverlayRef.current) {
-      activeOverlayRef.current.setMap(null);
-      activeOverlayRef.current = null;
-    }
+    closeAllOverlays(overlaysRef.current);
 
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
+    markerDataByIdRef.current = new Map();
     clusterer?.clear();
 
     const visibleMarkers = markers.filter((marker) =>
@@ -175,6 +313,7 @@ export function KakaoMapCanvas({
       }
 
       plottedMarkers.push(data);
+      markerDataByIdRef.current.set(data.id, data);
 
       const position = new window.kakao.maps.LatLng(data.lat, data.lng);
       const markerImage = new window.kakao.maps.MarkerImage(
@@ -190,18 +329,11 @@ export function KakaoMapCanvas({
         zIndex: 3,
         draggable: true,
       });
-      (
-        marker as KakaoMarker & { markerId?: string; markerColor?: string }
-      ).markerId = data.id;
-      (
-        marker as KakaoMarker & { markerId?: string; markerColor?: string }
-      ).markerColor = getEffectiveMarkerColor(data, mode);
+      marker.markerId = data.id;
+      marker.markerColor = getEffectiveMarkerColor(data, mode);
 
       window.kakao.maps.event.addListener(marker, "dragstart", () => {
-        if (activeOverlayRef.current) {
-          activeOverlayRef.current.setMap(null);
-          activeOverlayRef.current = null;
-        }
+        closeAllOverlays(overlaysRef.current);
       });
 
       window.kakao.maps.event.addListener(marker, "dragend", async () => {
@@ -238,9 +370,11 @@ export function KakaoMapCanvas({
               await queryClient.invalidateQueries({
                 queryKey: MAP_MARKER_QUERY_KEY,
               });
-            } catch (err: any) {
+            } catch (err: unknown) {
+              const message =
+                err instanceof Error ? err.message : "알 수 없는 오류";
               console.error("마커 위치 이동 실패:", err);
-              alert(`마커 위치 저장 중 오류가 발생했습니다: ${err.message}`);
+              alert(`마커 위치 저장 중 오류가 발생했습니다: ${message}`);
               marker.setPosition(position);
             }
           }
@@ -249,53 +383,26 @@ export function KakaoMapCanvas({
         }
       });
 
-      // 마커 클릭 시 정보창(CustomOverlay) 표시
-      window.kakao.maps.event.addListener(marker, "click", () => {
-        if (activeOverlayRef.current) {
-          activeOverlayRef.current.setMap(null);
-        }
+      window.kakao.maps.event.addListener(
+        marker,
+        "click",
+        (...args: unknown[]) => {
+          const mouseEvent = args[0] as MouseEvent | undefined;
+          const isMultiSelect = isMultiSelectGesture(
+            mouseEvent,
+            modifierKeysRef.current,
+          );
 
-        const content = createOverlayContent(
-          data,
-          mode,
-          () => {
-            if (activeOverlayRef.current) {
-              activeOverlayRef.current.setMap(null);
-              activeOverlayRef.current = null;
-            }
-            setSelectedMarkerId(null);
-          },
-          (lat, lng, name) => openRoadview(lat, lng, name),
-          (id) => openDetailModal(id),
-          (id) => openEditModal(id),
-          async (teamId, color) => {
-            if (!supabase) return;
-            try {
-              const { error } = await supabase
-                .from("battery_markers")
-                .update({ facility_team: teamId || null, color })
-                .eq("id", data.id);
-              if (error) throw error;
-              await queryClient.invalidateQueries({
-                queryKey: MAP_MARKER_QUERY_KEY,
-              });
-            } catch (err) {
-              console.error("시설팀 업데이트 실패:", err);
-            }
-          },
-          isAuthenticated,
-        );
+          skipNextFocusRef.current = true;
 
-        const overlay = new window.kakao.maps.CustomOverlay({
-          content,
-          position: marker.getPosition(),
-          yAnchor: 1.15,
-          zIndex: 10,
-        });
+          if (isMultiSelect) {
+            toggleSelectedMarkerId(data.id);
+            return;
+          }
 
-        overlay.setMap(map);
-        activeOverlayRef.current = overlay;
-      });
+          setSelectedMarkerId(data.id);
+        },
+      );
 
       markersRef.current.push(marker);
 
@@ -324,14 +431,12 @@ export function KakaoMapCanvas({
     mode,
     filters,
     isClusteringEnabled,
-    openDetailModal,
-    openEditModal,
-    openRoadview,
     queryClient,
     supabase,
     isAuthenticated,
     toast,
     setSelectedMarkerId,
+    toggleSelectedMarkerId,
     updatePendingMarker,
   ]);
 
@@ -341,29 +446,166 @@ export function KakaoMapCanvas({
     clusterer.redraw();
   }, [clusterIconStyle, isClusteringEnabled, mode]);
 
+  // 선택 상태에 맞춰 정보창(CustomOverlay)을 동기화한다
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.kakao?.maps) return;
+
+    closeAllOverlays(overlaysRef.current);
+
+    const selectedIdSet = new Set(selectedMarkerIds);
+    Array.from(overlayOffsetsRef.current.keys()).forEach((markerId) => {
+      if (!selectedIdSet.has(markerId)) {
+        overlayOffsetsRef.current.delete(markerId);
+      }
+    });
+
+    const disableDetailEdit = selectedMarkerIds.length > 1;
+
+    // 정보창 위치는 항상 사용자가 드래그한 수동 오프셋을 사용한다.
+    // (자동 배치를 쓰지 않고, 캡처 시에도 사용자가 옮긴 위치 그대로 촬영)
+
+    selectedMarkerIds.forEach((markerId) => {
+      const data =
+        markerDataByIdRef.current.get(markerId) ??
+        markers.find((marker) => marker.id === markerId);
+      const kakaoMarker = markersRef.current.find(
+        (marker) => marker.markerId === markerId,
+      );
+
+      if (!data || !kakaoMarker) return;
+
+      // 캡처 모드에서는 정보창 대신 국소명 + 주소만 텍스트 라벨로 표시한다.
+      const content = isInfoWindowCaptureMode
+        ? createCaptureLabelContent(data, mode)
+        : createOverlayContent(
+            data,
+            mode,
+            () => {
+              overlayOffsetsRef.current.delete(markerId);
+              const currentIds =
+                useMapMarkerStore.getState().selectedMarkerIds;
+              if (currentIds.length <= 1) {
+                clearSelectedMarkers();
+                return;
+              }
+              toggleSelectedMarkerId(markerId);
+            },
+            (lat, lng, name) => openRoadview(lat, lng, name),
+            (id) => openDetailModal(id),
+            (id) => openEditModal(id),
+            async (teamId, color) => {
+              if (!supabase) return;
+              try {
+                const { error } = await supabase
+                  .from("battery_markers")
+                  .update({ facility_team: teamId || null, color })
+                  .eq("id", data.id);
+                if (error) throw error;
+                await queryClient.invalidateQueries({
+                  queryKey: MAP_MARKER_QUERY_KEY,
+                });
+              } catch (err) {
+                console.error("시설팀 업데이트 실패:", err);
+              }
+            },
+            isAuthenticated,
+            disableDetailEdit,
+          );
+
+      // 오버레이 좌표는 항상 마커에 고정. 패널만 오프셋으로 이동한다.
+      const overlay = new window.kakao.maps.CustomOverlay({
+        content,
+        position: kakaoMarker.getPosition(),
+        xAnchor: 0.5,
+        yAnchor: 0.5,
+        zIndex: 10,
+      });
+
+      overlay.setMap(map);
+      overlaysRef.current.set(markerId, overlay);
+
+      // 캡처든 아니든 항상 사용자가 드래그한 수동 위치를 사용한다
+      const panelOffset =
+        overlayOffsetsRef.current.get(markerId) ?? DEFAULT_OVERLAY_OFFSET;
+
+      enableOverlayDrag({
+        map,
+        overlay,
+        initialOffset: panelOffset,
+        onOffsetChange: (offset) => {
+          // 드래그한 위치를 저장한다 (캡처 시에도 이 위치를 그대로 사용)
+          overlayOffsetsRef.current.set(markerId, offset);
+        },
+      });
+    });
+  }, [
+    selectedMarkerIds,
+    isInfoWindowCaptureMode,
+    markers,
+    mode,
+    isAuthenticated,
+    openDetailModal,
+    openEditModal,
+    openRoadview,
+    clearSelectedMarkers,
+    toggleSelectedMarkerId,
+    queryClient,
+    supabase,
+  ]);
+
+  // 캡처 패널이 타일마다 동기 호출할 수 있도록 재적용 함수를 등록한다.
+  // 자동 배치는 하지 않고, 사용자가 드래그한 수동 위치를 다시 적용해 연결선만 맞춘다.
+  useEffect(() => {
+    const relayoutCaptureOverlays = () => {
+      if (!useMapMarkerStore.getState().isInfoWindowCaptureMode) return;
+      if (!window.kakao?.maps) return;
+
+      overlaysRef.current.forEach((overlay, markerId) => {
+        const content = overlay.getContent();
+        if (!(content instanceof HTMLElement)) return;
+        applyOverlayOffset(
+          content,
+          overlayOffsetsRef.current.get(markerId) ?? DEFAULT_OVERLAY_OFFSET,
+        );
+      });
+    };
+
+    registerCaptureOverlayLayoutRunner(relayoutCaptureOverlays);
+    return () => registerCaptureOverlayLayoutRunner(null);
+  }, []);
+
+  // 캡처는 평상시 정보창 모양 그대로 촬영한다(확대 없음).
+  // capture-readable 을 적용하지 않으므로 미리보기 크기 = 캡처 크기가 되어
+  // 드래그한 위치가 그대로 유지된다.
+
   useEffect(() => {
     if (
       !selectedMarkerId ||
       !mapInstanceRef.current ||
       isDetailOpen ||
-      isEditOpen
-    )
+      isEditOpen ||
+      selectedMarkerIds.length !== 1
+    ) {
       return;
+    }
 
-    // markersRef.current에서 해당 ID를 가진 카카오 마커 찾기
+    if (skipNextFocusRef.current) {
+      skipNextFocusRef.current = false;
+      return;
+    }
+
     const kakaoMarker = markersRef.current.find(
-      (m: any) => m.markerId === selectedMarkerId,
+      (marker) => marker.markerId === selectedMarkerId,
     );
 
-    if (kakaoMarker) {
-      // 마커로 확대 (기존 줌 레벨이 3보다 크면 3으로 축소/확대)
-      if (mapInstanceRef.current.getLevel() > 3) {
-        mapInstanceRef.current.setLevel(3);
-      }
-      mapInstanceRef.current.panTo(kakaoMarker.getPosition());
-      (window.kakao.maps.event as any).trigger(kakaoMarker, "click");
+    if (!kakaoMarker) return;
+
+    if (mapInstanceRef.current.getLevel() > 3) {
+      mapInstanceRef.current.setLevel(3);
     }
-  }, [selectedMarkerId, isDetailOpen, isEditOpen, markers]);
+    mapInstanceRef.current.panTo(kakaoMarker.getPosition());
+  }, [selectedMarkerId, selectedMarkerIds, isDetailOpen, isEditOpen, markers]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -392,263 +634,91 @@ export function KakaoMapCanvas({
           지도 로딩 중...
         </div>
       ) : null}
-      <MapFloatingControls map={mapInstanceRef.current} />
+      {isRegionSelectMode ? (
+        <MapRegionSelectOverlay
+          onCancel={() => setIsRegionSelectMode(false)}
+          onComplete={(rect) => {
+            const map = mapInstanceRef.current;
+            const container = mapRef.current;
+            if (!map || !container) return;
+
+            try {
+              const bounds = screenRectToMapBounds(
+                map,
+                container,
+                rect.clientX1,
+                rect.clientY1,
+                rect.clientX2,
+                rect.clientY2,
+              );
+              setCaptureBounds(bounds);
+              setIsRegionSelectMode(false);
+              setIsCapturePanelOpen(true);
+            } catch (err) {
+              console.error("영역 변환 실패:", err);
+              toast({
+                description: "선택한 영역을 지도 좌표로 변환하지 못했습니다.",
+                variant: "destructive",
+              });
+              setIsRegionSelectMode(false);
+            }
+          }}
+        />
+      ) : null}
+      {captureBounds && mapInstance && isCapturePanelOpen ? (
+        <MapRegionBoundsGuide
+          map={mapInstance}
+          bounds={captureBounds}
+          plan={captureGuide.plan}
+          viewportSpan={captureGuide.viewportSpan}
+          capturedCount={captureGuide.capturedCount}
+        />
+      ) : null}
+      <MapFloatingControls
+        map={mapInstance}
+        onStartRegionCapture={() => {
+          setIsCapturePanelOpen(false);
+          setCaptureBounds(null);
+          setCaptureGuide({
+            plan: null,
+            viewportSpan: null,
+            capturedCount: 0,
+          });
+          setIsRegionSelectMode(true);
+        }}
+      />
+      {isCapturePanelOpen && mapInstance && mapRef.current && captureBounds ? (
+        <MapRegionCapturePanel
+          map={mapInstance}
+          mapContainer={mapRef.current}
+          bounds={captureBounds}
+          markers={markers.filter(
+            (marker) =>
+              markerPassesFilters(marker, mode, filters) &&
+              isPlottableCoordinate(marker.lat, marker.lng),
+          )}
+          onGuideChange={setCaptureGuide}
+          onClose={() => {
+            setIsCapturePanelOpen(false);
+            setCaptureBounds(null);
+            setCaptureGuide({
+              plan: null,
+              viewportSpan: null,
+              capturedCount: 0,
+            });
+          }}
+          onReselectRegion={() => {
+            setIsCapturePanelOpen(false);
+            setCaptureBounds(null);
+            setCaptureGuide({
+              plan: null,
+              viewportSpan: null,
+              capturedCount: 0,
+            });
+            setIsRegionSelectMode(true);
+          }}
+        />
+      ) : null}
     </div>
   );
-}
-
-function formatJibunAddress(addr: string | null | undefined): string {
-  if (!addr) return "";
-  const trimmed = addr.trim();
-  if (trimmed.endsWith("번지")) return trimmed;
-  if (/\d$/.test(trimmed)) {
-    return trimmed + "번지";
-  }
-  return trimmed;
-}
-
-function createOverlayContent(
-  data: MarkerRecord,
-  mode: MapMode,
-  onClose: () => void,
-  onRoadview: (lat: number, lng: number, name: string) => void,
-  onDetail: (id: string) => void,
-  onEdit: (id: string) => void,
-  onTeamChange: (teamId: string, color: string) => Promise<void>,
-  isAuthenticated: boolean,
-): HTMLDivElement {
-  const container = document.createElement("div");
-  container.className = "custom-overlay";
-
-  const stopPropagation = (e: Event) => e.stopPropagation();
-  container.addEventListener("click", stopPropagation);
-  container.addEventListener("mousedown", stopPropagation);
-  container.addEventListener("mouseup", stopPropagation);
-  container.addEventListener("touchstart", stopPropagation);
-  container.addEventListener("touchend", stopPropagation);
-
-  const header = document.createElement("div");
-  header.className = "overlay-header";
-
-  const title = document.createElement("div");
-  title.className = "overlay-title";
-  title.textContent = data.name;
-
-  const closeBtn = document.createElement("span");
-  closeBtn.className = "overlay-close";
-  closeBtn.innerHTML = "&#x2715;"; // X 아이콘
-  closeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onClose();
-  });
-
-  header.appendChild(title);
-  header.appendChild(closeBtn);
-  container.appendChild(header);
-
-  // 주소 표시 영역
-  const addressDiv = document.createElement("div");
-  addressDiv.className = "overlay-address";
-
-  const jibun =
-    mode === "equipment" ? (data as EquipmentMarker).jibunAddress : "";
-  const road =
-    mode === "equipment"
-      ? (data as EquipmentMarker).roadAddress
-      : (data as BatteryMarker).address;
-
-  if (jibun || road) {
-    let html = "";
-    if (jibun) {
-      html += `<span class="road-addr font-medium">${formatJibunAddress(jibun)}</span>`;
-    }
-    if (road) {
-      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${road}</span>`;
-    }
-    addressDiv.innerHTML = html;
-  } else {
-    addressDiv.innerHTML = '<span class="road-addr">주소 조회 중...</span>';
-    if (window.kakao?.maps?.services?.Geocoder) {
-      const geocoder = new window.kakao.maps.services.Geocoder();
-      const coord = new window.kakao.maps.LatLng(data.lat, data.lng);
-      geocoder.coord2Address(
-        coord.getLng(),
-        coord.getLat(),
-        (result: any, status: any) => {
-          if (
-            status === window.kakao.maps.services.Status.OK &&
-            result.length > 0
-          ) {
-            const roadAddr = result[0].road_address?.address_name || "";
-            const jibunAddr = result[0].address?.address_name || "";
-
-            let html = "";
-            if (jibunAddr) {
-              html += `<span class="road-addr font-medium">${formatJibunAddress(jibunAddr)}</span>`;
-            }
-            if (roadAddr) {
-              html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${roadAddr}</span>`;
-            }
-            if (!roadAddr && !jibunAddr) {
-              html = '<span class="road-addr">주소 없음</span>';
-            }
-            addressDiv.innerHTML = html;
-          } else {
-            addressDiv.innerHTML =
-              '<span class="road-addr">주소 조회 실패</span>';
-          }
-        },
-      );
-    }
-  }
-
-  // 축전지 사양 요약 노출
-  if (mode === "battery") {
-    const bat = data as BatteryMarker;
-    const specSummary = document.createElement("div");
-    specSummary.className =
-      "text-[10px] text-emerald-400 mt-1 flex flex-col gap-0.5";
-
-    if (bat.items && bat.items.length > 0) {
-      const capGroups: { [key: number]: number } = {};
-      bat.items.forEach((item) => {
-        const cap = Number(item.capacity || 0);
-        const qty = Number(item.quantity || 0);
-        capGroups[cap] = (capGroups[cap] || 0) + qty;
-      });
-      const sortedCapacities = Object.keys(capGroups)
-        .map(Number)
-        .sort((a, b) => b - a);
-      const parts = sortedCapacities.map(
-        (cap) => `${cap}AH / ${capGroups[cap]}Cell`,
-      );
-
-      specSummary.innerHTML = `
-        <div class="flex flex-col gap-0.5">
-          ${parts.map((part) => `<div>• ${part}</div>`).join("")}
-        </div>
-      `;
-    } else {
-      specSummary.innerHTML = `
-        <div>• ${bat.capacity}AH / ${bat.quantity}Cell</div>
-      `;
-    }
-
-    addressDiv.appendChild(specSummary);
-
-    // 시설팀 선택 드롭다운 UI 추가
-    const teamSelectContainer = document.createElement("div");
-    teamSelectContainer.className =
-      "flex items-center gap-1.5 mt-2 text-[10px] text-slate-300";
-    teamSelectContainer.style.display = "flex";
-    teamSelectContainer.style.alignItems = "center";
-    teamSelectContainer.style.marginTop = "6px";
-
-    const label = document.createElement("span");
-    label.textContent = "시설팀:";
-    teamSelectContainer.appendChild(label);
-
-    const select = document.createElement("select");
-    select.className =
-      "bg-slate-800 text-slate-100 border border-slate-700 rounded px-1 py-0.5 text-[10px] focus:outline-none cursor-pointer";
-    select.style.backgroundColor = "#1e293b";
-    select.style.color = "#f1f5f9";
-    select.style.border = "1px solid #334155";
-    select.style.borderRadius = "4px";
-    select.style.padding = "2px 4px";
-    if (!isAuthenticated) {
-      select.disabled = true;
-      select.style.cursor = "not-allowed";
-      select.style.opacity = "0.7";
-    }
-
-    const defaultOpt = document.createElement("option");
-    defaultOpt.value = "";
-    defaultOpt.textContent = "미지정";
-    if (!bat.facilityTeam) defaultOpt.selected = true;
-    select.appendChild(defaultOpt);
-
-    const teams = [
-      { id: "1", label: "1팀(박경훈)" },
-      { id: "2", label: "2팀(김정배)" },
-      { id: "3", label: "3팀(정종연)" },
-      { id: "4", label: "4팀(이동화)" },
-      { id: "5", label: "5팀(김영남)" },
-      { id: "7", label: "7팀(김성범)" },
-    ];
-
-    teams.forEach((t) => {
-      const opt = document.createElement("option");
-      opt.value = t.id;
-      opt.textContent = t.label;
-      if (bat.facilityTeam === t.id) {
-        opt.selected = true;
-      }
-      select.appendChild(opt);
-    });
-
-    select.addEventListener("change", async (e) => {
-      const target = e.target as HTMLSelectElement;
-      const teamId = target.value;
-      const teamColors: Record<string, string> = {
-        "1": "#2563eb",
-        "2": "#d946ef",
-        "3": "#84cc16",
-        "4": "#9333ea",
-        "5": "#ea580c",
-        "7": "#0891b2",
-      };
-      const color = teamColors[teamId] || "#64748b";
-
-      select.disabled = true;
-      try {
-        await onTeamChange(teamId, color);
-      } finally {
-        select.disabled = false;
-      }
-    });
-
-    teamSelectContainer.appendChild(select);
-    addressDiv.appendChild(teamSelectContainer);
-  }
-
-  container.appendChild(addressDiv);
-
-  const actions = document.createElement("div");
-  actions.className = "overlay-actions";
-
-  // 로드뷰 버튼
-  const roadviewBtn = document.createElement("button");
-  roadviewBtn.className = "overlay-btn overlay-btn-roadview";
-  roadviewBtn.textContent = "로드뷰";
-  roadviewBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onRoadview(data.lat, data.lng, data.name);
-  });
-  actions.appendChild(roadviewBtn);
-
-  // 상세 버튼
-  const detailBtn = document.createElement("button");
-  detailBtn.className = "overlay-btn overlay-btn-detail";
-  detailBtn.textContent = "상세";
-  detailBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onDetail(data.id);
-  });
-  actions.appendChild(detailBtn);
-
-  // 편집 버튼
-  if (isAuthenticated) {
-    const editBtn = document.createElement("button");
-    editBtn.className = "overlay-btn overlay-btn-edit";
-    editBtn.textContent = "편집";
-    editBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      onEdit(data.id);
-    });
-    actions.appendChild(editBtn);
-  }
-
-  container.appendChild(actions);
-  return container;
 }

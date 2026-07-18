@@ -75,157 +75,349 @@
 }
 
 /* Custom Kakao Overlay Bubble styling */
-.custom-overlay {
-    position: relative;
-    background: #0f172a; /* Slate 900 */
-    border: 1px solid #1e293b; /* Slate 800 */
-    border-radius: 12px;
-    padding: 14px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
-    color: #f8fafc; /* Slate 50 */
-    width: 280px;
-    box-sizing: border-box;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-    transform: translateY(-56px);
-    animation: bubblePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+/* CustomOverlay 앵커(마커 좌표). 패널·연결선은 이 원점 기준으로 배치한다 */
+.overlay-root {
+  position: relative;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
-.custom-overlay::after {
-    content: '';
-    position: absolute;
-    bottom: -8px;
-    left: 50%;
-    transform: translateX(-50%) rotate(45deg);
-    width: 16px;
-    height: 16px;
-    background: #0f172a; /* Slate 900 */
-    border-right: 1px solid #1e293b; /* Slate 800 */
-    border-bottom: 1px solid #1e293b; /* Slate 800 */
-    z-index: 1;
+.overlay-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.overlay-stem {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 2px;
+  background: #38bdf8;
+  transform-origin: 0 50%;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
+}
+
+.custom-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: #0f172a; /* Slate 900 */
+  border: 1px solid #1e293b; /* Slate 800 */
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.5),
+    0 4px 6px -4px rgba(0, 0, 0, 0.5);
+  color: #f8fafc; /* Slate 50 */
+  width: 280px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 3;
+  animation: bubblePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 캡처용 텍스트 라벨: 정보창 박스 없이 국소명 + 주소만 텍스트로 표시 */
+.custom-overlay.text-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  width: auto;
+  max-width: 300px;
+  gap: 2px;
+  animation: none;
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.95),
+    0 1px 3px rgba(0, 0, 0, 0.95),
+    0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+.custom-overlay.text-label .overlay-header {
+  border-bottom: none;
+  padding-bottom: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.custom-overlay.text-label .overlay-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: normal;
+  overflow: visible;
+  max-width: 300px;
+}
+
+.custom-overlay.text-label .overlay-address {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #f1f5f9;
+  line-height: 1.35;
+}
+
+/* 마커를 가리키는 삼각형. JS에서 위치·회전을 갱신한다 */
+.overlay-pointer {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #0f172a;
+  border-right: 1px solid #1e293b;
+  border-bottom: 1px solid #1e293b;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .overlay-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #1e293b;
-    padding-bottom: 6px;
-    z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 6px;
+  z-index: 2;
+}
+
+.overlay-header-draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.overlay-header-draggable.is-dragging {
+  cursor: grabbing;
 }
 
 .overlay-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #f8fafc;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 220px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+/* 격자 캡처 시 정보창 글씨·버튼 판독용 임시 확대 */
+.capture-readable .custom-overlay {
+  width: 360px;
+  padding: 16px 18px;
+  gap: 10px;
+  border-width: 2px;
+}
+
+/* 캡처 중 마커 앵커(포인트)를 더 분명히 표시 */
+.capture-readable .overlay-anchor {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-width: 3px;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.45);
+  z-index: 6;
+}
+
+.capture-readable .overlay-title {
+  font-size: 18px;
+  max-width: 300px;
+}
+
+.capture-readable .overlay-address {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.capture-readable .overlay-address .jibun-addr,
+.capture-readable .overlay-address .text-\[10px\] {
+  font-size: 13px !important;
+}
+
+.capture-readable .overlay-btn {
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+.capture-readable .overlay-close {
+  font-size: 18px;
+}
+
+.capture-readable .overlay-pointer {
+  width: 16px;
+  height: 16px;
+}
+
+.capture-readable .overlay-anchor {
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+}
+
+.capture-readable .overlay-stem {
+  height: 3px;
 }
 
 .overlay-close {
-    cursor: pointer;
-    color: #94a3b8; /* Slate 400 */
-    font-size: 14px;
-    transition: color 0.15s ease;
+  cursor: pointer;
+  color: #94a3b8; /* Slate 400 */
+  font-size: 14px;
+  transition: color 0.15s ease;
 }
 
 .overlay-close:hover {
-    color: #f8fafc;
+  color: #f8fafc;
 }
 
 .overlay-address {
-    font-size: 11px;
-    color: #cbd5e1; /* Slate 300 */
-    line-height: 1.4;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    z-index: 2;
+  font-size: 11px;
+  color: #cbd5e1; /* Slate 300 */
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 2;
 }
 
 .overlay-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 6px;
-    margin-top: 4px;
-    z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+  z-index: 2;
 }
 
 .overlay-btn {
-    font-size: 10px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    border: none;
-    font-weight: 500;
-    transition: all 0.15s ease;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.overlay-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .overlay-btn-edit {
-    background: #3b82f6; /* Blue 500 */
-    color: white;
+  background: #3b82f6; /* Blue 500 */
+  color: white;
 }
 
 .overlay-btn-edit:hover {
-    background: #2563eb;
+  background: #2563eb;
 }
 
 .overlay-btn-detail {
-    background: rgba(255, 255, 255, 0.08);
-    color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
 }
 
 .overlay-btn-detail:hover {
-    background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .overlay-btn-roadview {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
 }
 
 .overlay-btn-roadview:hover {
-    opacity: 0.9;
+  opacity: 0.9;
 }
 
 .overlay-btn-save {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
 }
 
 .overlay-btn-save:hover {
-    opacity: 0.9;
+  opacity: 0.9;
 }
 
 .overlay-btn-cancel {
-    background: rgba(255, 255, 255, 0.08);
-    color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
 }
 
 .overlay-btn-cancel:hover {
-    background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .overlay-btn-move {
-    background: rgba(255, 255, 255, 0.08);
-    color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
 }
 
 .overlay-btn-move:hover {
-    background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 @keyframes bubblePop {
-    from {
-        opacity: 0;
-        transform: translateY(-40px) scale(0.9);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(-56px) scale(1);
-    }
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+/* 세로 줌 슬라이더: 위(+)=확대(레벨↓), 아래(-)=축소(레벨↑) */
+.map-zoom-slider {
+  writing-mode: vertical-lr;
+  direction: ltr;
+  width: 8px;
+  height: 96px;
+  padding: 0;
+}
+
+.map-zoom-slider::-webkit-slider-runnable-track {
+  width: 4px;
+  background: #334155;
+  border-radius: 999px;
+}
+
+.map-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-left: -5px;
+  border-radius: 999px;
+  background: #38bdf8;
+  border: 2px solid #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+}
+
+.map-zoom-slider::-moz-range-track {
+  width: 4px;
+  background: #334155;
+  border-radius: 999px;
+}
+
+.map-zoom-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #38bdf8;
+  border: 2px solid #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  cursor: grab;
 }

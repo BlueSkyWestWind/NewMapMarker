@@ -5,8 +5,12 @@ export const DEFAULT_MAP_CENTER = {
 
 export const DEFAULT_MAP_LEVEL = 6;
 
-export const MAP_MARKER_QUERY_KEY = ['map-marker', 'markers'] as const;
+/** HYBRID/SKYVIEW 기준. ROADMAP은 최소 1 */
+export const MIN_MAP_LEVEL = 0;
+export const MAX_MAP_LEVEL = 14;
 
-export const AUTH_SESSION_QUERY_KEY = ['map-marker', 'auth-session'] as const;
+export const MAP_MARKER_QUERY_KEY = ["map-marker", "markers"] as const;
 
-export const KAKAO_SDK_LIBRARIES = 'services,clusterer';
+export const AUTH_SESSION_QUERY_KEY = ["map-marker", "auth-session"] as const;
+
+export const KAKAO_SDK_LIBRARIES = "services,clusterer";

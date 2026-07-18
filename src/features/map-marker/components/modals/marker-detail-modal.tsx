@@ -12,6 +12,11 @@ import { useActiveMarkers } from '@/features/map-marker/hooks/use-active-markers
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Check, FileSpreadsheet, Lock } from 'lucide-react';
+import type {
+  BatteryMarker,
+  BatterySpecItem,
+  EquipmentMarker,
+} from '@/features/map-marker/types/marker';
 
 interface InfoRow {
   facility_year?: string;
@@ -34,6 +39,12 @@ export function MarkerDetailModal() {
   const marker = markers.find((m) => m.id === selectedMarkerId);
   const { toast } = useToast();
 
+  // 현재 모드에 맞춰 좁힌 타입 뷰 (as any 제거용)
+  const equipmentMarker =
+    mode === 'equipment' ? (marker as EquipmentMarker | undefined) : undefined;
+  const batteryMarker =
+    mode === 'battery' ? (marker as BatteryMarker | undefined) : undefined;
+
   const [detailedInfo, setDetailedInfo] = useState<InfoRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -53,7 +64,7 @@ export function MarkerDetailModal() {
     const fetchDetail = async () => {
       setIsLoading(true);
       try {
-        const facilityCode = (marker as any).facilityCode || '';
+        const facilityCode = equipmentMarker?.facilityCode || '';
         const name = marker.name || '';
         
         const { data, error } = await supabase
@@ -63,7 +74,7 @@ export function MarkerDetailModal() {
           
         if (error) throw error;
         setDetailedInfo(data || []);
-      } catch (err: any) {
+      } catch (err) {
         console.error('연관 상세 정보 조회 실패:', err);
       } finally {
         setIsLoading(false);
@@ -72,7 +83,7 @@ export function MarkerDetailModal() {
 
     fetchDetail();
     setSelectedCells(new Set());
-  }, [isDetailOpen, selectedMarkerId, mode, marker, supabase]);
+  }, [isDetailOpen, selectedMarkerId, mode, marker, equipmentMarker, supabase]);
 
   // 클립보드 복사 헬퍼
   const writeTsvToClipboard = async (tsvText: string, message: string) => {
@@ -93,14 +104,14 @@ export function MarkerDetailModal() {
       headers = ['시설연도', '프로젝트코드', '통합시설코드', '사업구분', '국소명-최종', '장비타입', '시설일', '개통일'];
       
       const source = detailedInfo.length > 0 ? detailedInfo : [{
-        facility_year: (marker as any).facilityYear,
-        project_code: (marker as any).projectCode,
-        facility_code: (marker as any).facilityCode,
-        business_type: (marker as any).businessType,
-        final_station_name: (marker as any).finalStationName,
-        eq_type: (marker as any).eqType,
-        install_date: (marker as any).installDate,
-        open_date: (marker as any).openDate,
+        facility_year: equipmentMarker?.facilityYear,
+        project_code: equipmentMarker?.projectCode,
+        facility_code: equipmentMarker?.facilityCode,
+        business_type: equipmentMarker?.businessType,
+        final_station_name: equipmentMarker?.finalStationName,
+        eq_type: equipmentMarker?.eqType,
+        install_date: equipmentMarker?.installDate,
+        open_date: equipmentMarker?.openDate,
       }];
 
       rowsData = source.map(row => [
@@ -115,8 +126,8 @@ export function MarkerDetailModal() {
       ]);
     } else {
       headers = ['ERP명', '주소', '용량(AH)', '수량(Cell)', '창고/국소/국사명', '등록일'];
-      const items = (marker as any)?.items || [];
-      rowsData = items.map((item: any) => [
+      const items = batteryMarker?.items || [];
+      rowsData = items.map((item: BatterySpecItem) => [
         item.erpName || '',
         item.address || '',
         String(item.capacity || 0),
@@ -170,14 +181,14 @@ export function MarkerDetailModal() {
   const getCellValue = (r: number, c: number): string => {
     if (mode === 'equipment') {
       const source = detailedInfo.length > 0 ? detailedInfo : [{
-        facility_year: (marker as any).facilityYear,
-        project_code: (marker as any).projectCode,
-        facility_code: (marker as any).facilityCode,
-        business_type: (marker as any).businessType,
-        final_station_name: (marker as any).finalStationName,
-        eq_type: (marker as any).eqType,
-        install_date: (marker as any).installDate,
-        open_date: (marker as any).openDate,
+        facility_year: equipmentMarker?.facilityYear,
+        project_code: equipmentMarker?.projectCode,
+        facility_code: equipmentMarker?.facilityCode,
+        business_type: equipmentMarker?.businessType,
+        final_station_name: equipmentMarker?.finalStationName,
+        eq_type: equipmentMarker?.eqType,
+        install_date: equipmentMarker?.installDate,
+        open_date: equipmentMarker?.openDate,
       }];
       const row = source[r];
       if (!row) return '';
@@ -193,7 +204,7 @@ export function MarkerDetailModal() {
         default: return '';
       }
     } else {
-      const items = (marker as any)?.items || [];
+      const items = batteryMarker?.items || [];
       const item = items[r];
       if (!item) return '';
       switch (c) {
@@ -291,13 +302,13 @@ export function MarkerDetailModal() {
             <div>
               <label className="text-[10px] text-slate-500 font-medium">주소 (지번)</label>
               <div className="text-xs text-slate-200 mt-0.5">
-                {mode === 'equipment' ? (marker as any).jibunAddress || '주소 정보 없음' : (marker as any).address || '주소 정보 없음'}
+                {mode === 'equipment' ? equipmentMarker?.jibunAddress || '주소 정보 없음' : batteryMarker?.address || '주소 정보 없음'}
               </div>
             </div>
-            {mode === 'equipment' && (marker as any).roadAddress && (
+            {mode === 'equipment' && equipmentMarker?.roadAddress && (
               <div>
                 <label className="text-[10px] text-slate-500 font-medium">도로명 주소</label>
-                <div className="text-xs text-slate-300 mt-0.5">{(marker as any).roadAddress}</div>
+                <div className="text-xs text-slate-300 mt-0.5">{equipmentMarker?.roadAddress}</div>
               </div>
             )}
             <div>
@@ -383,14 +394,14 @@ export function MarkerDetailModal() {
                 ) : mode === 'equipment' ? (
                   // 장비 목록
                   (detailedInfo.length > 0 ? detailedInfo : [{
-                    facility_year: (marker as any).facilityYear,
-                    project_code: (marker as any).projectCode,
-                    facility_code: (marker as any).facilityCode,
-                    business_type: (marker as any).businessType,
-                    final_station_name: (marker as any).finalStationName,
-                    eq_type: (marker as any).eqType,
-                    install_date: (marker as any).installDate,
-                    open_date: (marker as any).openDate,
+                    facility_year: equipmentMarker?.facilityYear,
+                    project_code: equipmentMarker?.projectCode,
+                    facility_code: equipmentMarker?.facilityCode,
+                    business_type: equipmentMarker?.businessType,
+                    final_station_name: equipmentMarker?.finalStationName,
+                    eq_type: equipmentMarker?.eqType,
+                    install_date: equipmentMarker?.installDate,
+                    open_date: equipmentMarker?.openDate,
                   }]).map((row, rIdx) => (
                     <tr key={rIdx} className="border-b border-slate-800 hover:bg-slate-850/40">
                       {[
@@ -419,7 +430,7 @@ export function MarkerDetailModal() {
                   ))
                 ) : (
                   // 축전지 목록
-                  ((marker as any)?.items || []).map((item: any, rIdx) => (
+                  (batteryMarker?.items || []).map((item: BatterySpecItem, rIdx: number) => (
                     <tr key={rIdx} className="border-b border-slate-800 hover:bg-slate-850/40">
                       {[
                         item.erpName,

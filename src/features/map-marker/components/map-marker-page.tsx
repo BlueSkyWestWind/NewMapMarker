@@ -1,12 +1,33 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useActiveMarkers } from '@/features/map-marker/hooks/use-active-markers';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import { MapSidebar } from '@/features/map-marker/components/sidebar/map-sidebar';
 import { KakaoMapCanvas } from '@/features/map-marker/components/map/kakao-map-canvas';
-import { RoadviewModal } from '@/features/map-marker/components/modals/roadview-modal';
-import { MarkerDetailModal } from '@/features/map-marker/components/modals/marker-detail-modal';
-import { MarkerEditModal } from '@/features/map-marker/components/modals/marker-edit-modal';
+
+// 모달은 열릴 때만 필요하므로 초기 번들에서 분리(지연 로드)한다.
+const RoadviewModal = dynamic(
+  () =>
+    import('@/features/map-marker/components/modals/roadview-modal').then(
+      (m) => m.RoadviewModal,
+    ),
+  { ssr: false },
+);
+const MarkerDetailModal = dynamic(
+  () =>
+    import('@/features/map-marker/components/modals/marker-detail-modal').then(
+      (m) => m.MarkerDetailModal,
+    ),
+  { ssr: false },
+);
+const MarkerEditModal = dynamic(
+  () =>
+    import('@/features/map-marker/components/modals/marker-edit-modal').then(
+      (m) => m.MarkerEditModal,
+    ),
+  { ssr: false },
+);
 
 export function MapMarkerPage() {
   const mode = useMapMarkerStore((state) => state.mode);

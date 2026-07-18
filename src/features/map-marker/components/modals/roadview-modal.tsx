@@ -35,7 +35,9 @@ export function RoadviewModal() {
   
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const addLog = useCallback((msg: string) => {
-    console.log(`[RoadviewDebug] ${msg}`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[RoadviewDebug] ${msg}`);
+    }
     setDebugLogs((prev) => [...prev.slice(-30), `${new Date().toLocaleTimeString()} - ${msg}`]);
   }, []);
 

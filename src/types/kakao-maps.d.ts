@@ -55,6 +55,7 @@ declare global {
             type: string,
             handler: (...args: unknown[]) => void,
           ) => void;
+          trigger: (target: unknown, type: string, ...args: unknown[]) => void;
         };
         services: {
           Geocoder: new () => KakaoGeocoder;
@@ -72,17 +73,37 @@ declare global {
 
   interface KakaoLatLngBounds {
     extend: (latlng: KakaoLatLng) => void;
+    getSouthWest: () => KakaoLatLng;
+    getNorthEast: () => KakaoLatLng;
   }
 
   interface KakaoMap {
     setCenter: (latlng: KakaoLatLng) => void;
-    setLevel: (level: number) => void;
+    getCenter: () => KakaoLatLng;
+    setLevel: (
+      level: number,
+      options?: {
+        anchor?: KakaoLatLng;
+        animate?: boolean | { duration: number };
+      },
+    ) => void;
     getLevel: () => number;
     panTo: (latlng: KakaoLatLng) => void;
     setBounds: (bounds: KakaoLatLngBounds) => void;
+    getBounds: () => KakaoLatLngBounds;
     setDraggable: (flag: boolean) => void;
+    setZoomable: (zoomable: boolean) => void;
+    getProjection: () => KakaoMapProjection;
     addOverlayMapTypeId: (typeId: unknown) => void;
     removeOverlayMapTypeId: (typeId: unknown) => void;
+  }
+
+  interface KakaoMapProjection {
+    containerPointFromCoords: (latlng: KakaoLatLng) => KakaoPoint;
+    coordsFromContainerPoint: (point: KakaoPoint) => KakaoLatLng;
+    /** 고정 줌에서 1단위 ≈ 화면 1px인 월드 좌표 */
+    pointFromCoords?: (latlng: KakaoLatLng) => KakaoPoint;
+    coordsFromPoint?: (point: KakaoPoint) => KakaoLatLng;
   }
 
   interface KakaoMarker {
@@ -90,6 +111,8 @@ declare global {
     getPosition: () => KakaoLatLng;
     setPosition: (latlng: KakaoLatLng) => void;
     setDraggable: (flag: boolean) => void;
+    markerId?: string;
+    markerColor?: string;
     _clickHandler?: () => void;
   }
 
@@ -102,18 +125,28 @@ declare global {
   }
 
   interface KakaoPoint {
-    /* point */
+    getX: () => number;
+    getY: () => number;
+    x: number;
+    y: number;
   }
 
   interface KakaoCustomOverlay {
     setMap: (map: KakaoMap | null) => void;
-    getContent: () => HTMLElement;
+    getMap: () => KakaoMap | null;
+    getContent: () => HTMLElement | string;
     setContent: (content: HTMLElement | string) => void;
+    getPosition: () => KakaoLatLng;
+    setPosition: (latlng: KakaoLatLng) => void;
+    setZIndex?: (zIndex: number) => void;
   }
 
   interface KakaoCluster {
     getMarkers: () => KakaoMarker[];
     getClusterMarker: () => KakaoCustomOverlay;
+    getCenter: () => KakaoLatLng;
+    getBounds: () => KakaoLatLngBounds;
+    getSize: () => number;
   }
 
   interface KakaoMarkerClusterer {
