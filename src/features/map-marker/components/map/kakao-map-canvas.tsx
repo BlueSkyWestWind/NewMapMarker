@@ -28,6 +28,7 @@ import {
   getMarkerImageUri,
 } from "@/features/map-marker/lib/marker-svg";
 import {
+  createAddressLookupContent,
   createCaptureLabelContent,
   createOverlayContent,
 } from "@/features/map-marker/lib/overlay-content";
@@ -156,6 +157,7 @@ export function KakaoMapCanvas({
   const markersRef = useRef<KakaoMarker[]>([]);
   const overlaysRef = useRef<Map<string, KakaoCustomOverlay>>(new Map());
   const overlayOffsetsRef = useRef<Map<string, OverlayPanelOffset>>(new Map());
+  const rightClickOverlayRef = useRef<KakaoCustomOverlay | null>(null);
   const markerDataByIdRef = useRef<Map<string, MarkerRecord>>(new Map());
   const modifierKeysRef = useRef<ModifierKeysState>({
     ctrl: false,
@@ -272,11 +274,70 @@ export function KakaoMapCanvas({
       passive: false,
     });
 
+    const clearRightClickOverlay = () => {
+      rightClickOverlayRef.current?.setMap(null);
+      rightClickOverlayRef.current = null;
+    };
+
     window.kakao.maps.event.addListener(map, "click", () => {
       closeAllOverlays(overlaysRef.current);
       overlayOffsetsRef.current.clear();
       clearSelectedMarkers();
+      clearRightClickOverlay();
     });
+
+    // 우클릭한 위치의 주소를 역지오코딩해 팝업으로 표시한다.
+    // 브라우저 기본 컨텍스트 메뉴는 막고, Kakao rightclick 좌표만 사용한다.
+    mapContainer.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
+    window.kakao.maps.event.addListener(
+      map,
+      "rightclick",
+      (...args: unknown[]) => {
+        const mouseEvent = args[0] as { latLng?: KakaoLatLng } | undefined;
+        const latlng = mouseEvent?.latLng;
+        if (!latlng || !window.kakao?.maps) return;
+
+        const lat = latlng.getLat();
+        const lng = latlng.getLng();
+
+        clearRightClickOverlay();
+
+        const overlay = new window.kakao.maps.CustomOverlay({
+          position: latlng,
+          content: createAddressLookupContent({
+            lat,
+            lng,
+            status: "loading",
+            onClose: clearRightClickOverlay,
+          }),
+          xAnchor: 0.5,
+          yAnchor: 1,
+          zIndex: 10000,
+        });
+        overlay.setMap(map);
+        rightClickOverlayRef.current = overlay;
+
+        import("@/features/map-marker/lib/geocode").then(
+          async ({ reverseGeocode }) => {
+            const result = await reverseGeocode(lat, lng);
+            // 그새 팝업이 닫혔거나 다른 우클릭으로 교체됐으면 무시
+            if (rightClickOverlayRef.current !== overlay) return;
+            overlay.setContent(
+              createAddressLookupContent({
+                lat,
+                lng,
+                status: result ? "ok" : "fail",
+                roadAddress: result?.roadAddress,
+                jibunAddress: result?.jibunAddress,
+                onClose: clearRightClickOverlay,
+              }),
+            );
+          },
+        );
+      },
+    );
 
     mapInstanceRef.current = map;
     setMapInstance(map);

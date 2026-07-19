@@ -464,3 +464,105 @@ export function createCaptureLabelContent(
   root.appendChild(container);
   return root;
 }
+
+/**
+ * 지도 우클릭 지점의 주소 조회 팝업(CustomOverlay content).
+ * 비동기 역지오코딩 동안 status="loading" → "ok"/"fail" 로 setContent 교체한다.
+ */
+export function createAddressLookupContent(params: {
+  lat: number;
+  lng: number;
+  status: "loading" | "ok" | "fail";
+  roadAddress?: string;
+  jibunAddress?: string;
+  onClose: () => void;
+}): HTMLDivElement {
+  const { lat, lng, status, roadAddress, jibunAddress, onClose } = params;
+
+  const root = document.createElement("div");
+  root.className = "addr-lookup-overlay";
+  // 팝업 내부 클릭이 지도로 전파돼 팝업이 닫히는 것을 막는다
+  const stop = (e: Event) => e.stopPropagation();
+  root.addEventListener("click", stop);
+  root.addEventListener("mousedown", stop);
+
+  const box = document.createElement("div");
+  box.style.cssText =
+    "min-width:180px;max-width:280px;background:#0f172a;color:#e2e8f0;" +
+    "border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:11px;" +
+    "line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.45);transform:translateY(-12px);";
+
+  const header = document.createElement("div");
+  header.style.cssText =
+    "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;";
+  const title = document.createElement("span");
+  title.textContent = "📍 이 위치 주소";
+  title.style.cssText = "font-weight:600;color:#f8fafc;";
+  const closeBtn = document.createElement("span");
+  closeBtn.textContent = "✕";
+  closeBtn.style.cssText = "cursor:pointer;color:#94a3b8;font-size:12px;padding:0 2px;";
+  closeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClose();
+  });
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+
+  const body = document.createElement("div");
+  if (status === "loading") {
+    body.innerHTML = '<div style="color:#94a3b8;">주소 조회 중...</div>';
+  } else if (status === "fail") {
+    body.innerHTML = '<div style="color:#f87171;">주소를 찾을 수 없습니다.</div>';
+  } else {
+    let html = "";
+    if (roadAddress) {
+      html += `<div style="color:#e2e8f0;">${escapeHtml(roadAddress)}</div>`;
+    }
+    if (jibunAddress) {
+      html += `<div style="color:#94a3b8;margin-top:2px;">(지번) ${escapeHtml(jibunAddress)}</div>`;
+    }
+    if (!roadAddress && !jibunAddress) {
+      html = '<div style="color:#f87171;">주소 없음</div>';
+    }
+    body.innerHTML = html;
+  }
+  box.appendChild(body);
+
+  const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  const foot = document.createElement("div");
+  foot.style.cssText =
+    "display:flex;align-items:center;justify-content:space-between;gap:8px;" +
+    "margin-top:6px;padding-top:5px;border-top:1px solid #1e293b;";
+  const coordSpan = document.createElement("span");
+  coordSpan.textContent = coords;
+  coordSpan.style.cssText = "color:#64748b;font-size:10px;";
+  foot.appendChild(coordSpan);
+
+  if (status !== "loading") {
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.textContent = "주소 복사";
+    copyBtn.style.cssText =
+      "cursor:pointer;background:#1e293b;color:#e2e8f0;border:1px solid #334155;" +
+      "border-radius:4px;padding:2px 6px;font-size:10px;white-space:nowrap;";
+    copyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const text = roadAddress || jibunAddress || coords;
+      navigator.clipboard
+        ?.writeText(text)
+        .then(() => {
+          copyBtn.textContent = "복사됨!";
+          window.setTimeout(() => {
+            copyBtn.textContent = "주소 복사";
+          }, 1500);
+        })
+        .catch(() => {});
+    });
+    foot.appendChild(copyBtn);
+  }
+  box.appendChild(foot);
+
+  root.appendChild(box);
+  return root;
+}
