@@ -2,6 +2,7 @@ export const PUBLIC_ENV_KEYS = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_KAKAO_MAP_APP_KEY',
+  'NEXT_PUBLIC_VWORLD_API_KEY',
 ] as const;
 
 export type PublicEnvKey = (typeof PUBLIC_ENV_KEYS)[number];
@@ -19,6 +20,7 @@ export function getServerPublicEnv(): PublicEnv {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     NEXT_PUBLIC_KAKAO_MAP_APP_KEY: process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY ?? '',
+    NEXT_PUBLIC_VWORLD_API_KEY: process.env.NEXT_PUBLIC_VWORLD_API_KEY ?? '',
   };
 }
 
