@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import Link from "next/link";
 import { match } from "ts-pattern";
 import {
   Database,
@@ -9,6 +11,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Waypoints,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +78,15 @@ export function MapSidebar({
     hasMounted && isAuthenticated && mode !== "location";
   const isLocationMode = mode === "location";
 
+  // 위치탭은 로그인 상태에서만 사용 가능. 로그아웃 시 잠그고,
+  // 이미 위치모드였다면 장비모드로 강제 전환해 지도까지 일관되게 차단한다.
+  const locationLocked = hasMounted && !isAuthenticated;
+  useEffect(() => {
+    if (locationLocked && mode === "location") {
+      setMode("equipment");
+    }
+  }, [locationLocked, mode, setMode]);
+
   const countLabel = match(mode)
     .with("equipment", () => `장비 ${equipmentCount}건`)
     .with("battery", () => `축전지 ${batteryCount}건`)
@@ -138,7 +150,20 @@ export function MapSidebar({
             </Button>
           </div>
         </div>
-        <ModeTabs mode={mode} onChange={setMode} />
+        <ModeTabs
+          mode={mode}
+          onChange={setMode}
+          lockedModes={locationLocked ? ["location"] : []}
+        />
+        {hasMounted && isAuthenticated ? (
+          <Link
+            href="/gpsmap"
+            className="mt-3 flex h-8 items-center justify-center gap-1.5 rounded-md border border-indigo-500/40 bg-indigo-600/15 text-[11px] font-medium text-indigo-200 hover:bg-indigo-600/25"
+          >
+            <Waypoints className="h-3.5 w-3.5" />
+            주소/좌표 통합 변환기
+          </Link>
+        ) : null}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">

@@ -50,6 +50,12 @@ declare global {
           fillOpacity?: number;
           zIndex?: number;
         }) => KakaoPolygon;
+        RoadviewOverlay: new () => KakaoRoadviewOverlay;
+        Roadview: new (
+          container: HTMLElement,
+          options?: { panoId?: number; panoX?: number; panoY?: number },
+        ) => KakaoRoadview;
+        RoadviewClient: new () => KakaoRoadviewClient;
         MapTypeId: {
           HYBRID: unknown;
           USE_DISTRICT: unknown;
@@ -130,6 +136,26 @@ declare global {
     setMap: (map: KakaoMap | null) => void;
     setPath: (path: KakaoLatLng[] | KakaoLatLng[][]) => void;
     setOptions: (options: Record<string, unknown>) => void;
+  }
+
+  interface KakaoRoadviewOverlay {
+    setMap: (map: KakaoMap | null) => void;
+    getMap: () => KakaoMap | null;
+  }
+
+  interface KakaoRoadview {
+    setPanoId: (panoId: number, position: KakaoLatLng) => void;
+    getPanoId: () => number;
+    getPosition: () => KakaoLatLng;
+    relayout: () => void;
+  }
+
+  interface KakaoRoadviewClient {
+    getNearestPanoId: (
+      position: KakaoLatLng,
+      radius: number,
+      callback: (panoId: number | null) => void,
+    ) => void;
   }
 
   interface KakaoMarkerImage {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
+import { LogIn } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,9 @@ interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const fieldClassName =
+  'h-9 bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus-visible:ring-emerald-500';
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const { supabase } = useAuthSession();
@@ -51,82 +55,61 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   };
 
-  const handleSignUp = async () => {
-    if (!supabase) {
-      toast({
-        variant: 'destructive',
-        description:
-          'Supabase 연결 정보가 없습니다. 배포 환경 변수(NEXT_PUBLIC_SUPABASE_*)를 확인하세요.',
-      });
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo:
-            typeof window !== 'undefined' ? window.location.origin : undefined,
-        },
-      });
-      if (error) {
-        toast({ variant: 'destructive', description: error.message });
-        return;
-      }
-      toast({
-        description:
-          '가입 메일을 확인해주세요. 인증 후 로그인할 수 있습니다.',
-      });
-    } finally {
-      setIsSubmitting(false);
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void handleSignIn();
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>로그인 / 회원가입</DialogTitle>
+      <DialogContent className="sm:max-w-md rounded-2xl border-slate-800 bg-slate-900 p-6 text-slate-100 shadow-2xl [&_button.absolute]:text-slate-400 [&_button.absolute]:hover:text-slate-100 [&_button.absolute]:hover:bg-slate-800 [&_button.absolute]:focus:ring-slate-600 [&_button.absolute]:ring-offset-slate-900">
+        <DialogHeader className="border-b border-slate-800 pb-4">
+          <DialogTitle className="text-lg font-bold text-slate-100">
+            로그인
+          </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 pt-1">
           <div className="space-y-2">
-            <Label htmlFor="auth-email">이메일</Label>
+            <Label htmlFor="auth-email" className="text-xs text-slate-300">
+              이메일
+            </Label>
             <Input
               id="auth-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
               autoComplete="email"
+              placeholder="name@example.com"
+              className={fieldClassName}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="auth-password">비밀번호</Label>
+            <Label htmlFor="auth-password" className="text-xs text-slate-300">
+              비밀번호
+            </Label>
             <Input
               id="auth-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
               autoComplete="current-password"
+              placeholder="••••••••"
+              className={fieldClassName}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="pt-1">
             <Button
               type="button"
-              className="flex-1"
+              className="h-9 w-full bg-emerald-600 text-xs font-medium text-white hover:bg-emerald-500"
               disabled={isSubmitting}
               onClick={handleSignIn}
             >
+              <LogIn className="mr-1.5 h-3.5 w-3.5" />
               로그인
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="flex-1"
-              disabled={isSubmitting}
-              onClick={handleSignUp}
-            >
-              회원가입
             </Button>
           </div>
         </div>
