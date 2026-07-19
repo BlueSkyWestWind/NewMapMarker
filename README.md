@@ -6,17 +6,34 @@
 
 ```
 src/
-  app/                         # Next.js App Router
+  app/                         # Next.js App Router (layout · page · globals.css)
+    api/
+      kakao-static-map/        # 카카오 REST 정적맵 프록시 (영역 캡처용, REST 키 필요)
+      map-tile-proxy/          # 지도 타일 프록시 (호스트 allowlist 기반 SSRF 방지)
+      roadview-dates/          # 로드뷰 촬영일자 조회 프록시
+  components/
+    ui/                        # shadcn/ui (Radix)
+    public-env-script.tsx      # 런타임 공개 env 를 브라우저에 주입
+    kakao-sdk-script.tsx       # 카카오 지도 SDK 로더
+  hooks/ lib/ types/           # use-toast · utils · public-env · supabase/client · kakao-maps.d.ts
   features/map-marker/
-    api.ts                     # Supabase 마커 조회
-    components/                # UI (지도, 사이드바, 모달)
-    constants/                 # 시설팀·지도 설정
-    hooks/                     # React Query, Kakao SDK, 필터
-    lib/                       # 마커 SVG, 필터 로직
-    store/                     # Zustand UI 상태
-    types/                     # 도메인 타입
+    api.ts                     # Supabase 마커/정보/축전지 조회
+    constants/                 # 시설팀(facility-teams) · 지도 설정(map-config)
+    providers/                 # auth-provider (Supabase 세션)
+    store/                     # Zustand UI 상태 (use-map-marker-store)
+    hooks/                     # auth-session · map-markers-query · kakao-map-sdk · active-markers
+                               # marker-edit-form · excel-upload-actions · data-backup-actions
+    lib/                       # marker-svg · cluster-pie · marker-filters · geocode · address-group
+                               # overlay-content · overlay-drag · location-marker(-groups)
+                               # map-viewport-capture · capture-overlay-layout
+                               # map-capture-stitch/ (격자 캡처 스티칭)
+                               # excel/data-manager/ (엑셀 파싱·내보내기·백업/복원)
+    components/
+      map/                     # 지도 캔버스 · 플로팅 컨트롤 · 영역 선택/캡처 패널
+      sidebar/                 # 모드탭 · 필터 · 장소검색 · 엑셀 섹션 · 인증 헤더
+      modals/                  # 마커 상세/편집 · 로드뷰 · 인증
   lib/supabase/                # Supabase 브라우저 클라이언트
-supabase/migrations/           # DB 마이그레이션 참조
+e2e/                           # Playwright 스모크 테스트
 ```
 
 ## Cloudflare Workers 배포
@@ -63,27 +80,42 @@ Cloudflare **Workers & Pages → newmarker → Settings → Variables and Secret
 
 카카오 JavaScript 키에 **Workers 배포 URL** 도메인도 등록하세요.
 
+### 환경 변수 (선택)
+
+영역 캡처의 **카카오 정적맵(Static Map)** 경로에서만 사용합니다. 없으면 타일 프록시로 폴백하므로 필수는 아닙니다.
+
+| 변수 | 설명 |
+|------|------|
+| `KAKAO_REST_API_KEY` | 카카오 **REST API 키**(서버 전용). 정적맵 캡처 품질용. 없으면 JS 키로 시도 후 실패 시 타일 프록시 폴백 |
+| `NEXT_PUBLIC_SITE_URL` | 정적맵 요청 `KA` 헤더의 origin 폴백값 (미설정 시 요청 헤더/`localhost:3000` 사용) |
+
 설정 변경 후 **Retry deployment** 하세요.
 
 ## 실행
 
 ```bash
 npm install
-npm run dev
+npm run dev          # 개발 서버 (Turbopack)
+npm run lint         # eslint .
+npm run test:e2e     # Playwright 스모크 (dev 서버 재사용)
 ```
 
 ## 001.MapMarker 대비 현재 구현
 
 | 기능 | 상태 |
 |------|------|
-| 장비/축전지 모드 전환 | ✅ |
-| Supabase 마커 로드 | ✅ |
-| 연도·사업·색상·태그 필터 | ✅ |
-| 지도 마커 렌더·클러스터 | ✅ |
+| 장비/축전지/위치 모드 전환 | ✅ |
+| Supabase 마커·정보·축전지 로드 | ✅ |
+| 연도·사업·색상·태그·용량 필터 | ✅ |
+| 지도 마커 렌더·클러스터(파이/도넛) | ✅ |
+| 장소 검색·주소 지오코딩 | ✅ |
 | 로그인/로그아웃 | ✅ |
-| 엑셀 업로드/백업 | 🔜 (구조만 확장 예정) |
-| 로드뷰 모달 | 🔜 API route 준비됨 |
-| 마커 CRUD 모달 | 🔜 |
+| 엑셀 업로드(장비·축전지·ERP·추가항목) | ✅ |
+| 데이터 백업/복원(엑셀) | ✅ |
+| 마커 CRUD 모달(편집·삭제·시설팀 지정) | ✅ |
+| 로드뷰 모달(촬영일자 조회) | ✅ |
+| 영역 선택 → 격자 캡처/스티칭(PNG) | ✅ |
+| 정적맵·타일 프록시(SSRF 방지) | ✅ |
 
 ## DB 마이그레이션
 

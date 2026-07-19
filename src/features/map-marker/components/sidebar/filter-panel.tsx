@@ -47,11 +47,11 @@ function FilterGroup({
           전체
         </Button>
       </div>
-      <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
+      <div className="grid max-h-28 grid-cols-3 gap-x-2 gap-y-1 overflow-y-auto pr-1">
         {values.map((value) => (
           <label
             key={value}
-            className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800/60"
+            className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800/60"
           >
             <Checkbox
               checked={selected.has(value)}

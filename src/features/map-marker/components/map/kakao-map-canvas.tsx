@@ -169,6 +169,9 @@ export function KakaoMapCanvas({
   );
   const clusterIconStyle = useMapMarkerStore((state) => state.clusterIconStyle);
   const isCadastralMode = useMapMarkerStore((state) => state.isCadastralMode);
+  const placeSearch = useMapMarkerStore((state) => state.placeSearch);
+  const searchPolygonsRef = useRef<KakaoPolygon[]>([]);
+  const searchMarkerRef = useRef<KakaoMarker | null>(null);
   const clusterIconStyleRef = useRef<ClusterIconStyle>(clusterIconStyle);
   clusterIconStyleRef.current = clusterIconStyle;
 
@@ -741,6 +744,73 @@ export function KakaoMapCanvas({
       map.removeOverlayMapTypeId(window.kakao.maps.MapTypeId.USE_DISTRICT);
     }
   }, [isCadastralMode, isReady]);
+
+  // 장소 검색 결과의 필지 경계를 폴리곤으로 그리고, 검색 지점으로 이동한다.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.kakao?.maps) return;
+    const kakao = window.kakao;
+
+    // 이전 검색 오버레이 정리
+    searchPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
+    searchPolygonsRef.current = [];
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.setMap(null);
+      searchMarkerRef.current = null;
+    }
+
+    if (!placeSearch) return;
+
+    const bounds = new kakao.maps.LatLngBounds();
+    let boundsHasPoint = false;
+
+    placeSearch.parcels.forEach((parcel) => {
+      parcel.rings.forEach((ring) => {
+        if (ring.length < 3) return;
+        const path = ring.map((pt) => new kakao.maps.LatLng(pt.lat, pt.lng));
+        const polygon = new kakao.maps.Polygon({
+          path,
+          strokeWeight: 3,
+          strokeColor: "#ff2d78",
+          strokeOpacity: 0.9,
+          fillColor: "#ff2d78",
+          fillOpacity: 0.12,
+          zIndex: 4,
+        });
+        polygon.setMap(map);
+        searchPolygonsRef.current.push(polygon);
+        path.forEach((latlng) => {
+          bounds.extend(latlng);
+          boundsHasPoint = true;
+        });
+      });
+    });
+
+    const center = new kakao.maps.LatLng(
+      placeSearch.center.lat,
+      placeSearch.center.lng,
+    );
+    const marker = new kakao.maps.Marker({ position: center, zIndex: 5 });
+    marker.setMap(map);
+    searchMarkerRef.current = marker;
+
+    if (boundsHasPoint) {
+      bounds.extend(center);
+      map.setBounds(bounds);
+    } else {
+      if (map.getLevel() > 3) map.setLevel(3);
+      map.panTo(center);
+    }
+  }, [placeSearch, isReady]);
+
+  useEffect(() => {
+    return () => {
+      searchPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
+      searchPolygonsRef.current = [];
+      searchMarkerRef.current?.setMap(null);
+      searchMarkerRef.current = null;
+    };
+  }, []);
 
   if (error) {
     return (

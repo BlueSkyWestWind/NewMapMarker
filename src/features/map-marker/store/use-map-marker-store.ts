@@ -4,6 +4,7 @@ import { match } from "ts-pattern";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ClusterIconStyle } from "@/features/map-marker/lib/cluster-pie";
+import type { PlaceSearchResult } from "@/features/map-marker/lib/parcel-boundary";
 import type {
   MapMode,
   MarkerFilterState,
@@ -30,6 +31,8 @@ interface MapMarkerUiState {
   isEditOpen: boolean;
   isRoadviewOpen: boolean;
   roadviewPosition: { lat: number; lng: number; name: string } | null;
+  /** 장소 검색으로 조회한 필지 경계(지도에 폴리곤으로 표시). persist 안 함 */
+  placeSearch: PlaceSearchResult | null;
   setMode: (mode: MapMode) => void;
   toggleSidebar: () => void;
   setClusteringEnabled: (enabled: boolean) => void;
@@ -61,6 +64,7 @@ interface MapMarkerUiState {
   openDetailModal: (id: string) => void;
   openEditModal: (id: string | null) => void;
   openRoadview: (lat: number, lng: number, name: string) => void;
+  setPlaceSearch: (result: PlaceSearchResult | null) => void;
   closeAllModals: () => void;
 }
 
@@ -104,6 +108,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       isEditOpen: false,
       isRoadviewOpen: false,
       roadviewPosition: null,
+      placeSearch: null,
       setMode: (mode) =>
         set((state) =>
           state.mode === mode
@@ -228,6 +233,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
           roadviewPosition: { lat, lng, name },
           isRoadviewOpen: true,
         }),
+      setPlaceSearch: (result) => set({ placeSearch: result }),
       closeAllModals: () =>
         set({
           selectedMarkerId: null,

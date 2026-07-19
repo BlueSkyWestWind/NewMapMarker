@@ -193,3 +193,52 @@ P1~P7 및 대형 파일 분할까지 이번 세션에서 모두 처리됨(상세
 
 - 개발 중 dev 서버가 3000/3001 **두 개**로 떠서, 브라우저가 옛 포트(3001)를 보며 "수정이 반영 안 됨"으로 오인한 사례 있었음. `npm run dev` 시 터미널의 **Local 포트**를 확인하고 접속할 것.
 - 현재 최신 코드 dev 서버는 `localhost:3000` 단일 실행 중.
+
+---
+
+## 7. 2차 검수 (2026-07-19) — 추가 발견 및 수정
+
+> 대상: 분할·P1~P7 이후의 mutation/보안 경로 재검수. 아래 **전부 수정 완료**하고 `main`에 커밋(`b8017bd`)·푸시함.
+> 검증: `tsc --noEmit`(TS 5.9.3) ✅ 0 오류 · `eslint .` ✅ 0 문제. 변경 4파일 (+91/-62).
+
+### 🔴 N1 — PostgREST `.or()` 필터 인젝션 ✅ 수정 완료
+
+- 위치: `hooks/use-marker-edit-form.ts` (장비 정보 조회).
+- 내용: `.or(`facility_code.eq."${fc}",place_name.eq."${marker.name}",marker_id.eq."${marker.id}"`)` — 엑셀 업로드에서 온 **신뢰 불가 값(`marker.name` 등)을 필터 문자열에 직접 보간**. 이름에 `"`·`,`·`)` 등이 있으면 필터 문법이 깨지거나 인젝션 소지. (예: 국소명 `창고(A동), B`)
+- 조치: `quotePostgrestValue()`(큰따옴표 래핑 + `\`·`"` 이스케이프) 헬퍼 추가, 각 조건 값에 적용. **빈 값 조건은 제외**해 `eq.""` 과매칭도 함께 차단.
+
+### 🔴 N2 — `not in` 리스트 raw 조립 → `information` 행 오삭제(데이터 손실) ✅ 수정 완료
+
+- 위치: `hooks/use-marker-edit-form.ts` (편집 저장 시 삭제 대상 산정).
+- 내용: `.not('facility_code', 'in', `(${currentCodes.join(',')})`)` — 통합시설코드를 콤마로 그대로 이어붙여, **코드에 콤마가 하나라도 있으면 리스트가 잘못 분해되어 보존해야 할 행이 삭제**됨(조용한 데이터 손실).
+- 조치: 각 코드를 `quotePostgrestValue()`로 이스케이프 후 조립. `not in` 의미(변경된 코드만 삭제)는 유지해 실패 시 기존 행 보존 안전성도 유지.
+- 참고: 같은 프로젝트의 `.in('marker_id', 배열)` 사용부(`use-excel-upload-actions`, `marker-detail-modal`)는 **배열 전달 방식으로 이미 안전**. 본 두 건만 raw 문자열이었음.
+
+### 🟠 N3 — 편집 중 폼 상태 리셋 ✅ 수정 완료
+
+- 위치: `hooks/use-marker-edit-form.ts` 폼 초기화 `useEffect`.
+- 내용: 의존성의 `marker` 객체가 **백그라운드 refetch(staleTime 30s / `invalidateQueries`)로 참조만 바뀌면 effect 재실행 → 입력 중이던 name/lat/lng 등이 DB 값으로 덮어써짐**.
+- 조치: `initializedKeyRef`(대상 `id:mode` 기준) 가드로 **최초 열림 시 1회만 초기화**. 로딩 지연 시 초기화 보류 로직 유지, 모달 닫힘 시 ref 리셋.
+
+### 🟡 N4 — 편집 훅 코드 정리 ✅ 수정 완료
+
+- 죽은 스칼라 state **9개**(`facilityYear`·`projectCode`·`facilityCode`·`businessType`·`finalStationName`·`eqClass`·`eqType`·`installDate`·`openDate`) 제거 — setter만 호출되고 값은 읽히지 않던 유령 상태(스펙-리스트 리팩터 후 `equipmentItems`가 대체). 선언 + 두 분기 setter 호출 삭제.
+- `marker as any`/`item: any` → `EquipmentMarker`/`BatteryMarker`로 좁힘.
+- `catch (err: any)` 2곳 → `catch (err)` + `getSupabaseErrorMessage(err: unknown)` 헬퍼(`instanceof Error`·`message`·`details` 안전 추출).
+
+### 🟡 N5 — API/스크립트 하드닝 ✅ 수정 완료
+
+- `app/api/roadview-dates/route.ts`: `panoId`를 `encodeURIComponent`로 감싸 경로 이탈(`/`·`?`) 차단.
+- `components/public-env-script.tsx`: `JSON.stringify` 결과의 `<`를 `<`로 이스케이프 → env 값에 `</script>`가 있어도 태그 조기 종료 방지(브레이크아웃 하드닝).
+
+### 🟡 N6 — `lib/excel/data-manager/parse.ts` 타입 정리 ✅ 수정 완료
+
+- deprecated `String.prototype.substr()` 3곳 → `slice()`.
+- 미사용 import 제거(`FACILITY_TEAM_MAP`, `getFacilityTeamExportLabel`).
+- 4개 파서 메서드 시그니처 확정: `(file: File): Promise<Record<string, unknown>[]>`, JSDoc의 `{타입}` 태그 제거(TS 타입으로 이관). 암시적 `any`·중복 타입 힌트 해소.
+- 남김(의도): `parseMethods: Record<string, any> & ThisType<any>`의 `any`는 `index.ts`의 `ThisType` 합성 구조상 유지. 완전 타입화는 합성 재설계가 필요해 별도 작업으로 분리.
+
+### 잔여 항목
+
+- **P4 죽은 코드 `computeCaptureOverlayOffsets`** — 사용자 요청으로 계속 보존.
+- **parse.ts 동적 파싱 객체 타입화** — N6에서 시그니처만 확정, 내부 `Record<string, any>`는 향후 스펙 인터페이스 정의로 점진 제거 가능.

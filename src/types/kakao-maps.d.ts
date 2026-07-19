@@ -40,6 +40,16 @@ declare global {
           styles?: Array<Record<string, string | number>>;
           texts?: string[] | ((size: number) => string);
         }) => KakaoMarkerClusterer;
+        Polygon: new (options: {
+          path: KakaoLatLng[] | KakaoLatLng[][];
+          strokeWeight?: number;
+          strokeColor?: string;
+          strokeOpacity?: number;
+          strokeStyle?: string;
+          fillColor?: string;
+          fillOpacity?: number;
+          zIndex?: number;
+        }) => KakaoPolygon;
         MapTypeId: {
           HYBRID: unknown;
           USE_DISTRICT: unknown;
@@ -114,6 +124,12 @@ declare global {
     markerId?: string;
     markerColor?: string;
     _clickHandler?: () => void;
+  }
+
+  interface KakaoPolygon {
+    setMap: (map: KakaoMap | null) => void;
+    setPath: (path: KakaoLatLng[] | KakaoLatLng[][]) => void;
+    setOptions: (options: Record<string, unknown>) => void;
   }
 
   interface KakaoMarkerImage {
