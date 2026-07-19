@@ -37,15 +37,17 @@ export async function fetchParcelBoundary(
     `/api/parcel-boundary?address=${encodeURIComponent(trimmed)}`,
   );
   const json = (await res.json().catch(() => null)) as
-    | (PlaceSearchResult & { error?: string })
-    | { error?: string }
+    | (PlaceSearchResult & { error?: string; detail?: string })
+    | { error?: string; detail?: string }
     | null;
 
   if (!res.ok || !json || !('center' in json)) {
     const message =
       (json && 'error' in json && json.error) ||
       '경계 조회에 실패했습니다.';
-    throw new Error(message);
+    // 진단용 detail(예: ROAD:INCORRECT_KEY)이 있으면 함께 노출한다.
+    const detail = json && 'detail' in json ? json.detail : '';
+    throw new Error(detail ? `${message} (${detail})` : message);
   }
 
   return json as PlaceSearchResult;

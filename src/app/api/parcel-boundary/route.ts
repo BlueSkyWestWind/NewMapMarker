@@ -37,11 +37,18 @@ function resolveDomain(request: NextRequest): string {
   }
 }
 
+interface GeocodeResult {
+  ok: boolean;
+  point?: ParcelPoint;
+  label?: string;
+  /** 실패 원인(진단용, 예: ROAD:INCORRECT_KEY) */
+  detail?: string;
+}
+
 /** VWorld 지오코더: 주소 → 좌표. 도로명(ROAD)·지번(PARCEL) 순으로 시도한다. */
-async function geocode(
-  apiKey: string,
-  address: string,
-): Promise<{ point: ParcelPoint; label: string } | null> {
+async function geocode(apiKey: string, address: string): Promise<GeocodeResult> {
+  let lastDetail = "NO_RESPONSE";
+
   for (const type of ["ROAD", "PARCEL"] as const) {
     const url = new URL(VWORLD_GEOCODE);
     url.searchParams.set("service", "address");
@@ -65,16 +72,21 @@ async function geocode(
         const lat = Number(result.result.point.y);
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
           return {
+            ok: true,
             point: { lat, lng },
             label: result.refined?.text || address,
           };
         }
       }
-    } catch {
-      // 다음 타입으로 계속
+      // 실패 원인 기록 (INCORRECT_KEY / NOT_FOUND 등)
+      lastDetail = result?.error?.code
+        ? `${type}:${result.error.code}(${result.error.text ?? ""})`
+        : `${type}:${result?.status ?? `HTTP_${res.status}`}`;
+    } catch (err) {
+      lastDetail = `${type}:FETCH_ERROR(${err instanceof Error ? err.message : String(err)})`;
     }
   }
-  return null;
+  return { ok: false, detail: lastDetail };
 }
 
 function ringToPoints(ring: number[][]): ParcelPoint[] {
@@ -186,15 +198,18 @@ export async function GET(request: NextRequest) {
         { status: 400 },
       );
     }
-    const geocoded = await geocode(apiKey, address);
-    if (!geocoded) {
+    const geocoded: GeocodeResult = await geocode(apiKey, address);
+    if (!geocoded.ok || !geocoded.point) {
       return NextResponse.json(
-        { error: "주소를 찾을 수 없습니다. 도로명 또는 지번 주소를 확인하세요." },
+        {
+          error: "주소를 찾을 수 없습니다. 도로명 또는 지번 주소를 확인하세요.",
+          detail: geocoded.detail ?? "",
+        },
         { status: 404 },
       );
     }
     center = geocoded.point;
-    label = geocoded.label;
+    label = geocoded.label ?? "";
   }
 
   try {
