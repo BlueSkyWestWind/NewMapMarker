@@ -1,19 +1,15 @@
 import * as XLSX from 'xlsx';
-import {
-  FACILITY_TEAM_MAP,
-  parseFacilityTeamInput,
-  getFacilityTeamExportLabel,
-} from './shared';
+import { parseFacilityTeamInput } from './shared';
 import { classifyKoreanAddress } from '@/features/map-marker/lib/geocode';
 
 export const parseMethods: Record<string, any> & ThisType<any> = {
 
     /**
      * 업로드된 Excel(.xlsx, .xls) 또는 CSV 파일을 읽고 파싱하여 검증 및 정제합니다.
-     * @param {File} file 업로드된 파일 객체
-     * @returns {Promise<Array>} 파싱된 위치 데이터 배열
+     * @param file 업로드된 파일 객체
+     * @returns 파싱된 위치 데이터 배열
      */
-    parseExcelOrCSV(file) {
+    parseExcelOrCSV(file: File): Promise<Record<string, unknown>[]> {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             
@@ -104,7 +100,7 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                             : (/^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#10b981');
                         
                         const item: Record<string, any> = {
-                            id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                            id: 'marker_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11),
                             name: rawName,
                             memo: memoVal,
                             tags: tags,
@@ -159,10 +155,10 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
     /**
      * information 테이블 전용 엑셀 파싱.
      * 위경도 없이 상세 장비 정보(통합시설코드, 프로젝트코드 등)만 추출합니다.
-     * @param {File} file 업로드된 Excel/CSV 파일
-     * @returns {Promise<Array>} 파싱된 information 행 배열
+     * @param file 업로드된 Excel/CSV 파일
+     * @returns 파싱된 information 행 배열
      */
-    parseInfoExcel(file) {
+    parseInfoExcel(file: File): Promise<Record<string, unknown>[]> {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             
@@ -237,10 +233,10 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
 
     /**
      * 마커 백업 Excel 파일을 읽고 검증합니다.
-     * @param {File} file 업로드된 Excel/CSV 파일
-     * @returns {Promise<Array>} 검증된 마커 배열
+     * @param file 업로드된 Excel/CSV 파일
+     * @returns 검증된 마커 배열
      */
-    importMarkersFromExcel(file) {
+    importMarkersFromExcel(file: File): Promise<Record<string, unknown>[]> {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
 
@@ -299,7 +295,7 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                             : (/^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : "#10b981");
 
                         return {
-                            id: rawId || "marker_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
+                            id: rawId || "marker_" + Date.now() + "_" + Math.random().toString(36).slice(2, 11),
                             name: rawName,
                             lat: latNum,
                             lng: lngNum,
@@ -338,7 +334,7 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
     /**
      * 업로드된 축전지 Excel(.xlsx, .xls) 또는 CSV 파일을 읽고 파싱하여 검증 및 정제합니다.
      */
-    parseBatteryExcel(file) {
+    parseBatteryExcel(file: File): Promise<Record<string, unknown>[]> {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             
@@ -429,7 +425,7 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                             : (/^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(colorVal) ? colorVal : '#64748b');
                         
                         const item: Record<string, any> = {
-                            id: 'marker_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                            id: 'marker_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11),
                             name: rawName,
                             address: addressVal,
                             localAddress: localAddressVal,

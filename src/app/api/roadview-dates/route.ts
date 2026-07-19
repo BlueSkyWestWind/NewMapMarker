@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const targetUrl = `https://rv.map.kakao.com/roadview-search/v2/node/${panoId}?SERVICE=csspano`;
+  // panoId를 그대로 경로에 넣으면 '/'·'?' 등이 경로를 벗어나게 만들 수 있으므로 인코딩한다.
+  const targetUrl = `https://rv.map.kakao.com/roadview-search/v2/node/${encodeURIComponent(panoId)}?SERVICE=csspano`;
 
   try {
     const response = await fetch(targetUrl, {

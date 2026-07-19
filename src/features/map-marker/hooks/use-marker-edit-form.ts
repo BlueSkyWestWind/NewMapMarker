@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import { useActiveMarkers } from '@/features/map-marker/hooks/use-active-markers';
@@ -12,6 +12,32 @@ import type {
   BatteryRowItem,
   EquipmentRowItem,
 } from '@/features/map-marker/components/modals/marker-edit-spec-lists';
+import type {
+  BatteryMarker,
+  EquipmentMarker,
+} from '@/features/map-marker/types/marker';
+
+/**
+ * PostgREST 필터 문자열(or / in 등)에 삽입할 값을 안전하게 감싼다.
+ * 콤마·괄호·점 같은 예약문자를 리터럴로 처리하도록 큰따옴표로 감싸고,
+ * 값 내부의 역슬래시·큰따옴표는 백슬래시로 이스케이프한다.
+ * (문자열을 직접 보간하면 필터 문법이 깨지거나 인젝션이 된다)
+ */
+function quotePostgrestValue(value: string): string {
+  const escaped = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}"`;
+}
+
+/** Supabase/PostgREST 오류 객체에서 사람이 읽을 메시지를 안전하게 추출한다. */
+function getSupabaseErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object') {
+    const e = err as { message?: unknown; details?: unknown };
+    if (typeof e.message === 'string' && e.message) return e.message;
+    if (typeof e.details === 'string' && e.details) return e.details;
+  }
+  return '';
+}
 
 /**
  * 마커 편집 모달의 상태·저장·삭제 로직.
@@ -37,16 +63,7 @@ export function useMarkerEditForm() {
   const [tags, setTags] = useState('');
   const [color, setColor] = useState(DEFAULT_MARKER_COLOR);
 
-  // 장비 스펙 상태
-  const [facilityYear, setFacilityYear] = useState('');
-  const [projectCode, setProjectCode] = useState('');
-  const [facilityCode, setFacilityCode] = useState('');
-  const [businessType, setBusinessType] = useState('');
-  const [finalStationName, setFinalStationName] = useState('');
-  const [eqClass, setEqClass] = useState('');
-  const [eqType, setEqType] = useState('');
-  const [installDate, setInstallDate] = useState('');
-  const [openDate, setOpenDate] = useState('');
+  // 장비 스펙은 equipmentItems(다중 아이템)로 관리한다. (개별 스칼라 state는 사용하지 않음)
 
   // 축전지 스펙 목록 (다중 아이템)
   const [batteryItems, setBatteryItems] = useState<BatteryRowItem[]>([]);
@@ -56,8 +73,22 @@ export function useMarkerEditForm() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 최초 열림/대상 변경 시 1회만 폼을 초기화하기 위한 가드.
+  // 백그라운드 refetch로 marker 참조만 바뀐 경우 편집 중 값이 덮어써지지 않게 한다.
+  const initializedKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!isEditOpen) return;
+    if (!isEditOpen) {
+      initializedKeyRef.current = null;
+      return;
+    }
+
+    const initKey = `${selectedMarkerId ?? '__new__'}:${mode}`;
+    // 이미 이 대상으로 초기화했다면(리페치로 marker 참조만 변경) 다시 덮어쓰지 않는다.
+    if (initializedKeyRef.current === initKey) return;
+    // 기존 마커인데 아직 목록 로딩 전이면 초기화를 미룬다(빈 폼으로 덮어쓰기 방지).
+    if (selectedMarkerId && !marker) return;
+    initializedKeyRef.current = initKey;
 
     if (marker) {
       // 수정 모드
@@ -69,25 +100,25 @@ export function useMarkerEditForm() {
       setColor(marker.color || DEFAULT_MARKER_COLOR);
 
       if (mode === 'equipment') {
-        const eq = marker as any;
-        setFacilityYear(eq.facilityYear || '');
-        setProjectCode(eq.projectCode || '');
-        setFacilityCode(eq.facilityCode || '');
-        setBusinessType(eq.businessType || '');
-        setFinalStationName(eq.finalStationName || '');
-        setEqClass(eq.eqClass || '');
-        setEqType(eq.eqType || '');
-        setInstallDate(eq.installDate ? eq.installDate.split('T')[0] : '');
-        setOpenDate(eq.openDate ? eq.openDate.split('T')[0] : '');
+        const eq = marker as EquipmentMarker;
 
         const fetchInfo = async () => {
           if (!supabase) return;
           try {
             const fc = eq.facilityCode || '';
+            // 값을 직접 보간하면 콤마·따옴표가 or() 필터 문법을 깨뜨리므로
+            // 각 값을 이스케이프하고, 빈 값 조건은 제외해 과매칭(eq."")도 방지한다.
+            const orConditions = [
+              fc ? `facility_code.eq.${quotePostgrestValue(fc)}` : null,
+              marker.name
+                ? `place_name.eq.${quotePostgrestValue(marker.name)}`
+                : null,
+              marker.id ? `marker_id.eq.${quotePostgrestValue(marker.id)}` : null,
+            ].filter((cond): cond is string => cond !== null);
             const { data, error } = await supabase
               .from('information')
               .select('*')
-              .or(`facility_code.eq."${fc}",place_name.eq."${marker.name}",marker_id.eq."${marker.id}"`);
+              .or(orConditions.join(','));
             if (error) throw error;
 
             if (data && data.length > 0) {
@@ -123,9 +154,9 @@ export function useMarkerEditForm() {
         };
         fetchInfo();
       } else {
-        const bat = marker as any;
+        const bat = marker as BatteryMarker;
         setBatteryItems(
-          (bat.items || []).map((item: any) => ({
+          (bat.items || []).map((item) => ({
             id: item.id || `temp_${Date.now()}_${Math.random()}`,
             erpName: item.erpName || '',
             capacity: item.capacity || 600,
@@ -144,15 +175,6 @@ export function useMarkerEditForm() {
       setColor(DEFAULT_MARKER_COLOR);
 
       if (mode === 'equipment') {
-        setFacilityYear('');
-        setProjectCode('');
-        setFacilityCode('');
-        setBusinessType('');
-        setFinalStationName('');
-        setEqClass('');
-        setEqType('');
-        setInstallDate('');
-        setOpenDate('');
         setEquipmentItems([{
           id: `temp_${Date.now()}`,
           facilityCode: '',
@@ -288,7 +310,10 @@ export function useMarkerEditForm() {
             .eq('marker_id', id);
           
           if (currentCodes.length > 0) {
-            deleteQuery = deleteQuery.not('facility_code', 'in', `(${currentCodes.join(',')})`);
+            // raw 문자열로 이어붙이면 콤마가 포함된 코드가 잘못 분해되어
+            // 보존해야 할 information 행이 삭제된다. 각 값을 이스케이프한다.
+            const inList = currentCodes.map(quotePostgrestValue).join(',');
+            deleteQuery = deleteQuery.not('facility_code', 'in', `(${inList})`);
           }
           const { error: deleteError } = await deleteQuery;
           if (deleteError) throw deleteError;
@@ -369,11 +394,12 @@ export function useMarkerEditForm() {
       toast({ description: '마커 정보가 성공적으로 저장되었습니다.' });
       queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
       closeAllModals();
-    } catch (err: any) {
-      console.error('마커 저장 오류 상세:', err.message || err.details || err);
-      toast({ 
-        variant: 'destructive', 
-        description: `저장에 실패했습니다: ${err.message || err.details || '알 수 없는 데이터베이스 오류가 발생했습니다.'}` 
+    } catch (err) {
+      const detail = getSupabaseErrorMessage(err);
+      console.error('마커 저장 오류 상세:', detail || err);
+      toast({
+        variant: 'destructive',
+        description: `저장에 실패했습니다: ${detail || '알 수 없는 데이터베이스 오류가 발생했습니다.'}`,
       });
     } finally {
       setIsSubmitting(false);
@@ -423,9 +449,12 @@ export function useMarkerEditForm() {
       toast({ description: '마커가 삭제되었습니다.' });
       queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
       closeAllModals();
-    } catch (err: any) {
+    } catch (err) {
       console.error('마커 삭제 오류:', err);
-      toast({ variant: 'destructive', description: `삭제에 실패했습니다: ${err.message}` });
+      toast({
+        variant: 'destructive',
+        description: `삭제에 실패했습니다: ${getSupabaseErrorMessage(err) || '알 수 없는 오류'}`,
+      });
     } finally {
       setIsSubmitting(false);
     }
