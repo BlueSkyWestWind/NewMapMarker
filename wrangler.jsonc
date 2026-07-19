@@ -7,7 +7,11 @@
   "vars": {
     "NEXT_PUBLIC_KAKAO_MAP_APP_KEY": "223e7ae08e4de052f9b928968c485d27",
     "NEXT_PUBLIC_SUPABASE_URL": "https://bgdqjtmkdprqencgnrbx.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_apsLHlcVZy1F32x7-NrB0g_LNe-X__S"
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_apsLHlcVZy1F32x7-NrB0g_LNe-X__S",
+    // VWorld 필지 조회 domain 파라미터(비밀 아님). 배포마다 자동 적용되어 삭제되지 않음.
+    // VWorld 인증키에 등록된 도메인과 일치해야 함(현재 키에 localhost 등록됨).
+    // VWORLD_API_KEY(비밀)는 여기 넣지 말고 Cloudflare Secret으로 등록 → 배포해도 유지됨.
+    "VWORLD_DOMAIN": "localhost"
   },
   "assets": {
     "directory": ".open-next/assets",

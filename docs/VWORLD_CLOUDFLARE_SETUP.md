@@ -35,27 +35,30 @@
 
 ---
 
-## STEP 2 — Cloudflare: 환경변수 등록
+## STEP 2 — Cloudflare 변수 등록
 
-Cloudflare 대시보드 → Workers & Pages → **newmarker** → **Settings → Variables and Secrets** → **Add**.
+> ⚠️ **가장 중요**: GitHub 푸시로 Cloudflare가 Git 빌드/배포하면, **`wrangler.jsonc`에 없는 대시보드 plaintext 변수는 매번 삭제**됩니다.
+> 반면 **Secret(암호화)과 `wrangler.jsonc`의 `vars`는 유지**됩니다. 그래서 아래처럼 나눠 등록해야 재입력이 필요 없습니다.
 
-| Variable name | Value | Type | 비고 |
+| 변수 | 어디에 | 방법 | 배포 시 |
 | --- | --- | --- | --- |
-| `VWORLD_API_KEY` | *(발급받은 VWorld 인증키)* | **Secret**(암호화) | 서버 전용 키 → Secret 권장 |
-| `VWORLD_DOMAIN` | *(위 0번의 배포 도메인 hostname)* | Text(Plaintext) | STEP 1에서 등록한 도메인과 **동일해야 함** |
+| `VWORLD_DOMAIN` | **`wrangler.jsonc` `vars`** (커밋) | 이미 `"VWORLD_DOMAIN": "localhost"`로 추가됨 | 매번 자동 적용 ✅ |
+| `VWORLD_API_KEY` | **Cloudflare Secret** (비밀) | 아래 CLI 또는 대시보드에서 **Type: Secret**으로 1회 등록 | Secret이라 유지됨 ✅ |
 
-- 환경: **Production**(운영). 미리보기도 쓰면 Preview에도 동일하게 추가.
-- `VWORLD_API_KEY`는 **커밋되는 `wrangler.jsonc`의 `vars`에 넣지 마세요.** (공개 키인 Kakao/Supabase와 달리 서버 비밀값)
+**`VWORLD_API_KEY`를 대시보드에 plaintext Variable로 넣으면 푸시할 때마다 지워집니다. 반드시 Secret으로 등록하세요.**
 
-### 대안 — wrangler CLI
+### VWORLD_API_KEY — Secret 등록 (택 1)
 
 ```bash
-# 시크릿(암호화) 등록 — 실행 후 프롬프트에 키 붙여넣기
+# (A) wrangler CLI — 실행 후 프롬프트에 키 붙여넣기 (권장)
 npx wrangler secret put VWORLD_API_KEY
-
-# 도메인은 일반 변수: 대시보드에서 넣거나, 커밋 원하면 wrangler.jsonc "vars"에 추가
-#   "VWORLD_DOMAIN": "newmarker.xxx.workers.dev"
 ```
+
+또는 **(B) 대시보드**: Workers & Pages → **newmarker** → Settings → **Variables and Secrets** → **Add** → **Type: `Secret`** → name `VWORLD_API_KEY`, value 인증키 → Save.
+
+### VWORLD_DOMAIN 값에 대해
+
+`wrangler.jsonc`에 `localhost`로 넣었습니다. VWorld는 **`domain` 파라미터 값을 키의 등록 도메인 목록과 대조**하므로, 요청이 어디서 오든 `localhost`(등록된 값)를 보내면 통과합니다. 실제 배포 도메인을 쓰고 싶으면 그 도메인을 STEP 1에서 VWorld에 등록한 뒤 `wrangler.jsonc`의 값을 바꾸세요.
 
 ---
 
