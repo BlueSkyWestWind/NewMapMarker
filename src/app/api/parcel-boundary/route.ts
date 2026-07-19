@@ -167,7 +167,22 @@ async function fetchParcels(
 }
 
 export async function GET(request: NextRequest) {
-  const apiKey = (process.env.VWORLD_API_KEY || "").trim();
+  const rawKey = process.env.VWORLD_API_KEY ?? "";
+  const apiKey = rawKey.trim();
+
+  // 배포 환경 키 진단용(값은 노출하지 않음: 길이·앞뒤 4자만).
+  // 예상: length=36, head=9D6E, tail=8083. 다르면 Cloudflare 키 입력이 잘못된 것.
+  if (request.nextUrl.searchParams.get("debug") === "1") {
+    return NextResponse.json({
+      hasKey: apiKey.length > 0,
+      rawLength: rawKey.length,
+      trimmedLength: apiKey.length,
+      head: apiKey.slice(0, 4),
+      tail: apiKey.slice(-4),
+      domain: resolveDomain(request),
+    });
+  }
+
   if (!apiKey) {
     return NextResponse.json(
       { error: "VWORLD_API_KEY가 설정되지 않았습니다. .env에 등록하세요." },
