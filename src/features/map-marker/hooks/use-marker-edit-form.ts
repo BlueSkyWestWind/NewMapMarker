@@ -301,21 +301,14 @@ export function useMarkerEditForm() {
 
         if (markerError) throw markerError;
 
-        // 2. information 테이블 upsert 및 delete 처리
+        // 2. information 테이블 재작성 (기존 행 삭제 후 재삽입)
+        //    facility_code 에 UNIQUE 제약이 없어 ON CONFLICT upsert 는 불가하므로,
+        //    battery_specs 와 동일하게 marker_id 기준으로 전부 삭제 후 insert 한다.
         if (selectedMarkerId) {
-          const currentCodes = equipmentItems.map((item) => item.facilityCode).filter(Boolean);
-          let deleteQuery = supabase
+          const { error: deleteError } = await supabase
             .from('information')
             .delete()
             .eq('marker_id', id);
-          
-          if (currentCodes.length > 0) {
-            // raw 문자열로 이어붙이면 콤마가 포함된 코드가 잘못 분해되어
-            // 보존해야 할 information 행이 삭제된다. 각 값을 이스케이프한다.
-            const inList = currentCodes.map(quotePostgrestValue).join(',');
-            deleteQuery = deleteQuery.not('facility_code', 'in', `(${inList})`);
-          }
-          const { error: deleteError } = await deleteQuery;
           if (deleteError) throw deleteError;
         }
 
@@ -338,7 +331,7 @@ export function useMarkerEditForm() {
         if (infoPayloads.length > 0) {
           const { error: infoError } = await supabase
             .from('information')
-            .upsert(infoPayloads, { onConflict: 'facility_code' });
+            .insert(infoPayloads);
 
           if (infoError) throw infoError;
         }
