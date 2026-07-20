@@ -122,7 +122,7 @@ const PROCESS_ERP_HEADERS = [
   '사전설계 완료일',
 ] as const;
 
-/** 백업 다운로드 시 무조건 맨 앞에 오는 열 */
+/** 백업 다운로드 시 무조건 맨 앞에 오는 열 (태그는 색상 바로 옆에 배치) */
 const BACKUP_LEADING_HEADERS = [
   LAT_COLUMN,
   LNG_COLUMN,
@@ -131,8 +131,8 @@ const BACKUP_LEADING_HEADERS = [
   GROUP_ROLE_COLUMN,
   FACILITY_YEAR_COLUMN,
   COLOR_COLUMN,
-  MEMO_COLUMN,
   TAGS_COLUMN,
+  MEMO_COLUMN,
 ] as const;
 
 /** 태그 배열 ↔ 백업 셀(쉼표 구분 문자열) 변환. api.ts normalizeMarkerTags 와 호환. */
