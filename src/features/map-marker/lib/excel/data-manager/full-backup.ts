@@ -33,6 +33,8 @@ const CREATED_AT_COLUMN = '등록일';
 const GROUP_ROLE_COLUMN = '구분';
 const FACILITY_YEAR_COLUMN = '시설연도';
 const COLOR_COLUMN = '색상';
+const MEMO_COLUMN = '메모';
+const TAGS_COLUMN = '태그';
 
 /**
  * 공정관리 업로드(`통합 문서1.xlsx`) 79열 — 줄바꿈 헤더는 공백으로 정규화한 이름.
@@ -129,7 +131,39 @@ const BACKUP_LEADING_HEADERS = [
   GROUP_ROLE_COLUMN,
   FACILITY_YEAR_COLUMN,
   COLOR_COLUMN,
+  MEMO_COLUMN,
+  TAGS_COLUMN,
 ] as const;
+
+/** 태그 배열 ↔ 백업 셀(쉼표 구분 문자열) 변환. api.ts normalizeMarkerTags 와 호환. */
+function serializeTagsCell(tags: unknown): string {
+  if (Array.isArray(tags)) {
+    return tags.map((tag) => String(tag).trim()).filter(Boolean).join(', ');
+  }
+  if (typeof tags === 'string') {
+    return tags.trim();
+  }
+  return '';
+}
+
+function parseTagsCell(value: unknown): string[] {
+  const text = String(value ?? '').trim();
+  if (!text) return [];
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.map((tag) => String(tag).trim()).filter(Boolean);
+      }
+    } catch {
+      // 구분자 분리로 폴백
+    }
+  }
+  return text
+    .split(/[,|/]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
 
 function normalizeHeaderKey(value: unknown): string {
   if (value == null) return '';
@@ -363,6 +397,8 @@ function buildProcessExcelRow(
     groupRole: string;
     facilityYear: string;
     color: string;
+    memo: string;
+    tags: unknown;
   },
 ): Record<string, string | number | boolean> {
   const excelRow: Record<string, string | number | boolean> = {};
@@ -378,6 +414,8 @@ function buildProcessExcelRow(
   excelRow[COLOR_COLUMN] = getColorDisplayName(
     extras.color || DEFAULT_MARKER_COLOR,
   );
+  excelRow[MEMO_COLUMN] = extras.memo || '';
+  excelRow[TAGS_COLUMN] = serializeTagsCell(extras.tags);
   for (const header of PROCESS_ERP_HEADERS) {
     excelRow[header] = getRawCellValue(raw, header);
   }
@@ -424,6 +462,8 @@ export function buildFullBackupSheetRows(
             : GROUP_ROLE_REPRESENTATIVE),
         facilityYear: infoYearByMarkerId.get(markerId) || '',
         color: String(marker?.color ?? DEFAULT_MARKER_COLOR),
+        memo: String(marker?.memo ?? ''),
+        tags: marker?.tags,
       }),
     );
     if (markerId) {
@@ -456,6 +496,8 @@ export function buildFullBackupSheetRows(
               : GROUP_ROLE_REPRESENTATIVE),
           facilityYear: infoYearByMarkerId.get(markerId) || '',
           color: String(marker.color ?? DEFAULT_MARKER_COLOR),
+          memo: String(marker.memo ?? ''),
+          tags: marker.tags,
         },
       ),
     );
@@ -567,6 +609,8 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
     headers.indexOf(COLOR_COLUMN),
     headers.indexOf('마커색상'),
   );
+  const idxMemo = headers.indexOf(MEMO_COLUMN);
+  const idxTags = headers.indexOf(TAGS_COLUMN);
 
   const coordByFacility = new Map<
     string,
@@ -577,6 +621,8 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
       createdAt: string;
       groupRole: string;
       color: string;
+      memo: string;
+      tags: string[];
     }
   >();
 
@@ -602,6 +648,8 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
         idxColor >= 0
           ? resolveColorToHex(row[idxColor])
           : DEFAULT_MARKER_COLOR,
+      memo: idxMemo >= 0 ? String(row[idxMemo] ?? '').trim() : '',
+      tags: idxTags >= 0 ? parseTagsCell(row[idxTags]) : [],
     });
   }
 
@@ -628,8 +676,8 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
       name: row.name,
       lat: extras?.lat ?? null,
       lng: extras?.lng ?? null,
-      memo: '',
-      tags: [],
+      memo: extras?.memo || '',
+      tags: extras?.tags || [],
       color: extras?.color || DEFAULT_MARKER_COLOR,
       facility_team: '',
       facility_code: row.facilityCode || null,
