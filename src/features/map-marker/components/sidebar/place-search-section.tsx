@@ -69,7 +69,6 @@ export function PlaceSearchSection() {
           type="button"
           size="sm"
           className="h-8 flex-1 text-xs"
-          variant="secondary"
           disabled={isSearching || !query.trim()}
           onClick={runSearch}
         >

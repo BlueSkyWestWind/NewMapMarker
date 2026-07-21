@@ -14,3 +14,7 @@ export const MAP_MARKER_QUERY_KEY = ["map-marker", "markers"] as const;
 export const AUTH_SESSION_QUERY_KEY = ["map-marker", "auth-session"] as const;
 
 export const KAKAO_SDK_LIBRARIES = "services,clusterer";
+
+/** 축전지 스펙 기본값 (엑셀 미입력·DB null 시 사용) */
+export const DEFAULT_BATTERY_CAPACITY = 600;
+export const DEFAULT_BATTERY_QUANTITY = 12;

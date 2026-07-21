@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardProxyRequest } from "@/lib/api/proxy-guard";
 
 /**
  * 카카오/다음 지도 타일만 프록시한다. (SSRF 방지)
@@ -19,6 +20,9 @@ function isAllowedTileHost(hostname: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
+  const blocked = guardProxyRequest(request);
+  if (blocked) return blocked;
+
   const rawUrl = request.nextUrl.searchParams.get("url");
   if (!rawUrl) {
     return NextResponse.json(

@@ -38,7 +38,7 @@ export function ModeTabs({ mode, onChange, lockedModes = [] }: ModeTabsProps) {
             className={cn(
               "flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-[11px] font-semibold transition-colors",
               isActive
-                ? "bg-indigo-600 text-white"
+                ? "bg-indigo-600 text-white shadow-glow"
                 : "text-slate-400 hover:text-slate-200",
               isLocked && "cursor-not-allowed opacity-50 hover:text-slate-400",
             )}

@@ -1,4 +1,8 @@
 import { DEFAULT_MARKER_COLOR } from '@/features/map-marker/constants/facility-teams';
+import {
+  DEFAULT_BATTERY_CAPACITY,
+  DEFAULT_BATTERY_QUANTITY,
+} from '@/features/map-marker/constants/map-config';
 import type {
   BatteryMarker,
   EquipmentMarker,
@@ -174,15 +178,15 @@ export async function fetchMapMarkers(
           id: spec.id,
           erpName: spec.erp_name ?? '',
           address: row.address ?? '',
-          capacity: spec.capacity ?? 600,
-          quantity: spec.quantity ?? 12,
+          capacity: spec.capacity ?? DEFAULT_BATTERY_CAPACITY,
+          quantity: spec.quantity ?? DEFAULT_BATTERY_QUANTITY,
           stationName: spec.station_name ?? '',
           createdAt:
             formatDateOnly(spec.created_at) ||
             new Date().toISOString().split('T')[0],
         })),
-        capacity: repSpec?.capacity ?? 600,
-        quantity: repSpec?.quantity ?? 12,
+        capacity: repSpec?.capacity ?? DEFAULT_BATTERY_CAPACITY,
+        quantity: repSpec?.quantity ?? DEFAULT_BATTERY_QUANTITY,
         stationName: repSpec?.station_name ?? row.name ?? '',
       };
     },

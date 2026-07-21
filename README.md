@@ -87,7 +87,8 @@ Cloudflare **Workers & Pages → newmarker → Settings → Variables and Secret
 | 변수 | 설명 |
 |------|------|
 | `KAKAO_REST_API_KEY` | 카카오 **REST API 키**(서버 전용). 정적맵 캡처 품질용. 없으면 JS 키로 시도 후 실패 시 타일 프록시 폴백 |
-| `NEXT_PUBLIC_SITE_URL` | 정적맵 요청 `KA` 헤더의 origin 폴백값 (미설정 시 요청 헤더/`localhost:3000` 사용) |
+| `NEXT_PUBLIC_SITE_URL` | 정적맵 요청 `KA` 헤더의 origin 폴백값 (미설정 시 요청 헤더/`localhost:3000` 사용). 프록시 라우트의 허용 origin 으로도 사용 |
+| `PROXY_ALLOWED_ORIGINS` | 프록시 라우트(정적맵·타일·로드뷰)에서 자기 도메인 외에 추가로 허용할 origin (쉼표 구분). 커스텀 도메인 다중 운영 시 |
 
 설정 변경 후 **Retry deployment** 하세요.
 
@@ -97,6 +98,7 @@ Cloudflare **Workers & Pages → newmarker → Settings → Variables and Secret
 npm install
 npm run dev          # 개발 서버 (Turbopack)
 npm run lint         # eslint .
+npm run test         # vitest 단위 테스트 (coords · marker-filters · proxy-guard · map-helpers)
 npm run test:e2e     # Playwright 스모크 (dev 서버 재사용)
 ```
 

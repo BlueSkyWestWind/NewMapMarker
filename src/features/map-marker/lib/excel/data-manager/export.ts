@@ -4,6 +4,10 @@ import {
   parseFacilityTeamInput,
   getFacilityTeamExportLabel,
 } from './shared';
+import {
+  DEFAULT_BATTERY_CAPACITY,
+  DEFAULT_BATTERY_QUANTITY,
+} from '@/features/map-marker/constants/map-config';
 
 export const exportMethods: Record<string, any> & ThisType<any> = {
 
@@ -146,8 +150,8 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
         markers.forEach(marker => {
             const items = marker.items && marker.items.length > 0 ? marker.items : [{
                 erpName: marker.memo || "",
-                capacity: marker.capacity || 600,
-                quantity: marker.quantity || 12,
+                capacity: marker.capacity || DEFAULT_BATTERY_CAPACITY,
+                quantity: marker.quantity || DEFAULT_BATTERY_QUANTITY,
                 stationName: marker.stationName || marker.name,
                 address: marker.address || "",
                 createdAt: marker.createdAt || ""
@@ -157,8 +161,8 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
                 rows.push({
                     "통합시설명칭(ERP)": item.erpName || marker.memo || "",
                     "주소": item.address || marker.address || "",
-                    "용량(AH)": item.capacity || 600,
-                    "수량(Cell)": item.quantity || 12,
+                    "용량(AH)": item.capacity || DEFAULT_BATTERY_CAPACITY,
+                    "수량(Cell)": item.quantity || DEFAULT_BATTERY_QUANTITY,
                     "창고/국소/국사명": item.stationName || marker.name || "",
                     "위도": typeof marker.lat === "number" ? marker.lat.toString() : (marker.lat || ""),
                     "경도": typeof marker.lng === "number" ? marker.lng.toString() : (marker.lng || ""),

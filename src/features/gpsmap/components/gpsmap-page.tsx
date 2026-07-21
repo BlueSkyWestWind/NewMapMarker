@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Crosshair, Eye, FileDown, Lock, Search, Square } from 'lucide-react';
+import { ArrowLeft, Crosshair, Eye, FileDown, Lock, Rows2, Search, Square } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useKakaoMapSdk } from '@/features/map-marker/hooks/use-kakao-map-sdk';
@@ -85,6 +85,8 @@ export function GpsMapPage() {
   const [dms, setDms] = useState<DmsFields>(EMPTY_DMS);
   const [roadviewMode, setRoadviewMode] = useState(false);
   const [roadviewSpot, setRoadviewSpot] = useState<{ lat: number; lng: number } | null>(null);
+  // 하단 브이월드 지적도 화면(pane) 표시 여부
+  const [showVworldPane, setShowVworldPane] = useState(true);
 
   useEffect(() => {
     if (!isReady || !mapRef.current || mapInstanceRef.current || !window.kakao?.maps) {
@@ -205,6 +207,16 @@ export function GpsMapPage() {
     },
     [],
   );
+
+  // 지적도 화면을 끄고 켜면 두 지도의 컨테이너 크기가 바뀌므로 재계산한다.
+  // (카카오맵은 relayout, Leaflet은 invalidateSize 없이는 타일이 깨진다)
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      mapInstanceRef.current?.relayout();
+      if (showVworldPane) vworldRef.current?.invalidateSize();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [showVworldPane]);
 
   const lookupInput = async (text: string) => {
     const q = text.trim();
@@ -397,7 +409,6 @@ export function GpsMapPage() {
               <Button
                 type="button"
                 className="h-9 flex-1 text-xs"
-                variant="secondary"
                 disabled={loading || !query.trim()}
                 onClick={() => void runSingle()}
               >
@@ -429,7 +440,6 @@ export function GpsMapPage() {
               <Button
                 type="button"
                 className="h-9 flex-1 text-xs"
-                variant="secondary"
                 disabled={loading || !parseBatchInputs(batchText).length}
                 onClick={() => void runBatch()}
               >
@@ -472,7 +482,7 @@ export function GpsMapPage() {
         )}
 
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2.5">
-          <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+          <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold tracking-wide text-slate-400">
             <Crosshair className="h-3 w-3" /> GPS 좌표(도분초) 강제 이동
           </div>
           <div className="flex flex-nowrap items-center gap-0.5">
@@ -546,7 +556,7 @@ export function GpsMapPage() {
         {result ? (
           <>
             <div>
-              <div className="mb-1 text-[11px] font-semibold text-slate-400">
+              <div className="mb-1 text-[11px] font-semibold tracking-wide text-slate-400">
                 변환 결과
               </div>
               <table className="w-full text-[11px]">
@@ -568,7 +578,7 @@ export function GpsMapPage() {
             </div>
 
             <div>
-              <div className="mb-1 text-[11px] font-semibold text-slate-400">
+              <div className="mb-1 text-[11px] font-semibold tracking-wide text-slate-400">
                 건축물대장
               </div>
               {building ? (
@@ -636,6 +646,21 @@ export function GpsMapPage() {
               조회 중...
             </div>
           ) : null}
+          {isReady && !roadviewSpot ? (
+            <button
+              type="button"
+              onClick={() => setShowVworldPane((prev) => !prev)}
+              title={
+                showVworldPane
+                  ? '브이월드 지적도 화면 끄기 (카카오맵 전체 보기)'
+                  : '브이월드 지적도 화면 켜기 (2분할)'
+              }
+              className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/90 px-2.5 py-1.5 text-[11px] font-medium text-slate-200 shadow hover:bg-slate-800"
+            >
+              <Rows2 className="h-3.5 w-3.5" />
+              {showVworldPane ? '지적도 화면 끄기' : '지적도 화면 켜기'}
+            </button>
+          ) : null}
           {!isReady ? (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 text-sm text-slate-300">
               {sdkError ? `지도 로딩 실패: ${sdkError}` : '지도 로딩 중...'}
@@ -650,8 +675,13 @@ export function GpsMapPage() {
           ) : null}
         </div>
 
-        {/* 하단: 브이월드 지적도 (교차 검증) */}
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-md">
+        {/* 하단: 브이월드 지적도 (교차 검증) — 끄면 카카오맵이 전체를 차지 */}
+        {/* 위치·필지 상태 유지를 위해 언마운트하지 않고 숨김 처리한다. */}
+        <div
+          className={`relative min-h-0 overflow-hidden rounded-md ${
+            showVworldPane ? 'flex-1' : 'hidden'
+          }`}
+        >
           <VworldMapPane ref={vworldRef} onUserMove={handleVworldMove} />
         </div>
       </main>

@@ -46,13 +46,18 @@ import type {
   MarkerRecord,
 } from "@/features/map-marker/types/marker";
 
-function isEquipmentSubMarker(marker: { parentMarkerId?: string | null }) {
-  return Boolean(marker.parentMarkerId);
-}
 import {
   screenRectToMapBounds,
   type MapBoundsLiteral,
 } from "@/features/map-marker/lib/map-capture-stitch";
+import {
+  closeAllOverlays,
+  fitMapToMarkers,
+  isEquipmentSubMarker,
+  isMultiSelectGesture,
+  isPlottableCoordinate,
+  type ModifierKeysState,
+} from "@/features/map-marker/components/map/kakao-map-helpers";
 import { MapFloatingControls } from "@/features/map-marker/components/map/map-floating-controls";
 import {
   MapRegionCapturePanel,
@@ -66,45 +71,6 @@ interface KakaoMapCanvasProps {
   markers: MarkerRecord[];
   mode: MapMode;
   filters: MarkerFilterState;
-}
-
-interface ModifierKeysState {
-  ctrl: boolean;
-  shift: boolean;
-}
-
-function isPlottableCoordinate(lat: number, lng: number) {
-  return (
-    Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)
-  );
-}
-
-function fitMapToMarkers(map: KakaoMap, plottedMarkers: MarkerRecord[]) {
-  if (!window.kakao?.maps || plottedMarkers.length === 0) return;
-
-  const bounds = new window.kakao.maps.LatLngBounds();
-  plottedMarkers.forEach((marker) => {
-    bounds.extend(new window.kakao.maps.LatLng(marker.lat, marker.lng));
-  });
-  map.setBounds(bounds);
-}
-
-function closeAllOverlays(overlays: Map<string, KakaoCustomOverlay>) {
-  overlays.forEach((overlay) => overlay.setMap(null));
-  overlays.clear();
-}
-
-function isMultiSelectGesture(
-  mouseEvent: MouseEvent | undefined,
-  modifierKeys: ModifierKeysState,
-) {
-  return Boolean(
-    mouseEvent?.ctrlKey ||
-    mouseEvent?.metaKey ||
-    mouseEvent?.shiftKey ||
-    modifierKeys.ctrl ||
-    modifierKeys.shift,
-  );
 }
 
 export function KakaoMapCanvas({

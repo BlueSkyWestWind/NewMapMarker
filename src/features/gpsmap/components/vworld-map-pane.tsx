@@ -29,6 +29,8 @@ export interface VworldMapHandle {
   setView: (lat: number, lng: number, leafletZoom: number) => void;
   /** 선택 필지(빨간 경계) 갱신. */
   setParcels: (rings: LatLng[][]) => void;
+  /** 페인이 다시 보일 때 컨테이너 크기 재계산(숨김 상태에서 크기가 0이 되므로 필요). */
+  invalidateSize: () => void;
 }
 
 interface Props {
@@ -159,6 +161,9 @@ export const VworldMapPane = forwardRef<VworldMapHandle, Props>(
               },
             ).addTo(group);
           });
+        },
+        invalidateSize() {
+          mapRef.current?.invalidateSize();
         },
       }),
       [],

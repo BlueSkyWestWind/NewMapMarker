@@ -1,7 +1,13 @@
 'use client';
 
-import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
+import { ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { getMarkerColorLabel } from '@/features/map-marker/lib/marker-svg';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import type { MapMode } from '@/features/map-marker/types/marker';
@@ -21,48 +27,78 @@ function FilterGroup({
   values,
   selected,
   onToggle,
-  onSelectAll,
+  onSetAll,
   renderLabel,
 }: {
   title: string;
   values: string[];
   selected: Set<string>;
   onToggle: (value: string) => void;
-  onSelectAll: () => void;
+  /** 전체 선택([...values]) / 해제([]) 를 한 번에 반영 */
+  onSetAll: (values: string[]) => void;
   renderLabel?: (value: string) => string;
 }) {
   if (!values.length) return null;
 
+  const allSelected = values.every((value) => selected.has(value));
+  const summary = allSelected
+    ? '전체'
+    : selected.size === 0
+      ? '선택 안 함'
+      : `${selected.size}/${values.length} 선택`;
+
   return (
-    <div className="space-y-2 border-b border-slate-700/50 pb-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-slate-300">{title}</p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-[10px] text-slate-400"
-          onClick={onSelectAll}
-        >
-          전체
-        </Button>
-      </div>
-      <div className="grid max-h-28 grid-cols-3 gap-x-2 gap-y-1 overflow-y-auto pr-1">
-        {values.map((value) => (
-          <label
-            key={value}
-            className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800/60"
+    <div className="flex items-center justify-between gap-2 border-b border-slate-700/50 pb-3">
+      <p className="shrink-0 text-xs font-semibold tracking-wide text-slate-300">
+        {title}
+      </p>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex h-7 min-w-[8rem] max-w-[12rem] items-center justify-between gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2 text-[11px] text-slate-200 outline-none hover:bg-slate-800 focus:border-slate-500"
           >
-            <Checkbox
+            <span className="truncate">{summary}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="max-h-64 w-56 overflow-y-auto border-slate-700 bg-slate-900 text-slate-200"
+        >
+          <div className="flex gap-1 p-1">
+            <button
+              type="button"
+              className="flex-1 rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-700"
+              onClick={() => onSetAll(values)}
+            >
+              전체 선택
+            </button>
+            <button
+              type="button"
+              className="flex-1 rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-400 hover:bg-slate-700"
+              onClick={() => onSetAll([])}
+            >
+              해제
+            </button>
+          </div>
+          <DropdownMenuSeparator className="bg-slate-700" />
+          {values.map((value) => (
+            <DropdownMenuCheckboxItem
+              key={value}
               checked={selected.has(value)}
+              // 항목 선택 시 메뉴가 닫히지 않도록(다중 선택 유지)
+              onSelect={(event) => event.preventDefault()}
               onCheckedChange={() => onToggle(value)}
-            />
-            <span className="truncate">
-              {renderLabel ? renderLabel(value) : value}
-            </span>
-          </label>
-        ))}
-      </div>
+              className="text-[11px] focus:bg-slate-800 focus:text-slate-100"
+            >
+              <span className="truncate">
+                {renderLabel ? renderLabel(value) : value}
+              </span>
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -83,18 +119,14 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
             values={filterOptions.years}
             selected={filters.selectedYears}
             onToggle={(value) => toggleFilterValue('year', value)}
-            onSelectAll={() =>
-              selectAllFilterValues('year', filterOptions.years)
-            }
+            onSetAll={(values) => selectAllFilterValues('year', values)}
           />
           <FilterGroup
             title="사업구분"
             values={filterOptions.businesses}
             selected={filters.selectedBusinesses}
             onToggle={(value) => toggleFilterValue('business', value)}
-            onSelectAll={() =>
-              selectAllFilterValues('business', filterOptions.businesses)
-            }
+            onSetAll={(values) => selectAllFilterValues('business', values)}
           />
         </>
       )}
@@ -103,7 +135,7 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
         values={filterOptions.colors}
         selected={filters.selectedColors}
         onToggle={(value) => toggleFilterValue('color', value)}
-        onSelectAll={() => selectAllFilterValues('color', filterOptions.colors)}
+        onSetAll={(values) => selectAllFilterValues('color', values)}
         renderLabel={(value) => getMarkerColorLabel(value)}
       />
       <FilterGroup
@@ -111,7 +143,7 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
         values={filterOptions.tags}
         selected={filters.selectedTags}
         onToggle={(value) => toggleFilterValue('tag', value)}
-        onSelectAll={() => selectAllFilterValues('tag', filterOptions.tags)}
+        onSetAll={(values) => selectAllFilterValues('tag', values)}
       />
     </div>
   );

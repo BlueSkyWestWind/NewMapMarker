@@ -112,6 +112,8 @@ declare global {
     getProjection: () => KakaoMapProjection;
     addOverlayMapTypeId: (typeId: unknown) => void;
     removeOverlayMapTypeId: (typeId: unknown) => void;
+    /** 컨테이너 크기가 바뀐 뒤 지도를 다시 그린다. */
+    relayout: () => void;
   }
 
   interface KakaoMapProjection {

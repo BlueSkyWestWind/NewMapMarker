@@ -10,6 +10,8 @@
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "start": "next start",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test"
   },
   "engines": {
@@ -50,7 +52,7 @@
     "react-use": "^17",
     "server-only": "0.0.1",
     "ts-pattern": "^5",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3",
     "zustand": "^4"
   },
@@ -69,6 +71,7 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
+    "vitest": "^4.1.10",
     "wrangler": "^4.105.0"
   }
 }

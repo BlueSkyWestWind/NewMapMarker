@@ -137,22 +137,30 @@ export function MapFloatingControls({
         type="button"
         size="icon"
         variant="secondary"
-        className="h-9 w-9 bg-slate-900/90 text-slate-100"
+        className={
+          isCadastralMode
+            ? "h-9 w-9 border border-indigo-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+            : "h-9 w-9 bg-slate-900/90 text-slate-100"
+        }
         onClick={() => setCadastralMode(!isCadastralMode)}
         title="지적편집도"
       >
-        <Layers className={isCadastralMode ? "text-emerald-400" : ""} />
+        <Layers className={isCadastralMode ? "text-indigo-300" : ""} />
       </Button>
       {mode === "equipment" ? (
         <Button
           type="button"
           size="icon"
           variant="secondary"
-          className="h-9 w-9 bg-slate-900/90 text-slate-100"
+          className={
+            isClusteringEnabled
+              ? "h-9 w-9 border border-indigo-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+              : "h-9 w-9 bg-slate-900/90 text-slate-100"
+          }
           onClick={() => setClusteringEnabled(!isClusteringEnabled)}
           title="클러스터"
         >
-          <Shapes className={isClusteringEnabled ? "text-emerald-400" : ""} />
+          <Shapes className={isClusteringEnabled ? "text-indigo-300" : ""} />
         </Button>
       ) : null}
       {mode === "equipment" && isClusteringEnabled ? (
@@ -169,9 +177,9 @@ export function MapFloatingControls({
           }
         >
           {clusterIconStyle === "donut" ? (
-            <CircleDot className="h-4 w-4 text-emerald-400" />
+            <CircleDot className="h-4 w-4 text-indigo-300" />
           ) : (
-            <PieChart className="h-4 w-4 text-emerald-400" />
+            <PieChart className="h-4 w-4 text-indigo-300" />
           )}
         </Button>
       ) : null}

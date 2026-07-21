@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardProxyRequest } from "@/lib/api/proxy-guard";
 
 const MAX_SIZE = 1024;
 
@@ -31,6 +32,9 @@ function buildKakaoKaHeader(request: NextRequest): string {
  * JavaScript 키(appkey 쿼리)만으로는 동작하지 않는다.
  */
 export async function GET(request: NextRequest) {
+  const blocked = guardProxyRequest(request);
+  if (blocked) return blocked;
+
   const params = request.nextUrl.searchParams;
   const lat = Number(params.get("lat"));
   const lng = Number(params.get("lng"));

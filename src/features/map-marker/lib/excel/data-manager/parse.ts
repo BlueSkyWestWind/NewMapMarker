@@ -1,6 +1,10 @@
 import * as XLSX from 'xlsx';
 import { parseFacilityTeamInput } from './shared';
 import { classifyKoreanAddress } from '@/features/map-marker/lib/geocode';
+import {
+  DEFAULT_BATTERY_CAPACITY,
+  DEFAULT_BATTERY_QUANTITY,
+} from '@/features/map-marker/constants/map-config';
 
 export const parseMethods: Record<string, any> & ThisType<any> = {
 
@@ -404,8 +408,8 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                         
                         const addressVal = mapping.address ? String(row[mapping.address]).trim() : "";
                         const localAddressVal = mapping.localAddress ? String(row[mapping.localAddress]).trim() : "";
-                        const capacityVal = mapping.capacity ? parseInt(row[mapping.capacity], 10) : 600;
-                        const quantityVal = mapping.quantity ? parseInt(row[mapping.quantity], 10) : 12;
+                        const capacityVal = mapping.capacity ? parseInt(row[mapping.capacity], 10) : DEFAULT_BATTERY_CAPACITY;
+                        const quantityVal = mapping.quantity ? parseInt(row[mapping.quantity], 10) : DEFAULT_BATTERY_QUANTITY;
                         
                         const latVal = mapping.lat ? parseFloat(row[mapping.lat]) : NaN;
                         const lngVal = mapping.lng ? parseFloat(row[mapping.lng]) : NaN;
@@ -429,8 +433,8 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                             name: rawName,
                             address: addressVal,
                             localAddress: localAddressVal,
-                            capacity: isNaN(capacityVal) ? 600 : capacityVal,
-                            quantity: isNaN(quantityVal) ? 12 : quantityVal,
+                            capacity: isNaN(capacityVal) ? DEFAULT_BATTERY_CAPACITY : capacityVal,
+                            quantity: isNaN(quantityVal) ? DEFAULT_BATTERY_QUANTITY : quantityVal,
                             stationName: stationNameVal || "기지국(현장)",
                             memo: memoVal,
                             tags: tags,

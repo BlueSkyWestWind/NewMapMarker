@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { guardProxyRequest } from '@/lib/api/proxy-guard';
 
 export async function GET(request: NextRequest) {
+  const blocked = guardProxyRequest(request);
+  if (blocked) return blocked;
+
   const panoId = request.nextUrl.searchParams.get('panoId');
   if (!panoId) {
     return NextResponse.json(
@@ -21,6 +25,10 @@ export async function GET(request: NextRequest) {
       status: response.status,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
+        // 촬영일자는 자주 바뀌지 않으므로 캐시해 쿼터를 절약한다.
+        'Cache-Control': response.ok
+          ? 'public, max-age=3600, s-maxage=86400'
+          : 'no-store',
       },
     });
   } catch {
