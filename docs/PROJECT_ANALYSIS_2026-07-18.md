@@ -1,8 +1,142 @@
 # 프로젝트 분석 보고서
 
-- 대상: `002_geographic_tech` (배터리/장비 지도 마커 관리 웹앱)
-- 작성일: 2026-07-18
-- 검사 방법: 구조 스캔 · `tsc --noEmit` · `next lint` · `next build` · 패턴 그렙(XSS/any/console/SSRF/env)
+- 대상: `0004_NewMapMarker` (구 `002_geographic_tech` — 배터리/장비 지도 마커 + GPSMAP)
+- 작성일: 2026-07-18 (초판) · 2차 2026-07-19 · **3차 2026-07-22**
+- 검사 방법: 구조 스캔 · `tsc --noEmit` · `eslint .` · `next build` · `vitest run` · 패턴 그렙(XSS/any/console/SSRF/env)
+
+---
+
+## [2026-07-22] 3차 검수 — 구조 스냅샷 + 전체 재검수
+
+> 범위: 폴더/스택/규모 + `tsc`/`eslint`/`next build`/`vitest` + XSS·any·console·SSRF·env 패턴.
+> 기준 트리: 워크스페이스 현재 디스크 상태(미커밋 변경 포함). 코드 수정은 하지 않음(문서화만).
+
+### 검사 결과 요약
+
+| 검사 | 결과 |
+| --- | --- |
+| `tsc --noEmit` | ✅ 0 오류 |
+| `eslint .` | ✅ 0 문제 |
+| `next build` | ✅ 성공 (정적 9 페이지, Compile ~7.9s) |
+| `vitest run` | ✅ **4 files / 39 tests 통과** |
+| 패턴 그렙 | 아래 R1~R6 · 잔여 P4 |
+
+> `next build`는 여전히 **"Skipping linting"** — lint는 `eslint .`로 별도 확인.
+
+### 규모·스택 델타 (초판 2026-07-18 대비)
+
+| 항목 | 초판 | 3차(현재) | 비고 |
+| --- | --- | --- | --- |
+| 소스 `src` ts/tsx | 84 | **110** | +26 |
+| 총 LOC(대략) | — | **~20,600** | |
+| 최대 단일 파일 | 728줄 | **1,508줄** | `use-excel-upload-actions.tsx` |
+| deps / devDeps | 36 / 13 | **37 / 16** | leaflet·vitest·@types/leaflet 등 |
+| 홈 First Load JS | 297 kB (P2 후) | **482 kB** | **회귀 (+185 kB)** |
+| 라우트 | `/` + API 3 | `/` · **`/gpsmap`** · API 3 | GPSMAP 신설 |
+
+**추가된 주요 기술**
+
+| 항목 | 내용 |
+| --- | --- |
+| 지도(GPSMAP) | Leaflet + VWorld 타일/WMS/JSONP |
+| 필지·건축물 | `parcel-boundary.ts` · `vworld-gpsmap.ts` (브라우저 JSONP, 서버 프록시 제거) |
+| 엑셀 | ERP 파서 · 전체 백업/복원(`full-backup.ts`) · 위치마커 |
+| 보안 | `lib/api/proxy-guard.ts` (same-origin + IP 레이트리밋 300/min) |
+| 테스트 | Vitest 단위(`proxy-guard`·`coords`·`marker-filters`·`kakao-map-helpers`) + 기존 Playwright E2E |
+| Node | `engines.node >= 22` |
+
+**현재 폴더 구조 (feature 기반, ★=초판 이후 신설·확장)**
+
+```
+src/
+  app/           layout · page · providers · gpsmap/page ★
+                 api/{kakao-static-map, map-tile-proxy, roadview-dates}
+  components/    ui/(shadcn) · public-env-script · kakao-sdk-script ★
+  hooks/ lib/ types/
+  lib/api/proxy-guard.ts ★ (+ proxy-guard.test.ts)
+  features/
+    map-marker/  (기존 마커 앱)
+      api · types · constants · store · providers
+      hooks/  … · use-excel-upload-actions(1.5k) · use-marker-edit-form · use-data-backup-actions
+      lib/    geocode · overlay-* · marker-* · address-group ★ · location-marker* ★
+              parcel-boundary ★ · map-capture-stitch/ · excel/data-manager/
+                (+ erp-parse ★ · full-backup ★)
+      components/ map/ · modals/ · sidebar/(+ location-excel-section ★)
+    gpsmap/ ★    주소·좌표 통합 변환기
+      components/ gpsmap-page · vworld-map-pane · roadview-pane
+      lib/        vworld-gpsmap · lookup · batch-lookup · coords · export-excel
+```
+
+**대형 파일 TOP (현재, 줄 수 = 물리 라인)**
+
+| 파일 | LOC | 판단 |
+| --- | --- | --- |
+| `hooks/use-excel-upload-actions.tsx` | **1,508** | 🔴 재비대화 — 분할 1순위 |
+| `modals/marker-detail-modal.tsx` | **1,106** | 🔴 재비대화 |
+| `map/kakao-map-canvas.tsx` | **993** | 🟠 이전 728에서 재증가 |
+| `excel/data-manager/full-backup.ts` | **837** | 🟠 신설 대형 |
+| `gpsmap/components/gpsmap-page.tsx` | **746** | 🟠 신설 대형 |
+| `lib/overlay-content.ts` | 569 | 🟡 |
+| `lib/map-viewport-capture.ts` | 509 | 🟡 |
+| `excel/data-manager/parse.ts` | 507 | 🟡 |
+
+### 🟠 R1 — 홈 번들 회귀 (First Load 297 → 482 kB)
+
+- `next build` 라우트: `/` **138 kB / First Load 482 kB**, `/gpsmap` 15 kB / First Load 348 kB, shared 103 kB.
+- P2에서 모달 dynamic + xlsx 지연으로 297 kB까지 줄였던 효과가 **상당 부분 되돌아감**(약 +62%).
+- 추정 요인: ERP/전체백업·주소그룹·필지·상세모달 비대화에 따른 홈 정적 그래프 증가, shared 청크 상향(103 kB).
+- 권장: 홈에서 GPSMAP·무거운 사이드 섹션·상세 모달의 import 경계를 재점검하고, `next/dynamic`·액션 단위 `import()`를 다시 적용한 뒤 First Load 목표(예: ≤350 kB)를 재설정.
+
+### 🔴 R2 — 대형 파일 재비대화 (분할 효과 후퇴)
+
+- 초판 §5-2에서 최대 728줄로 정리했으나, 이후 ERP 업로드·동일번지·전체백업·상세 UI 확장으로 **1,000줄+ 파일이 3개** 재등장.
+- 특히 `use-excel-upload-actions.tsx`(1,508)는 파싱·지오코딩·스테이징·토스트·DB 반영이 한 훅에 밀집 — SRP·테스트·리뷰 비용이 큼.
+- 권장 분할 후보:
+  1. 엑셀 업로드: 파서/지오코드 큐/DB upsert/토스트 포맷을 파일·훅 단위로 분리
+  2. `marker-detail-modal.tsx`: 뷰 vs 데이터 로딩/저장 훅
+  3. `gpsmap-page.tsx`: 조회 폼 · 지도 패널 · 결과 테이블 분리
+
+### 🟡 R3 — `roadview-modal.tsx` `any` 잔존
+
+- `useRef<any>`, `data: any`, `item: any`, `(window as any).kakao`, `catch (...: any)` 등 **약 8곳**.
+- Kakao Roadview 타입 공백이 원인이며, 기존 `kakao-maps.d.ts` 확장 또는 좁은 로컬 인터페이스로 치환 가능.
+- lint는 통과(규칙이 `any`를 에러로 막지 않음) — 프로젝트 규칙(any 금지) 관점의 기술부채.
+
+### 🟡 R4 — data-manager `ThisType<any>` 합성 유지 (의도적)
+
+- `parse`/`export`/`headers`/`date-utils`/`info-records`/`index`의 `Record<string, any> & ThisType<any>` — N6에서 이미 “합성 재설계 전까지 유지”로 기록된 항목. 상태 변화 없음.
+- `parse.ts` 내부 `Record<string, any>` 행 객체 + `console.warn`(업로드 행 스킵 안내) 유지.
+
+### 🟡 R5 — 편집 폼 행 변경 핸들러 `value: any`
+
+- `use-marker-edit-form.ts`: `handleEquipmentRowChange` / `handleBatteryRowChange`의 `value: any`.
+- 스펙 리스트는 `keyof`로 키가 제약되어 있으나 값 타입은 미좁힘. `string | number` 등으로 좁히기 쉬움.
+
+### ⚪ R6 — 기타 관찰 (경미·운영)
+
+- **P4 죽은 코드** `computeCaptureOverlayOffsets`: 정의만 존재, **호출 0** — 계속 의도적 보존.
+- **XSS**: `overlay-content.ts`의 `escapeHtml` + 동적 `innerHTML` 이스케이프 유지. `roadview-pane`/`roadview-modal`의 `container.innerHTML = ''`는 컨테이너 비우기용으로 무해.
+- **SSRF**: `map-tile-proxy` 호스트 allowlist 유지 + **`guardProxyRequest`**(Origin/Referer + 레이트리밋) 신설 — 양호.
+- **PostgREST**: `quotePostgrestValue` 유지. 과거 raw `.not(..., 'in', ...)` 패턴은 현재 훅에서 **미검출**.
+- **env**: `.env*` gitignore 유지. `wrangler.jsonc` `vars`에 `NEXT_PUBLIC_*`(Kakao·Supabase anon·VWorld) 커밋 — 클라이언트 공개키 전제·도메인 제한 모델. **service_role/비공개 시크릿은 문서상 미포함**.
+- **VWorld**: 서버 `/api/parcel-boundary` 제거 → 브라우저 JSONP. Cloudflare egress 제약 회피 설계는 타당. 키는 Referer/도메인 제한에 의존.
+- **워킹트리**: `main`에 미커밋 변경(gpsmap·엑셀·마커 API/스토어·`docs/*`·migration `detached_visible` 등). 본 검수는 해당 상태를 포함.
+
+### 잔여·권장 조치 순서 (코드 변경은 별도 요청 시)
+
+1. **R2** 대형 파일 재분할 (`use-excel-upload-actions` → `marker-detail-modal` → `gpsmap-page`)
+2. **R1** 홈 First Load 번들 재프로파일·지연 로드 복구
+3. **R3·R5** `any` 축소 (roadview · edit form value)
+4. (선택) data-manager `ThisType` 합성의 점진 타입화 — R4
+5. P4 죽은 코드 — 사용자 보존 방침 유지
+
+### 양호하게 유지·강화된 점
+
+- ✅ 타입·lint·프로덕션 빌드·단위 테스트(39) 모두 통과
+- ✅ 프록시 가드(출처 검증 + 레이트리밋)로 카카오 쿼터 남용 완화
+- ✅ 타일 프록시 SSRF allowlist · PostgREST 이스케이프 · overlay XSS 이스케이프 유지
+- ✅ feature 폴더에 `gpsmap` 분리, map-marker와 경로 경계 명확
+- ✅ Vitest 도입으로 순수 로직(필터·좌표·프록시 가드) 회귀 방지 기반 확보
 
 ---
 

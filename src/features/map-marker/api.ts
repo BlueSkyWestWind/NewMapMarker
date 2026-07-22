@@ -144,6 +144,8 @@ export async function fetchMapMarkers(
       openDate: repInfo?.open_date ?? '',
       parentMarkerId: row.parent_marker_id ?? null,
       groupRole: row.group_role ?? null,
+      groupKey: row.group_key ?? null,
+      detachedVisible: row.detached_visible ?? false,
       createdAt: formatDateOnly(row.created_at) || new Date().toISOString().split('T')[0],
     };
   });

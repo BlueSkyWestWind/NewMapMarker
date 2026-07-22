@@ -148,6 +148,22 @@ interface ReqDataResp {
   };
 }
 
+// 광주광역시 자치구 (전남 시·군과 구분용)
+const GWANGJU_DISTRICTS = ['동구', '서구', '남구', '북구', '광산구'];
+
+/**
+ * VWorld 역주소가 통합 명칭 '전남광주통합특별시'로 반환하는 것을 현행 행정구역명으로 되돌린다.
+ * 뒤따르는 자치구/시·군으로 광주광역시·전라남도를 구분한다(예: 서구→광주광역시, 나주시→전라남도).
+ * 통합 명칭엔 광주 자치구와 전남 시·군이 섞여 있어, 단순 치환하면 '광주광역시 나주시'처럼 틀린다.
+ */
+export function normalizeRegionForDisplay(text: string): string {
+  if (!text) return text;
+  return text.replace(/전남광주통합특별시\s+(\S+)/, (_m, sub: string) => {
+    const province = GWANGJU_DISTRICTS.includes(sub) ? '광주광역시' : '전라남도';
+    return `${province} ${sub}`;
+  });
+}
+
 function normalizeAddressCandidates(address: string): string[] {
   const trimmed = address.trim();
   if (!trimmed) return [];

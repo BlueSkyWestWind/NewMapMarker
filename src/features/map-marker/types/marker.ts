@@ -40,6 +40,13 @@ export interface EquipmentMarker extends BaseMarker {
   parentMarkerId?: string | null;
   /** DB/백업 구분: 대표 | SUB */
   groupRole?: string | null;
+  /**
+   * 번지 하위 분리 그룹 키. null = 번지 주소로 그룹(기본).
+   * 값 있음 = 그 키로 별도 그룹(같은 번지라도 분리). 예: 아파트 동/공장 구역 분리.
+   */
+  groupKey?: string | null;
+  /** 같은 번지 SUB를 지도에 개별 마커로 표시할지(기본 false, 대표만 표시) */
+  detachedVisible?: boolean;
 }
 
 export interface BatteryMarker extends BaseMarker {
@@ -79,4 +86,21 @@ export interface MarkerVisibilityStats {
 export interface MapMarkersPayload {
   equipmentMarkers: EquipmentMarker[];
   batteryMarkers: BatteryMarker[];
+}
+
+/**
+ * 위치등록(공정관리) 업로드를 즉시 저장하지 않고 "미리보기 후 적용"하기 위한 스테이징 데이터.
+ * 파싱·지오코딩까지 끝난 markers/information/erp_details 행을 담아두고, [적용] 시 DB에 커밋한다.
+ */
+export interface StagedErpUpload {
+  markerRows: Record<string, unknown>[];
+  infoRows: Record<string, unknown>[];
+  erpRows: Record<string, unknown>[];
+  meta: {
+    preservedCoordCount: number;
+    newCoordCount: number;
+    geocodeFailCount: number;
+    /** 사람이 읽을 수 있게 포맷된 실패 주소 목록 */
+    geocodeFailedAddresses: string[];
+  };
 }

@@ -10,6 +10,7 @@ import {
   fetchBuilding,
   fetchParcel,
   geocodeAddress,
+  normalizeRegionForDisplay,
   reverseAddress,
   type BuildingInfo,
   type LatLng,
@@ -69,12 +70,17 @@ export async function runSingleLookup(input: string): Promise<GpsLookupResult> {
   ]);
   const building = await fetchBuilding(parcel.pnu, center.lat, center.lng);
 
+  // VWorld 통합 명칭('전남광주통합특별시')을 현행 행정구역명으로 정규화해 표시한다.
+  const oldAddress = normalizeRegionForDisplay(addr.oldAddress || parcel.jibun || '');
+  const roadAddress = normalizeRegionForDisplay(addr.roadAddress || '');
+
   return {
     input: trimmed,
     source,
     center,
-    oldAddress: addr.oldAddress || parcel.jibun || '-',
-    roadAddress: addr.roadAddress || '-',
+    oldAddress: oldAddress || '-',
+    // 도로명주소는 건물·도로에만 부여된다. 토지(전·답·임야 등)엔 없으므로 안내 문구로 구분한다.
+    roadAddress: roadAddress || (oldAddress ? '도로명주소 없음 (토지)' : '-'),
     zipcode: addr.zipcode || '-',
     latDms: formatDms(splitDmsParts(center.lat)),
     lngDms: formatDms(splitDmsParts(center.lng)),

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Crosshair, Eye, FileDown, Lock, Rows2, Search, Square } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Eye, FileDown, Lock, Rows2, Search, Square } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useKakaoMapSdk } from '@/features/map-marker/hooks/use-kakao-map-sdk';
@@ -82,6 +82,8 @@ export function GpsMapPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GpsLookupResult | null>(null);
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
+  // 일괄 조회 결과를 하나씩 넘겨볼 때 현재 보고 있는 위치(성공 결과 목록 기준)
+  const [batchViewIdx, setBatchViewIdx] = useState(0);
   const [dms, setDms] = useState<DmsFields>(EMPTY_DMS);
   const [roadviewMode, setRoadviewMode] = useState(false);
   const [roadviewSpot, setRoadviewSpot] = useState<{ lat: number; lng: number } | null>(null);
@@ -280,6 +282,7 @@ export function GpsMapPage() {
     setError(null);
     setResult(null);
     setBatchRows([]);
+    setBatchViewIdx(0);
 
     try {
       const rows = await runBatchLookup(inputs, setBatchRows, {
@@ -287,6 +290,7 @@ export function GpsMapPage() {
       });
       const firstDone = rows.find((row) => row.status === 'done' && row.result);
       if (firstDone?.result) {
+        setBatchViewIdx(0);
         setResult(firstDone.result);
       }
     } catch (err) {
@@ -303,6 +307,20 @@ export function GpsMapPage() {
   const building = result?.building;
   const doneCount = batchRows.filter((row) => row.status === 'done').length;
   const errorCount = batchRows.filter((row) => row.status === 'error').length;
+
+  // 일괄 조회 성공 결과만 순서대로 모아 하나씩 넘겨본다.
+  const doneRows = batchRows.filter((row) => row.status === 'done' && row.result);
+
+  // 성공 결과 목록에서 idx번째를 결과 패널에 표시한다(이전/다음·행 클릭 공용).
+  const showBatchResult = (idx: number) => {
+    if (!doneRows.length) return;
+    const clamped = Math.max(0, Math.min(doneRows.length - 1, idx));
+    const row = doneRows[clamped];
+    if (row?.result) {
+      setBatchViewIdx(clamped);
+      setResult(row.result);
+    }
+  };
 
   const dmsCell = (
     key: keyof DmsFields,
@@ -417,7 +435,7 @@ export function GpsMapPage() {
               {result ? (
                 <Button
                   type="button"
-                  className="h-9 text-xs"
+                  className="h-9 border-slate-700 bg-slate-900/60 text-xs text-slate-200 hover:bg-slate-800 hover:text-slate-100"
                   variant="outline"
                   onClick={() => downloadSingleExcel(result)}
                 >
@@ -459,7 +477,7 @@ export function GpsMapPage() {
               {batchRows.length > 0 && !loading ? (
                 <Button
                   type="button"
-                  className="h-9 text-xs"
+                  className="h-9 border-slate-700 bg-slate-900/60 text-xs text-slate-200 hover:bg-slate-800 hover:text-slate-100"
                   variant="outline"
                   onClick={() => downloadBatchExcel(batchRows)}
                 >
@@ -524,9 +542,19 @@ export function GpsMapPage() {
                 {batchRows.map((row) => (
                   <tr
                     key={row.index}
-                    className="cursor-pointer border-t border-slate-800 hover:bg-slate-900/80"
+                    className={`border-t border-slate-800 ${
+                      row.result
+                        ? 'cursor-pointer hover:bg-slate-900/80'
+                        : 'cursor-default'
+                    } ${
+                      row.result && row.index === doneRows[batchViewIdx]?.index
+                        ? 'bg-indigo-500/15'
+                        : ''
+                    }`}
                     onClick={() => {
-                      if (row.result) setResult(row.result);
+                      if (!row.result) return;
+                      const pos = doneRows.findIndex((r) => r.index === row.index);
+                      if (pos >= 0) showBatchResult(pos);
                     }}
                   >
                     <td className="p-1.5 text-slate-500">{row.index + 1}</td>
@@ -556,8 +584,35 @@ export function GpsMapPage() {
         {result ? (
           <>
             <div>
-              <div className="mb-1 text-[11px] font-semibold tracking-wide text-slate-400">
-                변환 결과
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="text-[11px] font-semibold tracking-wide text-slate-400">
+                  변환 결과
+                </div>
+                {workMode === 'batch' && doneRows.length > 0 ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => showBatchResult(batchViewIdx - 1)}
+                      disabled={batchViewIdx <= 0}
+                      title="이전 결과"
+                      className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="min-w-[46px] text-center text-[11px] tabular-nums text-slate-300">
+                      {batchViewIdx + 1} / {doneRows.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => showBatchResult(batchViewIdx + 1)}
+                      disabled={batchViewIdx >= doneRows.length - 1}
+                      title="다음 결과"
+                      className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <table className="w-full text-[11px]">
                 <tbody>

@@ -9,6 +9,7 @@ import type {
   MapMode,
   MarkerFilterState,
   MarkerRecord,
+  StagedErpUpload,
 } from "@/features/map-marker/types/marker";
 
 interface MapMarkerUiState {
@@ -23,6 +24,8 @@ interface MapMarkerUiState {
   pendingBatteryMarkers: MarkerRecord[];
   /** 위치 모드 전용 — persist 하지 않음 (새로고침 시 소멸) */
   pendingLocationMarkers: MarkerRecord[];
+  /** 위치등록(공정관리) 업로드 미리보기 대기분 — persist 안 함. [적용] 시 DB 커밋 */
+  stagedErpUpload: StagedErpUpload | null;
   selectedMarkerId: string | null;
   selectedMarkerIds: string[];
   /** 캡처 중 정보창을 마커에서 떨어뜨려 배치 */
@@ -43,6 +46,7 @@ interface MapMarkerUiState {
   addPendingMarkers: (mode: MapMode, markers: MarkerRecord[]) => void;
   removePendingMarkers: (mode: MapMode, ids: string[]) => void;
   clearPendingMarkers: (mode: MapMode) => void;
+  setStagedErpUpload: (payload: StagedErpUpload | null) => void;
   setSelectedMarkerId: (id: string | null) => void;
   setSelectedMarkerIds: (ids: string[]) => void;
   setInfoWindowCaptureMode: (enabled: boolean) => void;
@@ -101,6 +105,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       pendingEquipmentMarkers: [],
       pendingBatteryMarkers: [],
       pendingLocationMarkers: [],
+      stagedErpUpload: null,
       selectedMarkerId: null,
       selectedMarkerIds: [],
       isInfoWindowCaptureMode: false,
@@ -140,6 +145,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
           };
         }),
       clearPendingMarkers: (mode) => set({ [getPendingKey(mode)]: [] }),
+      setStagedErpUpload: (payload) => set({ stagedErpUpload: payload }),
       setSelectedMarkerId: (id) =>
         set({
           selectedMarkerId: id,

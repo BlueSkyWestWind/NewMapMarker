@@ -369,9 +369,11 @@ export function KakaoMapCanvas({
     clusterer?.clear();
 
     const visibleMarkers = markers.filter((marker) => {
+      // 같은 번지 SUB는 기본 숨김. 단 "개별 표시 해제(detachedVisible)"된 것만 노출.
       if (
         mode === "equipment" &&
-        isEquipmentSubMarker(marker as EquipmentMarker)
+        isEquipmentSubMarker(marker as EquipmentMarker) &&
+        !(marker as EquipmentMarker).detachedVisible
       ) {
         return false;
       }

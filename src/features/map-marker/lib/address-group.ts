@@ -5,8 +5,13 @@ const LOT_PATTERN = /(\d+(?:-\d+)?번지)/;
 /** DB·백업 엑셀 `구분` 열에 쓰는 값 */
 export const GROUP_ROLE_REPRESENTATIVE = '대표';
 export const GROUP_ROLE_SUB = 'SUB';
+/** 단독: 같은 지번에 마커가 1개뿐(그룹 없음)인 경우 */
+export const GROUP_ROLE_STANDALONE = '단독';
 
-export type GroupRole = typeof GROUP_ROLE_REPRESENTATIVE | typeof GROUP_ROLE_SUB;
+export type GroupRole =
+  | typeof GROUP_ROLE_REPRESENTATIVE
+  | typeof GROUP_ROLE_SUB
+  | typeof GROUP_ROLE_STANDALONE;
 
 export function normalizeAddress(input: string): string {
   return input.trim().replace(/\s+/g, ' ');
@@ -45,16 +50,46 @@ export function resolveMarkerAddress(row: {
   );
 }
 
+/**
+ * 그룹 판정용 유효 키.
+ * - `group_key` 값이 있으면 그것(번지 하위 분리 그룹)
+ * - 없으면 번지 주소 키(`getLotAddressKey`) = 기존 동작
+ * 값이 전혀 없으면 빈 문자열(그룹하지 않음).
+ */
+export function getEffectiveGroupKey(row: {
+  road_address?: string | null;
+  jibun_address?: string | null;
+  address_full?: string | null;
+  group_key?: string | null;
+}): string {
+  const manual = row.group_key?.trim();
+  if (manual) return manual;
+  return getLotAddressKey(resolveMarkerAddress(row));
+}
+
+/** 번지 하위 분리용 안정 group_key 생성. 예) `광주 … 695-6번지#103동#a1b2c3d4`. */
+export function buildSplitGroupKey(
+  lotKey: string,
+  label: string,
+  seedId: string,
+): string {
+  return `${lotKey}#${label}#${seedId.slice(0, 8)}`;
+}
+
 export function normalizeGroupRole(value: unknown): GroupRole | '' {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
   if (raw === GROUP_ROLE_REPRESENTATIVE) return GROUP_ROLE_REPRESENTATIVE;
+  if (raw === GROUP_ROLE_STANDALONE) return GROUP_ROLE_STANDALONE;
   const upper = raw.toUpperCase();
   if (upper === GROUP_ROLE_SUB || raw === '서브' || upper === 'SUB') {
     return GROUP_ROLE_SUB;
   }
   if (upper === 'REP' || upper === 'REPRESENTATIVE') {
     return GROUP_ROLE_REPRESENTATIVE;
+  }
+  if (upper === 'STANDALONE' || upper === 'SOLO') {
+    return GROUP_ROLE_STANDALONE;
   }
   return '';
 }
@@ -66,6 +101,7 @@ interface MarkerParentRow {
   created_at: string | null;
   parent_marker_id?: string | null;
   group_role?: string | null;
+  group_key?: string | null;
 }
 
 interface RoleUpdate {
@@ -122,14 +158,17 @@ export async function assignMarkerParentsByLotAddress(
 ): Promise<{ groupCount: number; subCount: number }> {
   const { data, error } = await supabase
     .from('markers')
-    .select('id, road_address, jibun_address, created_at, parent_marker_id, group_role');
+    .select(
+      'id, road_address, jibun_address, created_at, parent_marker_id, group_role, group_key',
+    );
   if (error) throw error;
 
   const rows = (data ?? []) as MarkerParentRow[];
   const groups = new Map<string, MarkerParentRow[]>();
 
   for (const row of rows) {
-    const key = getLotAddressKey(resolveMarkerAddress(row));
+    // group_key 가 있으면 그 키(번지 하위 분리 그룹), 없으면 번지 키로 그룹.
+    const key = getEffectiveGroupKey(row);
     if (!key) {
       continue;
     }
@@ -145,6 +184,16 @@ export async function assignMarkerParentsByLotAddress(
 
     const representative = group[0];
     if (!representative) {
+      continue;
+    }
+
+    // 같은 지번에 1개뿐이면 단독, 2개 이상이면 대표+SUB
+    if (group.length === 1) {
+      updates.push({
+        id: representative.id,
+        parent_marker_id: null,
+        group_role: GROUP_ROLE_STANDALONE,
+      });
       continue;
     }
 
@@ -164,14 +213,14 @@ export async function assignMarkerParentsByLotAddress(
     }
   }
 
-  // 주소가 비어 그룹에 안 들어간 행은 모두 대표로 둔다.
+  // 주소가 비어 그룹에 안 들어간 행은 단독으로 둔다.
   const groupedIds = new Set(updates.map((item) => item.id));
   for (const row of rows) {
     if (!groupedIds.has(row.id)) {
       updates.push({
         id: row.id,
         parent_marker_id: null,
-        group_role: GROUP_ROLE_REPRESENTATIVE,
+        group_role: GROUP_ROLE_STANDALONE,
       });
     }
   }
@@ -188,7 +237,7 @@ export async function applyMarkerRolesFromStoredGroupRole(
 ): Promise<{ groupCount: number; subCount: number; usedStoredRoles: boolean }> {
   const { data, error } = await supabase
     .from('markers')
-    .select('id, road_address, jibun_address, created_at, group_role');
+    .select('id, road_address, jibun_address, created_at, group_role, group_key');
   if (error) throw error;
 
   const rows = (data ?? []) as MarkerParentRow[];
@@ -198,18 +247,38 @@ export async function applyMarkerRolesFromStoredGroupRole(
     return { ...result, usedStoredRoles: false };
   }
 
+  const updates: RoleUpdate[] = [];
+
+  // 수동으로 '단독' 지정한 마커는 그룹에서 제외하고 단독 유지(재업로드에도 보존)
   const groups = new Map<string, MarkerParentRow[]>();
   for (const row of rows) {
-    const key = getLotAddressKey(resolveMarkerAddress(row)) || `__solo__${row.id}`;
+    if (normalizeGroupRole(row.group_role) === GROUP_ROLE_STANDALONE) {
+      updates.push({
+        id: row.id,
+        parent_marker_id: null,
+        group_role: GROUP_ROLE_STANDALONE,
+      });
+      continue;
+    }
+    const key = getEffectiveGroupKey(row) || `__solo__${row.id}`;
     const list = groups.get(key) ?? [];
     list.push(row);
     groups.set(key, list);
   }
 
-  const updates: RoleUpdate[] = [];
-
   for (const group of groups.values()) {
     group.sort(sortByCreatedAtThenId);
+
+    // 그룹에 1개만 남으면 단독
+    if (group.length === 1) {
+      updates.push({
+        id: group[0].id,
+        parent_marker_id: null,
+        group_role: GROUP_ROLE_STANDALONE,
+      });
+      continue;
+    }
+
     const markedReps = group.filter(
       (row) => normalizeGroupRole(row.group_role) === GROUP_ROLE_REPRESENTATIVE,
     );

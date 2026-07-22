@@ -1,5 +1,324 @@
 # Walkthrough
 
+## [2026-07-23] 분리 시 대표 직접 선택 UI
+
+### 개요 및 목적
+분리할 때 대표를 "최초 등록" 자동 지정하던 것을, **사용자가 대표 국소를 직접 고르는 2단계 UI**로 변경.
+
+### 변경된 내용
+- `assignGroupMembers(members, groupKey, preferredRepId?)`: 지정 대표 우선 → 기존 대표 → 최초 등록 순.
+- `separateLabelGroup(label, repId?)`: 대표 id를 받아 분리, 토스트에 대표 국소명 표기.
+- 상세 모달 분리 UI: 라벨별 행에서
+  - 국소 1개면 `분리` 즉시 실행(대표 선택 불필요),
+  - 2개 이상이면 `분리 (대표 선택)` → 국소 목록 펼쳐 `대표로 분리` 선택 시 그 국소를 대표로 분리.
+- `pickingSplitLabel` 상태로 대표 선택 목록 토글, 마커 전환 시 초기화.
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint marker-detail-modal.tsx` ✅
+
+---
+
+## [2026-07-23] 동/구역 실제 그룹 분리 — group_key 도입(번지 하위 분리·원복)
+
+### 개요 및 목적
+같은 번지에 여러 구역(아파트 동, 공장 구역, 지하 등)의 장비가 있을 때, 그 구역만 **실제 독립 그룹(대표+SUB)** 으로 분리하고 원래 번지 그룹에서 빼내는 기능. 기존 "동 개별 표시"(`detached_visible`, 핀만 노출)는 그대로 두고, 진짜 그룹을 만드는 별도 "분리" 동작을 추가했다. 대표가 분리로 빠지면 남은 국소 중 하나를 새 대표로 승격하고, "번지로 합치기"로 원복한다.
+
+### 변경된 내용
+- **DB**: `markers.group_key text NULL` 추가(`20260723000000_add_group_key.sql`). 유효 그룹 키 = `group_key`(있으면) ↔ 번지 주소 키. 백업 컬럼(`full-backup.ts`)에 `group_key` 추가 → 백업/복원 왕복 보존.
+- **그룹 로직**(`address-group.ts`): `getEffectiveGroupKey`·`buildSplitGroupKey` 추가. `assignMarkerParentsByLotAddress`·`applyMarkerRolesFromStoredGroupRole` 재그룹을 유효 키 기준으로 변경(엑셀 재업로드에도 분리 상태 유지).
+- **조회**(`api.ts`, `types/marker.ts`): `group_key`→`groupKey` 매핑.
+- **상세 모달**(`marker-detail-modal.tsx`):
+  - 라벨 파서를 범용화(`parseSeparationLabel`): `NNN동`·`지하`/`B1`·그 외 `기타`.
+  - `getAddressGroupMates` 등 그룹 판정을 유효 키 기준으로 → 분리 그룹은 상세·구분 변경이 그 그룹 안에서만 동작.
+  - `assignGroupMembers`(대표+SUB 일괄 지정)·`separateLabelGroup`(분리)·`mergeSplitGroupToLot`(원복) 추가.
+  - "동일 번지 국소 개별 배치" 패널에 라벨별 **분리** 버튼, 분리 그룹엔 **번지로 합치기** 버튼(단독 분리·SUB 뷰 포함).
+- 지도(`kakao-map-canvas`)는 `parent_marker_id==null`만 렌더 → 분리 그룹의 새 대표 핀은 자동 노출(추가 작업 없음).
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint`(변경 5파일) ✅ · `vitest run` 39 passed ✅
+- 동작(수동 확인 필요): 695-6번지에서 `103동 분리` → 103동이 번지에서 빠져 독립 대표+SUB, 지도에 별도 대표 핀. 대표가 빠지면 잔여 승격. `번지로 합치기`로 원복. 지하/기타도 각각 분리 가능.
+- **주의**: `20260723000000_add_group_key.sql` 을 Supabase에 먼저 적용해야 함(미적용 시 컬럼 없음 오류).
+
+---
+
+## [2026-07-23] 연관 상세 범위 — 동 분리 여부에 따라 전체/해당 동 + 대표 단독 시 승격
+
+### 개요 및 목적
+동 미분리인데도 해당 동 장비만 보이던 문제 수정. **연관 상세는 동 필터 없이 동일 번지 전체**를 표시. 대표를 단독으로 빼면 남은 국소 중 새 대표(또는 단독) 지정.
+
+### 변경된 내용
+- 연관 상세 동 필터 **제거** — 항상 `(동일 번지 N건)`으로 103·105·107·110 등 전체 표시
+- `relatedEquipmentMarkers`: 부모-자식 그룹 ∪ 같은 번지 메이트
+- `changeMarkerGroupRole(단독)`: 대표 분리 시 잔여 국소 승격 유지
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint marker-detail-modal.tsx` ✅
+- 기대: 미분리여도 연관 상세에 동일 번지 전체 국소가 보임.
+
+## [2026-07-23] 연관 상세 구분 — 국소별 대표/단독/SUB 변경
+
+### 개요 및 목적
+동 분리 후 연관 상세 표에서 국소마다 **구분(대표/단독/SUB)** 을 바꿀 수 있는 선택 UI 추가.
+
+### 변경된 내용
+- `marker-detail-modal.tsx`
+  - 구분 열 `<select>` (대표/단독/SUB), 로그인 시 변경
+  - `changeMarkerGroupRole`: 동일 번지 메이트 기준으로 DB `group_role`·`parent_marker_id` 갱신
+  - 표 구분은 DB 실제 역할 표시(동 표시용 role 덮어쓰기 제거)
+  - 복사 시에도 현재 선택 구분 반영
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint marker-detail-modal.tsx` ✅
+
+## [2026-07-23] 동 개별 표시 — 동당 대표 1핀만 (SUB 지도 숨김)
+
+### 개요 및 목적
+동 단위 개별 표시 시 국소마다 핀이 생기던 동작을, **동당 대표 1핀만** 지도에 두고 같은 동 SUB는 숨기도록 변경. 상세 표 구분도 동 내 1대표+SUB로 표시.
+
+### 변경된 내용
+- `marker-detail-modal.tsx`
+  - `pickDongMapRepresentative` / `applyDongDisplayRoles`
+  - `setGroupDetached`: 켤 때 대표만 `detached_visible=true`
+  - `setMarkerDetached`: 켤 때 같은 동 형제 핀 끄고 선택 국소를 동 대표로
+  - 상세 오픈 시 동당 표시 핀 2개 이상이면 1개로 자동 정리
+  - UI: `동 개별 표시` / `동 대표로 표시` / 대표 뱃지, 안내 문구 수정
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint marker-detail-modal.tsx` ✅
+- 기대: 103동 개별 표시 → 지도 핀 1개, 연관 상세 `(103동 4건)`에 대표 1 + SUB 3.
+
+## [2026-07-22] 연관 상세 — 개별 표시 동(棟)만 필터
+
+### 개요 및 목적
+103동만 개별 표시한 뒤 해당 마커 상세를 열면, 연관 상세가 동일 번지 전체(16건)가 아니라 **103동 국소만** 나오게 수정.
+
+### 변경된 내용
+- `marker-detail-modal.tsx`
+  - `detailDongLabel` / `detailEquipmentMarkers`: 현재 국소와 같은 동만 상세 표에 사용(동 없으면 동일 번지 전체).
+  - 그룹 상세 빌더의 information 잔여 행 append 제거(다른 동 혼입 방지).
+  - 제목: `(103동 N건)` 또는 `(동일 번지 N건)`.
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint marker-detail-modal.tsx` ✅
+- 기대: 103동 개별 표시 마커 상세 → 제목 `(103동 N건)`, 표에는 103동 국소만.
+
+## [2026-07-22] 연관 상세 장비 목록 — 동일 번지 그룹 전원 표시
+
+### 개요 및 목적
+동(棟) 그룹에는 SUB 4개가 보이는데 `연관 상세 장비 목록`은 1행만 나오던 버그 수정. 동일 번지 국소마다 상세 표에 1행씩 나오게 함.
+
+### 변경된 내용
+- `marker-detail-modal.tsx`
+  - `relatedEquipmentMarkers`: SUB를 열어도 대표+형제 전체 포함.
+  - `buildEquipmentDetailRows` / `takeInfoRowForMarker`: 그룹이면 국소 1건=1행(information은 marker_id·국소명 매칭, 없으면 마커 필드 합성). `facility_code`로 커버 판정하지 않음.
+  - 단독(1국소)일 때만 information 다건을 그대로 표시.
+  - fetch는 DB information만 적재하고, 행 조립은 위 빌더에 위임.
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint marker-detail-modal.tsx` ✅
+- 기대 동작: 103동에 4개면 연관 상세에도 대표+해당 SUB(또는 매칭된 information)가 모두 행으로 표시.
+
+## [2026-07-22] 동일 번지 국소 목록 — 동(棟)별 그룹화 + 동 단위 개별 표시
+
+### 개요 및 목적
+마커 상세 모달의 "동일 번지 국소 개별 배치" 섹션에서 국소별 `대표로`·`단독으로` 버튼을 없애고, 국소명에서 파싱한 동(棟) 기준으로 목록을 그룹핑. 각 동을 한 번에 지도에 개별 표시/숨김할 수 있는 일괄 토글을 추가(국소별 개별 토글은 유지).
+
+### 변경된 내용
+- `src/features/map-marker/components/modals/marker-detail-modal.tsx`
+  - 헬퍼 추가: `parseDongLabel(name)` (`/(\d+)\s*동/` → `"103동"`, 없으면 `null` → `기타`), `dongSortKey`(동 번호 오름차순, 기타는 맨 뒤).
+  - `dongGroups`: SUB 국소를 동별로 묶고 각 그룹의 `allDetached`(전원 표시 여부) 계산.
+  - `setGroupDetached(dongLabel, ids, detached)`: `markers.detached_visible` 를 `.in('id', ids)` 로 일괄 update + 토스트. 진행 상태 `detachingGroup`.
+  - JSX: SUB 목록을 동 헤더(동 라벨·건수·**[동 전체 개별 표시 / 동 전체 숨기기]**) + 국소 행(개별 토글만)으로 재구성.
+  - 제거: `makeRepresentative`·`makeStandalone` 함수, `changingRepId` 상태, detached SUB 배너의 `단독으로` 버튼, 미사용 `setSelectedMarkerId`.
+  - 유지: `모두 합치기`, 국소별 `지도에 개별 표시 / 표시 중·숨기기`, `개별 표시 해제`.
+
+### 검증 결과
+- `tsc --noEmit`: marker-detail-modal 관련 오류 없음.
+- `eslint marker-detail-modal.tsx`: 통과(경고·오류 없음).
+- 동작(코드 흐름): 동 헤더 토글 → 해당 동 전 국소 `detached_visible` 일괄 갱신 → invalidate 로 지도/목록 재조회. 전원 표시 중이면 '숨기기'로 뒤집힘.
+
+## [2026-07-22] 구분 재정리 버튼 — 기존 1개짜리 지번 일괄 단독화
+
+### 개요 및 목적
+기존에 '대표'로 저장된 1개짜리 지번 마커들을 지금 바로 단독으로 바꾸기 위한 일괄 실행 버튼. (RLS상 DB 쓰기는 로그인 세션에서만 가능 → 앱 버튼으로 실행.)
+
+### 변경된 내용
+- `hooks/use-excel-upload-actions.tsx`: `regroupMarkerRoles` — 확인 후 `applyMarkerRolesFromStoredGroupRole`(저장 역할 존중, 1개 지번→단독) 실행 + invalidate + 결과 토스트.
+- `components/sidebar/equipment-excel-section.tsx`: **[구분 재정리 (1개 지번 → 단독)]** 버튼 추가.
+
+### 검증 결과
+- `tsc --noEmit` 통과(exit 0), `eslint`(2파일) 통과.
+- 실행: 장비 모드 사이드바 → [구분 재정리] 클릭(로그인 필요). 1개짜리 지번=단독, 여러 개=대표/SUB, 수동 단독 유지.
+
+---
+
+## [2026-07-22] 구분에 "단독" 추가 — 자동 판정 + 수동 지정
+
+### 개요 및 목적
+group_role(구분)에 **단독**을 추가. 단독 = 같은 지번에 마커가 1개뿐(그룹 없음). 자동으로 판정하고, 잘못 묶인 대표/SUB를 사용자가 수동으로 단독으로 바꿀 수 있게 함(그룹에서 빠져 개별 마커로 표시).
+
+### 변경된 내용
+- `lib/address-group.ts`
+  - 상수 `GROUP_ROLE_STANDALONE='단독'` + `GroupRole` 타입 확장, `normalizeGroupRole`에 단독 인식(단독/STANDALONE/SOLO).
+  - `assignMarkerParentsByLotAddress`: 지번 그룹이 1개면 **단독**, 2개↑면 대표+SUB. 주소 없는 행도 단독.
+  - `applyMarkerRolesFromStoredGroupRole`: **저장된 '단독'은 그룹에서 제외해 유지**(재업로드 보존), 그룹에 1개만 남으면 단독. 저장 역할 없으면 기존 폴백.
+- `components/modals/marker-detail-modal.tsx`
+  - `makeStandalone(id)`: `parent_marker_id=null·group_role='단독'` update + invalidate.
+  - SUB 목록 각 행에 **[단독으로]** 버튼(대표로/개별표시와 나란히), 개별표시된 SUB 자기 화면에도 [단독으로] 추가.
+  - 단독은 parentMarkerId=null이라 지도 렌더 필터에서 SUB로 숨겨지지 않고 개별 표시됨. 연관 목록 "구분"에는 '단독' 표기.
+
+### 검증 결과
+- `tsc --noEmit` 통과(exit 0), `eslint`(2파일) 통과, IDE 진단 0건. 관련 테스트 의존성 없음.
+- 수동 확인: 대표 상세의 SUB [단독으로] → 그룹에서 빠져 개별 마커로 표시·목록에서 사라짐 / 위치등록 재업로드 시 단독 유지 / 지번 1개짜리는 재그룹 후 자동 단독.
+
+---
+
+## [2026-07-22] 위치등록 재그룹 — 저장된 group_role 존중(수동 대표 유지)
+
+### 개요 및 목적
+위치등록(공정관리) 업로드 시 재그룹이 등록일 기준으로 대표를 다시 뽑아 **수동 대표 지정이 덮어써지던** 문제 해소. 저장된 group_role을 존중하도록 변경.
+
+### 변경된 내용 (`hooks/use-excel-upload-actions.tsx`)
+- `commitErpToDb`의 재그룹 호출을 `assignMarkerParentsByLotAddress`(등록일 기준) → **`applyMarkerRolesFromStoredGroupRole`**(저장된 대표/SUB 존중, 저장 역할이 전혀 없으면 등록일 기준으로 자동 폴백)로 교체. import도 함께 변경.
+- ERP upsert는 markerRows에 group_role/parent_marker_id를 포함하지 않아 기존 마커의 역할이 보존됨 → 저장-역할 존중 재그룹과 정합.
+
+### 검증 결과
+- `tsc --noEmit` 통과(exit 0), `eslint` 통과, IDE 진단 0건.
+- 효과: [대표로] 수동 지정 후 재업로드해도 대표 유지. (직전 walkthrough의 "주의" 한계 해소.)
+
+---
+
+## [2026-07-22] 동일 번지 국소 — 대표/SUB 수동 변경
+
+### 개요 및 목적
+같은 번지 그룹에서 어떤 국소가 대표인지 수동으로 바꾸는 기능. 지금까지 대표는 created_at(최초 등록) 기준 자동 지정뿐이었는데, 상세 모달에서 다른 SUB를 **[대표로]** 지정 가능.
+
+### 변경된 내용 (`marker-detail-modal.tsx`)
+- `makeRepresentative(newRepId)`: 새 대표 → `parent_marker_id=null·group_role='대표'`, 나머지 그룹 전원(기존 대표 포함) → `parent_marker_id=newRepId·group_role='SUB'` (`.in('id', subIds)`), invalidate 후 모달을 새 대표로 전환(`setSelectedMarkerId`).
+- `changingRepId` 상태 + SUB 목록 각 행에 **[대표로]** 버튼(기존 개별표시 토글과 나란히).
+- store 셀렉터 `setSelectedMarkerId` 추가.
+
+### 검증 결과
+- `tsc --noEmit` 통과(exit 0), `eslint` 통과, IDE 진단 0건.
+- 수동 확인: 대표 상세 → SUB의 [대표로] 클릭 → 대표 전환(지도에 새 대표 표시, 기존 대표는 SUB로 숨김), 모달이 새 대표 기준으로 갱신.
+
+### 주의(기존 동작 한계)
+- 다음 위치등록(공정관리) 업로드 시 `assignMarkerParentsByLotAddress`(created_at 기준 자동 재그룹)가 실행되어 **수동 대표 지정이 덮어써질 수 있음**. 유지가 필요하면 업로드 재그룹을 저장된 group_role 존중 방식(`applyMarkerRolesFromStoredGroupRole`)으로 바꾸는 별도 작업 필요.
+
+---
+
+## [2026-07-22] 동일 번지 국소 — "모두 합치기"(개별 표시 일괄 복귀)
+
+### 개요 및 목적
+개별 표시(detach)로 지도에 흩뿌린 동일 번지 SUB들을, 대표 상세에서 **버튼 하나로 한 번에 다시 대표 1개로 합치는** 기능 추가. 개별 표시의 반대 동작.
+
+### 변경된 내용 (`marker-detail-modal.tsx`)
+- `mergeAllDetachedSubs`: 현재 `detachedVisible=true`인 대표의 SUB id를 모아 `markers.detached_visible=false` 일괄 update(`.in('id', ids)`) + `invalidateQueries`. 로그인 가드.
+- `merging` 상태 + 대표 섹션 헤더에 **[모두 합치기 (N)]** 버튼(개별 표시된 SUB가 1개 이상일 때만 노출).
+- `dbErrorMessage` 공용 헬퍼로 추출 — 개별 표시/합치기 공통 오류 문구(컬럼 미존재 시 마이그레이션 안내). 기존 `setMarkerDetached` catch도 이 헬퍼로 정리.
+- `detachedSubCount` 파생값 추가.
+
+### 검증 결과
+- `tsc --noEmit` 통과(exit 0), `eslint` 통과, IDE 진단 0건.
+- 선행 조건: `detached_visible` 컬럼(마이그레이션) 필요 — 없으면 안내 문구 노출.
+- 수동 확인: SUB 여러 개 개별 표시 → 대표 상세에 [모두 합치기 (N)] → 클릭 시 전부 숨김 복귀(지도에서 사라지고 대표만 남음).
+
+---
+
+## [2026-07-22] 마커 상세 — 좌표·주소 변환 / 건축물대장 펼치기·숨기기(아코디언)
+
+### 개요 및 목적
+마커 상세에서 좌표·주소 변환과 건축물대장을 항상 함께 표시하던 것을, **각 섹션 헤더의 펼치기/숨기기 토글(아코디언)** 로 변경. 모달 열 때 자동 조회하지 않고, 펼칠 때 조회·표시. 두 섹션은 독립적으로 열고 접을 수 있다.
+
+### 변경된 내용 (`marker-detail-modal.tsx`)
+- 상태 `openCoord`/`openBuilding`(기본 false). (초기 버튼 방식 `activeGpsSection`에서 변경.)
+- 자동 조회 `useEffect` 제거 → 마커/모달 변경 시 두 섹션 접고 상태 초기화하는 effect + **지연 조회 `loadGpsInfo`** + `toggleGpsSection`(펼칠 때 미조회면 조회, 좌표 캐시 유지).
+- UI: 각 섹션 = 헤더(제목 + 우측 `펼치기`/`숨기기` + Chevron) 클릭 토글, 펼치면 아래 표 표시. 조회 중이면 헤더에 "조회 중…".
+
+### 검증 결과
+- `tsc --noEmit` 통과(exit 0), `eslint` 통과, IDE 진단 0건.
+- 수동 확인: 장비 마커 상세 → 헤더 클릭 시 펼침/접힘, 첫 펼침에 조회(로딩 표시), 두 섹션 독립 토글, 같은 좌표 재조회 없음(캐시).
+
+---
+
+## [2026-07-22] 위치등록(공정관리) 업로드 — 즉시 저장 → 미리보기 후 적용
+
+### 개요 및 목적
+"위치등록 업로드"가 파일 선택 즉시 DB에 저장하던 것을, **지도에 임시 표시 → 위치 확인/드래그 조정 → [적용] 시 저장**하는 2단계 흐름으로 변경. 축전지/장비의 기존 pending 패턴과 동일한 UX.
+
+### 변경된 내용
+- `types/marker.ts`: `StagedErpUpload` 타입(markerRows·infoRows·erpRows·meta) 추가.
+- `store/use-map-marker-store.ts`: `stagedErpUpload` 상태 + `setStagedErpUpload`(persist 제외 — pending과 동일하게 새로고침 시 소멸).
+- `hooks/use-excel-upload-actions.tsx`:
+  - `uploadErpExcel`을 **`buildErpPayload`(파싱·지오코딩·행 생성, DB 미저장)** 와 **`commitErpToDb`(자식행 삭제→markers upsert→info/erp insert→번지 재그룹→invalidate)** 로 분리.
+  - `prepareErpUpload`: build → 스테이징 저장 + 지도에 임시(노란) 마커 표시(좌표 있는 행만). 직전 미리보기는 대체.
+  - `applyStagedErp`: 지도에서 드래그로 조정된 pending 좌표를 `commitErpToDb`에 override로 넘겨 저장 → pending·스테이징 정리 + 필터 초기화.
+  - `cancelStagedErp` / `excludeStagedMarker`(개별 제외 시 지도+스테이징 동시 제거로 정합성 유지).
+  - 기존 `uploadErpExcel`(즉시 저장)은 장비/위치 업로드의 ERP 자동 라우팅 폴백용으로 유지(회귀 방지).
+  - 모듈 헬퍼 `stagedMarkerRowToPending`, `buildErpSummary`(즉시/적용 요약 공용).
+- `components/sidebar/equipment-excel-section.tsx`: 버튼 → `prepareErpUpload`. 미리보기 패널(건수, **[적용(DB 저장)]**/[취소], 항목별 위치확인·수정·제외) 추가 — `battery-excel-section` 미러링.
+
+### 검증 결과
+- `npx tsc --noEmit` 통과(exit 0), 변경 4파일 `eslint` 통과, IDE 진단 0건.
+- 드래그 저장 경로 재사용: pending 마커 dragend → `updatePendingMarker`(`kakao-map-canvas.tsx`)로 좌표 갱신 → 적용 시 override 반영.
+- 수동 확인 필요: 위치등록 업로드 → 지도에 노란 마커 표시(저장 안 됨) → 드래그로 위치 조정 → [적용] 저장·필터 초기화로 마커 노출 / [취소] 폐기 / 항목 [제외] 후 적용 시 해당 건 미저장 / 좌표 없는 행은 지도 미표시·적용 시 좌표 없이 저장.
+
+### 남은 항목 (다음 증분 후보)
+- 여러 파일 연속 업로드 시 미리보기 병합(현재는 대체) · 장비/위치 자동 라우팅도 미리보기로 통일 · 미리보기 상태에서 새로고침 경고
+
+---
+
+## [2026-07-22] 같은 지번 다중 시설 — 드래그 개별 배치 + 선택적 SUB 해제
+
+### 개요 및 목적
+광양제철소처럼 넓은 지번에 여러 시설이 흩어져 있어도 "같은 번지 → 마커 1개"로 합쳐지던 문제 해소. SUB는 기본 숨김을 유지하되, 사용자가 상세 모달에서 시설별로 "지도에 개별 표시"를 켜면 개별 마커로 노출되고, 기존 드래그 이동(이미 lat/lng DB 저장)으로 실제 위치에 배치.
+
+### 핵심 발견 (구현 단순화)
+- 지도 마커는 이미 전부 `draggable`이며, 드래그(dragend) 시 `markers.lat/lng`를 DB update + 쿼리 무효화까지 완비(`kakao-map-canvas.tsx:408·422·477`). → 좌표 배치는 신규 개발 불필요, **숨김 해제 스위치만** 추가하면 됨.
+- `MarkerClusterer`가 이미 붙어 있어, 해제된 다수 마커의 밀집은 자동으로 클러스터 처리.
+
+### 변경된 내용
+- **DB(마이그레이션 파일만 작성, 적용은 사용자)**: `supabase/migrations/20260722000000_add_detached_visible.sql` — `markers.detached_visible boolean not null default false` + 인덱스 + `NOTIFY pgrst`.
+- `types/marker.ts`: `EquipmentMarker.detachedVisible?: boolean` 추가.
+- `api.ts`: 매핑에 `detachedVisible: row.detached_visible ?? false`(컬럼 없으면 false로 안전).
+- `kakao-map-canvas.tsx`: 렌더 필터를 `isEquipmentSubMarker && !detachedVisible`일 때만 숨김 → 해제된 SUB만 표시.
+- `marker-detail-modal.tsx`:
+  - `setMarkerDetached(id, detached)` — `markers.detached_visible` update + `invalidateQueries`, 로그인 가드, 켜면 모달 닫아 바로 드래그 유도.
+  - UI: **대표** 상세엔 "동일 번지 국소 개별 배치" 목록(시설별 [지도에 개별 표시]/[표시 중·숨기기]), **개별 표시된 SUB** 상세엔 [개별 표시 해제] 버튼.
+
+### 검증 결과
+- `npx tsc --noEmit` 통과(exit 0), 변경 4파일 `eslint` 통과, IDE 진단 0건.
+- **선행 조건**: 마이그레이션 적용 전에는 컬럼이 없어 기능이 무동작(조회는 `?? false`로 안전, [개별 표시] 클릭 시 update 실패). 적용 후 정상 동작.
+- 수동 확인 필요: (마이그레이션 적용 후) 대표 상세 → 시설 [지도에 개별 표시] → 지도에 마커 노출 → 드래그로 실위치 이동·저장·새로고침 유지 / 미해제 SUB는 계속 숨김 / 개별 마커 상세에서 [해제] 시 숨김 복귀.
+
+### 남은 항목 (다음 증분 후보)
+- 엑셀 시설별 좌표가 있으면 업로드 시 자동 개별 배치 · 개별 표시 일괄 On/Off · 백업 엑셀에 detached_visible 왕복
+
+---
+
+## [2026-07-22] 마커 상세 모달 — GPSMAP 좌표·주소 변환 + 건축물대장 연동
+
+### 개요 및 목적
+장비(equipment) 마커 상세 모달에, GPSMAP 변환기와 동일한 좌표·주소 변환 정보와 건축물대장을 마커 좌표로 자동 조회해 표시. 마커만 클릭해도 지번/도로명/도분초/구글좌표/PNU·건물 정보를 한눈에 확인.
+
+### 변경된 내용
+- `marker-detail-modal.tsx`
+  - GPSMAP 로직 재사용: `runSingleLookup(\`${lat}, ${lng}\`)`(features/gpsmap) 호출로 `GpsLookupResult` 획득
+  - 상태 `gpsInfo`/`gpsLoading`/`gpsError` + 좌표별 캐시 `gpsCacheRef`(같은 좌표 재열람 시 재호출 생략)
+  - `useEffect`(deps: isDetailOpen·mode·좌표): 모달 열림 + 장비 모드 + 유효 좌표일 때 자동 조회, 좌표 없으면 안내, 실패 시 사용자 친화 문구(원 에러 미노출), 언마운트/좌표변경 시 `cancelled` 가드
+  - UI 카드 2개(장비 모드 한정): **좌표·주소 변환**(구/신주소·우편번호·좌표·위도/경도(도분초)·구글좌표·PNU), **건축물대장**(9항목). 라벨-값 행 컴포넌트 `GpsInfoRow`(조회 중 `…`, 없으면 `-`)
+- 축전지/location 모달·기존 표(연관 장비 목록)는 변경 없음
+
+### 검증 결과
+- `npx tsc --noEmit` 통과(exit 0), `eslint` 해당 파일 통과, IDE 진단 0건
+- 데이터 출처: VWorld JSONP(브라우저), 키 `NEXT_PUBLIC_VWORLD_API_KEY`(기설정) — 별도 백엔드 불필요
+- 수동 확인 필요: 장비 마커 열람 시 두 카드 자동 채워짐 / 토지(건물 없음) 마커는 신주소 "도로명주소 없음 (토지)"·건축물대장 "결과 없음" / 좌표 없는 마커 안내 문구
+
+### 남은 항목 (다음 증분 후보)
+- 축전지 모달 확장 · 조회 결과를 마커 필드로 저장(영구 캐시) · 상세 모달 → GPSMAP 페이지 딥링크
+
+---
+
 ## [2026-07-19] GPSMAP — 로드뷰를 인라인 패널로(모달/새창 제거)
 
 ### 개요 및 목적

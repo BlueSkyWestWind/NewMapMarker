@@ -188,6 +188,7 @@ const TABLE_COLUMNS: Record<FullBackupTableName, readonly string[]> = {
     'jibun_address',
     'parent_marker_id',
     'group_role',
+    'group_key',
     'created_at',
   ],
   information: [
