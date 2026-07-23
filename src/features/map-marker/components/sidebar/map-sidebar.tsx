@@ -27,6 +27,7 @@ import { EquipmentExcelSection } from "@/features/map-marker/components/sidebar/
 import { EquipmentInfoSection } from "@/features/map-marker/components/sidebar/equipment-info-section";
 import { FilterPanel } from "@/features/map-marker/components/sidebar/filter-panel";
 import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
+import { LocationAddressSection } from "@/features/map-marker/components/sidebar/location-address-section";
 import { MarkersListPanel } from "@/features/map-marker/components/sidebar/markers-list-panel";
 import { ModeTabs } from "@/features/map-marker/components/sidebar/mode-tabs";
 import { PlaceSearchSection } from "@/features/map-marker/components/sidebar/place-search-section";
@@ -177,10 +178,26 @@ export function MapSidebar({
         <Accordion
           type="multiple"
           defaultValue={
-            isLocationMode ? ["location-excel", "markers"] : defaultAccordion
+            isLocationMode
+              ? ["location-address", "location-excel", "markers"]
+              : defaultAccordion
           }
           className="space-y-2"
         >
+          {isLocationMode ? (
+            <AccordionItem value="location-address" className="border-slate-800">
+              <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                <span className="flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                  주소로 위치 찍기
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <LocationAddressSection />
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+
           {isLocationMode ? (
             <AccordionItem value="location-excel" className="border-slate-800">
               <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">

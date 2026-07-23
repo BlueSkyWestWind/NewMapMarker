@@ -170,6 +170,8 @@ export function KakaoMapCanvas({
   const { toast } = useToast();
 
   const prevModeRef = useRef<MapMode | null>(null);
+  // 위치 모드에서 임시 마커가 늘어나면(주소·엑셀로 추가) 그 마커들로 화면을 맞추기 위한 이전 개수.
+  const prevLocationPlottedRef = useRef(0);
 
   useEffect(() => {
     const syncModifierKeys = (event: KeyboardEvent) => {
@@ -537,9 +539,17 @@ export function KakaoMapCanvas({
       plottedMarkers.length > 0 &&
       prevModeRef.current !== "battery";
 
-    if (shouldFitBatteryBounds) {
+    // 위치 모드: 임시 마커가 늘어나면(주소/엑셀로 추가) 결과가 바로 보이도록 화면을 맞춘다.
+    const shouldFitLocationBounds =
+      mode === "location" &&
+      plottedMarkers.length > 0 &&
+      plottedMarkers.length > prevLocationPlottedRef.current;
+
+    if (shouldFitBatteryBounds || shouldFitLocationBounds) {
       fitMapToMarkers(map, plottedMarkers);
     }
+    prevLocationPlottedRef.current =
+      mode === "location" ? plottedMarkers.length : 0;
     prevModeRef.current = mode;
   }, [
     markers,

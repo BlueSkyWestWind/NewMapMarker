@@ -1,5 +1,21 @@
 # Walkthrough
 
+## [2026-07-23] 위치탭 — 주소 다중 입력 마커 표시
+
+### 개요 및 목적
+위치 모드에서 여러 주소를 붙여 넣으면 각 주소를 지오코딩해 임시 마커로 표시. DB 저장 없이 브라우저 메모리(`pendingLocationMarkers`)만 사용.
+
+### 변경된 내용
+- 신규 `components/sidebar/location-address-section.tsx`: Textarea 다중 주소 입력 → 파싱(줄당 1주소, `이름[Tab]주소` 지원, 빈줄·중복 제거) → `geocodeAddressQueue` → `createLocationMarker` → `addPendingMarkers("location")`. 진행률·결과 토스트(성공/중복/실패+실패주소), 성공 시 실패 주소만 입력창에 남김.
+- `components/sidebar/map-sidebar.tsx`: 위치 모드에 "주소로 위치 찍기" 아코디언 추가(기본 펼침).
+- `components/map/kakao-map-canvas.tsx`: 위치 마커 개수 증가 시 그 마커들로 `fitMapToMarkers`(주소·엑셀 추가 결과가 바로 보이게). 모드 벗어나면 카운트 리셋.
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint .` ✅ · `vitest run` 39 passed ✅
+- 지오코딩은 브라우저 Kakao SDK 사용 → 실제 표시는 앱에서 확인 필요(로직은 기존 엑셀 업로드 흐름과 동일).
+
+---
+
 ## [2026-07-23] 그룹 경계 방어 하드닝 (G6·G7)
 
 ### 개요 및 목적

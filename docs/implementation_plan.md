@@ -1,5 +1,30 @@
 # Implementation Plan
 
+## [2026-07-23] 위치탭 — 주소 다중 입력으로 마커 표시
+
+### 사용자 요청 (원문)
+
+**최초 요청**
+> 위치탭에서 내가 주소 다중으로 넣으면 마커표시 해주는 기능 만들어줘
+
+### 파악 결과
+
+- 위치 모드는 DB 없이 `pendingLocationMarkers`(persist 안 함)만 지도에 표시. `addPendingMarkers("location", …)`로 추가.
+- 이미 `geocodeAddressQueue`(주소→좌표 배치, 캐시·실패목록), `createLocationMarker`, 엑셀 업로드 흐름 존재 → 그대로 재사용 가능.
+- 지도 자동 맞춤(fit)은 배터리 모드 진입 시에만 있음 → 위치 마커 추가 시 화면 이동 없음(추가돼도 안 보일 수 있음).
+
+### 설계
+
+- 신규 컴포넌트 `location-address-section.tsx`: 여러 줄 주소 입력(Textarea) → 파싱(줄당 1주소, `이름[Tab]주소` 지원, 빈줄·중복 제거) → `geocodeAddressQueue`로 지오코딩 → `createLocationMarker` → `addPendingMarkers("location", …)`.
+  - 이미 표시된 주소는 건너뜀(중복 마커 방지). 진행률·결과 토스트(성공/중복/실패 + 실패 주소 목록). 성공 시 입력창은 실패 주소만 남겨 재시도 편의.
+- `map-sidebar.tsx`: 위치 모드에 "주소로 위치 찍기" 아코디언 추가(기존 "엑셀로 위치 찍기" 위), 기본 펼침.
+- `kakao-map-canvas.tsx`: 위치 마커 개수가 늘면 그 마커들로 화면 맞춤(`fitMapToMarkers`) — 주소·엑셀 추가 모두 결과가 바로 보이게.
+
+### 완료 기준
+
+- 위치탭에서 주소 여러 줄 입력 → 마커 표시 + 지도 이동. 실패 주소는 토스트·입력창에 표기.
+- tsc/eslint/vitest 통과.
+
 ## [2026-07-23] 동/구역 실제 그룹 분리 — group_key 도입(번지 하위 분리·원복)
 
 ### 사용자 요청 (원문)
