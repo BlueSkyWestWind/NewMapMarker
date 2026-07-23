@@ -1,5 +1,19 @@
 # Walkthrough
 
+## [2026-07-23] 그룹 경계 방어 하드닝 (G6·G7)
+
+### 개요 및 목적
+4차 검수(PROJECT_ANALYSIS)에서 발견한 분리/합치기의 실질 리스크 2건을 저비용으로 방어.
+
+### 변경된 내용
+- **G7**(`marker-detail-modal.tsx` `relatedEquipmentMarkers`): 최종 집합에 **유효 키 필터** 추가 — 선택 마커와 `getMarkerEffectiveKey`가 일치하는 멤버만 남겨, 부모체인으로 끌려온 경계 넘는 dangling `parent_marker_id`를 제외. 상세·분리·합치기가 그룹 경계를 넘지 않음(빈 키 마커는 기존 동작 보존).
+- **G6**(`separateLabelGroup`): **남은 번지 그룹 재승격을 분리보다 먼저** 실행 → 뒤 단계 실패 시에도 dangling parent가 남지 않음(최악은 잔여 중복 대표, 재정렬로 자가치유). 성공 경로 결과는 동일.
+
+### 검증 결과
+- `tsc --noEmit` ✅ · `eslint`(모달) ✅ · `vitest run` 39 passed ✅
+
+---
+
 ## [2026-07-23] 분리 시 대표 직접 선택 UI
 
 ### 개요 및 목적

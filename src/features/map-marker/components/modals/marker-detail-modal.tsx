@@ -811,10 +811,13 @@ export function MarkerDetailModal() {
           targets[0].roadAddress || targets[0].jibunAddress || '',
         ) || 'lot';
       const newKey = buildSplitGroupKey(lotKey, label, targets[0].id);
-      await assignGroupMembers(targets, newKey, repId);
+      // G6: 남은 번지 그룹 재승격을 먼저 수행한다. 이렇게 하면 뒤 단계가 실패해도
+      // 남은 SUB의 parent_marker_id가 (분리돼 나갈) 옛 대표를 가리키는 dangling이
+      // 남지 않는다. 두 그룹은 서로소라 성공 경로에선 순서가 결과에 영향 없음.
       if (remaining.length > 0) {
         await assignGroupMembers(remaining, null);
       }
+      await assignGroupMembers(targets, newKey, repId);
       setPickingSplitLabel(null);
       await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
       const repMarker = repId
@@ -924,7 +927,14 @@ export function MarkerDetailModal() {
       byId.set(mate.id, mate);
     }
 
-    return [...byId.values()].sort((a, b) => {
+    // G7 방어: 부모체인으로 끌려온 멤버 중 유효 키가 다른 것(경계 넘는 dangling
+    // parent_marker_id)을 제외해, 화면·분리/합치기가 그룹 경계를 넘지 않게 한다.
+    const selfKey = getMarkerEffectiveKey(equipmentMarker);
+    const scoped = selfKey
+      ? [...byId.values()].filter((m) => getMarkerEffectiveKey(m) === selfKey)
+      : [...byId.values()];
+
+    return scoped.sort((a, b) => {
       const roleA = storedGroupRoleOf(a);
       const roleB = storedGroupRoleOf(b);
       if (

@@ -1,8 +1,102 @@
 # 프로젝트 분석 보고서
 
 - 대상: `0004_NewMapMarker` (구 `002_geographic_tech` — 배터리/장비 지도 마커 + GPSMAP)
-- 작성일: 2026-07-18 (초판) · 2차 2026-07-19 · **3차 2026-07-22**
+- 작성일: 2026-07-18 (초판) · 2차 2026-07-19 · 3차 2026-07-22 · **4차 2026-07-23**
 - 검사 방법: 구조 스캔 · `tsc --noEmit` · `eslint .` · `next build` · `vitest run` · 패턴 그렙(XSS/any/console/SSRF/env)
+
+---
+
+## [2026-07-23] 4차 검수 — `group_key`(동/구역 실제 그룹 분리) 구조 변경 영향 분석
+
+> 범위: 같은 번지 하위를 동/지하/구역 단위로 **실제 분리**하는 기능(`markers.group_key`) 도입 후,
+> 그룹 판정·재그룹·백업·지도 렌더 경로의 정합성 재검수. 코드 수정 없음(문서화만).
+> 변경 커밋: `765c16b`. 관련 파일: `address-group.ts` · `marker-detail-modal.tsx` · `api.ts` · `types/marker.ts` · `full-backup.ts` + migration `20260723000000_add_group_key.sql`.
+
+### 검사 결과 요약
+
+| 검사 | 결과 |
+| --- | --- |
+| `tsc --noEmit` | ✅ 0 오류 |
+| `eslint .` | ✅ 0 문제 |
+| `next build` | ✅ 성공 (정적 9 페이지, Compile ~4.7s) · 홈 First Load **482 kB (3차와 동일 — 회귀 없음)** |
+| `vitest run` | ✅ 4 files / 39 tests 통과 |
+
+> 신규 UI(분리/합치기/대표 선택)는 이미 `next/dynamic`으로 지연 로드되는 상세 모달 내부에 있어 홈 번들에 영향 없음.
+
+### 구조 변경 요지
+
+- **그룹 판정 키의 일반화**: 기존 "번지 주소 키"(`getLotAddressKey`) 단일 기준 → **유효 키**(`getEffectiveGroupKey` = `group_key`가 있으면 그것, 없으면 번지 키). 같은 번지라도 `group_key`가 다르면 별도 그룹.
+- **분리/원복**: 상세 모달에서 라벨(동/지하/기타) 단위로 `group_key` 부여(분리)·제거(원복). 분리 시 대표 국소 직접 선택, 대표 이탈 시 잔여 그룹 자동 승격.
+- **재그룹·백업 반영**: `assignMarkerParentsByLotAddress`/`applyMarkerRolesFromStoredGroupRole`를 유효 키 기준으로 변경(엑셀 재업로드에도 분리 유지), 백업 컬럼(`full-backup.ts`)에 `group_key` 추가.
+
+### 정합성 점검 (양호)
+
+- ✅ **그룹 판정 우회 없음**: `getLotAddressKey` 잔여 호출 5곳 모두 (a) 유효 키 폴백 내부이거나 (b) 분리 키 생성·lot 멤버 필터용 — 그룹을 직접 병합하는 경로 아님.
+- ✅ **지도 렌더 불변**: `kakao-map-canvas`는 `parent_marker_id==null`(+`detached_visible`) 기준 렌더. 분리 그룹의 새 대표는 parent=null이라 자동 노출 — 캔버스 수정 불필요.
+- ✅ **백업 왕복·하위호환**: `group_key`는 `TABLE_COLUMNS.markers` passthrough로 왕복. 복원 시 parent는 재파생(유효 키+`group_role`)되어 분리 구조 재구성. **구 백업엔 컬럼 부재 → null → 번지 그룹**으로 안전 폴백.
+- ✅ **`detached_visible` 병존**: 분리 시 이동 국소의 `detached_visible`를 false로 리셋. 기존 "동 개별 표시"는 미분리 SUB에 대해 그대로 동작(충돌 없음).
+
+### 신규 발견·리스크
+
+#### 🟠 G1 — `marker-detail-modal.tsx` 2,006줄로 최대 파일 등극 (R2 심화)
+
+- 3차 시점 1,106줄 → (07-23 연관상세/구분변경) 1,668 → (이번 group_key) **2,006줄**. `use-excel-upload-actions.tsx`(1,507)를 넘어 **단일 최대 파일**.
+- 한 파일에 상세 표·GPS 조회·동 개별표시(detached)·구분 변경(`changeMarkerGroupRole`)·**분리/합치기(`assignGroupMembers`/`separateLabelGroup`/`mergeSplitGroupToLot`)** 가 밀집.
+- 권장 분할: ① 그룹 조작 로직(구분 변경 + 분리/합치기 + `assignGroupMembers`)을 `use-marker-grouping.ts` 훅으로, ② 상세 표(셀 드래그 복사)와 GPS 카드를 하위 컴포넌트로.
+
+#### 🟡 G2 — 유효 키 규칙 2중 구현 (드리프트 위험)
+
+- `address-group.getEffectiveGroupKey`(snake_case row)와 `marker-detail-modal.getMarkerEffectiveKey`(camelCase marker)가 **같은 규칙을 각각 구현**. 한쪽만 바뀌면 그룹 경계가 어긋날 수 있음.
+- 권장: 순수 함수 하나(예: `(groupKey, address) => …`)로 규칙을 단일화하고 두 어댑터가 이를 호출.
+
+#### 🟡 G3 — `group_key` 미마이그레이션 시 안내 부재
+
+- `dbErrorMessage`는 `detached_visible` 컬럼 부재만 마이그레이션 문구로 안내. `group_key` 컬럼이 없으면(마이그레이션 미적용) 분리/합치기 update가 **일반 오류 메시지**로만 표시됨(PGRST204/42703).
+- 권장: `dbErrorMessage`의 `missingColumn` 판정에 `group_key`도 포함해 "`20260723000000_add_group_key.sql` 적용" 안내 추가.
+
+#### 🟠 G6 — 분리/합치기/구분변경의 다단계 DB 업데이트가 비원자적 (부분 실패 시 그룹 깨짐) ✅ 부분 조치
+
+> **조치**: `separateLabelGroup`에서 **남은 번지 그룹 재승격을 분리보다 먼저** 실행하도록 순서 변경 → 뒤 단계 실패 시에도 남은 SUB가 (분리돼 나갈) 옛 대표를 가리키는 **dangling parent가 남지 않음**(최악의 경우 잔여 중복 대표만 남고, 이는 다음 재정렬로 자가치유). 성공 경로에선 두 그룹이 서로소라 결과 동일. **완전 원자화(트랜잭션/RPC)는 미적용** — 표시·조작 방어는 G7로 보강.
+
+
+
+- `separateLabelGroup`·`mergeSplitGroupToLot`·`changeMarkerGroupRole`은 **여러 개의 순차 `await update`**로 대표/SUB/`group_key`를 바꾼다. **트랜잭션·롤백이 없다.**
+- 특히 헤드라인 시나리오("분리로 원 대표가 빠짐")가 이 위험을 지난다: `separateLabelGroup`은 ① 분리 대상에 새 `group_key`+대표 지정 → ② 남은 번지 그룹 재승격, **두 단계 사이**에 남은 SUB들의 `parent_marker_id`는 아직 **분리돼 나간 옛 대표**(이제 다른 `group_key`)를 가리킨다. ②가 실패하면 이 **경계 넘는 dangling parent**가 영구히 남는다.
+- DB에 `parent_marker_id`↔`group_key` 정합 제약(FK/트리거)이 없어 앱 로직에만 의존.
+- 권장: (a) 최소한 **재승격(②)을 먼저** 수행해 남은 SUB의 부모를 항상 유효하게 유지, 또는 (b) Postgres **RPC(함수)로 묶어 원자화**. 최소 방어는 G7.
+
+#### 🟠 G7 — `relatedEquipmentMarkers`가 부모체인을 유효 키로 재검증하지 않음 (dangling 시 그룹 혼합) ✅ 수정 완료
+
+> **조치**: `relatedEquipmentMarkers`(modal:898~) 최종 집합에 **유효 키 필터** 추가 — 선택 마커와 `getMarkerEffectiveKey`가 일치하는 멤버만 남김(빈 키 마커는 기존 동작 보존). 부모체인으로 끌려온 경계 넘는 dangling 멤버를 제외해 상세·분리·합치기가 그룹 경계를 넘지 않는다. `tsc`/`eslint`/`vitest 39` 통과.
+
+
+
+- `relatedEquipmentMarkers`(modal:898~)는 **부모체인(parentId)** 으로 모은 뒤 **유효 키 mates**를 합집합한다. 부모체인 쪽은 **부모가 같은 `group_key`인지 확인하지 않는다.**
+- 따라서 G6 등으로 `parent_marker_id`가 그룹 경계를 넘어 남아 있으면, **다른 분리 그룹의 대표+형제까지 이 그룹 상세에 섞여** 표시되고, 그 오염된 목록으로 `separateLabelGroup`/`mergeSplitGroupToLot`의 `targets`/`remaining`이 잘못 산정될 수 있다.
+- 정상 데이터에선 재현되지 않지만, **저비용 방어 가치가 큼**.
+- 권장(작은 수정): 최종 집합을 **선택 마커의 유효 키와 일치하는 멤버로 필터**(`getMarkerEffectiveKey(m) === getMarkerEffectiveKey(equipmentMarker)`). dangling parent가 있어도 화면·조작이 그룹 경계를 넘지 않도록 방어.
+
+#### ⚪ G4 — 원복 시 대표 재선정 규칙 (무해)
+
+- 분리 그룹을 번지로 합칠 때, 되돌린 분리 대표와 원 번지 대표가 **둘 다 `group_role=대표`** 일 수 있음. `assignGroupMembers`는 `created_at` 최초의 대표-역할을 대표로 택 → 결정적이나 **원 번지 대표가 바뀔 수 있음**. 단일 대표 보장은 유지되어 정합성엔 무해. 필요 시 "원 번지 대표 우선" 규칙 명시 가능.
+
+#### ⚪ G5 — 분리 직후 대표 핀 좌표 겹침 (의도)
+
+- 새 분리 대표는 지오코딩 좌표(번지 중심)를 그대로 물려받아 **원 대표와 같은 위치에 겹쳐** 표시됨 → 사용자가 드래그해 실위치 배치(설계 의도). UI 토스트로 안내 중.
+
+### 잔여(기존) 항목 — 상태 변화 없음
+
+- **R1** 홈 First Load 482 kB(이번 변경과 무관, 지속). **R2** 대형 파일 — G1로 악화. **R3/R5** `any` 잔존. **R4** data-manager `ThisType`. **P4** 죽은 코드 보존.
+
+### 권장 조치 순서 (코드 변경은 별도 요청 시)
+
+1. ✅ **G7** `relatedEquipmentMarkers` 유효 키 필터 — **적용 완료**.
+2. ✅ **G6** 분리 순서 조정(재승격 선행) — **적용 완료**(완전 원자화 RPC는 후속).
+3. **G3** `group_key` 미적용 안내(작은 변경, 운영 안전).
+4. **G2** 유효 키 규칙 단일화(회귀 예방).
+5. **G1/R2** 상세 모달 그룹 로직 훅 분리 · R1 번들 재프로파일 · R3/R5 `any` 축소.
+
+> **적용 커밋(예정)**: G7 필터 + G6 순서 조정. 남은 G1~G3은 별도 요청 시.
 
 ---
 
