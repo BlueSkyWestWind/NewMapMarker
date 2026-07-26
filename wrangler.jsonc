@@ -4,6 +4,16 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-12-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  // 대시보드에서 추가한 Plaintext 변수를 배포 때 지우지 않는다.
+  // 기본값(false)이면 아래 vars 블록이 대시보드 변수를 통째로 대체해서,
+  // 대시보드에만 넣어 둔 값이 git push → 자동 배포 시 사라진다.
+  // (Secret 타입은 이 설정과 무관하게 항상 보존된다.)
+  "keep_vars": true,
+
+  // ⚠️ 여기에는 **브라우저에 노출돼도 되는 공개 키만** 넣는다. 이 파일은 커밋된다.
+  //    서버 전용 키(KMA_API_HUB_KEY·KAKAO_REST_API_KEY 등)는 절대 넣지 말 것 →
+  //    `npx wrangler secret put <NAME>` 또는 대시보드에서 **Secret 타입**으로 등록.
   "vars": {
     "NEXT_PUBLIC_KAKAO_MAP_APP_KEY": "223e7ae08e4de052f9b928968c485d27",
     "NEXT_PUBLIC_SUPABASE_URL": "https://bgdqjtmkdprqencgnrbx.supabase.co",

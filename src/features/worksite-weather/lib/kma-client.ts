@@ -103,8 +103,11 @@ function resolveProvider(): ResolvedProvider {
   const portalKey = (process.env.KMA_SERVICE_KEY ?? "").trim();
   if (portalKey) return { ...PROVIDERS.datago, key: normalizeKey(portalKey) };
 
+  // .env.local은 배포 환경에 전달되지 않는다. 로컬/배포 두 경로를 모두 안내한다.
   throw new KmaError(
-    "기상청 인증키가 설정되지 않았습니다. .env.local에 KMA_API_HUB_KEY(기상청 API 허브) 또는 KMA_SERVICE_KEY(공공데이터포털)를 설정하세요.",
+    "기상청 인증키가 설정되지 않았습니다. " +
+      "로컬은 .env.local에, 배포 환경은 Cloudflare Workers의 Secret에 " +
+      "KMA_API_HUB_KEY(기상청 API 허브) 또는 KMA_SERVICE_KEY(공공데이터포털)를 등록하세요.",
   );
 }
 

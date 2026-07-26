@@ -167,13 +167,32 @@ Cloudflare **Workers & Pages → newmarker → Settings → Variables and Secret
 
 ### 기상 API 키 (날씨 기능 사용 시 필수)
 
-**Secret으로 등록**하세요 — `wrangler.jsonc`의 `vars`에 넣으면 **커밋됩니다**.
+#### ⚠️ 반드시 **Secret** 타입으로 등록하세요 — Plaintext는 배포 때 지워집니다
+
+| 등록 방식 | 재배포 후 |
+|---|---|
+| 대시보드 **Plaintext 변수** | ❌ **삭제됨** — 배포 시 `wrangler.jsonc`의 `vars` 블록이 대시보드 변수를 대체 |
+| 대시보드 **Secret** | ✅ 유지 |
+| `wrangler secret put` | ✅ 유지 |
+
+> Cloudflare 문서: *"Wrangler will not delete your secrets unless you run `wrangler secret delete`"*
+> Secret은 배포와 무관하게 보존되지만, **Plaintext 변수는 설정 파일이 이깁니다.**
+>
+> 추가 안전장치로 `wrangler.jsonc`에 **`"keep_vars": true`** 를 넣어 두었습니다.
+> 이제 대시보드에 Plaintext로 넣은 변수도 배포 때 지워지지 않습니다.
+> 그래도 **서버 키는 Secret으로** 등록하세요 — Plaintext는 대시보드·로그에 값이 그대로 보입니다.
+
+**CLI (권장)**
 
 ```bash
 npx wrangler secret put KMA_API_HUB_KEY
 ```
 
-로컬은 `.env.local`에 한 줄 추가:
+**대시보드**
+Workers & Pages → newmarker → Settings → Variables and Secrets → Add →
+Type을 **Secret** 선택 → 이름 `KMA_API_HUB_KEY` → 저장 → **재배포**
+
+**로컬**은 `.env.local`에 한 줄 추가 (Git에 올라가지 않으므로 배포에는 전달되지 않음):
 
 ```
 KMA_API_HUB_KEY=발급받은_인증키
