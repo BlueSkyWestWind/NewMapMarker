@@ -14,10 +14,7 @@ import {
   splitAddressFields,
 } from "@/features/map-marker/lib/geocode";
 import { createLocationMarkerFromExcelRow } from "@/features/map-marker/lib/location-marker";
-import {
-  parseErpSheet,
-  type ErpParsedRow,
-} from "@/features/map-marker/lib/excel/data-manager/erp-parse";
+import type { ErpParsedRow } from "@/features/map-marker/lib/excel/data-manager/erp-parse";
 import { applyMarkerRolesFromStoredGroupRole } from "@/features/map-marker/lib/address-group";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
@@ -210,6 +207,18 @@ function buildErpSummary(
     summary += ` (주소 찾기 실패: ${meta.geocodeFailCount}건 — 좌표 없이 저장됨)`;
   }
   return summary;
+}
+
+/**
+ * ERP 시트 파서 지연 로딩.
+ * erp-parse는 xlsx(SheetJS)를 정적으로 끌어와서, 정적 import하면 SheetJS 전체가
+ * 홈 첫 로딩 번들에 실린다. 실제로 필요한 건 파일 업로드 순간뿐이다.
+ */
+async function parseErpSheet(file: File): Promise<ErpParsedRow[]> {
+  const { parseErpSheet: parse } = await import(
+    "@/features/map-marker/lib/excel/data-manager/erp-parse"
+  );
+  return parse(file);
 }
 
 export function useExcelUploadActions() {

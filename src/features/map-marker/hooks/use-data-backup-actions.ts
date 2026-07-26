@@ -10,7 +10,7 @@ import {
   FULL_BACKUP_TABLE_NAMES,
   buildDatedBackupFilename,
   type FullBackupTables,
-} from '@/features/map-marker/lib/excel/data-manager/full-backup';
+} from '@/features/map-marker/lib/excel/data-manager/full-backup-schema';
 import { applyMarkerRolesFromStoredGroupRole } from '@/features/map-marker/lib/address-group';
 import type { MapMode } from '@/features/map-marker/types/marker';
 

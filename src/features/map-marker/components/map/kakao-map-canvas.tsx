@@ -765,12 +765,23 @@ export function KakaoMapCanvas({
       (marker) => marker.markerId === selectedMarkerId,
     );
 
-    if (!kakaoMarker) return;
+    // 지도에 그려진 마커가 있으면 그 위치로 이동한다.
+    // 같은 번지 SUB국소는 지도에 개별 마커로 표시되지 않아 여기서 못 찾으므로,
+    // 원본 markers 데이터의 좌표로 폴백해 위치찾기가 SUB국소도 이동하게 한다.
+    const targetPosition = kakaoMarker
+      ? kakaoMarker.getPosition()
+      : (() => {
+          const data = markers.find((marker) => marker.id === selectedMarkerId);
+          if (!data || !isPlottableCoordinate(data.lat, data.lng)) return null;
+          return new window.kakao.maps.LatLng(data.lat, data.lng);
+        })();
+
+    if (!targetPosition) return;
 
     if (mapInstanceRef.current.getLevel() > 3) {
       mapInstanceRef.current.setLevel(3);
     }
-    mapInstanceRef.current.panTo(kakaoMarker.getPosition());
+    mapInstanceRef.current.panTo(targetPosition);
   }, [selectedMarkerId, selectedMarkerIds, isDetailOpen, isEditOpen, markers]);
 
   useEffect(() => {

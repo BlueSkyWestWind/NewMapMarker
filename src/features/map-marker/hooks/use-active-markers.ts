@@ -59,27 +59,53 @@ export function useActiveMarkers() {
   });
   const previousModeRef = useRef(mode);
 
+  const weatherSearchMarkerIds = useMapMarkerStore(
+    (state) => state.weatherSearchMarkerIds,
+  );
+  const savedWeatherSites = useMapMarkerStore(
+    (state) => state.savedWeatherSites,
+  );
+
   const markers = useMemo<MarkerRecord[]>(() => {
     // 위치 모드는 DB 없이 브라우저 메모리 목록만 사용한다.
     if (mode === "location") {
       return pendingLocationMarkers;
     }
 
+    // weather 모드에서는 기본적으로 장비 마커(equipmentMarkers)를 보여준다
+    const isEquipmentOrWeather = mode === "equipment" || mode === "weather";
     const base = !data
       ? []
-      : mode === "equipment"
+      : isEquipmentOrWeather
         ? data.equipmentMarkers
         : data.batteryMarkers;
-    const pending =
-      mode === "equipment" ? pendingEquipmentMarkers : pendingBatteryMarkers;
+    const pending = isEquipmentOrWeather
+      ? pendingEquipmentMarkers
+      : pendingBatteryMarkers;
     const pendingIds = new Set(pending.map((marker) => marker.id));
-    return [...base.filter((marker) => !pendingIds.has(marker.id)), ...pending];
+    const merged = [...base.filter((marker) => !pendingIds.has(marker.id)), ...pending];
+
+    // weather 모드 필터링: 검색 결과가 있으면 검색 마커만, 없으면 저장된 작업 국소 마커만 표시
+    if (mode === "weather") {
+      if (weatherSearchMarkerIds !== null) {
+        const matchSet = new Set(weatherSearchMarkerIds);
+        return merged.filter((marker) => matchSet.has(marker.id));
+      }
+      if (savedWeatherSites.length > 0) {
+        const savedIds = new Set(savedWeatherSites.map((s) => s.id));
+        return merged.filter((marker) => savedIds.has(marker.id));
+      }
+    }
+
+    return merged;
   }, [
     data,
     mode,
     pendingEquipmentMarkers,
     pendingBatteryMarkers,
     pendingLocationMarkers,
+    weatherSearchMarkerIds,
+    savedWeatherSites,
   ]);
 
   const filterOptions = useMemo(

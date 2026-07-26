@@ -10,18 +10,21 @@ import {
   normalizeGroupRole,
 } from '@/features/map-marker/lib/address-group';
 import { extractYearFromProjectCode, parseErpSheet } from './erp-parse';
+import {
+  FULL_BACKUP_TABLE_NAMES,
+  buildDatedBackupFilename,
+  type FullBackupTableName,
+  type FullBackupTables,
+} from './full-backup-schema';
 
-export const FULL_BACKUP_TABLE_NAMES = [
-  'markers',
-  'information',
-  'erp_details',
-  'battery_markers',
-  'battery_specs',
-] as const;
-
-export type FullBackupTableName = (typeof FULL_BACKUP_TABLE_NAMES)[number];
-
-export type FullBackupTables = Record<FullBackupTableName, Record<string, unknown>[]>;
+// 상수·타입·파일명 규칙은 xlsx 비의존 모듈로 분리했다(홈 번들에서 SheetJS 제외).
+// 기존 import 경로가 깨지지 않도록 여기서 그대로 재export한다.
+export {
+  FULL_BACKUP_TABLE_NAMES,
+  buildDatedBackupFilename,
+  type FullBackupTableName,
+  type FullBackupTables,
+} from './full-backup-schema';
 
 const TABLE_COLUMN = '테이블';
 const JSON_OBJECT_COLUMNS = new Set(['tags', 'raw']);
@@ -189,6 +192,9 @@ const TABLE_COLUMNS: Record<FullBackupTableName, readonly string[]> = {
     'parent_marker_id',
     'group_role',
     'group_key',
+    // CR-004 국소 작업 안전 날씨용. 백업 왕복에서 유실되지 않게 열 목록에 포함한다.
+    'site_alias',
+    'work_type',
     'created_at',
   ],
   information: [
@@ -250,6 +256,9 @@ const TABLE_COLUMNS: Record<FullBackupTableName, readonly string[]> = {
     'tags',
     'color',
     'facility_team',
+    // CR-004 국소 작업 안전 날씨용. 백업 왕복에서 유실되지 않게 열 목록에 포함한다.
+    'site_alias',
+    'work_type',
     'created_at',
   ],
   battery_specs: [
@@ -310,16 +319,6 @@ function parseCellValue(column: string, value: unknown): unknown {
   }
 
   return value;
-}
-
-/** 로컬 날짜 기준 `yyyymmdd_파일명.xlsx` */
-export function buildDatedBackupFilename(baseName: string): string {
-  const now = new Date();
-  const yyyy = String(now.getFullYear());
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const safeBase = baseName.replace(/\.xlsx$/i, '');
-  return `${yyyy}${mm}${dd}_${safeBase}.xlsx`;
 }
 
 function createEmptyTables(): FullBackupTables {

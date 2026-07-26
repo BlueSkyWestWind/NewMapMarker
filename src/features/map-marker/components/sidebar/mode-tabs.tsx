@@ -1,6 +1,6 @@
 "use client";
 
-import { Battery, Lock, MapPin, Server } from "lucide-react";
+import { Battery, CloudSun, Lock, MapPin, Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MapMode } from "@/features/map-marker/types/marker";
 
@@ -19,6 +19,7 @@ const MODE_TABS: Array<{
   { mode: "equipment", label: "장비", icon: Server },
   { mode: "battery", label: "축전지", icon: Battery },
   { mode: "location", label: "위치", icon: MapPin },
+  { mode: "weather", label: "날씨", icon: CloudSun },
 ];
 
 export function ModeTabs({ mode, onChange, lockedModes = [] }: ModeTabsProps) {

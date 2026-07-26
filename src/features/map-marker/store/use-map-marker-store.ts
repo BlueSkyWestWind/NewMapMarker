@@ -11,6 +11,7 @@ import type {
   MarkerRecord,
   StagedErpUpload,
 } from "@/features/map-marker/types/marker";
+import type { SiteMatch } from "@/features/worksite-weather/types/weather";
 
 interface MapMarkerUiState {
   mode: MapMode;
@@ -36,6 +37,14 @@ interface MapMarkerUiState {
   roadviewPosition: { lat: number; lng: number; name: string } | null;
   /** 장소 검색으로 조회한 필지 경계(지도에 폴리곤으로 표시). persist 안 함 */
   placeSearch: PlaceSearchResult | null;
+  /** 날씨 모드에서 국소 검색 시 검색된 마커만 지도에 표시하기 위한 ID 목록. null이면 전체 표시 */
+  weatherSearchMarkerIds: string[] | null;
+  setWeatherSearchMarkerIds: (ids: string[] | null) => void;
+  /** 날씨 탭에 저장된 오늘의 작업 국소 목록 */
+  savedWeatherSites: SiteMatch[];
+  saveWeatherSites: (sites: SiteMatch[]) => void;
+  clearSavedWeatherSites: () => void;
+  removeSavedWeatherSite: (id: string) => void;
   setMode: (mode: MapMode) => void;
   toggleSidebar: () => void;
   setClusteringEnabled: (enabled: boolean) => void;
@@ -89,6 +98,7 @@ function getPendingKey(mode: MapMode) {
     .with("equipment", () => "pendingEquipmentMarkers" as const)
     .with("battery", () => "pendingBatteryMarkers" as const)
     .with("location", () => "pendingLocationMarkers" as const)
+    .with("weather", () => "pendingEquipmentMarkers" as const)
     .exhaustive();
 }
 
@@ -114,6 +124,15 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       isRoadviewOpen: false,
       roadviewPosition: null,
       placeSearch: null,
+      weatherSearchMarkerIds: null,
+      setWeatherSearchMarkerIds: (ids) => set({ weatherSearchMarkerIds: ids }),
+      savedWeatherSites: [],
+      saveWeatherSites: (sites) => set({ savedWeatherSites: sites }),
+      clearSavedWeatherSites: () => set({ savedWeatherSites: [] }),
+      removeSavedWeatherSite: (id) =>
+        set((state) => ({
+          savedWeatherSites: state.savedWeatherSites.filter((s) => s.id !== id),
+        })),
       setMode: (mode) =>
         set((state) =>
           state.mode === mode
@@ -123,6 +142,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
                 filters: emptyFilterState,
                 selectedMarkerId: null,
                 selectedMarkerIds: [],
+                weatherSearchMarkerIds: null,
               },
         ),
       toggleSidebar: () =>
@@ -257,6 +277,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
         isClusteringEnabled: state.isClusteringEnabled,
         clusterIconStyle: state.clusterIconStyle,
         isCadastralMode: state.isCadastralMode,
+        savedWeatherSites: state.savedWeatherSites,
       }),
     },
   ),

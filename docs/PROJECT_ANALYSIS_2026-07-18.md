@@ -1,8 +1,207 @@
 # 프로젝트 분석 보고서
 
 - 대상: `0004_NewMapMarker` (구 `002_geographic_tech` — 배터리/장비 지도 마커 + GPSMAP)
-- 작성일: 2026-07-18 (초판) · 2차 2026-07-19 · 3차 2026-07-22 · **4차 2026-07-23**
+- 작성일: 2026-07-18 (초판) · 2차 2026-07-19 · 3차 2026-07-22 · 4차 2026-07-23 · **5차 2026-07-26**
 - 검사 방법: 구조 스캔 · `tsc --noEmit` · `eslint .` · `next build` · `vitest run` · 패턴 그렙(XSS/any/console/SSRF/env)
+
+---
+
+## [2026-07-26] 5차 검수 — `worksite-weather`(국소 작업 안전 날씨) 모듈 증설 영향 분석 ✅ 전건 수정 완료
+
+> 범위: CR-004 기상청 API 연동 이후 추가된 **날씨 모드(`weather`)**, 지도 오버레이 날씨 카드,
+> 위성/태풍 모달, 저장 국소 목록이 기존 구조에 미친 영향. **발견 즉시 전건 수정**했다.
+> 관련: [CR-004](./Ver_1.0/CR-004.md) · `src/features/worksite-weather/` (31파일 5,264줄) · `overlay-content.ts` · `use-map-marker-store.ts`
+
+### 검사 결과 요약
+
+| 검사 | 검수 시점 | 조치 후 |
+| --- | --- | --- |
+| `tsc --noEmit` | 🔴 **7 오류** | ✅ 0 오류 |
+| `next build` | 🔴 **실패** (배포 불가) | ✅ 성공 |
+| `eslint .` | ✅ 0 문제 | ✅ 0 문제 |
+| `vitest run` | ✅ 13 files / 204 tests | ✅ 14 files / **212 tests** |
+| 홈 First Load | — | 497 kB (4차 482 kB 대비 **+15 kB**, 날씨 패널·모달분) |
+
+> ⚠️ **교훈: `vitest` 204개 통과 상태에서 `next build`가 실패했다.** vitest는 타입 검사를 하지 않는다.
+> 테스트 통과를 빌드 성공의 근거로 삼으면 안 된다. 커밋 전 `tsc --noEmit`를 별도로 돌려야 한다.
+
+### 🔴 W1 — 스토어 필드 선언 삭제로 빌드 붕괴 (오류 4건) ✅ 수정 완료
+
+날씨 필드(`weatherSearchMarkerIds`·`savedWeatherSites`)를 추가하면서 `MapMarkerUiState`의
+**`placeSearch` 선언만 지워졌다.** 초기값·setter·소비자는 그대로 남아 기존 **"장소 검색"(필지 경계) 기능의 타입 계약이 붕괴**.
+
+| 잔존 위치 | 내용 |
+| --- | --- |
+| `use-map-marker-store.ts:123` | 초기값 `placeSearch: null` |
+| `use-map-marker-store.ts:259` | `setPlaceSearch` |
+| `kakao-map-canvas.tsx:140` · `place-search-section.tsx:16` | 소비자 |
+
+> **조치**: 선언 복원. 아울러 `SiteMatch` import 누락(오류 2건)도 보완.
+
+### 🔴 W2 — 존재하지 않는 타입 참조 + 판정 라벨 이중 정의 ✅ 수정 완료
+
+`overlay-content.ts`가 `WeatherVerdict`를 import했으나 실제 타입명은 `Verdict`(오류 1건).
+더 심각한 것은 **같은 등급이 화면마다 다른 이름으로 표시**되고 있었다는 점이다.
+
+| 등급 | `types/weather.ts` (패널) | `overlay-content.ts` (지도) |
+| --- | --- | --- |
+| `caution` | 주의 | **관심** |
+| `warning` | 경고 | **주의** |
+| `stop` | 중지 | **작업중단** |
+
+지도에서 "주의"로 본 국소가 사이드바에서는 "경고"다. **안전 판정 표기가 갈리면 현장에서 위험도를 오판한다.**
+
+> **조치**: `VERDICT_ICON`/`VERDICT_LABEL`을 단일 소스로 통일하고, 색상도 `VERDICT_TONE`을 `types/weather.ts`에 신설해 한 곳에서만 정의. `overlay-content.ts`의 중복 맵 3종 제거.
+
+### 🟠 W3 — 레이어 역전 + 무캐시 API 호출 (기상청 한도 소진 위험) ✅ 수정 완료
+
+```
+lib/overlay-content.ts  →  hooks/use-worksite-weather.ts   ← 역방향 의존
+```
+
+`fetchWorksiteWeather()`를 **React Query 밖에서 직접 호출**해 캐시·중복제거가 전혀 없었다.
+서버는 요청 1건당 기상청 API를 **최대 4건** 호출하므로, 지도에서 국소 10개를 훑으면 **40건**이 나간다.
+사이드바가 이미 조회한 같은 국소도 다시 부른다.
+
+> **조치**
+> - `lib/worksite-weather-api.ts` 신설 — 요청 함수를 `hooks/`에서 `lib/`로 이동해 **역방향 의존 제거**.
+> - **TTL 10분 응답 캐시 + in-flight 중복제거** 적용. 지도 오버레이와 사이드바가 같은 캐시를 공유.
+> - `useWorksiteWeather`는 이 함수를 queryFn으로 쓰도록 변경.
+> - 신규 단위 테스트 8건(`worksite-weather-api.test.ts`)으로 고정: 3회 호출 → fetch 1회, 동시 호출 병합, 국소 다르면 분리, **실패는 캐시하지 않음**.
+
+### 🟠 W4 — 선택 상태를 세 개의 `useEffect`가 서로 덮어씀 ✅ 수정 완료
+
+`worksite-weather-panel.tsx`(556줄)에서 `site`를 쓰는 `useEffect`가 3개였다.
+
+| 위치 | 트리거 | 동작 |
+| --- | --- | --- |
+| L158 | `[query, searchResults]` | 첫 결과로 `setSite` |
+| L168 | `[mode]` | 전체 초기화 |
+| L195 | `[savedWeatherSites, query, site]` | 저장 목록 첫 항목 선택 |
+
+**증상**: 목록에서 3번째 국소를 골라도 검색어가 한 글자만 바뀌면 1번째로 되돌아간다.
+이전/다음 버튼으로 옮긴 선택도 같은 방식으로 날아간다.
+`focusMapOnSite`가 deps에 없었으나 **eslint는 잡아내지 못했다**(0 problems) — 린트가 안전망이 되지 못하는 구조.
+
+> **조치**: 선택 상태를 **파생값으로 전환**.
+> `site = geocodeSite ?? activeList.find(id === selectedId) ?? activeList[0]`
+> 상태는 `selectedId`·`geocodeSite` 둘만 남기고, 검색어 변경 시 초기화는 **effect가 아니라 `changeQuery` 이벤트 핸들러**에서 처리. 지도 이동은 `useRef` 가드를 둔 **단일 effect**로 통합. effect 3개 → 1개.
+> 부수적으로 목록 하이라이트가 두 행에 동시에 켜지던 조건(`site?.id === match.id || idx === selectedIndex`)도 정리.
+
+### 🟠 W5 — 잘못된 필드명으로 지도 이동 라벨 유실 ✅ 수정 완료
+
+`worksite-weather-panel.tsx:133`이 `setPlaceSearch({ title })`을 넘겼으나 `PlaceSearchResult`의 필드는 **`label`**.
+타입 오류이면서 동시에 런타임 버그 — 지오코딩 국소로 이동할 때 라벨이 표시되지 않는다.
+
+### 🟡 W6 — 닫힌 오버레이에 비동기 응답 기록 ✅ 수정 완료
+
+오버레이를 닫아도 `fetchWorksiteWeather().then()`이 살아남아 **DOM 트리에서 떨어져 나간 노드에 `innerHTML`** 을 썼다.
+
+> **조치**: `weatherCard.isConnected` 확인 후에만 갱신.
+
+### 🟡 W7 — 태풍 모달 이중 마운트 ✅ 수정 완료
+
+`typhoon-banner.tsx`(자체 `isOpen`)와 `worksite-weather-panel.tsx`(`isTyphoonModalOpen`)가 같은 `TyphoonModal`을 각각 마운트해 동시에 열릴 수 있었다.
+
+> **조치**: 배너는 `onOpenDetail` 콜백만 받고, 모달 인스턴스는 패널이 하나만 소유.
+
+### ⚪ W8 — 관찰 (수정하지 않음, 판단 근거 기록)
+
+| 항목 | 판단 |
+| --- | --- |
+| `getPendingKey("weather")` → `pendingEquipmentMarkers` | **의도된 매핑.** `use-active-markers`도 날씨 모드에서 장비 마커를 쓰므로 일관적. 현재 날씨 모드에서 `clearPendingMarkers`를 호출하는 경로도 없음 |
+| 외부 iframe (`weather.go.kr`, `embed.windy.com`) | 차단 헤더(`X-Frame-Options`/CSP)는 확인되지 않음. 다만 **서드파티 임베드가 새로 추가**된 것이고 **실제 렌더링은 브라우저에서 미검증** |
+| `savedWeatherSites` persist | localStorage 영구 저장. 원본 마커가 삭제돼도 저장 목록에 남는다(정리 로직 없음) |
+| 패널 556줄 | W4로 상태는 정리했으나 **검색·저장목록·모달·결과표시가 여전히 한 파일**. R2(대형 파일) 계열 후속 과제 |
+
+### 실동작 검증 (조치 후)
+
+```
+GET /api/worksite-weather?lat=34.9506&lng=127.4872&workType=elevated&region=전라남도 순천시
+→ 종합: danger | 특보: 폭염경보, 열대야주의보 | 슬롯 11 | 결측 0
+GET /  → HTTP 200
+```
+
+---
+
+## [2026-07-26] 5차-B 로딩 성능 — 홈 번들 **499 → 289 kB (-42%)** ✅ 수정 완료
+
+> "로딩이 조금씩 느려진다"는 체감의 원인을 측정으로 특정했다. **번들이 원인이었고, 데이터는 아니었다.**
+> 3차 검수의 미해결 항목 **R1(홈 번들 297 → 482 kB 회귀)** 도 이번에 함께 해소됐다.
+
+### 측정으로 배제한 것 (최적화하지 않음)
+
+| 후보 | 실측 | 판단 |
+| --- | --- | --- |
+| Supabase 초기 4개 쿼리 | **gzip 65 kB · 병렬 0.19초** (markers 32 KB / information 30 KB) | 병목 아님 |
+| 국소 검색(키 입력마다 전수 스캔) | 685건 대상 **1.1 ~ 2.6 ms/회** | 병목 아님 — 손대면 낭비 |
+| 데이터 규모 | markers 685 · information 685 · erp_details 685 · battery 21/44 | 현재 규모에선 문제 없음 |
+
+### 🔴 P-1 — 홈 첫 로딩 번들에 **xlsx(SheetJS) 통째로 포함** ✅ 수정 완료
+
+SheetJS는 원본 1.26 MB. 정적 import 경로가 **3개**였고, 전부 "실제로는 파일을 다룰 때만" 필요한 코드였다.
+
+| # | 경로 | 성격 |
+| --- | --- | --- |
+| 1 | `worksite-weather-panel` → `export-tbm.ts` → `xlsx` | **5차에서 신규 유입**(TBM 저장) |
+| 2 | `use-excel-upload-actions` → `erp-parse.ts` → `xlsx` | 기존 — **R1 회귀의 주범으로 추정** |
+| 3 | `use-data-backup-actions` → `full-backup.ts` → `xlsx` | 기존. 상수·타입만 쓰는데 모듈 전체가 끌려옴 |
+
+> **조치**
+> - ①: `exportTbmWorkbook`을 async로 바꾸고 `await import("xlsx")`. 저장 버튼을 누른 순간에만 로드.
+> - ②: 훅에서 `parseErpSheet`를 지연 로딩 래퍼로 감쌈. 타입(`ErpParsedRow`)은 `import type`으로 분리(런타임 의존 없음).
+> - ③: **`full-backup-schema.ts` 신설** — `FULL_BACKUP_TABLE_NAMES`·타입·`buildDatedBackupFilename`처럼 **xlsx에 의존하지 않는 부분만 분리**. `full-backup.ts`는 이를 재export해 기존 import 경로 유지.
+
+### 🟠 P-2 — 홈 번들에 `html2canvas`(약 190 kB) 포함 ✅ 수정 완료
+
+`map-region-capture-panel` → `map-viewport-capture.ts` → `html2canvas` 정적 체인.
+그런데 html2canvas가 실제로 필요한 건 `captureOnce()` 하나뿐이고, 나머지 export(`waitFor*`·`canvasToBlob`·`downloadBlob`)는 순수 DOM 헬퍼다.
+
+> **조치**: 모듈 최상단 import를 제거하고 캡처 실행 시점에 `await import("html2canvas")`.
+
+### 결과
+
+| 지표 | 5차 검수 시점 | 조치 후 | 델타 |
+| --- | --- | --- | --- |
+| 홈 First Load JS | 499 kB | **289 kB** | **-210 kB (-42%)** |
+| 홈 청크 총 용량 | 1,648 KB | **971 KB** | -677 KB |
+| 홈 번들 내 대형 라이브러리 | xlsx + html2canvas | **없음** | — |
+| `/gpsmap` | 351 kB | 351 kB | 변화 없음 |
+
+> 3차 검수 기준선(초판 297 kB → 3차 482 kB 회귀)과 비교하면 **초판 수준 아래로 복귀**했다.
+
+검증: `tsc` 0 · `eslint` 0 · `vitest` 212 · `next build` 성공 · 홈 200 · 날씨 API 정상(순천 danger, 특보 2건, 11슬롯).
+
+> ⚠️ TBM 저장이 async가 되어 청크 로드 실패 가능성이 생겼다. `onClick`에서 `.catch()` + 토스트로 처리.
+
+### 🟠 P-3 — `fetchMapMarkers` 행 상한 무방비 ✅ 수정 완료
+
+`select('*')`에 `range`가 없어 **PostgREST 서버 상한을 넘는 순간 오류 없이 조용히 잘린다.**
+마커가 지도에서 사라지는데 에러도 안 나므로 알아채기 어렵다. 현재 685행이라 아직 드러나지 않았을 뿐이다.
+
+> **조치**: `fetchAllRows()` 헬퍼 도입. `count: 'exact'`로 총 건수를 받아 다 채울 때까지 `range`로 이어 요청한다.
+> - **서버 상한이 요청 크기보다 작아도**(예: 500) 실제 받은 개수만큼 커서를 옮기므로 누락되지 않는다.
+> - 페이지 경계가 흔들리지 않도록 정렬에 **유일 키(`id`) tiebreaker**를 추가(`information`·`battery_specs`는 정렬 자체가 없었다).
+> - `MAX_FETCH_PAGES = 50` 무한 루프 가드.
+> - 4개 테이블 조회는 `Promise.all` 병렬 유지.
+> - 단위 테스트 9건(`fetch-all-rows.test.ts`): 2,500행 이어받기 · 정확히 상한 배수(2,000) 누락/중복 없음 · **서버 상한 500 시나리오** · count 미제공 폴백 · 2페이지째 실패 시 부분 결과 반환 금지 · 무한 루프 가드.
+
+실서버 검증: 4개 테이블 모두 `Content-Range: 0-684/685` 등 정상. 2,000행 요청 시에도 정확히 685행 반환(현 규모에선 상한 미도달).
+
+### ⚪ P-4 — 관찰 (수정하지 않음)
+
+| 항목 | 내용 |
+| --- | --- |
+| 남은 청크 | `page-*.js` 199 KB에 `aoa_to_sheet` 문자열이 남지만 **내 호출부 텍스트일 뿐** SheetJS 본체 아님(고유 마커 `SheetJS`/`Compound File Binary` 부재 확인) |
+
+### 권장 후속 (별도 요청 시)
+
+| 순위 | 항목 |
+| --- | --- |
+| 1 | 커밋 전 `tsc --noEmit` 게이트 — 5차 빌드 붕괴의 재발 방지책 |
+| 2 | `worksite-weather-panel.tsx` 분할 (검색·저장목록·결과표시) |
+| 3 | 외부 iframe 2종 브라우저 실렌더 확인 |
+| 4 | `savedWeatherSites` 정리 로직 (원본 마커 삭제 시 동기화) |
 
 ---
 

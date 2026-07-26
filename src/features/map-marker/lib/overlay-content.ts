@@ -5,6 +5,14 @@ import type {
   MapMode,
   MarkerRecord,
 } from "@/features/map-marker/types/marker";
+import { fetchWorksiteWeather } from "@/features/worksite-weather/lib/worksite-weather-api";
+import {
+  VERDICT_ICON,
+  VERDICT_LABEL,
+  VERDICT_TONE,
+  type SiteMatch,
+  type WorksiteWeatherResponse,
+} from "@/features/worksite-weather/types/weather";
 
 function getOverlayAddressParts(data: MarkerRecord, mode: MapMode) {
   if (mode === "equipment") {
@@ -84,6 +92,124 @@ function escapeHtml(value: string | number | null | undefined): string {
     .replace(/'/g, "&#39;");
 }
 
+// 판정 아이콘·라벨·색은 types/weather.ts가 단일 소스다.
+// 여기서 다시 정의하면 같은 등급이 지도와 사이드바에서 다른 이름으로 보인다.
+
+function formatAlertIssuedAt(raw?: string): string {
+  if (!raw) return "";
+  const cleaned = raw.replace(/\D/g, "");
+  if (cleaned.length < 8) return "";
+
+  const month = parseInt(cleaned.slice(4, 6), 10);
+  const day = parseInt(cleaned.slice(6, 8), 10);
+  const hour = cleaned.length >= 10 ? parseInt(cleaned.slice(8, 10), 10) : 0;
+
+  if (!month || !day) return "";
+
+  const now = new Date();
+  const todayMonth = now.getMonth() + 1;
+  const todayDay = now.getDate();
+
+  // 오늘 발효된 경우: "오늘 11시"
+  if (month === todayMonth && day === todayDay) {
+    return `오늘 ${hour}시`;
+  }
+
+  // 이전에 발효되어 지속 중인 경우: "7/22부터 발효"
+  return `${month}/${day}부터 발효`;
+}
+
+function renderWeatherBoxContent(
+  container: HTMLDivElement,
+  weather: WorksiteWeatherResponse,
+) {
+  const currentHour = new Date().getHours();
+  const currentSlot =
+    weather.timeline.find((s) => parseInt(s.time.slice(0, 2), 10) === currentHour) ??
+    weather.timeline.find((s) => parseInt(s.time.slice(0, 2), 10) >= currentHour) ??
+    weather.timeline[0];
+
+  const overallIcon = VERDICT_ICON[weather.overall] ?? "⚪";
+  const overallLabel = VERDICT_LABEL[weather.overall] ?? "정보없음";
+  const overallBg =
+    VERDICT_TONE[weather.overall] ?? "bg-slate-800 border-slate-700 text-slate-200";
+
+  const recText =
+    weather.recommendedWindows.length > 0
+      ? "권장 " + weather.recommendedWindows.map((w) => `${w.from}~${w.to}시`).join(", ")
+      : "권장 시간대 없음";
+
+  const alertItems = Array.from(
+    new Map(
+      weather.alerts.map((a) => {
+        const key = `${a.type}${a.level}`;
+        const timeStr = formatAlertIssuedAt(a.issuedAt);
+        const label = timeStr ? `${a.type}${a.level}(${timeStr})` : `${a.type}${a.level}`;
+        return [key, label];
+      }),
+    ).values(),
+  );
+  const alertsText = alertItems.length > 0 ? alertItems.join(", ") : null;
+
+  let slotText = "";
+  if (currentSlot) {
+    const hourLabel = `${currentSlot.time.slice(0, 2)}시`;
+    const tempText =
+      currentSlot.temp == null
+        ? "-"
+        : currentSlot.apparent != null
+          ? `${currentSlot.temp}° / ${currentSlot.apparent}°`
+          : `${currentSlot.temp}°`;
+    const humidityText = currentSlot.humidity != null ? `${currentSlot.humidity}%` : "-";
+    const windText =
+      currentSlot.windDir && currentSlot.windSpeed != null
+        ? `${currentSlot.windDir} ${currentSlot.windSpeed.toFixed(1)}`
+        : "-";
+    const rainText = currentSlot.pop != null ? `${currentSlot.pop}%` : "-";
+    const slotIcon = VERDICT_ICON[currentSlot.verdict] ?? "⚪";
+
+    slotText = `
+      <div class="rounded-lg bg-slate-900/90 p-2 border border-slate-700/70 shadow-inner space-y-1">
+        <div class="grid grid-cols-6 text-center text-[10px] font-semibold text-slate-400 pb-1 border-b border-slate-800">
+          <div>시각</div>
+          <div>기온/체감</div>
+          <div>습도</div>
+          <div>바람</div>
+          <div>강수</div>
+          <div>판정</div>
+        </div>
+        <div class="grid grid-cols-6 text-center text-[11px] font-medium text-slate-100 items-center tabular-nums">
+          <div class="font-bold text-sky-300">${hourLabel}</div>
+          <div>${tempText}</div>
+          <div>${humidityText}</div>
+          <div class="text-[10px]">${windText}</div>
+          <div>${rainText}</div>
+          <div>${slotIcon}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  container.className =
+    "overlay-card overlay-weather-card text-xs text-slate-100 space-y-2";
+  container.innerHTML = `
+    ${slotText}
+    <div class="rounded-lg border px-3 py-2 space-y-1.5 break-keep ${overallBg}">
+      <div class="flex items-center justify-between text-[11px] font-bold">
+        <span class="flex items-center gap-1">${overallIcon} ${overallLabel}</span>
+        <span class="text-[10px] font-normal opacity-90">${escapeHtml(recText)}</span>
+      </div>
+      ${
+        alertsText
+          ? `<div class="border-t border-slate-700/50 pt-1.5 text-[10px] leading-relaxed opacity-95 text-left break-keep">
+              발효 특보: ${escapeHtml(alertsText)}
+             </div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 export function createOverlayContent(
   data: MarkerRecord,
   mode: MapMode,
@@ -112,6 +238,51 @@ export function createOverlayContent(
   pointer.className = "overlay-pointer";
   container.appendChild(pointer);
 
+  // 1. 날씨 탭(weather 모드)일 때만 상단에 독립된 날씨 카드 박스를 노출한다
+  if (mode === "weather") {
+    const weatherCard = document.createElement("div");
+    weatherCard.className =
+      "overlay-card overlay-weather-card text-xs text-slate-100 space-y-1.5";
+    weatherCard.innerHTML =
+      '<div class="flex items-center gap-1.5 text-[11px] text-slate-400 py-0.5"><span class="animate-pulse">⛅</span><span>현재 시각 날씨 조회 중...</span></div>';
+    container.appendChild(weatherCard);
+
+    // 기상 정보 비동기 호출
+    const rawAddr =
+      (data as EquipmentMarker).roadAddress ||
+      (data as EquipmentMarker).jibunAddress ||
+      (data as LocationMarker).address ||
+      "";
+    const siteMatch: SiteMatch = {
+      id: data.id,
+      name: data.name,
+      address: rawAddr,
+      lat: data.lat,
+      lng: data.lng,
+      workType: (data as EquipmentMarker).workType === "elevated" ? "elevated" : "ground",
+      matchedBy: "name",
+    };
+
+    // 오버레이가 닫힌 뒤 응답이 와도 떨어져 나간 DOM을 갱신하지 않는다
+    const isStillMounted = () => weatherCard.isConnected;
+
+    fetchWorksiteWeather(siteMatch)
+      .then((weatherData) => {
+        if (!isStillMounted()) return;
+        renderWeatherBoxContent(weatherCard, weatherData);
+      })
+      .catch(() => {
+        if (!isStillMounted()) return;
+        weatherCard.innerHTML =
+          '<div class="text-[10px] text-slate-400 py-0.5">기상 정보를 불러오지 못했습니다.</div>';
+      });
+  }
+
+  // 2. 마커 정보 전용 카드 박스
+  const infoCard = document.createElement("div");
+  infoCard.className = "overlay-card overlay-info-card";
+  container.appendChild(infoCard);
+
   // mouseup/pointerup 은 막지 않는다 — 정보창 드래그 종료 이벤트가 끊기면
   // 지도가 드래그 불가 상태로 남는 문제가 발생한다
   const stopPropagation = (e: Event) => e.stopPropagation();
@@ -138,7 +309,7 @@ export function createOverlayContent(
 
   header.appendChild(title);
   header.appendChild(closeBtn);
-  container.appendChild(header);
+  infoCard.appendChild(header);
 
   const addressDiv = document.createElement("div");
   addressDiv.className = "overlay-address";
@@ -305,7 +476,7 @@ export function createOverlayContent(
     addressDiv.appendChild(teamSelectContainer);
   }
 
-  container.appendChild(addressDiv);
+  infoCard.appendChild(addressDiv);
 
   const actions = document.createElement("div");
   actions.className = "overlay-actions";
@@ -352,7 +523,7 @@ export function createOverlayContent(
     }
   }
 
-  container.appendChild(actions);
+  infoCard.appendChild(actions);
 
   root.appendChild(stem);
   root.appendChild(anchor);

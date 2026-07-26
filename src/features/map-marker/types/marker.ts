@@ -1,4 +1,4 @@
-export type MapMode = "equipment" | "battery" | "location";
+export type MapMode = "equipment" | "battery" | "location" | "weather";
 
 export interface BatterySpecItem {
   id?: string;
@@ -47,6 +47,10 @@ export interface EquipmentMarker extends BaseMarker {
   groupKey?: string | null;
   /** 같은 번지 SUB를 지도에 개별 마커로 표시할지(기본 false, 대표만 표시) */
   detachedVisible?: boolean;
+  /** 국소 검색용 별칭(쉼표 구분). 현장 호칭이 제각각이라 다중 등록을 허용한다. */
+  siteAlias?: string | null;
+  /** 'ground' | 'elevated'. 고소 국소는 작업 안전 날씨에서 강풍 판정을 강화한다. */
+  workType?: string | null;
 }
 
 export interface BatteryMarker extends BaseMarker {
@@ -55,6 +59,10 @@ export interface BatteryMarker extends BaseMarker {
   capacity: number;
   quantity: number;
   stationName: string;
+  /** 국소 검색용 별칭(쉼표 구분). 현장 호칭이 제각각이라 다중 등록을 허용한다. */
+  siteAlias?: string | null;
+  /** 'ground' | 'elevated'. 고소 국소는 작업 안전 날씨에서 강풍 판정을 강화한다. */
+  workType?: string | null;
 }
 
 /** 브라우저 전용 임시 위치 마커 (DB 미저장) */

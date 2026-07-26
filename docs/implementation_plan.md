@@ -1,5 +1,79 @@
 # Implementation Plan
 
+## [2026-07-26] CR-004 · 국소 작업 안전 날씨(기상청 API) 계획서 프로젝트 정합화
+
+### 사용자 요청 (원문)
+
+**최초 요청**
+> "C:\Users\hyste\Downloads\MapMarkerPro_국소작업안전날씨_구현계획서_v4.md"  윕마커게 기상청 api연결하는 계획서 인데 , 여기 프로젝트 구성과 맞쳐보고 수정할 부분 수정을 해줘
+
+**후속 요청**
+> 문서 만들어줘
+
+### 파악 결과
+
+외부에서 작성된 v4.0 계획서를 실제 저장소 구성과 대조한 결과 **13건 불일치**. 기능 요구(07~17시 타임라인, 바람·습도, 태풍 조건부) 자체는 타당하나 전제가 어긋나 있다.
+
+**구조 불일치 — 그대로는 착수 불가**
+
+| # | 계획서 전제 | 실제 |
+| --- | --- | --- |
+| C1 | D1에 국소 마스터 | Supabase PostgreSQL. `wrangler.jsonc`에 D1 바인딩 없음 |
+| C2 | `ALTER TABLE locations` | 그런 테이블 없음. `markers` / `battery_markers` 2종 |
+| C3 | "위치" 탭 = 국소 DB | `types/marker.ts:60` — `LocationMarker`는 브라우저 전용 임시 마커, **DB 미저장** |
+| C4 | 서버에서 주소 지오코딩 | `lib/geocode.ts`는 `window.kakao.maps.services` 의존 → 서버 호출 불가 |
+
+**원본 자체 결함 2건 (프로젝트와 무관)**
+
+- **C7** `getVilageBase()`가 최신 발표시각을 반환 → 14시 조회 시 base=1400이라 **07~13시 슬롯 전량 결측**. 같은 문서 §4.4 본문("02시·05시 발표분을 써야 한다")과 코드가 모순.
+- **C8** `parseAmount`가 `"1.0mm 미만"`을 절반(0.5)으로 환산 → 안전 판정에서 **위험 과소평가 방향**. `"30.0~50.0mm"`도 정규식이 첫 숫자만 잡아 상한 누락.
+
+**배포 환경 전제 오류**
+
+- **C5** `caches.default` / `fetch(cf:{cacheTtl})`는 `*.workers.dev`에서 동작하지 않음. 현재 배포가 `newmarker.celyoon.workers.dev` → §8.1 TTL 표가 배포 환경에서 전부 무효. `open-next.config.ts`가 기본값이라 incremental cache도 미구성.
+- **C13** "무료 플랜 CPU 10ms" 단정. OpenNext SSR 자체가 CPU를 소비하므로 검증 없이 신뢰 불가.
+
+**규약 불일치** — C6 스키마 과다(`grid_nx/ny`·`warn_stn_id` 불필요) · C9 JS 예제(TS·`any` 금지 규약) · C10 `guardProxyRequest` 누락 · C11 파일 배치 미지정 · C12 11×7 표(줄바꿈·가로스크롤 금지 규칙 위반).
+
+**계획서에 없던 누락 2건**
+
+- 컬럼 추가 시 `lib/excel/data-manager/headers.ts`·`full-backup.ts` 동시 갱신 필요 → 미반영 시 **백업 왕복에서 유실**.
+- `vitest.config.ts`의 `include`가 `src/**/*.{test,spec}.ts` → **`.tsx` 테스트는 실행되지 않음**.
+
+### 설계
+
+**문서**: `docs/Ver_1.0/CR-004.md` 신규(CR-001~003 형식 준용). 원본은 Downloads에 보존, 본 CR을 v4.1 정합본으로 삼는다.
+
+**아키텍처 전환 — 국소 해석을 클라이언트로 이관**
+- 마커 전량이 이미 `use-map-markers-query`로 스토어에 로드되어 있고, 지오코딩도 브라우저 SDK 전용 → 서버 DB 조회·지오코딩을 **전부 클라이언트에서** 끝낸다.
+- `/api/worksite-weather`는 `lat`/`lng`/`workType`만 받는 **순수 프록시**. Supabase 접근이 서버 경로에 존재하지 않으므로 별도 키·RLS 설계가 불필요해진다.
+- 검색 폴백: ① `battery_markers` 스토어 부분일치(이름·주소·별칭) → ② 기존 `geocodeAddress()` → ③ 지도 클릭(기존 위치 탭 흐름 재사용).
+
+**스키마 최소화** — `battery_markers`에 `site_alias`·`work_type` 2컬럼만. `grid_nx/ny`는 Lambert 변환이 수 µs라 저장 시 stale 경로만 늘어 온디맨드 계산으로, `warn_stn_id`는 전남권 전부 156이라 코드 상수로 대체.
+
+**로직 수정** — `getVilageBaseForToday()`(05 → 02 → 전일 23 폴백)로 오전 슬롯 결측 제거. `parseAmount`는 `{ max, label }` 반환으로 **판정은 상한 / 표시는 기상청 원문** 분리, `"미만"`만 임계값 직전값 적용.
+
+**캐시 2단계** — 1단계 isolate 메모리 캐시(`proxy-guard.ts` 패턴) + 응답 `Cache-Control`, 2단계 커스텀 도메인 연결 후 Cache API 활성화. 논리 TTL은 구현 방식과 무관하게 동일 적용.
+
+**배치** — `src/features/worksite-weather/{components,hooks,lib,constants,types}` + `src/app/api/worksite-weather/route.ts` + 마이그레이션 1건. 임계값(31/33/35/38℃, 10m/s, 1mm, 1cm)은 `constants/thresholds.ts` 단일 파일.
+
+### 완료 기준
+
+**본 작업(문서)**
+- CR-004에 13건 불일치의 **원인·조치·근거 파일**이 전부 명시.
+- 삭제한 원본 항목을 부록 C에 사유와 함께 기록(착오로 되살아나는 것 방지).
+- 격자 변환식 실검증.
+
+**후속 구현(미착수)** — CR-004 §12 수용 기준으로 이관. 07~17시 11슬롯 무결측(07·12·16시 조회 각각), `parseAmount` 전 케이스, 발표시각 경계(02:14/02:16/05:14/05:16/00:05 KST), 외부 origin 403, `KMA_SERVICE_KEY` 번들 미노출, 백업 왕복 무손실, tsc/eslint/vitest 통과.
+
+### 미결 (착수 전 사용자 확인 필요)
+
+- Cloudflare Workers **현재 요금제** (CPU 한도 · Cache API 가용 여부)
+- **커스텀 도메인 연결 여부** — 캐시 전략의 전제
+- 기상특보 `getWthrWrnList` 실제 응답 스키마 — 특보구역코드를 입력으로 받지 않고 본문이 자유 서술 텍스트라 시·군·구 문자열 매칭 필요. **키 발급 후 확인 전까지 파싱 설계 확정 불가**
+
+---
+
 ## [2026-07-23] 위치탭 — 주소 다중 입력으로 마커 표시
 
 ### 사용자 요청 (원문)

@@ -1,4 +1,10 @@
-import html2canvas from "html2canvas";
+/**
+ * html2canvas(약 190KB)는 지도 캡처를 실행하는 순간에만 필요하다.
+ * 정적 import하면 캡처 패널을 통해 홈 첫 로딩 번들에 실린다.
+ */
+async function loadHtml2Canvas() {
+  return (await import("html2canvas")).default;
+}
 
 /** 캡처 해상도 배율 — 글씨 판독용 */
 export const MAP_CAPTURE_SCALE = 2;
@@ -376,6 +382,8 @@ async function captureOnce(
 ): Promise<HTMLCanvasElement> {
   const { imageDataUrls, backgroundDataUrls } =
     await prefetchMapTileDataUrls(mapContainer);
+
+  const html2canvas = await loadHtml2Canvas();
 
   return html2canvas(mapContainer, {
     useCORS: true,

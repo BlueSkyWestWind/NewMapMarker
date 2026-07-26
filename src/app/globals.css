@@ -118,13 +118,11 @@
   position: absolute;
   left: 0;
   top: 0;
-  background: #0f172a; /* Slate 900 */
-  border: 1px solid #1e293b; /* Slate 800 */
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow:
-    0 10px 15px -3px rgba(0, 0, 0, 0.5),
-    0 4px 6px -4px rgba(0, 0, 0, 0.5);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   color: #f8fafc; /* Slate 50 */
   /* 긴 국소명이 한 줄로 들어가도록 내용 너비에 맞춰 확장 */
   width: max-content;
@@ -133,10 +131,30 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   z-index: 3;
-  overflow: hidden;
+  pointer-events: auto;
   animation: bubblePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 각각 분리된 카드 박스 (상단 날씨 카드 & 하단 정보 카드) */
+.overlay-card {
+  background: #0f172a; /* Slate 900 */
+  border: 1px solid #1e293b; /* Slate 800 */
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.6),
+    0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.overlay-weather-card {
+  min-width: 310px;
+  word-break: keep-all;
 }
 
 /* 캡처용 텍스트 라벨: 정보창 박스 없이 국소명 + 주소만 텍스트로 표시 */

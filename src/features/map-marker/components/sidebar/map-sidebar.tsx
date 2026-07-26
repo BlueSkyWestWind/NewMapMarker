@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { match } from "ts-pattern";
 import {
+  CloudSun,
   Database,
   FileSpreadsheet,
   Filter,
@@ -31,6 +32,7 @@ import { LocationAddressSection } from "@/features/map-marker/components/sidebar
 import { MarkersListPanel } from "@/features/map-marker/components/sidebar/markers-list-panel";
 import { ModeTabs } from "@/features/map-marker/components/sidebar/mode-tabs";
 import { PlaceSearchSection } from "@/features/map-marker/components/sidebar/place-search-section";
+import { WorksiteWeatherPanel } from "@/features/worksite-weather/components/worksite-weather-panel";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useHasMounted } from "@/hooks/use-has-mounted";
@@ -78,6 +80,7 @@ export function MapSidebar({
   const showAuthenticatedSections =
     hasMounted && isAuthenticated && mode !== "location";
   const isLocationMode = mode === "location";
+  const isWeatherMode = mode === "weather";
 
   // 위치탭은 로그인 상태에서만 사용 가능. 로그아웃 시 잠그고,
   // 이미 위치모드였다면 장비모드로 강제 전환해 지도까지 일관되게 차단한다.
@@ -92,12 +95,13 @@ export function MapSidebar({
     .with("equipment", () => `장비 ${equipmentCount}건`)
     .with("battery", () => `축전지 ${batteryCount}건`)
     .with("location", () => `위치 ${locationCount}건 · 임시`)
+    .with("weather", () => `국소 작업 안전 날씨`)
     .exhaustive();
 
   const countSummary = [
     countLabel,
     hasMounted && isLoading ? "로딩 중" : "",
-    !isLocationMode && invalidCoordinateCount > 0
+    !isLocationMode && !isWeatherMode && invalidCoordinateCount > 0
       ? `좌표 없음 ${invalidCoordinateCount}건`
       : "",
   ]
@@ -168,94 +172,97 @@ export function MapSidebar({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {isLocationMode ? (
+        {isWeatherMode ? (
+          <WorksiteWeatherPanel />
+        ) : isLocationMode ? (
           <div className="mb-3 rounded-lg border border-emerald-800/50 bg-emerald-950/40 px-3 py-2 text-[11px] leading-relaxed text-emerald-200/90">
             엑셀 업로드로 위치를 등록하세요. 이름·주소만 표시하며, 새로고침 시
             사라집니다. 우측 카메라로 영역 캡처할 수 있습니다.
           </div>
         ) : null}
 
-        <Accordion
-          type="multiple"
-          defaultValue={
-            isLocationMode
-              ? ["location-address", "location-excel", "markers"]
-              : defaultAccordion
-          }
-          className="space-y-2"
-        >
-          {isLocationMode ? (
-            <AccordionItem value="location-address" className="border-slate-800">
-              <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-                <span className="flex items-center gap-2">
-                  <MapPin className="h-3.5 w-3.5 text-emerald-400" />
-                  주소로 위치 찍기
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <LocationAddressSection />
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-
-          {isLocationMode ? (
-            <AccordionItem value="location-excel" className="border-slate-800">
-              <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-                <span className="flex items-center gap-2">
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
-                  엑셀로 위치 찍기
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <LocationExcelSection />
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-
-          {showAuthenticatedSections && mode === "equipment" ? (
-            <AccordionItem value="equipment-location" className="border-slate-800">
-              <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-                <span className="flex items-center gap-2">
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-400" />
-                  위치 등록 및 관리
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-2">
-                  <EquipmentExcelSection />
-                  <EquipmentInfoSection />
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-
-          {showAuthenticatedSections && mode === "battery" ? (
-            <AccordionItem value="battery-excel" className="border-slate-800">
-              <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-                <span className="flex items-center gap-2">
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
-                  엑셀로 위치 찍기 (축전지)
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <BatteryExcelSection />
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-
-          {!isLocationMode ? (
-            <>
-              <AccordionItem value="filters" className="border-slate-800">
+        {!isWeatherMode ? (
+          <Accordion
+            type="multiple"
+            defaultValue={
+              isLocationMode
+                ? ["location-address", "location-excel", "markers"]
+                : defaultAccordion
+            }
+            className="space-y-2"
+          >
+            {isLocationMode ? (
+              <AccordionItem value="location-address" className="border-slate-800">
                 <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
                   <span className="flex items-center gap-2">
-                    <Filter className="h-3.5 w-3.5 text-indigo-400" />
-                    연도·사업·색상·태그 표시
+                    <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                    주소로 위치 찍기
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <FilterPanel mode={mode} filterOptions={filterOptions} />
+                  <LocationAddressSection />
                 </AccordionContent>
               </AccordionItem>
+            ) : null}
+
+            {isLocationMode ? (
+              <AccordionItem value="location-excel" className="border-slate-800">
+                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+                    엑셀로 위치 찍기
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <LocationExcelSection />
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+
+            {showAuthenticatedSections && mode === "equipment" ? (
+              <AccordionItem value="equipment-location" className="border-slate-800">
+                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-400" />
+                    위치 등록 및 관리
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-2">
+                    <EquipmentExcelSection />
+                    <EquipmentInfoSection />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+
+            {showAuthenticatedSections && mode === "battery" ? (
+              <AccordionItem value="battery-excel" className="border-slate-800">
+                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+                    엑셀로 위치 찍기 (축전지)
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <BatteryExcelSection />
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+
+            {!isLocationMode ? (
+              <>
+                <AccordionItem value="filters" className="border-slate-800">
+                  <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                    <span className="flex items-center gap-2">
+                      <Filter className="h-3.5 w-3.5 text-indigo-400" />
+                      연도·사업·색상·태그 표시
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <FilterPanel mode={mode} filterOptions={filterOptions} />
+                  </AccordionContent>
+                </AccordionItem>
 
               <AccordionItem value="search" className="border-slate-800">
                 <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
@@ -299,7 +306,8 @@ export function MapSidebar({
             </AccordionContent>
           </AccordionItem>
         </Accordion>
-      </div>
+      ) : null}
+    </div>
 
       {showAuthenticatedSections ? (
         <footer className="border-t border-slate-800">

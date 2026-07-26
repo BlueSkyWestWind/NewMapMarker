@@ -88,28 +88,75 @@ function buildInformationIndexes(infoList: InformationRow[]) {
   return { infoByMarkerId, infoByName };
 }
 
+/** 한 번에 요청할 행 수. PostgREST 기본 상한(보통 1000)과 맞춰 둔다. */
+const FETCH_PAGE_SIZE = 1000;
+/** 무한 루프 방지 상한. 5만 행까지 커버한다. */
+const MAX_FETCH_PAGES = 50;
+
+export interface FetchPageResult<Row> {
+  data: Row[] | null;
+  error: { message: string } | null;
+  count: number | null;
+}
+
+/**
+ * PostgREST는 요청 범위와 무관하게 서버 설정 상한(보통 1000행)까지만 돌려준다.
+ * `select('*')`만 쓰면 그 이상은 **오류 없이 조용히 잘린다** — 마커가 지도에서 사라지는데
+ * 에러도 안 난다. 그래서 총 건수(count)를 보고 다 받을 때까지 이어서 요청한다.
+ *
+ * 서버 상한이 요청 크기보다 작아도(예: 500) 실제 받은 개수만큼 커서를 옮기므로 누락되지 않는다.
+ */
+export async function fetchAllRows<Row>(
+  fetchPage: (from: number, to: number) => PromiseLike<FetchPageResult<Row>>,
+): Promise<Row[]> {
+  const rows: Row[] = [];
+
+  for (let page = 0; page < MAX_FETCH_PAGES; page += 1) {
+    const from = rows.length;
+    const { data, error, count } = await fetchPage(from, from + FETCH_PAGE_SIZE - 1);
+    if (error) throw error;
+
+    const batch = data ?? [];
+    rows.push(...batch);
+
+    // 더 받을 게 없다
+    if (batch.length === 0) break;
+    if (count !== null && count !== undefined && rows.length >= count) break;
+    // count를 못 받은 경우엔 페이지가 덜 찼는지로 판단한다
+    if ((count === null || count === undefined) && batch.length < FETCH_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
 export async function fetchMapMarkers(
   supabase: SupabaseBrowserClient,
 ): Promise<MapMarkersPayload> {
-  const [
-    { data: markersList, error: markersError },
-    { data: infoList, error: infoError },
-    { data: batteryMarkersList, error: batteryMarkersError },
-    { data: batterySpecsList, error: batterySpecsError },
-  ] = await Promise.all([
-    supabase.from('markers').select('*').order('created_at', { ascending: false }),
-    supabase.from('information').select('*'),
-    supabase
-      .from('battery_markers')
-      .select('*')
-      .order('created_at', { ascending: false }),
-    supabase.from('battery_specs').select('*'),
+  // 페이지 경계가 흔들리지 않도록 정렬에 항상 유일 키(id)를 tiebreaker로 붙인다
+  const [markersList, infoList, batteryMarkersList, batterySpecsList] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase
+        .from('markers')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase.from('information').select('*', { count: 'exact' }).order('id').range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('battery_markers')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase.from('battery_specs').select('*', { count: 'exact' }).order('id').range(from, to),
+    ),
   ]);
-
-  if (markersError) throw markersError;
-  if (infoError) throw infoError;
-  if (batteryMarkersError) throw batteryMarkersError;
-  if (batterySpecsError) throw batterySpecsError;
 
   const { infoByMarkerId, infoByName } = buildInformationIndexes(
     (infoList ?? []) as InformationRow[],
@@ -146,6 +193,9 @@ export async function fetchMapMarkers(
       groupRole: row.group_role ?? null,
       groupKey: row.group_key ?? null,
       detachedVisible: row.detached_visible ?? false,
+      // CR-004 마이그레이션 미적용 DB에서도 조회가 깨지지 않게 optional로 읽는다
+      siteAlias: row.site_alias ?? null,
+      workType: row.work_type ?? null,
       createdAt: formatDateOnly(row.created_at) || new Date().toISOString().split('T')[0],
     };
   });
@@ -190,6 +240,9 @@ export async function fetchMapMarkers(
         capacity: repSpec?.capacity ?? DEFAULT_BATTERY_CAPACITY,
         quantity: repSpec?.quantity ?? DEFAULT_BATTERY_QUANTITY,
         stationName: repSpec?.station_name ?? row.name ?? '',
+        // CR-004 마이그레이션 미적용 DB에서도 조회가 깨지지 않게 optional로 읽는다
+        siteAlias: row.site_alias ?? null,
+        workType: row.work_type ?? null,
       };
     },
   );
