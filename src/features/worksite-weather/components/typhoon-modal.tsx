@@ -25,6 +25,16 @@ interface TyphoonModalProps {
 
 type TyphoonTab = "windy" | "typ_map" | "typ_info" | "safety_guide";
 
+/**
+ * 기상청 태풍정보 페이지.
+ *
+ * 날씨누리는 2021년 이후 `www.weather.go.kr/w/` 로 시작하는 페이지만 운영한다.
+ * 이전에 쓰던 `/w/weather/typhoon/typ-status.do`는 `/w/`로 시작하는데도
+ * 실제로는 서비스되지 않아 "서비스 이용에 불편을 드려 죄송합니다" 안내 페이지가 떴다.
+ * 링크를 바꿀 때는 응답 본문에 그 문구가 없는지까지 확인할 것 — 오류 페이지도 200을 반환한다.
+ */
+const KMA_TYPHOON_URL = "https://www.weather.go.kr/w/typhoon/ko/weather/typhoon_02.jsp";
+
 const MIN_SIZE = { width: 500, height: 380 };
 
 function getLargeDefaultSize() {
@@ -88,7 +98,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
   };
 
   const getSourceUrl = () => {
-    return `https://www.weather.go.kr/w/weather/typhoon/typ-status.do?t=${refreshKey}`;
+    return `${KMA_TYPHOON_URL}?t=${refreshKey}`;
   };
 
   const getWindyUrl = () => {
@@ -197,7 +207,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
           <div className="flex items-center gap-2">
             <GripHorizontal className="h-4 w-4 text-rose-400" />
             <div className="flex h-7 w-7 items-center justify-center rounded-md border border-rose-500/40 bg-rose-900/40 text-rose-300">
-              <span className="text-base animate-spin">🌀</span>
+              <span className="text-base" aria-hidden>🌀</span>
             </div>
             <div>
               <h3 className="text-xs font-bold text-rose-100 flex items-center gap-2">
@@ -328,9 +338,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
 
           <a
             href={
-              activeTab === "windy"
-                ? "https://www.windy.com"
-                : "https://www.weather.go.kr/w/weather/typhoon/typ-status.do"
+              activeTab === "windy" ? "https://www.windy.com" : KMA_TYPHOON_URL
             }
             target="_blank"
             rel="noopener noreferrer"

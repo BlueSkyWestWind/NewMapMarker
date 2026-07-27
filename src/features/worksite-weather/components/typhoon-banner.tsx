@@ -21,7 +21,7 @@ export function TyphoonBanner({ typhoon, onOpenDetail }: TyphoonBannerProps) {
     <section className="rounded-lg border border-rose-500/60 bg-rose-950/60 px-3 py-2.5 text-rose-100 shadow-md">
       <div className="flex items-center justify-between">
         <h3 className="flex items-center gap-1.5 text-xs font-bold text-rose-200">
-          <span className="animate-spin text-sm" aria-hidden>
+          <span className="text-sm" aria-hidden>
             🌀
           </span>
           태풍{typhoon.alertLevel} 발효

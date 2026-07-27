@@ -269,7 +269,7 @@ export function WorksiteWeatherPanel() {
           className="h-8 border border-rose-600/50 bg-gradient-to-r from-rose-950/80 via-slate-900 to-amber-950/80 text-[11px] font-semibold text-rose-200 shadow-md transition-all hover:border-rose-400 hover:text-white"
           onClick={() => setIsTyphoonModalOpen(true)}
         >
-          <span className="mr-1 text-sm animate-spin">🌀</span>
+          <span className="mr-1 text-sm" aria-hidden>🌀</span>
           실시간 태풍 정보
         </Button>
       </div>
