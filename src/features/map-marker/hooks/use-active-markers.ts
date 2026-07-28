@@ -59,53 +59,34 @@ export function useActiveMarkers() {
   });
   const previousModeRef = useRef(mode);
 
-  const weatherSearchMarkerIds = useMapMarkerStore(
-    (state) => state.weatherSearchMarkerIds,
-  );
-  const savedWeatherSites = useMapMarkerStore(
-    (state) => state.savedWeatherSites,
-  );
-
   const markers = useMemo<MarkerRecord[]>(() => {
+    // 날씨 모드는 지도에 마커를 두지 않는다.
+    // 사이드바가 날씨 패널만 렌더하므로(map-sidebar.tsx) 이 목록의 유일한 소비처가 지도다.
+    if (mode === "weather") {
+      return [];
+    }
+
     // 위치 모드는 DB 없이 브라우저 메모리 목록만 사용한다.
     if (mode === "location") {
       return pendingLocationMarkers;
     }
 
-    // weather 모드에서는 기본적으로 장비 마커(equipmentMarkers)를 보여준다
-    const isEquipmentOrWeather = mode === "equipment" || mode === "weather";
+    const isEquipment = mode === "equipment";
     const base = !data
       ? []
-      : isEquipmentOrWeather
+      : isEquipment
         ? data.equipmentMarkers
         : data.batteryMarkers;
-    const pending = isEquipmentOrWeather
-      ? pendingEquipmentMarkers
-      : pendingBatteryMarkers;
+    const pending = isEquipment ? pendingEquipmentMarkers : pendingBatteryMarkers;
     const pendingIds = new Set(pending.map((marker) => marker.id));
-    const merged = [...base.filter((marker) => !pendingIds.has(marker.id)), ...pending];
 
-    // weather 모드 필터링: 검색 결과가 있으면 검색 마커만, 없으면 저장된 작업 국소 마커만 표시
-    if (mode === "weather") {
-      if (weatherSearchMarkerIds !== null) {
-        const matchSet = new Set(weatherSearchMarkerIds);
-        return merged.filter((marker) => matchSet.has(marker.id));
-      }
-      if (savedWeatherSites.length > 0) {
-        const savedIds = new Set(savedWeatherSites.map((s) => s.id));
-        return merged.filter((marker) => savedIds.has(marker.id));
-      }
-    }
-
-    return merged;
+    return [...base.filter((marker) => !pendingIds.has(marker.id)), ...pending];
   }, [
     data,
     mode,
     pendingEquipmentMarkers,
     pendingBatteryMarkers,
     pendingLocationMarkers,
-    weatherSearchMarkerIds,
-    savedWeatherSites,
   ]);
 
   const filterOptions = useMemo(
