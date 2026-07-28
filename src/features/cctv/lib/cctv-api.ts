@@ -1,10 +1,21 @@
-import type { BoundingBox } from "@/features/cctv/constants/its-config";
-import type { CctvResponse } from "@/features/cctv/types/cctv";
+import { ROAD_TYPES, type BoundingBox } from "@/features/cctv/constants/its-config";
+import { buildCctvSurvey } from "@/features/cctv/lib/build-survey";
+import {
+  collectFieldNames,
+  fetchCctvByRoadType,
+  hasRoadSectionField,
+  ItsError,
+} from "@/features/cctv/lib/its-client";
+import type { CctvItem, CctvResponse } from "@/features/cctv/types/cctv";
 
 export interface CctvQuery {
   bbox: BoundingBox;
   roadTypes: string[];
 }
+
+const NOTICE =
+  "경계상자는 사각형이라 전북 남부·경남 서부가 섞여 있습니다. " +
+  "정확한 광주·전남 대수는 행정경계 클리핑 후에 나옵니다.";
 
 export function cctvQueryKey(query: CctvQuery): string {
   const { minX, maxX, minY, maxY } = query.bbox;
@@ -12,73 +23,73 @@ export function cctvQueryKey(query: CctvQuery): string {
 }
 
 /**
- * 브라우저 → 자기 서버(`/api/cctv`) 조회.
- * 서버가 500을 내면 본문이 평문이라 그대로 JSON.parse하면 사용자에게 파싱 오류가 노출된다.
+ * 브라우저에서 ITS를 직접 조회한다.
+ *
+ * 서버 경유가 전부 막혀 자기 서버 라우트를 두지 않는다(계획서 부록 E).
+ * 도로 종별로 나누어 부르고 **한쪽이 실패해도 나머지는 살린다** —
+ * 고속도로만 받아도 지도에 올릴 값어치가 있다.
  */
 export async function fetchCctv(query: CctvQuery): Promise<CctvResponse> {
-  const params = new URLSearchParams({
-    minX: String(query.bbox.minX),
-    maxX: String(query.bbox.maxX),
-    minY: String(query.bbox.minY),
-    maxY: String(query.bbox.maxY),
-    roadTypes: query.roadTypes.join(","),
-  });
-
-  const response = await fetch(`/api/cctv?${params.toString()}`);
-  const text = await response.text();
-
-  let body: Partial<CctvResponse> & { error?: string } = {};
-  let isJson = false;
-  try {
-    body = JSON.parse(text) as typeof body;
-    isJson = true;
-  } catch {
-    isJson = false;
+  const allowed = new Set<string>(ROAD_TYPES.map((t) => t.code));
+  const roadTypes = query.roadTypes.filter((type) => allowed.has(type));
+  if (roadTypes.length === 0) {
+    throw new Error(`도로 종별을 ${[...allowed].join(", ")} 중에서 선택하세요.`);
   }
 
-  if (!response.ok || !isJson) {
-    if (isJson && body.error) throw new Error(body.error);
-    throw new Error(`CCTV 정보를 가져오지 못했습니다. (서버 응답 ${response.status})`);
+  const results = await Promise.all(
+    roadTypes.map(async (roadType) => {
+      try {
+        return { roadType, result: await fetchCctvByRoadType(roadType, query.bbox) };
+      } catch (error) {
+        const message =
+          error instanceof ItsError ? error.message : "조회에 실패했습니다.";
+        return { roadType, error: message };
+      }
+    }),
+  );
+
+  // 인증키 문제는 부분 실패가 아니라 전체 실패다. 경고로 흘리면 원인이 묻힌다.
+  const authError = results.find(
+    (entry) => "error" in entry && entry.error?.includes("인증키"),
+  );
+  if (authError && "error" in authError) {
+    throw new Error(authError.error);
   }
-  return normalizeCctvResponse(body);
-}
 
-const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+  const items: CctvItem[] = [];
+  const warnings: string[] = [];
+  const sampleFields = new Set<string>();
+  let sawRoadSectionField = false;
 
-/**
- * 응답을 화면이 기대하는 형태로 맞춘다.
- *
- * 라우트 응답은 `Cache-Control: private, max-age=600`으로 브라우저에 캐시된다.
- * 서버에 필드를 추가한 직후에는 **그 필드가 없는 이전 응답**이 그대로 그려지므로,
- * 화면에서 `.length`·`.map`을 바로 부르면 배포 직후 10분 동안 패널이 깨진다.
- * 배열 필드는 여기서 한 번만 보정한다.
- */
-export function normalizeCctvResponse(
-  body: Partial<CctvResponse> & { error?: string },
-): CctvResponse {
-  const survey = (body.survey ?? {}) as Partial<CctvResponse["survey"]>;
+  for (const entry of results) {
+    if ("error" in entry && entry.error) {
+      warnings.push(`${entry.roadType} 조회 실패: ${entry.error}`);
+      continue;
+    }
+    if (!("result" in entry) || !entry.result) continue;
+
+    if (hasRoadSectionField(entry.result.rows)) sawRoadSectionField = true;
+    for (const name of collectFieldNames(entry.result.rows)) sampleFields.add(name);
+    items.push(...entry.result.items);
+
+    // 호출은 성공했는데 행이 0건이면 응답 구조가 예상과 다를 수 있다.
+    // 실제 모양을 남겨야 "CCTV가 없는 것"과 "파싱이 안 된 것"을 구분할 수 있다.
+    if (entry.result.rows.length === 0) {
+      warnings.push(
+        `${entry.roadType}: 응답에서 행을 찾지 못했습니다 (구조: ${entry.result.shape})`,
+      );
+    }
+  }
+
+  // 같은 CCTV가 도로 종별을 넘나들며 중복될 수 있다
+  const deduped = [...new Map(items.map((item) => [item.id, item])).values()];
 
   return {
-    bbox: body.bbox ?? { minX: 0, maxX: 0, minY: 0, maxY: 0 },
-    roadTypes: asArray<string>(body.roadTypes),
-    items: asArray(body.items),
-    warnings: asArray<string>(body.warnings),
-    notice: body.notice ?? "",
-    survey: {
-      total: survey.total ?? 0,
-      hasRoadSectionField: survey.hasRoadSectionField ?? false,
-      roadSectionFilled: survey.roadSectionFilled ?? 0,
-      roadSectionFilledPercent: survey.roadSectionFilledPercent ?? 0,
-      roadSectionVerdict: survey.roadSectionVerdict ?? "판정불가",
-      sampleFields: asArray<string>(survey.sampleFields),
-      directionUpDown: survey.directionUpDown ?? 0,
-      directionToward: survey.directionToward ?? 0,
-      directionArrow: survey.directionArrow ?? 0,
-      directionNone: survey.directionNone ?? 0,
-      directionNonePercent: survey.directionNonePercent ?? 0,
-      needsManualDirectionUi: survey.needsManualDirectionUi ?? false,
-      topTowards: asArray(survey.topTowards),
-      byRoadType: asArray(survey.byRoadType),
-    },
+    bbox: query.bbox,
+    roadTypes,
+    items: deduped,
+    survey: buildCctvSurvey(deduped, sawRoadSectionField, [...sampleFields].sort()),
+    warnings,
+    notice: NOTICE,
   };
 }
