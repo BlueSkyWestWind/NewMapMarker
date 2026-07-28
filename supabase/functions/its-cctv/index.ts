@@ -61,6 +61,42 @@ function readBbox(params: URLSearchParams): Record<string, string> | null {
   return bbox;
 }
 
+/**
+ * ITS 호출이 실패했을 때만 도는 대조군.
+ *
+ * - `example.com:443` → 이 리전의 아웃바운드가 살아 있는가
+ * - `www.its.go.kr:443` → ITS 도메인 자체에 닿는가 (한국 대상 차단 여부)
+ * - `openapi.its.go.kr:443` → 같은 호스트의 표준 포트는 어떤가
+ *
+ * 셋을 비교하면 "리전 문제 / 한국망 문제 / 9443 포트 문제"가 갈린다.
+ * 원인이 확정되면 이 함수는 지운다.
+ */
+async function probeEgress(): Promise<string> {
+  const targets: [string, string][] = [
+    ["example.com:443", "https://example.com/"],
+    ["www.its.go.kr:443", "https://www.its.go.kr/"],
+    ["openapi.its.go.kr:443", "https://openapi.its.go.kr/"],
+  ];
+
+  const results = await Promise.all(
+    targets.map(async ([label, url]) => {
+      const started = Date.now();
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(8_000),
+          redirect: "manual",
+        });
+        return `${label}=${response.status}(${Date.now() - started}ms)`;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "실패";
+        return `${label}=✗ ${reason}(${Date.now() - started}ms)`;
+      }
+    }),
+  );
+
+  return results.join(" · ");
+}
+
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -115,7 +151,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "원인 불명";
-    return json({ error: `ITS API 연결에 실패했습니다. (${reason})` }, 502);
+    // 실패 원인이 "이 리전의 아웃바운드 전체"인지 "ITS의 9443 포트"인지를 가른다.
+    // 이것 없이는 배포·확인을 반복하며 추측만 쌓게 된다. 원인이 확정되면 지운다.
+    return json(
+      { error: `ITS API 연결에 실패했습니다. (${reason}) 대조군: ${await probeEgress()}` },
+      502,
+    );
   }
 
   const text = await upstream.text();
