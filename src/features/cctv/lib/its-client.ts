@@ -23,17 +23,39 @@ const FETCH_TIMEOUT_MS = 20_000;
 
 export class ItsError extends Error {}
 
-function getApiKey(): string {
-  const key = (process.env.NEXT_PUBLIC_ITS_API_KEY ?? "").trim();
-  if (!key) {
-    throw new ItsError(
-      "ITS 인증키가 설정되지 않았습니다. " +
-        "로컬은 .env.local의 NEXT_PUBLIC_ITS_API_KEY에, " +
-        "배포 환경은 Cloudflare 빌드 환경변수에 등록하세요. " +
-        "(발급: https://www.its.go.kr/opendata/)",
-    );
+/** 서버에서 받아온 키. 조회할 때마다 다시 받지 않는다. */
+let keyPromise: Promise<string> | null = null;
+
+async function fetchApiKeyFromServer(): Promise<string> {
+  const response = await fetch("/api/its-key", { cache: "no-store" });
+  const body = (await response.json().catch(() => ({}))) as {
+    key?: string;
+    error?: string;
+  };
+
+  if (!response.ok || !body.key) {
+    throw new ItsError(body.error ?? "ITS 인증키를 가져오지 못했습니다.");
   }
-  return key;
+  return body.key;
+}
+
+/**
+ * ITS 인증키.
+ *
+ * 빌드 시점에 값이 박혔으면 그대로 쓰고(로컬 `.env.local` 경로),
+ * 없으면 런타임에 서버에서 받아온다. `NEXT_PUBLIC_*`은 빌드 때만 치환되므로
+ * Cloudflare 런타임 변수로 등록한 경우 이 경로가 아니면 키를 찾지 못한다.
+ */
+async function getApiKey(): Promise<string> {
+  const inlined = (process.env.NEXT_PUBLIC_ITS_API_KEY ?? "").trim();
+  if (inlined) return inlined;
+
+  // 실패한 약속을 남겨 두면 이후 조회가 영구히 같은 오류로 막힌다
+  keyPromise ??= fetchApiKeyFromServer().catch((error: unknown) => {
+    keyPromise = null;
+    throw error;
+  });
+  return keyPromise;
 }
 
 /**
@@ -175,7 +197,7 @@ export async function fetchCctvByRoadType(
   bbox: BoundingBox,
 ): Promise<FetchCctvResult> {
   const url = new URL(ITS_ENDPOINT);
-  url.searchParams.set("apiKey", getApiKey());
+  url.searchParams.set("apiKey", await getApiKey());
   url.searchParams.set("type", roadType);
   // 4 = 실시간 스트리밍(HLS) **HTTPS**.
   // 1도 같은 영상이지만 http로만 내려와 HTTPS 페이지에서 혼합 콘텐츠로 차단된다.
