@@ -19,7 +19,7 @@ const MODE_TABS: Array<{
   { mode: "equipment", label: "장비", icon: Server },
   { mode: "battery", label: "축전지", icon: Battery },
   { mode: "location", label: "위치", icon: MapPin },
-  { mode: "weather", label: "날씨", icon: CloudSun },
+  { mode: "weather", label: "날씨&CCTV", icon: CloudSun },
 ];
 
 export function ModeTabs({ mode, onChange, lockedModes = [] }: ModeTabsProps) {
@@ -37,7 +37,9 @@ export function ModeTabs({ mode, onChange, lockedModes = [] }: ModeTabsProps) {
             disabled={isLocked}
             title={isLocked ? "로그인 후 이용할 수 있습니다" : undefined}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-[11px] font-semibold transition-colors",
+              "flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md px-1 py-2 text-[11px] font-semibold transition-colors",
+              // 날씨&CCTV는 이름이 길다. 균등 분할하면 줄바꿈이 생겨 탭 줄이 두 줄이 된다.
+              tab.mode === "weather" ? "flex-[1.7]" : "flex-1",
               isActive
                 ? "bg-indigo-600 text-white shadow-glow"
                 : "text-slate-400 hover:text-slate-200",

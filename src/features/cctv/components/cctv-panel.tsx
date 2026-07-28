@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { CctvSurveySummary } from "@/features/cctv/components/cctv-survey-summary";
-import { CctvVideoModal } from "@/features/cctv/components/cctv-video-modal";
 import {
   GWANGJU_JEONNAM_BBOX,
   ROAD_TYPES,
@@ -16,10 +15,14 @@ import { useCctvQuery } from "@/features/cctv/hooks/use-cctv-query";
 import type { CctvQuery } from "@/features/cctv/lib/cctv-api";
 
 /**
- * 도로 CCTV 조회 패널 (장비 탭).
+ * 도로 CCTV 조회 패널 (날씨&CCTV 탭).
  *
  * 계획서 1단계 — 수집(§5.1)과 선결 확인(§10)까지만 구현한다.
  * 링크 매핑·시군구 귀속은 표준노드링크·행정경계 데이터가 있어야 하므로 미구현이다.
+ *
+ * 조회 결과는 지도 레이어로만 넘긴다. 아코디언을 접어도 유지되어야 하므로
+ * 언마운트 시 정리하지 않는다 — 탭을 옮기면 스토어의 setMode가 비운다.
+ * 영상 모달도 이 패널이 아니라 항상 떠 있는 페이지에 둔다(마커 클릭 대응).
  */
 export function CctvPanel() {
   const [selectedRoadTypes, setSelectedRoadTypes] = useState<string[]>(
@@ -29,7 +32,6 @@ export function CctvPanel() {
 
   const { data, isFetching, error } = useCctvQuery(query);
   const setCctvMarkers = useMapMarkerStore((state) => state.setCctvMarkers);
-  const selectedCctv = useMapMarkerStore((state) => state.selectedCctv);
   const setSelectedCctv = useMapMarkerStore((state) => state.setSelectedCctv);
 
   const toggleRoadType = (code: string) => {
@@ -47,14 +49,6 @@ export function CctvPanel() {
   useEffect(() => {
     setCctvMarkers(data?.items ?? []);
   }, [data, setCctvMarkers]);
-
-  // 패널을 벗어나면 지도에서도 걷어낸다
-  useEffect(() => {
-    return () => {
-      setCctvMarkers([]);
-      setSelectedCctv(null);
-    };
-  }, [setCctvMarkers, setSelectedCctv]);
 
   return (
     <div className="space-y-2.5 pb-1">
@@ -147,7 +141,6 @@ export function CctvPanel() {
         </p>
       )}
 
-      <CctvVideoModal cctv={selectedCctv} onClose={() => setSelectedCctv(null)} />
     </div>
   );
 }

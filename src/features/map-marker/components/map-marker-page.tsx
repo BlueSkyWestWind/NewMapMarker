@@ -28,9 +28,23 @@ const MarkerEditModal = dynamic(
     ),
   { ssr: false },
 );
+/*
+ * CCTV 영상 모달은 조회 패널이 아니라 여기 둔다.
+ * 패널은 아코디언 안에 있어 접으면 언마운트되는데, 그러면 지도의 CCTV 마커를
+ * 눌러도 영상이 뜨지 않는다. 마커는 접힘과 무관하게 남으므로 모달도 그래야 한다.
+ */
+const CctvVideoModal = dynamic(
+  () =>
+    import("@/features/cctv/components/cctv-video-modal").then(
+      (m) => m.CctvVideoModal,
+    ),
+  { ssr: false },
+);
 
 export function MapMarkerPage() {
   const mode = useMapMarkerStore((state) => state.mode);
+  const selectedCctv = useMapMarkerStore((state) => state.selectedCctv);
+  const setSelectedCctv = useMapMarkerStore((state) => state.setSelectedCctv);
   const {
     markers,
     filterOptions,
@@ -81,6 +95,7 @@ export function MapMarkerPage() {
       <RoadviewModal />
       <MarkerDetailModal />
       <MarkerEditModal />
+      <CctvVideoModal cctv={selectedCctv} onClose={() => setSelectedCctv(null)} />
     </div>
   );
 }

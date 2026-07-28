@@ -175,7 +175,24 @@ export function MapSidebar({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {isWeatherMode ? (
-          <WorksiteWeatherPanel />
+          <>
+            <WorksiteWeatherPanel />
+
+            {/* 도로 CCTV 조회 — 인증 불필요, 읽기 전용 조회 */}
+            <Accordion type="multiple" className="mt-3">
+              <AccordionItem value="weather-cctv" className="border-slate-800">
+                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <Video className="h-3.5 w-3.5 text-teal-400" />
+                    도로 CCTV 조회
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <CctvPanel />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </>
         ) : isLocationMode ? (
           <div className="mb-3 rounded-lg border border-emerald-800/50 bg-emerald-950/40 px-3 py-2 text-[11px] leading-relaxed text-emerald-200/90">
             엑셀 업로드로 위치를 등록하세요. 이름·주소만 표시하며, 새로고침 시
@@ -234,21 +251,6 @@ export function MapSidebar({
                     <EquipmentExcelSection />
                     <EquipmentInfoSection />
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            ) : null}
-
-            {/* 도로 CCTV 조회 — 장비 모드 전용 (인증 불필요, 읽기 전용 조회) */}
-            {mode === "equipment" ? (
-              <AccordionItem value="equipment-cctv" className="border-slate-800">
-                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <Video className="h-3.5 w-3.5 text-teal-400" />
-                    도로 CCTV 조회
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <CctvPanel />
                 </AccordionContent>
               </AccordionItem>
             ) : null}
