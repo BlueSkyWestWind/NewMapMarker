@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Video,
   Waypoints,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import { MarkersListPanel } from "@/features/map-marker/components/sidebar/marke
 import { ModeTabs } from "@/features/map-marker/components/sidebar/mode-tabs";
 import { PlaceSearchSection } from "@/features/map-marker/components/sidebar/place-search-section";
 import { WorksiteWeatherPanel } from "@/features/worksite-weather/components/worksite-weather-panel";
+import { CctvPanel } from "@/features/cctv/components/cctv-panel";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useHasMounted } from "@/hooks/use-has-mounted";
@@ -232,6 +234,21 @@ export function MapSidebar({
                     <EquipmentExcelSection />
                     <EquipmentInfoSection />
                   </div>
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+
+            {/* 도로 CCTV 조회 — 장비 모드 전용 (인증 불필요, 읽기 전용 조회) */}
+            {mode === "equipment" ? (
+              <AccordionItem value="equipment-cctv" className="border-slate-800">
+                <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <Video className="h-3.5 w-3.5 text-teal-400" />
+                    도로 CCTV 조회
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <CctvPanel />
                 </AccordionContent>
               </AccordionItem>
             ) : null}

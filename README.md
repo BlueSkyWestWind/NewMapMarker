@@ -16,6 +16,7 @@ src/
       map-tile-proxy/          # 지도 타일 프록시 (호스트 allowlist 기반 SSRF 방지)
       roadview-dates/          # 로드뷰 촬영일자 조회 프록시
       worksite-weather/        # 국소 작업 안전 날씨 판정 (기상청 API 허브)
+      cctv/                    # 도로 CCTV 조회 (ITS 국가교통정보센터)
     gpsmap/                    # 주소/좌표 통합 변환기
   components/
     ui/                        # shadcn/ui (Radix)
@@ -216,6 +217,19 @@ KMA_API_HUB_KEY=발급받은_인증키
 | 기상특보 `wrn_now_data` | 특보 발효 현황 |
 
 > 단기예보만 승인돼도 판정은 동작합니다. 나머지는 정확도를 높입니다.
+
+### ITS API 키 (도로 CCTV 조회 사용 시)
+
+```bash
+npx wrangler secret put ITS_API_KEY
+```
+
+| 변수 | 설명 |
+| --- | --- |
+| `ITS_API_KEY` | [ITS 국가교통정보센터 오픈데이터](https://www.its.go.kr/opendata/) 인증키 |
+
+기상 API 키와 동일하게 **Secret 타입**으로 등록하세요. 로컬은 `.env.local`에 추가합니다.
+미설정 시 `도로 CCTV 조회` 패널이 502와 함께 안내 문구를 표시합니다.
 
 ### 환경 변수 (선택)
 

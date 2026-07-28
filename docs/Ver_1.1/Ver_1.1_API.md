@@ -13,7 +13,7 @@
 
 | 구분 | 대상 | 방식 |
 | --- | --- | --- |
-| 내부 Route Handler | **4종** (`/api/*`) | 브라우저 → 자기 서버 → 외부 |
+| 내부 Route Handler | **5종** (`/api/*`) | 브라우저 → 자기 서버 → 외부 |
 | 데이터 접근 | Supabase | 브라우저 → Supabase (anon 키 + RLS) |
 | 지도 SDK | Kakao Maps JS | 브라우저 직접 |
 | 좌표 변환 | VWorld (GPSMAP) | 브라우저 직접 |
@@ -175,6 +175,59 @@ GET /api/worksite-weather?lat=34.9506&lng=127.4872&workType=elevated&region=전�
 - 둘 다 있으면 허브 우선.
 - 퍼센트 인코딩이 섞인 키는 자동 디코드한다(Encoding 키 오입력 방어).
 - 허브는 **오퍼레이션 단위로 활용신청**한다. 단기예보조회와 초단기 2종은 별개 항목이다.
+
+## 6-A. `/api/cctv` (Ver_1.1 추가 · CCTV 매핑 1단계)
+
+ITS 국가교통정보센터 CCTV Open API 프록시. [CCTV 구축계획](./Ver_1.1_CCTV_PLAN.md) §5.1·§10 대응.
+
+### 요청
+
+```
+GET /api/cctv?minX=125.0&maxX=127.95&minY=33.85&maxY=35.5&roadTypes=ex,its
+```
+
+| 파라미터 | 필수 | 설명 |
+| --- | --- | --- |
+| `minX`·`maxX`·`minY`·`maxY` | | 경계상자(WGS84). 전부 생략하면 계획서 §2.2 기본값 |
+| `roadTypes` | | `ex`(고속도로) · `its`(국도) 쉼표 구분. 기본 둘 다 |
+
+### 응답 (200)
+
+```json
+{
+  "bbox": { "minX": 125.0, "maxX": 127.95, "minY": 33.85, "maxY": 35.5 },
+  "roadTypes": ["ex", "its"],
+  "items": [{ "id": "...", "name": "...", "lat": 35.1, "lng": 126.9,
+              "roadType": "ex", "roadSectionId": null,
+              "direction": "상행", "directionTarget": null, "streamUrl": "..." }],
+  "survey": { "total": 0, "roadSectionVerdict": "공간매칭필요",
+              "directionNonePercent": 0, "needsManualDirectionUi": false, "...": "..." },
+  "warnings": [],
+  "notice": "경계상자는 사각형이라 전북 남부·경남 서부가 섞여 있습니다. …"
+}
+```
+
+`survey`는 계획서 **§10 선결 확인 1·2번**에 답하는 집계다.
+별도 Python 스크립트(`cctv_survey.py`) 없이 화면에서 판정 결과를 볼 수 있다.
+
+### 오류
+
+| 상태 | 조건 |
+| --- | --- |
+| 400 | 경계상자 형식 오류(`minX >= maxX` 포함) · 허용되지 않은 `roadTypes` |
+| 403 | origin 불허 |
+| 502 | ITS 인증키 미설정 · 무효(`resultCode 4005`) · 타임아웃(20초) |
+
+### 업스트림
+
+| 항목 | 값 |
+| --- | --- |
+| 엔드포인트 | `https://openapi.its.go.kr:9443/cctvInfo` |
+| 인증 | `ITS_API_KEY` (서버 전용 Secret) |
+| 응답 봉투 | **`{ header: { resultCode, resultMsg }, body }`** |
+
+> ⚠️ 계획서 부록 A 스크립트는 `response`/`data` 구조를 추정했으나 **실제는 위 구조**다.
+> 도로 종별로 나눠 호출하고 한쪽이 실패해도 나머지는 살린다(인증키 오류만 전체 실패).
 
 ## 7. Supabase 데이터 접근
 

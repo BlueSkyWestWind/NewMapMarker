@@ -10,6 +10,7 @@ import {
   PieChart,
   Plus,
   Shapes,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
@@ -39,6 +40,9 @@ export function MapFloatingControls({
   );
   const clusterIconStyle = useMapMarkerStore((state) => state.clusterIconStyle);
   const isCadastralMode = useMapMarkerStore((state) => state.isCadastralMode);
+  const cctvMarkers = useMapMarkerStore((state) => state.cctvMarkers);
+  const isCctvVisible = useMapMarkerStore((state) => state.isCctvVisible);
+  const toggleCctvVisible = useMapMarkerStore((state) => state.toggleCctvVisible);
   const setClusteringEnabled = useMapMarkerStore(
     (state) => state.setClusteringEnabled,
   );
@@ -147,6 +151,27 @@ export function MapFloatingControls({
       >
         <Layers className={isCadastralMode ? "text-indigo-300" : ""} />
       </Button>
+
+      {/* 조회한 CCTV가 있을 때만 노출. 목록은 사이드바에 두지 않고 여기서 켜고 끈다 */}
+      {cctvMarkers.length > 0 ? (
+        <Button
+          type="button"
+          size="icon"
+          variant="secondary"
+          className={
+            isCctvVisible
+              ? "relative h-9 w-9 border border-teal-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+              : "relative h-9 w-9 bg-slate-900/90 text-slate-100"
+          }
+          onClick={toggleCctvVisible}
+          title={`도로 CCTV ${cctvMarkers.length}대 ${isCctvVisible ? "숨기기" : "표시"}`}
+        >
+          <Video className={isCctvVisible ? "h-4 w-4 text-teal-300" : "h-4 w-4"} />
+          <span className="absolute -right-1 -top-1 rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-4 text-white">
+            {cctvMarkers.length > 999 ? "999+" : cctvMarkers.length}
+          </span>
+        </Button>
+      ) : null}
       {mode === "equipment" ? (
         <Button
           type="button"

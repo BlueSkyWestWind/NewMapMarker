@@ -12,6 +12,7 @@ import type {
   StagedErpUpload,
 } from "@/features/map-marker/types/marker";
 import type { SiteMatch } from "@/features/worksite-weather/types/weather";
+import type { CctvItem } from "@/features/cctv/types/cctv";
 
 interface MapMarkerUiState {
   mode: MapMode;
@@ -37,6 +38,15 @@ interface MapMarkerUiState {
   roadviewPosition: { lat: number; lng: number; name: string } | null;
   /** 장소 검색으로 조회한 필지 경계(지도에 폴리곤으로 표시). persist 안 함 */
   placeSearch: PlaceSearchResult | null;
+  /** 지도에 표시할 도로 CCTV 목록(장비 모드). 조회 결과라 persist 하지 않는다 */
+  cctvMarkers: CctvItem[];
+  setCctvMarkers: (items: CctvItem[]) => void;
+  /** CCTV 마커 표시 여부. 지도 우하단 토글로 켜고 끈다 */
+  isCctvVisible: boolean;
+  toggleCctvVisible: () => void;
+  /** 영상 모달을 띄울 CCTV. null이면 닫힘 */
+  selectedCctv: CctvItem | null;
+  setSelectedCctv: (item: CctvItem | null) => void;
   /** 날씨 모드에서 국소 검색 시 검색된 마커만 지도에 표시하기 위한 ID 목록. null이면 전체 표시 */
   weatherSearchMarkerIds: string[] | null;
   setWeatherSearchMarkerIds: (ids: string[] | null) => void;
@@ -124,6 +134,13 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       isRoadviewOpen: false,
       roadviewPosition: null,
       placeSearch: null,
+      cctvMarkers: [],
+      // 조회하면 바로 보이게 하고, 이후에는 토글로 제어한다
+      setCctvMarkers: (items) => set({ cctvMarkers: items }),
+      isCctvVisible: true,
+      toggleCctvVisible: () => set((state) => ({ isCctvVisible: !state.isCctvVisible })),
+      selectedCctv: null,
+      setSelectedCctv: (item) => set({ selectedCctv: item }),
       weatherSearchMarkerIds: null,
       setWeatherSearchMarkerIds: (ids) => set({ weatherSearchMarkerIds: ids }),
       savedWeatherSites: [],
@@ -143,6 +160,9 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
                 selectedMarkerId: null,
                 selectedMarkerIds: [],
                 weatherSearchMarkerIds: null,
+                cctvMarkers: [],
+                selectedCctv: null,
+                isCctvVisible: true,
               },
         ),
       toggleSidebar: () =>
