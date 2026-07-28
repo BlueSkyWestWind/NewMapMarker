@@ -193,16 +193,21 @@ export async function readHttpResponse(
   const chunks: Uint8Array[] = [];
   let total = 0;
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
 
-    chunks.push(value);
-    total += value.length;
-    if (total > MAX_RESPONSE_BYTES) {
-      throw new Error("응답이 너무 큽니다.");
+      chunks.push(value);
+      total += value.length;
+      if (total > MAX_RESPONSE_BYTES) {
+        throw new Error("응답이 너무 큽니다.");
+      }
     }
+  } finally {
+    // 락을 쥔 채로 두면 뒤이은 socket.close()가 잠긴 스트림을 취소하려다 실패한다
+    reader.releaseLock();
   }
 
   return parseHttpResponse(concatChunks(chunks));
@@ -210,6 +215,10 @@ export async function readHttpResponse(
 
 /**
  * TLS 소켓으로 GET을 보내고 응답 전체를 받는다.
+ *
+ * 배포된 Workers에서 `Stream was cancelled.`로 실패했던 이력이 있다.
+ * 원인이 될 수 있는 지점을 모두 막아 둔다 — 어느 하나라도 남으면 성공 응답을
+ * 받아 놓고도 오류로 뒤집힌다.
  */
 export async function httpGetOverSocket(
   url: URL,
@@ -221,18 +230,44 @@ export async function httpGetOverSocket(
   const port = Number(url.port || (url.protocol === "https:" ? 443 : 80));
   const socket = connect(
     { hostname: url.hostname, port },
-    { secureTransport: url.protocol === "https:" ? "on" : "off" },
+    {
+      secureTransport: url.protocol === "https:" ? "on" : "off",
+      // 쓰기 쪽이 끝나도 읽기 쪽을 살려 둔다. false(기본)면 요청을 다 보낸 시점에
+      // 연결 전체가 정리되면서 응답을 읽는 중인 스트림이 취소될 수 있다.
+      allowHalfOpen: true,
+    },
   );
 
+  // 연결이 끊긴 진짜 이유. 스트림 쪽 오류는 "Stream was cancelled."처럼
+  // 원인을 감추는 문구로만 나와서, 이것이 없으면 진단이 불가능하다.
+  let closeReason = "";
+  void socket.closed.catch((error: unknown) => {
+    closeReason = error instanceof Error ? error.message : String(error);
+  });
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error("소켓 요청 시간 초과")), timeoutMs);
+    timer = setTimeout(() => reject(new Error("소켓 요청 시간 초과")), timeoutMs);
   });
 
   try {
     return await Promise.race([readHttpResponse(socket, buildHttpGetRequest(url)), timeout]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(closeReason && closeReason !== message ? `${message} / ${closeReason}` : message);
   } finally {
-    // 타임아웃으로 빠져나온 경우에도 연결을 반드시 정리한다
-    await socket.close().catch(() => {});
+    // 남은 타이머가 요청을 붙잡아 두지 않도록 반드시 해제한다
+    if (timer !== undefined) clearTimeout(timer);
+    /*
+     * close()가 성공 결과를 덮어쓰지 못하게 막는다.
+     * finally에서 던지면 반환값이 그 오류로 바뀐다 — close()가 **동기로** 던지면
+     * `.catch()`는 붙지도 않으므로 try/catch로 감싸야 한다.
+     */
+    try {
+      await socket.close();
+    } catch {
+      // 이미 닫힌 소켓을 닫는 것은 오류가 아니다
+    }
   }
 }
 

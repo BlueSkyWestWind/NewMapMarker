@@ -205,6 +205,30 @@ describe("readHttpResponse — 소켓 구동", () => {
     expect(closeWriter).not.toHaveBeenCalled();
   });
 
+  it("다 읽은 뒤 스트림 락을 놓는다 — 잠긴 채로 두면 socket.close()가 실패한다", async () => {
+    const { socket } = fakeSocket(["HTTP/1.1 200 OK\r\n\r\nok"]);
+    await readHttpResponse(socket, "GET / HTTP/1.1\r\n\r\n");
+
+    expect(socket.readable.locked).toBe(false);
+    expect(socket.writable.locked).toBe(false);
+  });
+
+  it("읽는 중 오류가 나도 락을 놓는다", async () => {
+    const socket: SocketLike = {
+      readable: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(new Error("Stream was cancelled."));
+        },
+      }),
+      writable: new WritableStream<Uint8Array>(),
+    };
+
+    await expect(readHttpResponse(socket, "GET / HTTP/1.1\r\n\r\n")).rejects.toThrow(
+      "Stream was cancelled.",
+    );
+    expect(socket.readable.locked).toBe(false);
+  });
+
   it("여러 조각으로 나뉘어 온 응답을 이어붙여 파싱한다", async () => {
     const { socket } = fakeSocket([
       "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n",
