@@ -1,35 +1,45 @@
 import "server-only";
 import type { BoundingBox } from "@/features/cctv/constants/its-config";
-import {
-  httpGetOverSocket,
-  needsSocketTransport,
-  SocketUnavailableError,
-} from "@/features/cctv/lib/http-over-socket";
 import { parseCctvDirection } from "@/features/cctv/lib/parse-direction";
 import type { CctvItem } from "@/features/cctv/types/cctv";
 
 /**
- * ITS 국가교통정보센터 CCTV Open API 클라이언트 (서버 전용).
+ * ITS 국가교통정보센터 CCTV 조회 클라이언트 (서버 전용).
  *
- * 엔드포인트가 살아 있는 것은 실호출로 확인했다(2026-07-27).
- * 응답 봉투는 `{ header: { resultCode, resultMsg }, body }` 구조다 —
- * 계획서 부록 A 스크립트가 추정한 `response`/`data` 구조와 다르므로 주의.
+ * **ITS를 직접 부르지 않는다.** ITS는 `openapi.its.go.kr:9443`에서만 서비스하는데
+ * Cloudflare Workers는 그 주소로 나갈 수 없다 — `fetch()`는 배포 시 비표준 포트를
+ * 버리고, `connect()`는 엣지 egress가 거부한다. 그래서 Deno로 도는
+ * Supabase Edge Function(`supabase/functions/its-cctv`)을 거친다.
+ * 경위는 계획서 부록 E.
+ *
+ * 로컬에서도 같은 경로를 쓴다. 환경마다 경로가 다르면 "로컬은 되는데 배포는 안 되는"
+ * 상황을 또 만든다 — 이 기능이 이미 두 번 그렇게 깨졌다.
+ *
+ * 응답 본문은 ITS 원본 그대로다. 성공은 `{ response: { data: [...] } }`,
+ * 실패는 `{ header: { resultCode, resultMsg }, body: "" }`로 **모양이 다르다.**
  */
-const ITS_ENDPOINT = "https://openapi.its.go.kr:9443/cctvInfo";
-const FETCH_TIMEOUT_MS = 20_000;
+const FETCH_TIMEOUT_MS = 25_000;
 
 export class ItsError extends Error {}
 
-function getApiKey(): string {
-  const key = (process.env.ITS_API_KEY ?? "").trim();
-  if (!key) {
+/** 프록시 함수 주소. Supabase 프로젝트 URL에서 유도하므로 별도 환경변수가 없다. */
+function getProxyEndpoint(): string {
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+  if (!base) {
     throw new ItsError(
-      "ITS 인증키가 설정되지 않았습니다. " +
-        "로컬은 .env.local에, 배포 환경은 Cloudflare Workers의 Secret에 ITS_API_KEY를 등록하세요. " +
-        "(발급: https://www.its.go.kr/opendata/)",
+      "NEXT_PUBLIC_SUPABASE_URL이 설정되지 않아 CCTV 프록시 주소를 만들 수 없습니다.",
     );
   }
-  return key;
+  return `${base}/functions/v1/its-cctv`;
+}
+
+/** Edge Function 호출에 필요한 Supabase 공개 키 */
+function getProxyAuthHeaders(): Record<string, string> {
+  const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+  if (!anonKey) {
+    throw new ItsError("NEXT_PUBLIC_SUPABASE_ANON_KEY가 설정되지 않았습니다.");
+  }
+  return { Authorization: `Bearer ${anonKey}`, apikey: anonKey };
 }
 
 /**
@@ -44,6 +54,8 @@ interface ItsEnvelope {
   header?: { resultCode?: number | string; resultMsg?: string };
   response?: { coordtype?: unknown; data?: unknown; datacount?: unknown };
   body?: unknown;
+  /** 프록시 함수가 자체적으로 낸 오류 메시지 (ITS 봉투에는 없는 필드) */
+  error?: unknown;
 }
 
 /** ITS 응답 1건. 필드명이 배포본마다 대소문자·표기가 흔들려 넓게 받는다. */
@@ -165,69 +177,44 @@ export interface FetchCctvResult {
   items: CctvItem[];
 }
 
-/**
- * ITS 호출 전송 계층.
- *
- * Cloudflare Workers는 배포 환경에서 `fetch`의 비표준 포트를 무시하고 443으로 붙는다.
- * ITS는 9443에서만 서비스하므로 배포본에서는 TCP 소켓으로 직접 연결해야 한다.
- * 로컬(Node)에서는 `fetch`가 포트를 지키므로 그대로 쓴다.
- */
-async function requestIts(url: URL): Promise<{ status: number; text: string }> {
-  if (needsSocketTransport(url)) {
-    try {
-      const res = await httpGetOverSocket(url, FETCH_TIMEOUT_MS);
-      return { status: res.status, text: res.text };
-    } catch (error) {
-      // 소켓을 못 쓰는 런타임이면 fetch로 되돌린다.
-      // 그 외(연결·파싱 실패)는 진짜 오류이므로 감추지 않는다.
-      if (!(error instanceof SocketUnavailableError)) {
-        const message = error instanceof Error ? error.message : "원인 불명";
-        throw new ItsError(`ITS API 소켓 연결에 실패했습니다. (${message})`);
-      }
-    }
-  }
-
-  try {
-    const response = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-    return { status: response.status, text: await response.text() };
-  } catch {
-    throw new ItsError("ITS API 요청이 시간 초과되었거나 연결에 실패했습니다.");
-  }
-}
-
 /** 도로 종별 1건 조회. 실패는 호출부가 부분 실패로 처리할 수 있도록 그대로 던진다. */
 export async function fetchCctvByRoadType(
   roadType: string,
   bbox: BoundingBox,
 ): Promise<FetchCctvResult> {
-  const url = new URL(ITS_ENDPOINT);
-  url.searchParams.set("apiKey", getApiKey());
+  const url = new URL(getProxyEndpoint());
   url.searchParams.set("type", roadType);
   // 4 = 실시간 스트리밍(HLS) **HTTPS**.
   // 1도 같은 영상이지만 http로만 내려와 HTTPS 페이지에서 혼합 콘텐츠로 차단된다.
   url.searchParams.set("cctvType", "4");
-  url.searchParams.set("getType", "json");
   url.searchParams.set("minX", String(bbox.minX));
   url.searchParams.set("maxX", String(bbox.maxX));
   url.searchParams.set("minY", String(bbox.minY));
   url.searchParams.set("maxY", String(bbox.maxY));
 
-  const { status, text } = await requestIts(url);
+  let status: number;
+  let text: string;
+  try {
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      cache: "no-store",
+      headers: { Accept: "application/json", ...getProxyAuthHeaders() },
+    });
+    status = response.status;
+    text = await response.text();
+  } catch {
+    throw new ItsError(
+      "CCTV 프록시(Supabase Edge Function) 호출이 시간 초과되었거나 연결에 실패했습니다.",
+    );
+  }
 
   if (!text.trim().startsWith("{")) {
-    /*
-     * Cloudflare Workers는 배포 환경에서 **비표준 포트를 무시하고 443으로 붙는다.**
-     * ITS는 9443에서만 서비스하므로 배포본에서는 연결이 실패하고
-     * Cloudflare의 HTML 오류 페이지가 대신 돌아온다. 로컬(Node)은 포트를 지켜서 잘 된다.
-     * 원인이 드러나도록 상태코드와 응답 앞부분을 함께 남긴다.
-     */
+    // 함수가 배포되지 않았거나 인증이 막히면 JSON이 아닌 본문이 돌아온다.
+    // 원인이 드러나도록 상태코드와 응답 앞부분을 함께 남긴다.
     const head = text.trim().slice(0, 120).replace(/\s+/g, " ");
     throw new ItsError(
-      `ITS API가 JSON이 아닌 응답을 반환했습니다. (상태 ${status}) 응답 앞부분: ${head}`,
+      `CCTV 프록시가 JSON이 아닌 응답을 반환했습니다. (상태 ${status}) ` +
+        `its-cctv 함수가 배포되어 있는지 확인하세요. 응답 앞부분: ${head}`,
     );
   }
 
@@ -236,6 +223,11 @@ export async function fetchCctvByRoadType(
     envelope = JSON.parse(text) as ItsEnvelope;
   } catch {
     throw new ItsError("ITS API 응답을 해석하지 못했습니다.");
+  }
+
+  // 프록시 자체가 낸 오류(미배포·키 미등록·파라미터 거부). ITS 봉투와 모양이 달라 먼저 본다.
+  if (typeof envelope.error === "string" && envelope.error) {
+    throw new ItsError(envelope.error);
   }
 
   const code = String(envelope.header?.resultCode ?? "");

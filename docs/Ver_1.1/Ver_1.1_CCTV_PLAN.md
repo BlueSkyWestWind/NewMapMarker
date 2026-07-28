@@ -753,3 +753,72 @@ if __name__ == "__main__":
 > ⚠️ **미검증**: 위 세 가지는 실제 엣지에서 재현해 고른 것이 아니라 가설로 좁힌 것이다.
 > 로컬 workerd(병렬 2건, 실제 키)는 통과했으나 1차 실패도 로컬은 통과했었다.
 > 배포 후 다시 실패하면 메시지에 실린 `closed` 사유로 판단한다.
+
+### E.7 최종 — Cloudflare에서는 불가능. Supabase Edge Function으로 이전 (2026-07-28)
+
+E.6의 수정을 배포한 뒤 오류에 실린 `closed` 사유가 원인을 확정해 주었다.
+
+```
+Stream was cancelled. / proxy request failed, cannot connect to the specified address
+```
+
+Cloudflare 공식 문서는 이 메시지를 **"허용되지 않은 주소로 연결을 시도한 경우"** 로 설명한다.
+그런데 대상은 `61.43.91.73`(KRNIC) — Cloudflare IP도, 사설망도, localhost도 아니다.
+문서상 차단 대상이 아닌데도 엣지 egress가 거부한다.
+
+**결론: Cloudflare Workers 안에서 ITS(9443)에 도달할 방법이 없다.**
+
+| 경로 | 결과 |
+| --- | --- |
+| `fetch()` | 배포 시 포트를 버리고 443으로 붙음 |
+| `cloudflare:sockets` `connect()` | egress가 거부 (`cannot connect to the specified address`) |
+
+로컬 workerd가 두 번 다 통과했던 이유는 **사용자 PC에서 직접 나가기 때문**이다.
+배포본만 Cloudflare egress를 거친다. `wrangler dev --local`은 이 계층을 재현하지 못한다.
+
+#### 배제한 가설
+
+| 가설 | 검증 | 결과 |
+| --- | --- | --- |
+| ITS가 해외 IP 차단 | 한국 밖에서 9443 호출 | ❌ 401 정상 응답 — 차단 없음 |
+| 대상이 Cloudflare IP(루프백) | DNS 조회 | ❌ `61.43.91.73`, KRNIC |
+| 인증키 오류 | 32자리 16진수 확인 | ❌ 유효 (`.env.local`에 뒤 공백 1칸, 코드가 `trim()`) |
+
+#### 채택 — Supabase Edge Function 프록시
+
+Deno 런타임은 포트를 그대로 지킨다. 이미 쓰고 있는 Supabase에 함수를 두어
+**인증키를 서버에 유지한 채** 우회한다. 새 벤더가 늘지 않는다.
+
+```
+브라우저 → Cloudflare Worker(/api/cctv) → Supabase Edge Function(443) → ITS(9443)
+```
+
+- 함수: `supabase/functions/its-cctv/index.ts`
+- 인증키: Supabase 시크릿 `ITS_API_KEY` (브라우저에 노출되지 않음)
+- 함수 주소는 `NEXT_PUBLIC_SUPABASE_URL`에서 유도 — 환경변수가 늘지 않는다
+- 열린 프록시가 되지 않도록 `type`·`cctvType` 화이트리스트와 경계상자 검증을 함수에서 수행
+- **로컬도 같은 경로를 쓴다.** 환경마다 경로가 다르면 "로컬은 되는데 배포는 안 되는"
+  상황을 또 만든다 — 이 기능이 이미 두 번 그렇게 깨졌다
+
+`http-over-socket.ts`·`cloudflare-sockets.d.ts`와 관련 테스트 23건은 제거했다. 쓰이지 않는다.
+
+#### 배포 절차 (최초 1회)
+
+```bash
+npx supabase login
+npx supabase link --project-ref bgdqjtmkdprqencgnrbx
+npx supabase secrets set ITS_API_KEY=<발급받은 키>
+npx supabase functions deploy its-cctv
+```
+
+#### 실측 (Deno 2.9.4, 실제 키)
+
+| 시험 | 결과 |
+| --- | --- |
+| 정상 조회 (`ex`) | ✅ 200 · **787건** · 263 KB |
+| 잘못된 `type` | ✅ 400 거부 |
+| 경계상자 뒤집힘·누락 | ✅ 400 거부 |
+| CORS 프리플라이트 | ✅ 204 + 헤더 |
+
+> ⚠️ **미검증**: 함수 로직은 Deno로 실제 검증했으나, **Supabase에 배포한 상태에서의
+> 종단 확인은 아직이다.** 배포 후 `/api/cctv` 호출로 확인해야 한다.

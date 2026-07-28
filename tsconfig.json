@@ -25,5 +25,7 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  // supabase/functions는 Deno 런타임이라 전역(Deno)과 import 방식이 다르다.
+  // Next.js 타입체크에 섞으면 존재하지 않는 이름으로 잡힌다.
+  "exclude": ["node_modules", "supabase/functions"]
 }
