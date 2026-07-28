@@ -1,5 +1,10 @@
 import "server-only";
 import type { BoundingBox } from "@/features/cctv/constants/its-config";
+import {
+  httpGetOverSocket,
+  needsSocketTransport,
+  SocketUnavailableError,
+} from "@/features/cctv/lib/http-over-socket";
 import { parseCctvDirection } from "@/features/cctv/lib/parse-direction";
 import type { CctvItem } from "@/features/cctv/types/cctv";
 
@@ -160,6 +165,40 @@ export interface FetchCctvResult {
   items: CctvItem[];
 }
 
+/**
+ * ITS 호출 전송 계층.
+ *
+ * Cloudflare Workers는 배포 환경에서 `fetch`의 비표준 포트를 무시하고 443으로 붙는다.
+ * ITS는 9443에서만 서비스하므로 배포본에서는 TCP 소켓으로 직접 연결해야 한다.
+ * 로컬(Node)에서는 `fetch`가 포트를 지키므로 그대로 쓴다.
+ */
+async function requestIts(url: URL): Promise<{ status: number; text: string }> {
+  if (needsSocketTransport(url)) {
+    try {
+      const res = await httpGetOverSocket(url, FETCH_TIMEOUT_MS);
+      return { status: res.status, text: res.text };
+    } catch (error) {
+      // 소켓을 못 쓰는 런타임이면 fetch로 되돌린다.
+      // 그 외(연결·파싱 실패)는 진짜 오류이므로 감추지 않는다.
+      if (!(error instanceof SocketUnavailableError)) {
+        const message = error instanceof Error ? error.message : "원인 불명";
+        throw new ItsError(`ITS API 소켓 연결에 실패했습니다. (${message})`);
+      }
+    }
+  }
+
+  try {
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    return { status: response.status, text: await response.text() };
+  } catch {
+    throw new ItsError("ITS API 요청이 시간 초과되었거나 연결에 실패했습니다.");
+  }
+}
+
 /** 도로 종별 1건 조회. 실패는 호출부가 부분 실패로 처리할 수 있도록 그대로 던진다. */
 export async function fetchCctvByRoadType(
   roadType: string,
@@ -177,20 +216,19 @@ export async function fetchCctvByRoadType(
   url.searchParams.set("minY", String(bbox.minY));
   url.searchParams.set("maxY", String(bbox.maxY));
 
-  let response: Response;
-  try {
-    response = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-  } catch {
-    throw new ItsError("ITS API 요청이 시간 초과되었거나 연결에 실패했습니다.");
-  }
+  const { status, text } = await requestIts(url);
 
-  const text = await response.text();
   if (!text.trim().startsWith("{")) {
-    throw new ItsError("ITS API가 JSON이 아닌 응답을 반환했습니다.");
+    /*
+     * Cloudflare Workers는 배포 환경에서 **비표준 포트를 무시하고 443으로 붙는다.**
+     * ITS는 9443에서만 서비스하므로 배포본에서는 연결이 실패하고
+     * Cloudflare의 HTML 오류 페이지가 대신 돌아온다. 로컬(Node)은 포트를 지켜서 잘 된다.
+     * 원인이 드러나도록 상태코드와 응답 앞부분을 함께 남긴다.
+     */
+    const head = text.trim().slice(0, 120).replace(/\s+/g, " ");
+    throw new ItsError(
+      `ITS API가 JSON이 아닌 응답을 반환했습니다. (상태 ${status}) 응답 앞부분: ${head}`,
+    );
   }
 
   let envelope: ItsEnvelope;
@@ -202,14 +240,14 @@ export async function fetchCctvByRoadType(
 
   const code = String(envelope.header?.resultCode ?? "");
   // 4005 = 존재하지 않는 인증키. 원문 메시지는 키가 섞일 수 있어 그대로 쓰지 않는다.
-  if (code === "4005" || response.status === 401) {
+  if (code === "4005" || status === 401) {
     throw new ItsError("ITS 인증키가 유효하지 않습니다. 발급받은 키를 확인하세요.");
   }
   if (code !== "0" && code !== "00" && code !== "") {
     throw new ItsError(`ITS API 응답 오류 (코드 ${code})`);
   }
-  if (!response.ok) {
-    throw new ItsError(`ITS API가 ${response.status} 상태를 반환했습니다.`);
+  if (status < 200 || status >= 300) {
+    throw new ItsError(`ITS API가 ${status} 상태를 반환했습니다.`);
   }
 
   const { rows, shape } = extractRows(envelope);

@@ -679,3 +679,53 @@ if __name__ == "__main__":
 
 > 마지막 항목이 실질적이다. 명칭에 **노선명이 일관되게 들어 있어** 링크의 `road_nm`과 대조하면
 > 400m 반경 안의 엉뚱한 노선 링크를 걸러낼 수 있다. 방향 판별과 별개로 도입 가치가 있다.
+
+---
+
+## 부록 E. 배포 환경 전송 계층 — Cloudflare Workers 포트 제약 (2026-07-28)
+
+계획서에 없던 문제다. **로컬에서는 되는데 배포본에서만 실패**했다.
+
+### E.1 증상
+
+배포본에서 CCTV 조회 시 `ITS API가 JSON이 아닌 응답을 반환했습니다`.
+인증키는 Cloudflare Secret에 정상 등록된 상태였다.
+
+### E.2 원인
+
+| 사실 | 근거 |
+| --- | --- |
+| ITS는 **9443 포트에서만** 서비스한다 | 443·8443은 연결 거부 (실측) |
+| Cloudflare Workers는 배포 시 `fetch()`의 **비표준 포트를 무시**하고 443으로 붙는다 | Cloudflare 공식 문서 |
+| `data.go.kr`의 CCTV 항목은 **LINK 유형** | 443으로 받아주는 미러가 없다 |
+
+로컬 Node의 `fetch`는 포트를 지키므로 개발 중에는 드러나지 않는다.
+
+### E.3 해결 — `cloudflare:sockets`
+
+`connect()`는 **임의 포트에 TLS 연결이 된다.** Workers에서 포트 제약을 우회하는 유일한 공식 경로다.
+대신 HTTP/1.1을 직접 만들어야 한다 → `src/features/cctv/lib/http-over-socket.ts`.
+
+- 비표준 포트일 때만 소켓을 쓰고, 소켓이 없는 런타임(로컬 Node)은 `fetch`로 되돌린다.
+- 폴백 판별은 **오류 메시지 문구가 아니라** `SocketUnavailableError` 타입으로 한다.
+  Node와 Workers의 문구가 다르고, 문구가 바뀌면 폴백이 조용히 깨진다.
+- 번들러가 `cloudflare:sockets`를 해석하지 않도록 `webpackIgnore`·`turbopackIgnore` 주석이 필요하다.
+
+### E.4 함정 — `writer.close()`가 연결을 끊는다
+
+요청을 다 썼다는 뜻으로 `await writer.close()`를 부르면 **연결 전체가 닫힌다.**
+`allowHalfOpen: true`로도 마찬가지였다. 응답을 한 바이트도 못 받고 끝난다.
+
+요청의 끝은 헤더 뒤 빈 줄이 알리고, 응답의 끝은 `Connection: close`에 따라 서버가 닫는 시점이다.
+→ **writer는 `releaseLock()`만 하고 닫지 않는다.** 회귀 테스트로 고정했다.
+
+### E.5 실측 (workerd, 실제 키)
+
+| 대상 | 결과 |
+| --- | --- |
+| `example.com:443`, writer 닫음 | ❌ `Network connection lost.` |
+| `example.com:443`, 안 닫음 | ✅ 200 |
+| `openapi.its.go.kr:9443`, 안 닫음 | ✅ **200 · 787건 · 263 KB** |
+
+> 교훈: 런타임이 다르면 **네트워크 계층부터 다르다.** 로컬 `next start` 통과는
+> Workers 배포본의 근거가 되지 못한다. 이런 부분은 `wrangler dev --local`로 따로 확인해야 한다.
