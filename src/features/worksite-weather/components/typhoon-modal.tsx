@@ -35,6 +35,15 @@ type TyphoonTab = "windy" | "typ_map" | "typ_info" | "safety_guide";
  */
 const KMA_TYPHOON_URL = "https://www.weather.go.kr/w/typhoon/ko/weather/typhoon_02.jsp";
 
+/**
+ * 날씨누리 「위험기상 > 태풍」 페이지.
+ *
+ * 태풍정보(진로도)와 기상특보 현황을 한 화면에 보여 준다.
+ * 상세 통보문 탭은 원래 자체 수집 데이터만 그려서, 태풍 특보가 없으면 빈 화면이었다.
+ * 본문은 JS로 그려지므로 정적 HTML에는 태풍 내용이 없다 — 소스만 보고 판단하지 말 것.
+ */
+const KMA_HAZARD_TYPHOON_URL = "https://www.weather.go.kr/w/hazard/typhoon.do";
+
 const MIN_SIZE = { width: 500, height: 380 };
 
 function getLargeDefaultSize() {
@@ -338,7 +347,11 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
 
           <a
             href={
-              activeTab === "windy" ? "https://www.windy.com" : KMA_TYPHOON_URL
+              activeTab === "windy"
+                ? "https://www.windy.com"
+                : activeTab === "typ_info"
+                  ? KMA_HAZARD_TYPHOON_URL
+                  : KMA_TYPHOON_URL
             }
             target="_blank"
             rel="noopener noreferrer"
@@ -371,34 +384,35 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
               sandbox="allow-scripts allow-same-origin allow-popups"
             />
           ) : activeTab === "typ_info" ? (
-            <div className="h-full overflow-y-auto rounded border border-rose-900/40 bg-slate-900/90 p-4 space-y-3 text-xs text-rose-100">
-              <h4 className="flex items-center gap-2 text-sm font-bold text-rose-300 border-b border-rose-800/60 pb-2">
-                <Wind className="h-4 w-4" />
-                기상청 태풍 분석 및 상세 통보 현황
-              </h4>
-
+            /*
+             * 자체 수집한 특보에서 뽑은 요약은 태풍 특보가 있을 때만 나온다.
+             * 없을 때 빈 화면이 되지 않도록 본문은 날씨누리 태풍 페이지를 그대로 띄운다.
+             */
+            <div className="flex h-full flex-col gap-2">
               {typhoon?.detail ? (
-                <div className="space-y-2 rounded-md bg-rose-950/40 p-3 border border-rose-800/50">
-                  <p className="text-sm font-semibold text-rose-200">
-                    제{typhoon.detail.number}호 태풍 {typhoon.detail.name}
+                <div className="shrink-0 space-y-1.5 rounded-md border border-rose-800/50 bg-rose-950/40 p-2.5">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-200">
+                    <Wind className="h-3.5 w-3.5" />제{typhoon.detail.number}호 태풍{" "}
+                    {typhoon.detail.name}
                   </p>
-                  <ul className="space-y-1 text-xs text-slate-200">
-                    <li>📍 **현재 위치**: {typhoon.detail.position}</li>
-                    <li>💨 **중심 기압**: {typhoon.detail.pressureHpa ?? "-"} hPa</li>
-                    <li>🌪️ **최대 풍속**: {typhoon.detail.maxWindMs ?? "-"} m/s</li>
-                    <li>🧭 **예상 진로**: {typhoon.detail.forecast}</li>
-                    <li>📢 **특보 지역**: {typhoon.region || "전국 태풍 영향권"}</li>
-                    <li>🕒 **발령 시각**: {typhoon.issuedAt || "현재 유효"}</li>
+                  <ul className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-slate-200 lg:grid-cols-3">
+                    <li>📍 위치: {typhoon.detail.position}</li>
+                    <li>💨 중심기압: {typhoon.detail.pressureHpa ?? "-"} hPa</li>
+                    <li>🌪️ 최대풍속: {typhoon.detail.maxWindMs ?? "-"} m/s</li>
+                    <li>🧭 진로: {typhoon.detail.forecast}</li>
+                    <li>📢 특보지역: {typhoon.region || "전국 태풍 영향권"}</li>
+                    <li>🕒 발령: {typhoon.issuedAt || "현재 유효"}</li>
                   </ul>
                 </div>
-              ) : (
-                <div className="rounded-md bg-slate-950/60 p-4 text-center text-slate-300">
-                  <p className="text-sm font-medium">현재 발효된 직접적인 태풍 경보/주의보는 없습니다.</p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    기상청 태풍 진로도 탭에서 발생 중인 한반도 주변 태풍의 이동 궤적을 확인하세요.
-                  </p>
-                </div>
-              )}
+              ) : null}
+
+              <iframe
+                key={`typ-info-${refreshKey}`}
+                src={KMA_HAZARD_TYPHOON_URL}
+                className="min-h-0 w-full flex-1 rounded border-0"
+                title="기상청 날씨누리 태풍정보"
+                sandbox="allow-scripts allow-same-origin allow-popups"
+              />
             </div>
           ) : (
             <div className="h-full overflow-y-auto rounded border border-amber-800/40 bg-slate-900/90 p-4 space-y-3 text-xs text-amber-100">
