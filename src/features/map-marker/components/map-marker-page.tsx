@@ -10,6 +10,7 @@ import {
 import { useHasMounted } from "@/hooks/use-has-mounted";
 import { AppShell } from "@/features/shell/components/app-shell";
 import { KakaoMapCanvas } from "@/features/map-marker/components/map/kakao-map-canvas";
+import { VworldPaneOverlay } from "@/features/gpsmap/components/vworld-pane-overlay";
 
 // 모달은 열릴 때만 필요하므로 초기 번들에서 분리(지연 로드)한다.
 const RoadviewModal = dynamic(
@@ -107,11 +108,14 @@ export function MapMarkerPage() {
             </button>
           </div>
         ) : (
-          <KakaoMapCanvas
-            markers={markers}
-            mode={mode}
-            filters={effectiveFilters}
-          />
+          <>
+            <KakaoMapCanvas
+              markers={markers}
+              mode={mode}
+              filters={effectiveFilters}
+            />
+            <VworldPaneOverlay />
+          </>
         )}
       </AppShell>
 

@@ -38,6 +38,19 @@ interface MapMarkerUiState {
    */
   isVworldParcelVisible: boolean;
   setVworldParcelVisible: (visible: boolean) => void;
+  /**
+   * 위치 세그먼트에서 지도를 어떻게 쓸지.
+   * `lookup`이면 클릭한 지점을 조회하고, `roadview`면 도로 오버레이를 띄워 로드뷰를 연다.
+   * persist 하지 않는다 — 새로고침 후에도 켜져 있으면 평소 클릭이 먹히지 않는다.
+   */
+  mapPickMode: "off" | "lookup" | "roadview";
+  setMapPickMode: (mode: "off" | "lookup" | "roadview") => void;
+  /** 지도에서 찍은 지점. 변환기 패널이 이걸 보고 조회한다. `at`은 같은 지점 재클릭 구분용 */
+  pickedPoint: { lat: number; lng: number; at: number } | null;
+  setPickedPoint: (point: { lat: number; lng: number; at: number } | null) => void;
+  /** 브이월드 지적도 화면(하단 페인) 표시 여부 */
+  isVworldPaneOpen: boolean;
+  setVworldPaneOpen: (open: boolean) => void;
   markerListFilter: string;
   filters: MarkerFilterState;
   pendingEquipmentMarkers: MarkerRecord[];
@@ -169,6 +182,12 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       isVworldParcelVisible: true,
       setVworldParcelVisible: (visible) =>
         set({ isVworldParcelVisible: visible }),
+      mapPickMode: "off",
+      setMapPickMode: (mode) => set({ mapPickMode: mode }),
+      pickedPoint: null,
+      setPickedPoint: (point) => set({ pickedPoint: point }),
+      isVworldPaneOpen: false,
+      setVworldPaneOpen: (open) => set({ isVworldPaneOpen: open }),
       markerListFilter: "",
       filters: emptyFilterState,
       pendingEquipmentMarkers: [],

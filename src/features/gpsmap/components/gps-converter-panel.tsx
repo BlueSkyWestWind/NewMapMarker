@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  Crosshair,
   Download,
   ExternalLink,
   Eye,
@@ -68,6 +69,12 @@ export function GpsConverterPanel() {
   const setVworldParcelVisible = useMapMarkerStore(
     (state) => state.setVworldParcelVisible,
   );
+  const mapPickMode = useMapMarkerStore((state) => state.mapPickMode);
+  const setMapPickMode = useMapMarkerStore((state) => state.setMapPickMode);
+  const pickedPoint = useMapMarkerStore((state) => state.pickedPoint);
+  const setPickedPoint = useMapMarkerStore((state) => state.setPickedPoint);
+  const isVworldPaneOpen = useMapMarkerStore((state) => state.isVworldPaneOpen);
+  const setVworldPaneOpen = useMapMarkerStore((state) => state.setVworldPaneOpen);
 
   const [tab, setTab] = useState<ConverterTab>("single");
   const [query, setQuery] = useState("");
@@ -76,7 +83,17 @@ export function GpsConverterPanel() {
   const [error, setError] = useState<string | null>(null);
   const [single, setSingle] = useState<GpsLookupResult | null>(null);
   const [rows, setRows] = useState<BatchRow[]>([]);
-  const [dms, setDms] = useState({ latD: "", latM: "", latS: "", lngD: "", lngM: "", lngS: "" });
+  // 도·분·초·1/100초 4칸. `/gpsmap`과 같은 구성이라 값을 그대로 옮겨 적을 수 있다.
+  const [dms, setDms] = useState({
+    latD: "",
+    latM: "",
+    latS: "",
+    latCS: "",
+    lonD: "",
+    lonM: "",
+    lonS: "",
+    lonCS: "",
+  });
 
   const abortRef = useRef<AbortController | null>(null);
   const batchCount = useMemo(() => parseBatchInputs(batchText).length, [batchText]);
@@ -171,10 +188,30 @@ export function GpsConverterPanel() {
     }
   };
 
+  /*
+   * 지도에서 찍은 지점을 조회한다. 좌표를 그대로 단건 조회에 넘기면
+   * 역주소·필지·건축물대장까지 같은 경로로 채워진다.
+   */
+  const runSingleRef = useRef(runSingle);
+  runSingleRef.current = runSingle;
+  useEffect(() => {
+    if (!pickedPoint) return;
+    setPickedPoint(null);
+    setTab("single");
+    void runSingleRef.current(`${pickedPoint.lat}, ${pickedPoint.lng}`);
+  }, [pickedPoint, setPickedPoint]);
+
+  // 위치 세그먼트를 떠나면 클릭 모드를 끈다. 켜진 채로 남으면 평소 지도 클릭이 먹지 않는다.
+  useEffect(() => {
+    return () => {
+      setMapPickMode("off");
+    };
+  }, [setMapPickMode]);
+
   /** 도분초를 십진수로 바꿔 그 지점으로 강제 이동한다. */
   const moveToDms = () => {
-    const lat = dmsToDecimal(`${dms.latD}-${dms.latM}-${dms.latS}`);
-    const lng = dmsToDecimal(`${dms.lngD}-${dms.lngM}-${dms.lngS}`);
+    const lat = dmsToDecimal(`${dms.latD} ${dms.latM} ${dms.latS} ${dms.latCS}`);
+    const lng = dmsToDecimal(`${dms.lonD} ${dms.lonM} ${dms.lonS} ${dms.lonCS}`);
     if (lat === null || lng === null) {
       setError("도·분·초를 모두 입력하세요.");
       return;
@@ -189,6 +226,67 @@ export function GpsConverterPanel() {
 
   return (
     <div className="space-y-2">
+      {/* 지도를 어떻게 쓸지. `/gpsmap`의 지도 클릭 조회·로드뷰 선택을 여기서 켠다. */}
+      <div className="grid grid-cols-3 gap-1">
+        <button
+          type="button"
+          aria-pressed={mapPickMode === "lookup"}
+          onClick={() =>
+            setMapPickMode(mapPickMode === "lookup" ? "off" : "lookup")
+          }
+          className={cn(
+            "flex h-8 items-center justify-center gap-1 rounded-md border text-[10px] font-medium",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
+            mapPickMode === "lookup"
+              ? "border-indigo-500/60 bg-indigo-600/25 text-indigo-200"
+              : "border-slate-700 text-slate-400 hover:text-slate-200",
+          )}
+        >
+          <Crosshair className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          클릭 조회
+        </button>
+        <button
+          type="button"
+          aria-pressed={mapPickMode === "roadview"}
+          onClick={() =>
+            setMapPickMode(mapPickMode === "roadview" ? "off" : "roadview")
+          }
+          className={cn(
+            "flex h-8 items-center justify-center gap-1 rounded-md border text-[10px] font-medium",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
+            mapPickMode === "roadview"
+              ? "border-amber-500/60 bg-amber-600/25 text-amber-200"
+              : "border-slate-700 text-slate-400 hover:text-slate-200",
+          )}
+        >
+          <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          로드뷰
+        </button>
+        <button
+          type="button"
+          aria-pressed={isVworldPaneOpen}
+          onClick={() => setVworldPaneOpen(!isVworldPaneOpen)}
+          className={cn(
+            "flex h-8 items-center justify-center gap-1 rounded-md border text-[10px] font-medium",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
+            isVworldPaneOpen
+              ? "border-emerald-500/60 bg-emerald-600/25 text-emerald-200"
+              : "border-slate-700 text-slate-400 hover:text-slate-200",
+          )}
+        >
+          <SquareStack className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          지적도 화면
+        </button>
+      </div>
+
+      {mapPickMode !== "off" ? (
+        <p className="rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1.5 text-[10px] leading-relaxed text-slate-300">
+          {mapPickMode === "lookup"
+            ? "지도를 클릭하면 그 지점을 조회합니다."
+            : "로드뷰가 있는 도로가 파랗게 표시됩니다. 도로를 클릭하세요."}
+        </p>
+      ) : null}
+
       <div className="flex rounded-lg border border-slate-700/60 bg-black/20 p-1">
         {TABS.map((item) => (
           <button
@@ -240,26 +338,30 @@ export function GpsConverterPanel() {
           </Button>
 
           <div className="rounded-md border border-slate-800 bg-slate-900/40 p-2">
-            <p className="mb-1.5 text-[10px] text-slate-400">GPS 좌표(도분초)로 이동</p>
-            <div className="grid grid-cols-3 gap-1">
-              {(["latD", "latM", "latS"] as const).map((key, idx) => (
+            <p className="mb-1.5 text-[10px] text-slate-400">GPS 좌표(도분초) 강제 이동</p>
+            <div className="flex items-center gap-1">
+              <span className="w-6 shrink-0 text-[10px] text-slate-500">위도</span>
+              {(["latD", "latM", "latS", "latCS"] as const).map((key, idx) => (
                 <Input
                   key={key}
                   value={dms[key]}
                   onChange={(e) => setDms((prev) => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={["위도 도", "분", "초"][idx]}
-                  className="h-7 border-slate-700 bg-slate-900/60 text-[11px]"
+                  placeholder={["37", "34", "46", "08"][idx]}
+                  inputMode="numeric"
+                  className="h-7 min-w-0 flex-1 border-slate-700 bg-slate-900/60 px-1 text-center text-[11px] tabular-nums"
                 />
               ))}
             </div>
-            <div className="mt-1 grid grid-cols-3 gap-1">
-              {(["lngD", "lngM", "lngS"] as const).map((key, idx) => (
+            <div className="mt-1 flex items-center gap-1">
+              <span className="w-6 shrink-0 text-[10px] text-slate-500">경도</span>
+              {(["lonD", "lonM", "lonS", "lonCS"] as const).map((key, idx) => (
                 <Input
                   key={key}
                   value={dms[key]}
                   onChange={(e) => setDms((prev) => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={["경도 도", "분", "초"][idx]}
-                  className="h-7 border-slate-700 bg-slate-900/60 text-[11px]"
+                  placeholder={["126", "58", "43", "47"][idx]}
+                  inputMode="numeric"
+                  className="h-7 min-w-0 flex-1 border-slate-700 bg-slate-900/60 px-1 text-center text-[11px] tabular-nums"
                 />
               ))}
             </div>
@@ -270,7 +372,7 @@ export function GpsConverterPanel() {
               onClick={moveToDms}
               disabled={isBusy}
             >
-              해당 좌표로 이동
+              이동
             </Button>
           </div>
 

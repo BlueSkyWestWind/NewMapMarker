@@ -152,6 +152,18 @@ export function KakaoMapCanvas({
   const isVworldParcelVisible = useMapMarkerStore(
     (state) => state.isVworldParcelVisible,
   );
+  const mapPickMode = useMapMarkerStore((state) => state.mapPickMode);
+  const setMapPickMode = useMapMarkerStore((state) => state.setMapPickMode);
+  const setPickedPoint = useMapMarkerStore((state) => state.setPickedPoint);
+
+  // 지도 클릭 리스너는 한 번만 등록되므로 최신 값을 ref로 넘긴다.
+  const pickModeRef = useRef(mapPickMode);
+  pickModeRef.current = mapPickMode;
+  const setPickModeRef = useRef(setMapPickMode);
+  setPickModeRef.current = setMapPickMode;
+  const setPickedPointRef = useRef(setPickedPoint);
+  setPickedPointRef.current = setPickedPoint;
+  const roadviewOverlayRef = useRef<KakaoRoadviewOverlay | null>(null);
   const placeSearch = useMapMarkerStore((state) => state.placeSearch);
   const cctvMarkers = useMapMarkerStore((state) => state.cctvMarkers);
   const isCctvVisible = useMapMarkerStore((state) => state.isCctvVisible);
@@ -164,6 +176,8 @@ export function KakaoMapCanvas({
   const openDetailModal = useMapMarkerStore((state) => state.openDetailModal);
   const openEditModal = useMapMarkerStore((state) => state.openEditModal);
   const openRoadview = useMapMarkerStore((state) => state.openRoadview);
+  const openRoadviewRef = useRef(openRoadview);
+  openRoadviewRef.current = openRoadview;
   const updatePendingMarker = useMapMarkerStore(
     (state) => state.updatePendingMarker,
   );
@@ -265,7 +279,28 @@ export function KakaoMapCanvas({
       rightClickOverlayRef.current = null;
     };
 
-    window.kakao.maps.event.addListener(map, "click", () => {
+    window.kakao.maps.event.addListener(map, "click", (...args: unknown[]) => {
+      /*
+       * 위치 세그먼트의 지도 클릭 모드. 리스너는 한 번만 붙으므로 최신 값을 ref로 읽는다
+       * (클로저에 갇히면 토글해도 예전 모드로 동작한다).
+       */
+      const pickMode = pickModeRef.current;
+      if (pickMode !== "off") {
+        const mouseEvent = args[0] as { latLng?: KakaoLatLng } | undefined;
+        const latlng = mouseEvent?.latLng;
+        if (latlng) {
+          const lat = latlng.getLat();
+          const lng = latlng.getLng();
+          if (pickMode === "roadview") {
+            openRoadviewRef.current(lat, lng, "선택 지점");
+            setPickModeRef.current("off");
+          } else {
+            setPickedPointRef.current({ lat, lng, at: Date.now() });
+          }
+        }
+        return;
+      }
+
       closeAllOverlays(overlaysRef.current);
       overlayOffsetsRef.current.clear();
       clearSelectedMarkers();
@@ -874,6 +909,21 @@ export function KakaoMapCanvas({
       map.panTo(center);
     }
   }, [placeSearch, isVworldParcelVisible, isReady]);
+
+  /** 로드뷰 선택 모드: 로드뷰가 있는 도로를 파란 선으로 표시한다. */
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !isReady || !window.kakao?.maps) return;
+
+    if (!roadviewOverlayRef.current) {
+      roadviewOverlayRef.current = new window.kakao.maps.RoadviewOverlay();
+    }
+    roadviewOverlayRef.current.setMap(mapPickMode === "roadview" ? map : null);
+
+    return () => {
+      roadviewOverlayRef.current?.setMap(null);
+    };
+  }, [mapPickMode, isReady]);
 
   /**
    * 도로 CCTV 마커 레이어 (장비 모드).
