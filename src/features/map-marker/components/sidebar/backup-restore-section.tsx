@@ -8,9 +8,11 @@ import type { MapMode } from '@/features/map-marker/types/marker';
 
 interface BackupRestoreSectionProps {
   mode: MapMode;
+  /** 삭제 대상 건수. 되돌릴 수 없는 조작은 누르기 전에 결과가 드러나야 한다. */
+  batteryCount?: number;
 }
 
-export function BackupRestoreSection({ mode }: BackupRestoreSectionProps) {
+export function BackupRestoreSection({ mode, batteryCount }: BackupRestoreSectionProps) {
   const fullBackupFileRef = useRef<HTMLInputElement>(null);
   const {
     isBusy,
@@ -71,6 +73,11 @@ export function BackupRestoreSection({ mode }: BackupRestoreSectionProps) {
             <Trash2 className="mr-1 h-3 w-3" />
             등록 데이터 일괄 삭제
           </Button>
+          <p className="text-[10px] leading-relaxed text-rose-300/80">
+            {typeof batteryCount === 'number'
+              ? `축전지 ${batteryCount}건이 모두 지워집니다. 되돌릴 수 없습니다.`
+              : '되돌릴 수 없습니다. 먼저 전체 백업을 받아 두세요.'}
+          </p>
         </div>
       ) : null}
 

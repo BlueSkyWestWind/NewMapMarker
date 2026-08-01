@@ -1,51 +1,21 @@
 'use client';
 
-import { useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
-import { fetchParcelBoundary } from '@/features/map-marker/lib/parcel-boundary';
+import { usePlaceSearch } from '@/features/map-marker/hooks/use-place-search';
 
 export function PlaceSearchSection() {
-  const [query, setQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
-
-  const placeSearch = useMapMarkerStore((state) => state.placeSearch);
-  const setPlaceSearch = useMapMarkerStore((state) => state.setPlaceSearch);
-
-  const runSearch = async () => {
-    const trimmed = query.trim();
-    if (!trimmed || isSearching) return;
-
-    setIsSearching(true);
-    setIsError(false);
-    setStatus('경계 조회 중...');
-
-    try {
-      const result = await fetchParcelBoundary(trimmed);
-      setPlaceSearch(result);
-      if (result.parcels.length === 0) {
-        setStatus('필지 경계를 찾지 못해 위치로 이동했습니다.');
-      } else {
-        setStatus(`경계 ${result.parcels.length}건 표시${result.label ? ` · ${result.label}` : ''}`);
-      }
-    } catch (err) {
-      setIsError(true);
-      setStatus(err instanceof Error ? err.message : '검색에 실패했습니다.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const clearSearch = () => {
-    setPlaceSearch(null);
-    setStatus(null);
-    setIsError(false);
-    setQuery('');
-  };
+  const {
+    query,
+    setQuery,
+    isSearching,
+    status,
+    isError,
+    hasResult,
+    runSearch,
+    clearSearch,
+  } = usePlaceSearch();
 
   return (
     <div className="space-y-2 pb-1">
@@ -57,7 +27,7 @@ export function PlaceSearchSection() {
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              runSearch();
+              void runSearch();
             }
           }}
           placeholder="장소, 주소 검색..."
@@ -70,11 +40,11 @@ export function PlaceSearchSection() {
           size="sm"
           className="h-8 flex-1 text-xs"
           disabled={isSearching || !query.trim()}
-          onClick={runSearch}
+          onClick={() => void runSearch()}
         >
           {isSearching ? '검색 중...' : '검색'}
         </Button>
-        {placeSearch ? (
+        {hasResult ? (
           <Button
             type="button"
             size="sm"

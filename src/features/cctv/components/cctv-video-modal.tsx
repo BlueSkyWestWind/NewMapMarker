@@ -7,15 +7,16 @@ import { Button } from "@/components/ui/button";
 import { useHasMounted } from "@/hooks/use-has-mounted";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { roadTypeLabel } from "@/features/cctv/constants/its-config";
+import {
+  COLLAPSED_LEFT_OFFSET_PX,
+  LEFT_OFFSET_PX,
+} from "@/features/shell/constants";
 import type { CctvItem } from "@/features/cctv/types/cctv";
 
 interface CctvVideoModalProps {
   cctv: CctvItem | null;
   onClose: () => void;
 }
-
-/** 사이드바 폭. 모달을 지도 영역 중앙에 놓기 위한 오프셋. */
-const SIDEBAR_WIDTH_PX = 340;
 
 /**
  * CCTV 실시간 영상 모달.
@@ -111,7 +112,11 @@ export function CctvVideoModal({ cctv, onClose }: CctvVideoModalProps) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       // 지도 영역 중앙에 오도록 사이드바 폭만큼 비킨다
-      style={{ paddingLeft: isSidebarOpen ? SIDEBAR_WIDTH_PX + 16 : undefined }}
+      // 뷰포트 고정이라 좌측 셸 폭만큼 비켜야 지도 영역 중앙에 온다.
+      style={{
+        paddingLeft:
+          (isSidebarOpen ? LEFT_OFFSET_PX : COLLAPSED_LEFT_OFFSET_PX) + 16,
+      }}
       onClick={onClose}
     >
       <div

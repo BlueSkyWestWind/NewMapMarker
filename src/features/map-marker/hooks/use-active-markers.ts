@@ -49,6 +49,12 @@ export function useActiveMarkers() {
   const pendingLocationMarkers = useMapMarkerStore(
     (state) => state.pendingLocationMarkers,
   );
+  const savedWeatherSites = useMapMarkerStore((state) => state.savedWeatherSites);
+  // 배열 정체성이 매번 바뀌면 markers useMemo가 헛돈다. id 목록으로 좁혀 잡는다.
+  const savedWeatherSiteIds = useMemo(
+    () => savedWeatherSites.map((site) => site.id),
+    [savedWeatherSites],
+  );
   const { data, isLoading, isError, error, refetch } = useMapMarkersQuery();
   const filters = useMapMarkerStore((state) => state.filters);
   const setFilters = useMapMarkerStore((state) => state.setFilters);
@@ -67,8 +73,10 @@ export function useActiveMarkers() {
       pendingEquipmentMarkers,
       pendingBatteryMarkers,
       pendingLocationMarkers,
+      savedWeatherSiteIds,
     });
   }, [
+    savedWeatherSiteIds,
     data,
     mode,
     pendingEquipmentMarkers,

@@ -1,5 +1,78 @@
 # Walkthrough
 
+## [2026-08-01] UI 셸 개편 + 대시보드 신설 (Ver 2.0)
+
+### 개요 및 목적
+
+화면의 최상위 전환 축을 **모드(데이터 도메인)** 에서 **메뉴(기능 영역)** 로 옮기고, 그 위에
+**대시보드**("오늘 이 국소에서 작업해도 되는가")를 기본 진입 화면으로 신설했다.
+계획서 `docs/Ver_2.0/Ver_2.0_implementation_plan.md` 2~6단계를 한 번에 구현했다.
+
+### 변경된 내용
+
+**신설 — `features/shell/`**
+
+| 파일 | 역할 |
+| --- | --- |
+| `constants.ts` | `NAV_RAIL_WIDTH_PX=200` · `WORK_PANEL_WIDTH_PX=340` · `LEFT_OFFSET_PX=540`. 폭의 **단일 소스** |
+| `types/nav.ts` | `NavKey` 7종 + 라벨·아이콘·`auth`·`enabled` 메타, 접근 판정 |
+| `components/app-shell.tsx` | 4영역 레이아웃. 폭 상수를 CSS 변수(`--rail-w`·`--panel-w`)로 흘려보낸다 |
+| `components/nav-rail.tsx` | 메뉴 7개 + 계정 영역. 비로그인 시 `auth` 항목 **필터링**, 폴백 포함 |
+| `components/work-panel.tsx` | `activeNav`별 패널 스위치(`ts-pattern` + `exhaustive`) |
+| `components/top-search-bar.tsx` | 전역 검색 + `Ctrl+K` |
+| `components/coming-soon.tsx` | 그룹관리 안내 |
+| `components/panels/*` | 지도·마커관리·백업/복원·설정 패널 |
+
+**신설 — `features/dashboard/`**
+
+`use-worksite-board.ts`(동시 4 제한·행 단위 실패 격리·언마운트 취소) ·
+`worksite-board.tsx` · `worksite-row.tsx` · `dashboard-panel.tsx`(빈 상태 포함).
+기상 조회는 기존 10분 모듈 캐시를 그대로 타서 지도 오버레이와 값이 갈리지 않는다.
+
+**변경**
+
+- `map-marker-page.tsx` — `MapSidebar` → `AppShell`. `useActiveMarkers`는 여전히 **여기서만** 호출
+- `sidebar/map-sidebar.tsx` **삭제**(350줄). 내부 섹션은 패널이 직접 렌더
+- `mode-tabs.tsx` — 4탭 → 세그먼트(지도 3종 / 마커관리 2종). `날씨&CCTV` 탭 소멸
+- `use-map-marker-store.ts` — `activeNav`·`lastDomainMode`·`setActiveNav` 추가(persist).
+  **메뉴 이동은 필터를 보존하고 세그먼트 전환만 초기화한다**(§3.9)
+- `select-active-markers.ts` — 날씨 분기를 "전부 감춤" → **저장 국소의 장비 마커만**(§3.4)
+- `use-place-search.ts` **신설** — 사이드바 장소 검색과 전역 검색바가 같은 구현을 쓴다
+- `gps-converter-panel.tsx` **신설** — 단건/일괄/엑셀. `gpsmap/lib/`를 그대로 써 `/gpsmap`과 로직 한 벌
+- `backup-restore-section.tsx` — 위치 이동 + 삭제 버튼에 건수 문구("축전지 N건이 모두 지워집니다")
+- `cctv-video-modal.tsx` — `SIDEBAR_WIDTH_PX=340` 제거 → 셸 상수 참조
+- `map-region-capture-panel-view.tsx` — 오프셋은 **건드리지 않고**(지도 컨테이너 기준) 폭만 CSS 변수로
+
+### 번들에서 겪은 것
+
+변환기를 정적 import 했더니 홈 First Load JS가 **295 → 449 kB**로 뛰었다.
+VWorld 지오코딩·엑셀 모듈이 홈 번들에 합류한 탓이다.
+`dynamic()`으로 바꿔 **281 kB**가 됐다 — 개편 전보다 14 kB 작다.
+대시보드도 같은 이유로 지연 로드한다.
+
+### 검증 결과
+
+| 항목 | 결과 |
+| --- | --- |
+| `tsc --noEmit` | 0 |
+| `eslint . --max-warnings=0` | 0 |
+| `vitest` | **269건 / 19파일 통과** (264 → +5, 날씨 분기 테스트 교체·추가) |
+| `next build` | 성공 |
+| 홈 First Load JS | **281 kB** (기준 295 kB 대비 감소) |
+| `/gpsmap` | 348 kB (라우트 유지) |
+| 폭 상수 | `grep -rn "340" src` → `shell/constants.ts` 정의부와 주석만 |
+
+### 미검증 — 남은 것
+
+| 항목 | 상태 |
+| --- | --- |
+| **브라우저 실물 확인** | 빌드·타입·테스트까지만. 화면 렌더링·클릭 동선은 미확인 |
+| 1280/1024/768px 실측 | 반응형 규칙은 넣었으나 실제 폭에서 확인하지 않음 |
+| §3.6 UI 공유 범위 | `/gpsmap` 페이지는 **손대지 않았다**. 공유한 것은 `gpsmap/lib/` 로직이고 UI 셸은 별개다(340px와 전체화면의 요구가 달라서). 계획서 문구는 "같은 컴포넌트 공유"였으므로 이 부분은 축소 구현이다 |
+| 설정 메뉴 | 플로팅 컨트롤과 **병존**시켰다. 줌·내 위치·영역 캡처는 지도를 보며 눌러야 해서 옮기지 않았다 |
+
+---
+
 ## [2026-07-26] CR-004 · 기상청 API 허브 실연동 및 실응답 대응
 
 ### 개요 및 목적

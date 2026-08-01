@@ -20,6 +20,7 @@ function sources(overrides: Partial<ActiveMarkerSources> = {}): ActiveMarkerSour
     pendingEquipmentMarkers: [],
     pendingBatteryMarkers: [],
     pendingLocationMarkers: [],
+    savedWeatherSiteIds: [],
     ...overrides,
   };
 }
@@ -123,17 +124,71 @@ describe("selectActiveMarkers", () => {
     });
   });
 
-  describe("날씨 모드", () => {
-    // 대시보드(Ver 2.0)에서 이 규칙을 바꾼다. 현재 동작을 고정해 두어 그때 의도한 변경인지 드러나게 한다.
-    it("어떤 마커도 지도에 올리지 않는다", () => {
+  // 대시보드 규칙 (계획서 §3.4)
+  describe("날씨 모드 = 대시보드", () => {
+    it("작업등록이 0건이면 마커가 없다", () => {
       const result = selectActiveMarkers(
         "weather",
         sources({
           equipmentMarkers: [marker("e1")],
           batteryMarkers: [marker("b1")],
-          pendingEquipmentMarkers: [marker("p1")],
-          pendingLocationMarkers: [marker("l1")],
+          savedWeatherSiteIds: [],
         }),
+      );
+      expect(result).toEqual([]);
+    });
+
+    it("작업등록한 장비 국소만 올린다", () => {
+      const result = selectActiveMarkers(
+        "weather",
+        sources({
+          equipmentMarkers: [marker("e1"), marker("e2"), marker("e3")],
+          savedWeatherSiteIds: ["e1", "e3"],
+        }),
+      );
+      expect(ids(result)).toEqual(["e1", "e3"]);
+    });
+
+    it("등록되지 않은 일반 마커는 감춘다", () => {
+      const result = selectActiveMarkers(
+        "weather",
+        sources({
+          equipmentMarkers: [marker("e1"), marker("e2")],
+          savedWeatherSiteIds: ["e1"],
+        }),
+      );
+      expect(ids(result)).toEqual(["e1"]);
+    });
+
+    // 사용자 확정: 대시보드에서는 축전지 마커를 볼 필요 없다.
+    // 그래서 지도 마커 수 ≤ 목록 건수이고, 둘은 같지 않을 수 있다.
+    it("축전지 국소는 저장돼 있어도 지도에 올리지 않는다", () => {
+      const result = selectActiveMarkers(
+        "weather",
+        sources({
+          equipmentMarkers: [marker("e1")],
+          batteryMarkers: [marker("b1")],
+          savedWeatherSiteIds: ["e1", "b1"],
+        }),
+      );
+      expect(ids(result)).toEqual(["e1"]);
+    });
+
+    it("임시 위치 마커도 올리지 않는다", () => {
+      const result = selectActiveMarkers(
+        "weather",
+        sources({
+          pendingLocationMarkers: [marker("l1")],
+          savedWeatherSiteIds: ["l1"],
+        }),
+      );
+      expect(result).toEqual([]);
+    });
+
+    it("DB 로드 전이면 빈 목록을 준다", () => {
+      const result = selectActiveMarkers(
+        "weather",
+        sources({ equipmentMarkers: null, savedWeatherSiteIds: ["e1"] }),
       );
       expect(result).toEqual([]);
     });

@@ -13,9 +13,21 @@ import type {
 } from "@/features/map-marker/types/marker";
 import type { SiteMatch } from "@/features/worksite-weather/types/weather";
 import type { CctvItem } from "@/features/cctv/types/cctv";
+import type { NavKey } from "@/features/shell/types/nav";
+
+/** 세그먼트로 고를 수 있는 도메인. `weather`는 대시보드 전용이라 제외한다. */
+type DomainMode = Exclude<MapMode, "weather">;
 
 interface MapMarkerUiState {
   mode: MapMode;
+  /** 현재 메뉴(좌측 레일). 화면 전환의 최상위 축 */
+  activeNav: NavKey;
+  /**
+   * 마지막으로 고른 도메인. 대시보드(weather)에 다녀와도 원래 도메인으로 돌아오기 위해 기억한다.
+   * 이게 없으면 대시보드→지도 복귀가 항상 장비로 떨어진다.
+   */
+  lastDomainMode: DomainMode;
+  setActiveNav: (nav: NavKey) => void;
   isSidebarOpen: boolean;
   isClusteringEnabled: boolean;
   clusterIconStyle: ClusterIconStyle;
@@ -113,6 +125,30 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
   persist(
     (set, get) => ({
       mode: "equipment",
+      activeNav: "dashboard",
+      lastDomainMode: "equipment",
+      /**
+       * 메뉴 전환. **필터·선택·CCTV 조회 결과를 보존한다** (계획서 §3.9).
+       *
+       * `setMode`는 도메인이 바뀌면 필터를 비우는데, 그건 세그먼트를 직접 눌렀을 때의 규칙이다.
+       * 대시보드가 weather 모드를 쓰므로 메뉴가 `setMode`를 그대로 호출하면
+       * 지도↔대시보드 왕복만으로 필터가 두 번 날아간다.
+       */
+      setActiveNav: (nav) =>
+        set((state) => {
+          const nextMode = match(nav)
+            .with("dashboard", () => "weather" as MapMode)
+            .with("map", () => state.lastDomainMode as MapMode)
+            // 마커관리에는 위치 세그먼트가 없다(위치는 지도 전용).
+            .with("markers", () =>
+              state.lastDomainMode === "location"
+                ? ("equipment" as MapMode)
+                : (state.lastDomainMode as MapMode),
+            )
+            .otherwise(() => state.mode);
+
+          return { activeNav: nav, mode: nextMode };
+        }),
       isSidebarOpen: true,
       isClusteringEnabled: true,
       clusterIconStyle: "donut",
@@ -145,12 +181,16 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
         set((state) => ({
           savedWeatherSites: state.savedWeatherSites.filter((s) => s.id !== id),
         })),
+      // 세그먼트를 직접 누른 경우다. 도메인이 바뀌면 필터 항목 자체가 달라지므로 초기화한다.
+      // 메뉴 이동은 이 함수를 쓰지 않는다 — `setActiveNav` 참조.
       setMode: (mode) =>
         set((state) =>
           state.mode === mode
             ? state
             : {
                 mode,
+                lastDomainMode:
+                  mode === "weather" ? state.lastDomainMode : (mode as DomainMode),
                 filters: emptyFilterState,
                 selectedMarkerId: null,
                 selectedMarkerIds: [],
@@ -288,6 +328,8 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       name: "map-marker-ui",
       partialize: (state) => ({
         mode: state.mode,
+        activeNav: state.activeNav,
+        lastDomainMode: state.lastDomainMode,
         isClusteringEnabled: state.isClusteringEnabled,
         clusterIconStyle: state.clusterIconStyle,
         isCadastralMode: state.isCadastralMode,

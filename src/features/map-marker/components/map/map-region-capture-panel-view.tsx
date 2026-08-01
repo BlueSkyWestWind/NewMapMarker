@@ -92,7 +92,11 @@ export function CapturePanelView({
 }: CapturePanelViewProps) {
   return (
     <div
-      className="absolute left-4 top-4 z-20 max-h-[calc(100%-2rem)] w-[340px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl"
+      /*
+       * 지도 컨테이너 기준 절대배치다 — 좌측 셸 폭을 더하면 안 된다(지도 안쪽으로 밀린다).
+       * 대신 좁은 화면에서 지도를 다 덮지 않도록 폭에 상한을 둔다.
+       */
+      className="absolute left-4 top-4 z-20 max-h-[calc(100%-2rem)] w-[min(var(--panel-w),calc(100%-2rem))] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl"
       data-capture-hide="true"
     >
       <div className="mb-3 flex items-start justify-between gap-2">

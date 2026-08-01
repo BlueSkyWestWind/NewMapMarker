@@ -11,6 +11,8 @@ export interface ActiveMarkerSources {
   pendingEquipmentMarkers: MarkerRecord[];
   pendingBatteryMarkers: MarkerRecord[];
   pendingLocationMarkers: MarkerRecord[];
+  /** 대시보드에 올릴 작업등록 국소의 id. 지도에는 이 중 **장비 마커만** 뜬다(§3.4). */
+  savedWeatherSiteIds: string[];
 }
 
 /**
@@ -23,10 +25,19 @@ export function selectActiveMarkers(
   mode: MapMode,
   sources: ActiveMarkerSources,
 ): MarkerRecord[] {
-  // 날씨 모드는 지도에 마커를 두지 않는다.
-  // 사이드바가 날씨 패널만 렌더하므로(map-sidebar.tsx) 이 목록의 유일한 소비처가 지도다.
+  /*
+   * 대시보드(weather)는 일반 마커를 전부 감추고 **작업등록한 장비 국소만** 올린다.
+   *
+   * 축전지 국소는 목록에만 나오고 지도에는 올리지 않는다(사용자 확정) —
+   * 따라서 지도 마커 수 ≤ 목록 건수이고, 둘이 같을 필요는 없다.
+   */
   if (mode === "weather") {
-    return [];
+    if (sources.savedWeatherSiteIds.length === 0) return [];
+
+    const savedIds = new Set(sources.savedWeatherSiteIds);
+    return (sources.equipmentMarkers ?? []).filter((marker) =>
+      savedIds.has(marker.id),
+    );
   }
 
   // 위치 모드는 DB 없이 브라우저 메모리 목록만 사용한다.
