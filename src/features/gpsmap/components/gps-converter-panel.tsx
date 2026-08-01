@@ -22,7 +22,11 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { createLocationMarker } from "@/features/map-marker/lib/location-marker";
-import { dmsToDecimal, validateKoreaCoordPair } from "@/features/gpsmap/lib/coords";
+import {
+  dmsToDecimal,
+  splitDmsParts,
+  validateKoreaCoordPair,
+} from "@/features/gpsmap/lib/coords";
 import { runSingleLookup } from "@/features/gpsmap/lib/lookup";
 import {
   parseBatchInputs,
@@ -138,6 +142,24 @@ export function GpsConverterPanel() {
     });
   };
 
+  /** 결과 지점으로 지도를 옮기고 필지 경계를 그린다. 임시 마커는 남기지 않는다. */
+  const moveMapTo = (result: GpsLookupResult) => {
+    setPlaceSearch({
+      label: result.roadAddress || result.oldAddress || result.input,
+      center: { lat: result.center.lat, lng: result.center.lng },
+      parcels:
+        result.parcels.length > 0
+          ? [
+              {
+                rings: result.parcels.map((ring) =>
+                  ring.map((p) => ({ lat: p.lat, lng: p.lng })),
+                ),
+              },
+            ]
+          : [],
+    });
+  };
+
   /** 조회 결과를 지도로 옮긴다. 임시 마커 + 필지 경계 + 지도 이동. */
   const dropMarkers = (results: GpsLookupResult[]) => {
     const markers: LocationMarker[] = results.map((result, index) =>
@@ -177,7 +199,29 @@ export function GpsConverterPanel() {
     );
   };
 
-  const runSingle = async (input?: string) => {
+  /** 조회 결과의 좌표를 도분초 입력칸에 채운다. 다음 조작에 그대로 이어 쓸 수 있게. */
+  const fillDmsFrom = (result: GpsLookupResult) => {
+    const latParts = splitDmsParts(result.center.lat);
+    const lonParts = splitDmsParts(result.center.lng);
+    if (!latParts || !lonParts) return;
+    setDms({
+      latD: String(latParts.d),
+      latM: latParts.m,
+      latS: latParts.s,
+      latCS: latParts.cs,
+      lonD: String(lonParts.d),
+      lonM: lonParts.m,
+      lonS: lonParts.s,
+      lonCS: lonParts.cs,
+    });
+  };
+
+  /**
+   * @param dropMarker 지도에 임시 위치 마커를 남길지.
+   *   지도를 눌러 둘러보는 중에는 남기지 않는다 — 클릭할 때마다 쌓여 지도와 목록이 지저분해진다.
+   *   버튼으로 명시적으로 조회했을 때만 남긴다.
+   */
+  const runSingle = async (input?: string, dropMarker = true) => {
     const target = (input ?? query).trim();
     if (!target || isBusy) return;
 
@@ -186,7 +230,12 @@ export function GpsConverterPanel() {
     try {
       const result = await runSingleLookup(target);
       setSingle(result);
-      dropMarkers([result]);
+      fillDmsFrom(result);
+      if (dropMarker) {
+        dropMarkers([result]);
+      } else {
+        moveMapTo(result);
+      }
     } catch (err) {
       setSingle(null);
       setError(err instanceof Error ? err.message : "조회에 실패했습니다.");
@@ -237,7 +286,8 @@ export function GpsConverterPanel() {
     if (!pickedPoint) return;
     setPickedPoint(null);
     setTab("single");
-    void runSingleRef.current(`${pickedPoint.lat}, ${pickedPoint.lng}`);
+    // 둘러보는 중이므로 임시 마커는 남기지 않는다.
+    void runSingleRef.current(`${pickedPoint.lat}, ${pickedPoint.lng}`, false);
   }, [pickedPoint, setPickedPoint]);
 
   /*
@@ -265,7 +315,8 @@ export function GpsConverterPanel() {
       return;
     }
     setError(null);
-    void runSingle(`${lat}, ${lng}`);
+    // 「이동」은 그 지점을 보러 가는 조작이다. 등록이 아니므로 마커를 남기지 않는다.
+    void runSingle(`${lat}, ${lng}`, false);
   };
 
   return (
