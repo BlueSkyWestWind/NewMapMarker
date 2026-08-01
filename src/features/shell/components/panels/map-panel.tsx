@@ -40,7 +40,7 @@ export function MapPanel({
   mode,
   segment,
 }: MapPanelProps) {
-  // 위치좌표 변환기는 독립 세그먼트다. 모드는 `location`을 그대로 쓴다.
+  // 위치/좌표 변환기는 독립 세그먼트다. 모드는 `location`을 그대로 쓴다.
   if (segment === "converter") {
     return (
       <div className="space-y-3">
