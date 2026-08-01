@@ -37,7 +37,9 @@
   마운트 전후 판정은 `map-marker-page.tsx` 한 곳에서만 하고 안전값을 props로 내린다.
 - **ESLint가 미사용 import·변수를 잡지 않는다.** 이동·삭제 리팩터 뒤에는 직접 확인.
 - 무거운 모듈(gpsmap lib·대시보드·Leaflet)은 `dynamic()`. 정적 import 하면 홈 번들이 150 kB 는다.
-- `useActiveMarkers`는 스토어에 쓴다 — 트리에서 **한 번만** 호출하고 props로 내린다.
+- `useActiveMarkers`는 스토어에 쓴다 — 트리에서 **한 번만** 호출해야 하지만, 현재 3곳에서 호출된다
+  (`map-marker-page` · `marker-detail-modal` · `use-marker-edit-form`). **새 호출을 늘리지 말 것.**
+  정리 계획은 Serena `mem:pitfalls` 1번.
 - 폭 상수는 `features/shell/constants.ts` 단일 소스. CSS 변수(`--rail-w`·`--panel-w`)로 흘려
   미디어 쿼리를 얹는다. 컴포넌트에 숫자를 적지 않는다.
 - `vitest.config.ts`의 include가 `.ts`뿐 — **`.tsx` 테스트는 조용히 실행되지 않는다.**

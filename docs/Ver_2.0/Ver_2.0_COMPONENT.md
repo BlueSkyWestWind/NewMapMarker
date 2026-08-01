@@ -86,11 +86,20 @@ features/{feature}/
 | props | `useActiveMarkers()` 결과 일체 (아래 경고 참조) |
 | 스토어 | `activeNav` · `isSidebarOpen` |
 
-> ⚠️ **`useActiveMarkers()`는 트리에서 딱 한 번만 호출한다.**
+> ⚠️ **`useActiveMarkers()`는 트리에서 딱 한 번만 호출해야 한다 — 그런데 지금은 3곳에서 호출된다.**
 > 이 훅은 `useRef`로 이전 필터 옵션을 기억하며 `useEffect` 두 개가 `setFilters`를 호출한다
-> (`use-active-markers.ts:110`, `:139`). 패널과 지도가 각자 호출하면 서로 다른 ref를 들고
-> 같은 스토어 필터를 번갈아 덮어써 필터가 튄다. **`AppShell`(또는 `MapMarkerPage`)에서
-> 한 번 호출해 props로 내린다** — 현재 `MapMarkerPage`가 하는 방식 그대로다.
+> (`use-active-markers.ts:110`, `:139`). 여러 곳에서 부르면 서로 다른 ref를 들고
+> 같은 스토어 필터를 번갈아 덮어써 필터가 튄다.
+>
+> | 호출처 | 비고 |
+> | --- | --- |
+> | `components/map-marker-page.tsx` | 의도된 소유자. 셸·지도에 props로 내린다 |
+> | `components/modals/marker-detail-modal.tsx` | **기존 코드.** 훅이 `if (!marker) return null`보다 위에 있어 상시 실행 |
+> | `hooks/use-marker-edit-form.ts` | **기존 코드.** `marker-edit-modal.tsx`가 무조건 호출 |
+>
+> 두 모달은 `MapMarkerPage`가 상시 마운트하므로 **인스턴스 3개가 동시에 동작한다.**
+> Ver 2.0에서 셸 쪽 호출을 늘리지 않는 선까지만 지켰다. 모달 정리는 별도 과제 —
+> 구조 점검 `project_review.md`와 Serena `mem:pitfalls` 1번 참조.
 
 ### 3.2 `NavRail`
 
@@ -265,7 +274,7 @@ Ver_2.0 추가:
 | # | 규칙 |
 | --- | --- |
 | C10 | **치수를 컴포넌트에 적지 않는다.** 폭은 `shell/constants.ts`에서 import |
-| C11 | **스토어에 쓰는 훅은 트리에서 한 번만 호출한다** (§3.1) |
+| C11 | **스토어에 쓰는 훅은 트리에서 한 번만 호출한다** — 기존 위반 3곳, 늘리지 말 것 (§3.1) |
 | C12 | 인증 분기는 `useHasMounted()` 이후에 한다 |
 | C13 | `activeNav` 분기는 `ts-pattern` + `exhaustive()` |
 | C14 | 파괴적 조작 버튼에는 **대상과 건수**를 문구로 적는다 |
