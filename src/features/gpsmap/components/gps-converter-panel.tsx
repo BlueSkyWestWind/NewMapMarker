@@ -38,16 +38,14 @@ import {
   downloadSingleExcel,
 } from "@/features/gpsmap/lib/export-excel";
 import { GpsResultTable } from "@/features/gpsmap/components/gps-result-table";
-import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
 import type { GpsLookupResult } from "@/features/gpsmap/lib/lookup";
 import type { LocationMarker } from "@/features/map-marker/types/marker";
 
-type ConverterTab = "single" | "batch" | "excel";
+type ConverterTab = "single" | "batch";
 
 const TABS: Array<{ key: ConverterTab; label: string }> = [
   { key: "single", label: "단건 조회" },
   { key: "batch", label: "일괄 변환" },
-  { key: "excel", label: "엑셀" },
 ];
 
 const STATUS_LABEL: Record<BatchRow["status"], string> = {
@@ -219,7 +217,7 @@ export function GpsConverterPanel() {
   /**
    * 단건 조회는 **임시 위치 마커를 남기지 않는다.**
    * 조회 지점은 파란 위치 표시로 이미 보이므로 초록 마커가 겹치면 중복일 뿐이고,
-   * 여러 곳을 눌러 비교하는 동안 계속 쌓인다. 등록은 일괄 변환·엑셀이 맡는다.
+   * 여러 곳을 눌러 비교하는 동안 계속 쌓인다. 등록은 일괄 변환과 위치 세그먼트가 맡는다.
    */
   const runSingle = async (input?: string) => {
     const target = (input ?? query).trim();
@@ -670,8 +668,6 @@ export function GpsConverterPanel() {
           ) : null}
         </div>
       ) : null}
-
-      {tab === "excel" ? <LocationExcelSection /> : null}
 
       {error ? <p className="text-[11px] text-rose-400">{error}</p> : null}
 
