@@ -293,7 +293,8 @@ export function KakaoMapCanvas({
           const lng = latlng.getLng();
           if (pickMode === "roadview") {
             openRoadviewRef.current(lat, lng, "선택 지점");
-            setPickModeRef.current("off");
+            // 로드뷰는 한 번 고르면 끝난다. 변환기의 기본 동작인 클릭 조회로 돌려놓는다.
+            setPickModeRef.current("lookup");
           } else {
             setPickedPointRef.current({ lat, lng, at: Date.now() });
           }

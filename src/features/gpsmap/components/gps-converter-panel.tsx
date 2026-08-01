@@ -240,8 +240,13 @@ export function GpsConverterPanel() {
     void runSingleRef.current(`${pickedPoint.lat}, ${pickedPoint.lng}`);
   }, [pickedPoint, setPickedPoint]);
 
-  // 위치 세그먼트를 떠나면 클릭 모드를 끈다. 켜진 채로 남으면 평소 지도 클릭이 먹지 않는다.
+  /*
+   * 변환기에 들어오면 **클릭 조회를 기본으로 켠다.**
+   * `/gpsmap`은 토글 없이 지도를 누르면 바로 그 지점을 조회한다 — 여기서도 같아야 한다.
+   * 떠날 때는 반드시 끈다. 켜진 채로 남으면 다른 세그먼트에서 평소 지도 클릭이 먹지 않는다.
+   */
   useEffect(() => {
+    setMapPickMode("lookup");
     return () => {
       setMapPickMode("off");
     };
