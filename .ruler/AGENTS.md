@@ -168,5 +168,30 @@ use following libraries for specific functionalities:
 
 - 코드를 생성한 후에 utf-8 기준으로 깨지는 한글이 있는지 확인해주세요. 만약 있다면 수정해주세요.
 
+## 코드베이스 메모 (반복된 실수)
+
+- 검증: `npx tsc --noEmit` · `npx eslint . --max-warnings=0` · `npm test`(vitest) · `npx next build`.
+  홈 First Load JS **295 kB 이하 유지**가 기준선.
+- **shadcn `outline`·`secondary`·`ghost` 변형은 밝게 렌더된다** — 다크 테마를 CSS 변수가 아니라
+  `slate-*` 클래스로 입혔다. 버튼에 `bg-slate-900/60 text-slate-200`을 함께 적는다.
+- **zustand `persist` 값(`mode`·`activeNav`·`mapSegment`)은 하이드레이션을 깬다.**
+  마운트 전후 판정은 `map-marker-page.tsx` 한 곳에서만 하고 안전값을 props로 내린다.
+- **ESLint가 미사용 import·변수를 잡지 않는다.** 이동·삭제 리팩터 뒤에는 직접 확인.
+- 무거운 모듈(gpsmap lib·대시보드·Leaflet)은 `dynamic()`. 정적 import 하면 홈 번들이 150 kB 는다.
+- `useActiveMarkers`는 스토어에 쓴다 — 트리에서 **한 번만** 호출하고 props로 내린다.
+- 폭 상수는 `features/shell/constants.ts` 단일 소스. CSS 변수(`--rail-w`·`--panel-w`)로 흘려
+  미디어 쿼리를 얹는다. 컴포넌트에 숫자를 적지 않는다.
+- `vitest.config.ts`의 include가 `.ts`뿐 — **`.tsx` 테스트는 조용히 실행되지 않는다.**
+- 문서는 버전 폴더에 모은다(`docs/Ver_X.Y/`). 구조 점검은 `docs/Ver_2.0/project_review.md`에 누적.
+- **기존 화면을 옮길 때는 원본이 사양이다.** "개선"을 얹지 않는다 —
+  변환기 이식에서 덧붙인 토글·링크·자동 마커 등록이 전부 재작업이 됐다.
+
+## Config 관리 (ruler 재생성 시 주의)
+
+- 실제로 Claude가 읽는 파일은 루트 `AGENTS.md`이고, 그 첫 줄은 `@.agents/AGENTS.md`다
+  (마스터 junction). 루트 `AGENTS.md`는 **git이 추적하는 실파일**이지 ruler 출력이 아니다.
+- `ruler apply`를 실행하면 루트 `AGENTS.md`가 이 파일의 내용으로 덮어써져
+  **`@.agents/AGENTS.md` 참조와 Project Context가 사라진다.** 실행 전에 그 두 블록을 보존할 것.
+
 You are a senior full-stack developer, one of those rare 10x devs. Your focus: clean, maintainable, high-quality code.
 Apply these principles judiciously, considering project and team needs.

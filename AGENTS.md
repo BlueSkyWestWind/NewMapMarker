@@ -1,144 +1,41 @@
-# AGENTS.md
+@.agents/AGENTS.md
 
-## Must
+## Project Context
 
-- always use client component for all components. (use `use client` directive)
-- always use promise for page.tsx params props.
-- use valid picsum.photos stock image for placeholder image
+- 목적: **카카오맵(Kakao Map)** 을 이용해 지도에 마커를 만들고 관리하는 웹페이지.
+  출처: https://github.com/BlueSkyWestWind/NewMapMarker
+- 스택: **Next.js**(App Router, TS) + **React** + Tailwind + shadcn/ui,
+  백엔드/DB는 **Supabase**, 배포는 Cloudflare(OpenNext/Wrangler). 엑셀 입출력 유틸 포함.
+  → 적용 규칙: `react-frontend` · `typescript-conventions` · `react-project-architecture` · `comment-conventions`.
+- 카카오맵: SDK 키 등 시크릿은 `.env*`(커밋 금지). 지도/마커 로직은 `src/features/map-marker/`.
+- 대상 데이터/파일: 작업 시 그때그때 지정. 추측하지 말고 확인할 것.
+- 백업: 사용자가 직접 관리. 되돌리기 어려운 작업만 실행 **전에** 알린다.
+- UI 표: 셀 **줄바꿈 금지**. 가로는 박스·모달 폭을 키우고 **가로 스크롤 금지**. 세로 스크롤은 허용.
+  → 규칙: `.cursor/rules/table-no-wrap.mdc`
 
-## Library
+## 코드베이스 메모 (반복된 실수)
 
-use following libraries for specific functionalities:
+- 검증: `npx tsc --noEmit` · `npx eslint . --max-warnings=0` · `npm test`(vitest) · `npx next build`.
+  홈 First Load JS **295 kB 이하 유지**가 기준선.
+- **shadcn `outline`·`secondary`·`ghost` 변형은 밝게 렌더된다** — 다크 테마를 CSS 변수가 아니라
+  `slate-*` 클래스로 입혔다. 버튼에 `bg-slate-900/60 text-slate-200`을 함께 적는다.
+- **zustand `persist` 값(`mode`·`activeNav`·`mapSegment`)은 하이드레이션을 깬다.**
+  마운트 전후 판정은 `map-marker-page.tsx` 한 곳에서만 하고 안전값을 props로 내린다.
+- **ESLint가 미사용 import·변수를 잡지 않는다.** 이동·삭제 리팩터 뒤에는 직접 확인.
+- 무거운 모듈(gpsmap lib·대시보드·Leaflet)은 `dynamic()`. 정적 import 하면 홈 번들이 150 kB 는다.
+- `useActiveMarkers`는 스토어에 쓴다 — 트리에서 **한 번만** 호출하고 props로 내린다.
+- 폭 상수는 `features/shell/constants.ts` 단일 소스. CSS 변수(`--rail-w`·`--panel-w`)로 흘려
+  미디어 쿼리를 얹는다. 컴포넌트에 숫자를 적지 않는다.
+- `vitest.config.ts`의 include가 `.ts`뿐 — **`.tsx` 테스트는 조용히 실행되지 않는다.**
+- 문서는 버전 폴더에 모은다(`docs/Ver_X.Y/`). 구조 점검은 `docs/Ver_2.0/project_review.md`에 누적.
+- **기존 화면을 옮길 때는 원본이 사양이다.** "개선"을 얹지 않는다 —
+  변환기 이식에서 덧붙인 토글·링크·자동 마커 등록이 전부 재작업이 됐다.
 
-1. `date-fns`: For efficient date and time handling.
-2. `ts-pattern`: For clean and type-safe branching logic.
-3. `@tanstack/react-query`: For server state management.
-4. `zustand`: For lightweight global state management.
-5. `react-use`: For commonly needed React hooks.
-6. `es-toolkit`: For robust utility functions.
-7. `lucide-react`: For customizable icons.
-8. `zod`: For schema validation and data integrity.
-9. `shadcn-ui`: For pre-built accessible UI components.
-10. `tailwindcss`: For utility-first CSS styling.
-11. `supabase`: For a backend-as-a-service solution.
-12. `react-hook-form`: For form validation and state management.
+## Config 관리
 
-## Directory Structure
-
-- src
-- src/app: Next.js App Routers
-- src/components/ui: shadcn-ui components
-- src/constants: Common constants
-- src/hooks: Common hooks
-- src/lib: utility functions
-- src/remote: http client
-- src/features/[featureName]/components/\*: Components for specific feature
-- src/features/[featureName]/constants/\*
-- src/features/[featureName]/hooks/\*
-- src/features/[featureName]/lib/\*
-- src/features/[featureName]/api.ts: api fetch functions
-
-
-## Key Mindsets:
-
-1. Simplicity
-2. Readability
-3. Maintainability
-4. Testability
-5. Reusability
-6. Functional Paradigm
-7. Pragmatism
-
-## Code Guidelines:
-
-1. Early Returns
-2. Conditional Classes over ternary
-3. Descriptive Names
-4. Constants > Functions
-5. DRY
-6. Functional & Immutable
-7. Minimal Changes
-8. Pure Functions
-9. Composition over inheritance
-
-## Functional Programming:
-
-- Avoid Mutation
-- Use Map, Filter, Reduce
-- Currying and Partial Application
-- Immutability
-
-## Code-Style Guidelines
-
-- Use TypeScript for type safety.
-- Follow the coding standards defined in the ESLint configuration.
-- Ensure all components are responsive and accessible.
-- Use Tailwind CSS for styling, adhering to the defined color palette.
-- When generating code, prioritize TypeScript and React best practices.
-- Ensure that any new components are reusable and follow the existing design patterns.
-- Minimize the use of AI generated comments, instead use clearly named variables and functions.
-- Always validate user inputs and handle errors gracefully.
-- Use the existing components and pages as a reference for the new components and pages.
-
-## Performance:
-
-- Avoid Premature Optimization
-- Profile Before Optimizing
-- Optimize Judiciously
-- Document Optimizations
-
-## Comments & Documentation:
-
-- Comment function purpose
-- Use JSDoc for JS
-- Document "why" not "what"
-
-## Function Ordering:
-
-- Higher-order functionality first
-- Group related functions
-
-## Handling Bugs:
-
-- Use TODO: and FIXME: comments
-
-## Error Handling:
-
-- Use appropriate techniques
-- Prefer returning errors over exceptions
-
-## Testing:
-
-- Unit tests for core functionality
-- Consider integration and end-to-end tests
-
-## Next.js
-
-- you must use promise for page.tsx params props.
-
-## Shadcn-ui
-
-- if you need to add new component, please show me the installation instructions. I'll paste it into terminal.
-- example
-  ```
-  $ npx shadcn@latest add card
-  $ npx shadcn@latest add textarea
-  $ npx shadcn@latest add dialog
-  ```
-
-## Supabase
-
-- if you need to add new table, please create migration. I'll paste it into supabase.
-- do not run supabase locally
-- store migration query for `.sql` file. in /supabase/migrations/
-
-## Package Manager
-
-- use npm as package manager.
-
-## Korean Text
-
-- 코드를 생성한 후에 utf-8 기준으로 깨지는 한글이 있는지 확인해주세요. 만약 있다면 수정해주세요.
-
-You are a senior full-stack developer, one of those rare 10x devs. Your focus: clean, maintainable, high-quality code.
-Apply these principles judiciously, considering project and team needs.
+- 이 폴더의 `.agents/`, `.cursor/rules`, `.agent/rules`, `.cursor|.agent|.claude/skills/*`는
+  모두 마스터 `../000.Agents`를 가리키는 **junction**이다. 사본이 아니다.
+- 본문 편집은 마스터의 `.agents/`에서만. 업데이트는 마스터에서 `git pull` 한 번이면
+  이 프로젝트에 즉시 반영된다(재복사 불필요).
+- junction이 **실제 폴더로 바뀌어 있으면** 싱글 소스가 깨진 것이다.
+  `.agents/scripts/setup-junctions.ps1`을 다시 실행하면 경고와 함께 알려준다.
