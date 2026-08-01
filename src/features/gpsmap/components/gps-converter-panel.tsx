@@ -12,6 +12,7 @@ import {
   Loader2,
   MapPin,
   Search,
+  Square,
   SquareStack,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -105,7 +106,13 @@ export function GpsConverterPanel() {
     [rows],
   );
   const doneCount = doneRows.length;
+  const errorCount = rows.filter((row) => row.status === "error").length;
   const viewedBatchResult = doneRows[batchViewIdx]?.result ?? null;
+
+  /** 진행 중인 일괄 변환을 끊는다. 여기까지 나온 결과는 그대로 남는다. */
+  const stopBatch = () => {
+    abortRef.current?.abort();
+  };
 
   /** 일괄 결과를 하나씩 넘겨 본다. 넘길 때마다 그 지점으로 지도를 옮긴다. */
   const showBatchResult = (index: number) => {
@@ -447,19 +454,44 @@ export function GpsConverterPanel() {
             placeholder={"한 줄에 하나씩\n광주 북구 월출동 695-6\n35.123, 126.987"}
             className="min-h-[88px] resize-y border-slate-700 bg-slate-900/60 text-xs"
           />
-          <Button
-            type="button"
-            className="h-8 w-full text-xs"
-            disabled={isBusy || batchCount === 0}
-            onClick={() => void runBatch()}
-          >
+          <div className="flex gap-1.5">
+            <Button
+              type="button"
+              className="h-8 flex-1 text-xs"
+              disabled={isBusy || batchCount === 0}
+              onClick={() => void runBatch()}
+            >
+              {isBusy ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <MapPin className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {isBusy ? "변환 중..." : `일괄 변환 (${batchCount})`}
+            </Button>
+            {/* 건수가 많으면 중간에 끊을 수 있어야 한다. 지금까지 된 것은 남는다. */}
             {isBusy ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <MapPin className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            {isBusy ? `변환 중... (${doneCount}/${rows.length})` : `일괄 변환 (${batchCount})`}
-          </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 border-slate-700 px-2 text-[11px]"
+                onClick={stopBatch}
+              >
+                <Square className="mr-1 h-3 w-3" aria-hidden />
+                중지
+              </Button>
+            ) : null}
+          </div>
+
+          {rows.length > 0 ? (
+            <p className="text-[10px] text-slate-500">
+              진행 {doneCount + errorCount}/{rows.length}
+              {errorCount > 0 ? ` · 실패 ${errorCount}` : ""}
+            </p>
+          ) : (
+            <p className="text-[10px] text-slate-500">
+              여러 건을 순차 조회한 뒤 엑셀로 내려받을 수 있습니다.
+            </p>
+          )}
 
           {rows.length > 0 ? (
             <>
