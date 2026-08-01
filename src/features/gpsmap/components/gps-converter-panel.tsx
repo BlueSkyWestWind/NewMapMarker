@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+
 import {
+  ChevronLeft,
+  ChevronRight,
   Crosshair,
   Download,
-  ExternalLink,
   Eye,
   FileDown,
   Loader2,
@@ -83,6 +84,8 @@ export function GpsConverterPanel() {
   const [error, setError] = useState<string | null>(null);
   const [single, setSingle] = useState<GpsLookupResult | null>(null);
   const [rows, setRows] = useState<BatchRow[]>([]);
+  // 일괄 결과 중 지금 상세를 보고 있는 위치(성공한 건 기준)
+  const [batchViewIdx, setBatchViewIdx] = useState(0);
   // 도·분·초·1/100초 4칸. `/gpsmap`과 같은 구성이라 값을 그대로 옮겨 적을 수 있다.
   const [dms, setDms] = useState({
     latD: "",
@@ -97,7 +100,36 @@ export function GpsConverterPanel() {
 
   const abortRef = useRef<AbortController | null>(null);
   const batchCount = useMemo(() => parseBatchInputs(batchText).length, [batchText]);
-  const doneCount = rows.filter((row) => row.status === "done").length;
+  const doneRows = useMemo(
+    () => rows.filter((row) => row.status === "done" && row.result),
+    [rows],
+  );
+  const doneCount = doneRows.length;
+  const viewedBatchResult = doneRows[batchViewIdx]?.result ?? null;
+
+  /** 일괄 결과를 하나씩 넘겨 본다. 넘길 때마다 그 지점으로 지도를 옮긴다. */
+  const showBatchResult = (index: number) => {
+    const target = doneRows[index];
+    if (!target?.result) return;
+    setBatchViewIdx(index);
+    setPlaceSearch({
+      label: target.input,
+      center: {
+        lat: target.result.center.lat,
+        lng: target.result.center.lng,
+      },
+      parcels:
+        target.result.parcels.length > 0
+          ? [
+              {
+                rings: target.result.parcels.map((ring) =>
+                  ring.map((p) => ({ lat: p.lat, lng: p.lng })),
+                ),
+              },
+            ]
+          : [],
+    });
+  };
 
   /** 조회 결과를 지도로 옮긴다. 임시 마커 + 필지 경계 + 지도 이동. */
   const dropMarkers = (results: GpsLookupResult[]) => {
@@ -442,27 +474,44 @@ export function GpsConverterPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.index} className="border-t border-slate-800">
-                        <td className="whitespace-nowrap px-2 py-1 text-slate-200" title={row.input}>
-                          {row.input}
-                        </td>
-                        <td
+                    {rows.map((row) => {
+                      const doneIdx = doneRows.findIndex(
+                        (done) => done.index === row.index,
+                      );
+                      const isViewing = doneIdx >= 0 && doneIdx === batchViewIdx;
+
+                      return (
+                        <tr
+                          key={row.index}
+                          onClick={() => {
+                            if (doneIdx >= 0) showBatchResult(doneIdx);
+                          }}
                           className={cn(
-                            "whitespace-nowrap px-2 py-1",
-                            row.status === "error" ? "text-rose-400" : "text-slate-400",
+                            "border-t border-slate-800",
+                            doneIdx >= 0 && "cursor-pointer hover:bg-slate-800/60",
+                            isViewing && "bg-indigo-950/60",
                           )}
-                          title={row.error || undefined}
                         >
-                          {STATUS_LABEL[row.status]}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-1 tabular-nums text-slate-300">
-                          {row.result
-                            ? `${row.result.center.lat.toFixed(5)}, ${row.result.center.lng.toFixed(5)}`
-                            : "-"}
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="whitespace-nowrap px-2 py-1 text-slate-200" title={row.input}>
+                            {row.input}
+                          </td>
+                          <td
+                            className={cn(
+                              "whitespace-nowrap px-2 py-1",
+                              row.status === "error" ? "text-rose-400" : "text-slate-400",
+                            )}
+                            title={row.error || undefined}
+                          >
+                            {STATUS_LABEL[row.status]}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1 tabular-nums text-slate-300">
+                            {row.result
+                              ? `${row.result.center.lat.toFixed(5)}, ${row.result.center.lng.toFixed(5)}`
+                              : "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -476,6 +525,63 @@ export function GpsConverterPanel() {
                 <Download className="mr-1.5 h-3.5 w-3.5" />
                 엑셀로 내려받기 ({doneCount})
               </Button>
+
+              {/* 성공한 결과를 하나씩 넘겨 보며 상세를 확인한다. */}
+              {viewedBatchResult ? (
+                <div className="space-y-2 border-t border-slate-800 pt-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-slate-300">
+                      변환 결과
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => showBatchResult(batchViewIdx - 1)}
+                        disabled={batchViewIdx <= 0}
+                        title="이전 결과"
+                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="min-w-[44px] text-center text-[11px] tabular-nums text-slate-300">
+                        {batchViewIdx + 1} / {doneRows.length}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => showBatchResult(batchViewIdx + 1)}
+                        disabled={batchViewIdx >= doneRows.length - 1}
+                        title="다음 결과"
+                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 border-slate-700 text-[11px]"
+                      onClick={() => downloadSingleExcel(viewedBatchResult)}
+                    >
+                      <FileDown className="mr-1 h-3.5 w-3.5" aria-hidden />
+                      이 건만 엑셀
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 border-slate-700 text-[11px]"
+                      onClick={() => openResultRoadview(viewedBatchResult)}
+                    >
+                      <Eye className="mr-1 h-3.5 w-3.5" aria-hidden />
+                      로드뷰
+                    </Button>
+                  </div>
+
+                  <GpsResultTable result={viewedBatchResult} />
+                </div>
+              ) : null}
             </>
           ) : null}
         </div>
@@ -514,13 +620,6 @@ export function GpsConverterPanel() {
         </span>
       </button>
 
-      <Link
-        href="/gpsmap"
-        className="flex h-7 items-center justify-center gap-1 rounded-md border border-slate-700 text-[10px] text-slate-400 hover:text-slate-200"
-      >
-        <ExternalLink className="h-3 w-3" aria-hidden />
-        전체 화면으로 열기
-      </Link>
     </div>
   );
 }
