@@ -13,12 +13,14 @@ import {
   WORK_PANEL_WIDTH_PX,
 } from "@/features/shell/constants";
 import type { NavKey } from "@/features/shell/types/nav";
+import type { MapSegment } from "@/features/shell/types/segment";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
 import type { CSSProperties, ReactNode } from "react";
 
 interface AppShellProps extends PanelDataProps {
   /** 하이드레이션 안전값. `MapMarkerPage`가 마운트 전후를 판정해 내려 준다. */
   activeNav: NavKey;
+  segment: MapSegment;
   equipmentCount: number;
   batteryCount: number;
   locationCount: number;
@@ -37,6 +39,7 @@ interface AppShellProps extends PanelDataProps {
 export function AppShell({
   mode,
   activeNav,
+  segment,
   markers,
   filterOptions,
   filters,
@@ -89,6 +92,7 @@ export function AppShell({
         <WorkPanel
           mode={mode}
           activeNav={activeNav}
+          segment={segment}
           markers={markers}
           filterOptions={filterOptions}
           filters={filters}

@@ -5,6 +5,7 @@ import { useActiveMarkers } from "@/features/map-marker/hooks/use-active-markers
 import {
   STORE_DEFAULT_MODE,
   STORE_DEFAULT_NAV,
+  STORE_DEFAULT_SEGMENT,
   useMapMarkerStore,
 } from "@/features/map-marker/store/use-map-marker-store";
 import { useHasMounted } from "@/hooks/use-has-mounted";
@@ -51,6 +52,7 @@ export function MapMarkerPage() {
   const hasMounted = useHasMounted();
   const storedMode = useMapMarkerStore((state) => state.mode);
   const storedActiveNav = useMapMarkerStore((state) => state.activeNav);
+  const storedSegment = useMapMarkerStore((state) => state.mapSegment);
   const selectedCctv = useMapMarkerStore((state) => state.selectedCctv);
   const setSelectedCctv = useMapMarkerStore((state) => state.setSelectedCctv);
 
@@ -67,6 +69,7 @@ export function MapMarkerPage() {
    */
   const mode = hasMounted ? storedMode : STORE_DEFAULT_MODE;
   const activeNav = hasMounted ? storedActiveNav : STORE_DEFAULT_NAV;
+  const segment = hasMounted ? storedSegment : STORE_DEFAULT_SEGMENT;
   // 이 훅은 스토어에 쓰는 부수효과가 있어 트리에서 **한 번만** 부른다.
   const {
     markers,
@@ -87,6 +90,7 @@ export function MapMarkerPage() {
       <AppShell
         mode={mode}
         activeNav={activeNav}
+        segment={segment}
         markers={markers}
         filterOptions={filterOptions}
         filters={effectiveFilters}

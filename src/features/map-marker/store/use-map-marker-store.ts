@@ -14,6 +14,11 @@ import type {
 import type { SiteMatch } from "@/features/worksite-weather/types/weather";
 import type { CctvItem } from "@/features/cctv/types/cctv";
 import type { NavKey } from "@/features/shell/types/nav";
+import {
+  modeOfSegment,
+  segmentOfMode,
+  type MapSegment,
+} from "@/features/shell/types/segment";
 
 /** 세그먼트로 고를 수 있는 도메인. `weather`는 대시보드 전용이라 제외한다. */
 type DomainMode = Exclude<MapMode, "weather">;
@@ -28,6 +33,9 @@ interface MapMarkerUiState {
    */
   lastDomainMode: DomainMode;
   setActiveNav: (nav: NavKey) => void;
+  /** 지도 패널의 세그먼트. `converter`는 모드가 아니라 화면이라 별도로 든다. */
+  mapSegment: MapSegment;
+  setMapSegment: (segment: MapSegment) => void;
   isSidebarOpen: boolean;
   isClusteringEnabled: boolean;
   clusterIconStyle: ClusterIconStyle;
@@ -125,6 +133,7 @@ interface MapMarkerUiState {
  */
 export const STORE_DEFAULT_MODE: MapMode = "equipment";
 export const STORE_DEFAULT_NAV: NavKey = "dashboard";
+export const STORE_DEFAULT_SEGMENT: MapSegment = "equipment";
 
 const emptyFilterState: MarkerFilterState = {
   selectedYears: new Set(),
@@ -152,7 +161,30 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
     (set, get) => ({
       mode: STORE_DEFAULT_MODE,
       activeNav: STORE_DEFAULT_NAV,
+      mapSegment: STORE_DEFAULT_SEGMENT,
       lastDomainMode: "equipment",
+      /*
+       * 세그먼트를 직접 누른 경우다. 도메인이 바뀌면 필터 항목 자체가 달라지므로 초기화한다.
+       * 변환기는 `location`과 같은 모드를 쓰므로 둘 사이를 오갈 때는 아무것도 지우지 않는다.
+       */
+      setMapSegment: (segment) =>
+        set((state) => {
+          const nextMode = modeOfSegment(segment);
+          if (state.mode === nextMode) {
+            return { mapSegment: segment };
+          }
+          return {
+            mapSegment: segment,
+            mode: nextMode,
+            lastDomainMode: nextMode as DomainMode,
+            filters: emptyFilterState,
+            selectedMarkerId: null,
+            selectedMarkerIds: [],
+            cctvMarkers: [],
+            selectedCctv: null,
+            isCctvVisible: true,
+          };
+        }),
       /**
        * 메뉴 전환. **필터·선택·CCTV 조회 결과를 보존한다** (계획서 §3.9).
        *
@@ -173,7 +205,17 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             )
             .otherwise(() => state.mode);
 
-          return { activeNav: nav, mode: nextMode };
+          /*
+           * 지도로 돌아올 때는 마지막에 보던 세그먼트를 그대로 살린다 —
+           * 변환기를 쓰다 대시보드에 다녀오면 변환기로 돌아와야 한다.
+           * 다른 메뉴는 도메인만 맞춘다.
+           */
+          const nextSegment =
+            nav === "map" && state.mapSegment === "converter"
+              ? "converter"
+              : segmentOfMode(nextMode);
+
+          return { activeNav: nav, mode: nextMode, mapSegment: nextSegment };
         }),
       isSidebarOpen: true,
       isClusteringEnabled: true,
@@ -224,6 +266,8 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             ? state
             : {
                 mode,
+                // 모드를 직접 바꾸면(마커관리 세그먼트 등) 지도 세그먼트도 따라간다.
+                mapSegment: segmentOfMode(mode),
                 lastDomainMode:
                   mode === "weather" ? state.lastDomainMode : (mode as DomainMode),
                 filters: emptyFilterState,
@@ -364,6 +408,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       partialize: (state) => ({
         mode: state.mode,
         activeNav: state.activeNav,
+        mapSegment: state.mapSegment,
         lastDomainMode: state.lastDomainMode,
         isClusteringEnabled: state.isClusteringEnabled,
         clusterIconStyle: state.clusterIconStyle,

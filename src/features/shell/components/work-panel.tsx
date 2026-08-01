@@ -14,6 +14,7 @@ import { BackupPanel } from "@/features/shell/components/panels/backup-panel";
 import { SettingsPanel } from "@/features/shell/components/panels/settings-panel";
 import { NAV_ITEMS } from "@/features/shell/types/nav";
 import type { NavKey } from "@/features/shell/types/nav";
+import type { MapSegment } from "@/features/shell/types/segment";
 import type { MapMode } from "@/features/map-marker/types/marker";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
 
@@ -32,16 +33,18 @@ const DashboardPanel = dynamic(
 interface WorkPanelProps extends PanelDataProps {
   /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
   activeNav: NavKey;
+  segment: MapSegment;
   equipmentCount: number;
   batteryCount: number;
   locationCount: number;
 }
 
-const MARKERS_MODES: MapMode[] = ["equipment", "battery"];
+const MARKERS_SEGMENTS: MapSegment[] = ["equipment", "battery"];
 
 export function WorkPanel({
   mode,
   activeNav,
+  segment,
   markers,
   filterOptions,
   filters,
@@ -52,15 +55,17 @@ export function WorkPanel({
   const hasMounted = useHasMounted();
   const { isAuthenticated } = useAuthSession();
   const setMode = useMapMarkerStore((state) => state.setMode);
+  const setMapSegment = useMapMarkerStore((state) => state.setMapSegment);
 
   const authed = hasMounted && isAuthenticated;
   const navItem = NAV_ITEMS.find((item) => item.key === activeNav);
 
-  // 위치 세그먼트만 잠근다. 장비·축전지 조회는 비로그인도 가능하다.
-  const lockedModes: MapMode[] = hasMounted && !authed ? ["location"] : [];
+  // 위치·변환기만 잠근다. 장비·축전지 조회는 비로그인도 가능하다.
+  const lockedSegments: MapSegment[] =
+    hasMounted && !authed ? ["location", "converter"] : [];
 
   const showSegments = activeNav === "map" || activeNav === "markers";
-  const segmentModes = activeNav === "markers" ? MARKERS_MODES : undefined;
+  const segmentList = activeNav === "markers" ? MARKERS_SEGMENTS : undefined;
 
   const countLabel = match(mode)
     .with("equipment", () => `장비 ${equipmentCount}건`)
@@ -74,6 +79,7 @@ export function WorkPanel({
     .with("map", () => (
       <MapPanel
         mode={mode}
+        segment={segment}
         markers={markers}
         filterOptions={filterOptions}
         filters={filters}
@@ -126,10 +132,20 @@ export function WorkPanel({
         {showSegments ? (
           <div className="mt-3">
             <ModeTabs
-              mode={mode}
-              onChange={setMode}
-              lockedModes={lockedModes}
-              modes={segmentModes}
+              segment={segment}
+              /*
+               * 지도는 변환기까지 포함한 세그먼트를 다루므로 `setMapSegment`를 쓰고,
+               * 마커관리는 도메인만 바꾸면 되므로 `setMode`를 쓴다.
+               */
+              onChange={(next) => {
+                if (activeNav === "markers") {
+                  setMode(next as MapMode);
+                } else {
+                  setMapSegment(next);
+                }
+              }}
+              lockedSegments={lockedSegments}
+              segments={segmentList}
             />
           </div>
         ) : null}
