@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Crosshair,
   Download,
   Eye,
   FileDown,
@@ -73,12 +72,9 @@ export function GpsConverterPanel() {
   const setVworldParcelVisible = useMapMarkerStore(
     (state) => state.setVworldParcelVisible,
   );
-  const mapPickMode = useMapMarkerStore((state) => state.mapPickMode);
   const setMapPickMode = useMapMarkerStore((state) => state.setMapPickMode);
   const pickedPoint = useMapMarkerStore((state) => state.pickedPoint);
   const setPickedPoint = useMapMarkerStore((state) => state.setPickedPoint);
-  const isVworldPaneOpen = useMapMarkerStore((state) => state.isVworldPaneOpen);
-  const setVworldPaneOpen = useMapMarkerStore((state) => state.setVworldPaneOpen);
 
   const [tab, setTab] = useState<ConverterTab>("single");
   const [query, setQuery] = useState("");
@@ -315,67 +311,6 @@ export function GpsConverterPanel() {
 
   return (
     <div className="space-y-2">
-      {/* 지도를 어떻게 쓸지. `/gpsmap`의 지도 클릭 조회·로드뷰 선택을 여기서 켠다. */}
-      <div className="grid grid-cols-3 gap-1">
-        <button
-          type="button"
-          aria-pressed={mapPickMode === "lookup"}
-          onClick={() =>
-            setMapPickMode(mapPickMode === "lookup" ? "off" : "lookup")
-          }
-          className={cn(
-            "flex h-8 items-center justify-center gap-1 rounded-md border text-[10px] font-medium",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
-            mapPickMode === "lookup"
-              ? "border-indigo-500/60 bg-indigo-600/25 text-indigo-200"
-              : "border-slate-700 text-slate-400 hover:text-slate-200",
-          )}
-        >
-          <Crosshair className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          클릭 조회
-        </button>
-        <button
-          type="button"
-          aria-pressed={mapPickMode === "roadview"}
-          onClick={() =>
-            setMapPickMode(mapPickMode === "roadview" ? "off" : "roadview")
-          }
-          className={cn(
-            "flex h-8 items-center justify-center gap-1 rounded-md border text-[10px] font-medium",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
-            mapPickMode === "roadview"
-              ? "border-amber-500/60 bg-amber-600/25 text-amber-200"
-              : "border-slate-700 text-slate-400 hover:text-slate-200",
-          )}
-        >
-          <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          로드뷰
-        </button>
-        <button
-          type="button"
-          aria-pressed={isVworldPaneOpen}
-          onClick={() => setVworldPaneOpen(!isVworldPaneOpen)}
-          className={cn(
-            "flex h-8 items-center justify-center gap-1 rounded-md border text-[10px] font-medium",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
-            isVworldPaneOpen
-              ? "border-emerald-500/60 bg-emerald-600/25 text-emerald-200"
-              : "border-slate-700 text-slate-400 hover:text-slate-200",
-          )}
-        >
-          <SquareStack className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          지적도 화면
-        </button>
-      </div>
-
-      {mapPickMode !== "off" ? (
-        <p className="rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1.5 text-[10px] leading-relaxed text-slate-300">
-          {mapPickMode === "lookup"
-            ? "지도를 클릭하면 그 지점을 조회합니다."
-            : "로드뷰가 있는 도로가 파랗게 표시됩니다. 도로를 클릭하세요."}
-        </p>
-      ) : null}
-
       <div className="flex rounded-lg border border-slate-700/60 bg-black/20 p-1">
         {TABS.map((item) => (
           <button

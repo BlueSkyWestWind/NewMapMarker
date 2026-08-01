@@ -4,12 +4,18 @@ import { useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { usePlaceSearch } from "@/features/map-marker/hooks/use-place-search";
+import { MapPickControls } from "@/features/gpsmap/components/map-pick-controls";
 
 /**
  * 전역 장소 검색. `Ctrl+K`(macOS는 `⌘K`)로 어디서든 포커스를 가져온다.
  * 검색 자체는 `usePlaceSearch`를 쓰므로 사이드바 장소 검색과 결과가 항상 같다.
  */
-export function TopSearchBar() {
+interface TopSearchBarProps {
+  /** 위치/좌표 세그먼트일 때만 지도 사용 모드 토글을 우측에 붙인다. */
+  showMapPickControls: boolean;
+}
+
+export function TopSearchBar({ showMapPickControls }: TopSearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
     query,
@@ -83,6 +89,13 @@ export function TopSearchBar() {
         >
           <X className="h-3.5 w-3.5" />
         </button>
+      ) : null}
+
+      {/* 지도 조작 토글은 우측 끝에. 지도를 보는 시선 안에 둔다. */}
+      {showMapPickControls ? (
+        <div className="ml-auto">
+          <MapPickControls />
+        </div>
       ) : null}
     </div>
   );
