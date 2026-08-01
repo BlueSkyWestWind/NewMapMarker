@@ -12,11 +12,8 @@ import {
   hasAnyFilterSelection,
   mergeFilterState,
 } from "@/features/map-marker/lib/marker-filters";
-import { selectActiveMarkers } from "@/features/map-marker/lib/select-active-markers";
-import type {
-  MarkerFilterState,
-  MarkerRecord,
-} from "@/features/map-marker/types/marker";
+import { useMarkerList } from "@/features/map-marker/hooks/use-marker-list";
+import type { MarkerFilterState } from "@/features/map-marker/types/marker";
 
 function setsEqual(a: Set<string>, b: Set<string>) {
   if (a.size !== b.size) return false;
@@ -38,22 +35,18 @@ function shouldUpdateFilters(
   );
 }
 
+/**
+ * 마커 목록 + 필터 옵션 동기화.
+ *
+ * **트리에서 한 번만 호출한다.** 아래 `useEffect` 2개가 `setFilters`로 스토어에 쓰고
+ * 그 판단을 인스턴스별 `useRef`에 담기 때문에, 두 곳 이상에서 부르면 서로의 필터를
+ * 번갈아 덮어쓴다. 목록만 필요하면 `useMarkerList`를 쓴다.
+ */
 export function useActiveMarkers() {
   const mode = useMapMarkerStore((state) => state.mode);
-  const pendingEquipmentMarkers = useMapMarkerStore(
-    (state) => state.pendingEquipmentMarkers,
-  );
-  const pendingBatteryMarkers = useMapMarkerStore(
-    (state) => state.pendingBatteryMarkers,
-  );
+  // 건수 표시에만 쓴다. 목록 파생은 `useMarkerList`가 맡는다.
   const pendingLocationMarkers = useMapMarkerStore(
     (state) => state.pendingLocationMarkers,
-  );
-  const savedWeatherSites = useMapMarkerStore((state) => state.savedWeatherSites);
-  // 배열 정체성이 매번 바뀌면 markers useMemo가 헛돈다. id 목록으로 좁혀 잡는다.
-  const savedWeatherSiteIds = useMemo(
-    () => savedWeatherSites.map((site) => site.id),
-    [savedWeatherSites],
   );
   const { data, isLoading, isError, error, refetch } = useMapMarkersQuery();
   const filters = useMapMarkerStore((state) => state.filters);
@@ -66,23 +59,8 @@ export function useActiveMarkers() {
   });
   const previousModeRef = useRef(mode);
 
-  const markers = useMemo<MarkerRecord[]>(() => {
-    return selectActiveMarkers(mode, {
-      equipmentMarkers: data?.equipmentMarkers ?? null,
-      batteryMarkers: data?.batteryMarkers ?? null,
-      pendingEquipmentMarkers,
-      pendingBatteryMarkers,
-      pendingLocationMarkers,
-      savedWeatherSiteIds,
-    });
-  }, [
-    savedWeatherSiteIds,
-    data,
-    mode,
-    pendingEquipmentMarkers,
-    pendingBatteryMarkers,
-    pendingLocationMarkers,
-  ]);
+  // 목록 파생은 `useMarkerList`가 단독으로 맡는다. 여기서는 그 결과에 필터 부수효과를 얹는다.
+  const markers = useMarkerList();
 
   const filterOptions = useMemo(
     () => collectFilterOptions(markers, mode),

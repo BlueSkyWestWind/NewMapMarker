@@ -2,19 +2,18 @@
 
 실제로 버그를 만들었거나, 지금도 깨져 있는 것들.
 
-## 1. `useActiveMarkers`가 3곳에서 호출된다 — 불변식 위반 (미해소)
+## 1. 스토어에 쓰는 훅은 한 번만 — `useActiveMarkers` vs `useMarkerList`
 
-문서(`AGENTS.md`, `Ver_2.0_COMPONENT.md` §3.1)는 "트리에서 한 번만"이라고 적혀 있으나 실제 호출처는 셋:
+- `useActiveMarkers` — 목록 + **필터 옵션 동기화(부수효과)** + 건수.
+  `useEffect` 2개가 인스턴스별 `useRef`(`previousModeRef`·`prevFilterOptionsRef`)를 근거로
+  `setFilters`에 쓴다. 두 곳 이상에서 부르면 서로의 필터를 번갈아 덮어쓴다.
+  **`components/map-marker-page.tsx` 단독 호출.** 셸·지도에는 props로 내린다.
+- `useMarkerList` (`hooks/use-marker-list.ts`) — 목록 파생만. 스토어에 쓰지 않는다.
+  목록만 필요한 곳(`marker-detail-modal`, `use-marker-edit-form`)은 이걸 쓴다.
+  `useActiveMarkers`도 내부에서 이걸 쓰므로 계산은 한 벌(`selectActiveMarkers`).
 
-- `components/map-marker-page.tsx` (의도된 소유자)
-- `components/modals/marker-detail-modal.tsx` (`const { markers } = useActiveMarkers()`)
-- `hooks/use-marker-edit-form.ts` → `modals/marker-edit-modal.tsx`가 무조건 호출
-
-두 모달은 `MapMarkerPage`가 **상시 마운트**하고 훅은 조건 없이 실행되므로 **3개 인스턴스가 동시 동작**한다.
-이 훅은 `previousModeRef`·`prevFilterOptionsRef`를 각자 들고 `useEffect` 2개가 스토어의 `setFilters`에 쓴다
-→ 인스턴스마다 ref가 어긋나 필터를 번갈아 덮어쓸 수 있다("필터가 저절로 풀린다" 류의 원인).
-
-정리하려면 마커 목록을 컨텍스트/셀렉터로 내려받게 바꿔야 한다. 착수 전 사용자와 범위 합의 필요.
+2026-08-01 정리 완료(구조 점검 H-3). 이전에는 두 모달이 `useActiveMarkers`를 직접 불러
+인스턴스 3개가 동시 동작했다. **새 호출을 추가할 때 어느 쪽이 필요한지 먼저 판단할 것.**
 
 ## 2. zustand `persist` 값은 하이드레이션을 깬다
 

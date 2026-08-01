@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
-import { useActiveMarkers } from '@/features/map-marker/hooks/use-active-markers';
+import { useMarkerList } from '@/features/map-marker/hooks/use-marker-list';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -308,7 +308,8 @@ export function MarkerDetailModal() {
   const closeAllModals = useMapMarkerStore((state) => state.closeAllModals);
   const mode = useMapMarkerStore((state) => state.mode);
   
-  const { markers } = useActiveMarkers();
+  // 목록만 필요하다. `useActiveMarkers`를 부르면 필터 부수효과가 중복 실행된다.
+  const markers = useMarkerList();
   const marker = markers.find((m) => m.id === selectedMarkerId);
   const { toast } = useToast();
 
