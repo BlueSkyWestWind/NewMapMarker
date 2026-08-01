@@ -62,7 +62,7 @@ const STATUS_LABEL: Record<BatchRow["status"], string> = {
  *
  * 조회 로직은 `features/gpsmap/lib/`를 그대로 쓴다 — `/gpsmap` 전체화면과
  * **같은 함수 한 벌**이라 결과가 갈리지 않는다. 여기서는 결과를
- * **지금 보고 있는 지도에** 임시 마커로 찍는다(화면을 떠났다 돌아올 필요가 없다).
+ * **지금 보고 있는 지도에** 바로 반영한다(화면을 떠났다 돌아올 필요가 없다).
  */
 export function GpsConverterPanel() {
   const { toast } = useToast();
@@ -217,11 +217,11 @@ export function GpsConverterPanel() {
   };
 
   /**
-   * @param dropMarker 지도에 임시 위치 마커를 남길지.
-   *   지도를 눌러 둘러보는 중에는 남기지 않는다 — 클릭할 때마다 쌓여 지도와 목록이 지저분해진다.
-   *   버튼으로 명시적으로 조회했을 때만 남긴다.
+   * 단건 조회는 **임시 위치 마커를 남기지 않는다.**
+   * 조회 지점은 파란 위치 표시로 이미 보이므로 초록 마커가 겹치면 중복일 뿐이고,
+   * 여러 곳을 눌러 비교하는 동안 계속 쌓인다. 등록은 일괄 변환·엑셀이 맡는다.
    */
-  const runSingle = async (input?: string, dropMarker = true) => {
+  const runSingle = async (input?: string) => {
     const target = (input ?? query).trim();
     if (!target || isBusy) return;
 
@@ -231,11 +231,7 @@ export function GpsConverterPanel() {
       const result = await runSingleLookup(target);
       setSingle(result);
       fillDmsFrom(result);
-      if (dropMarker) {
-        dropMarkers([result]);
-      } else {
-        moveMapTo(result);
-      }
+      moveMapTo(result);
     } catch (err) {
       setSingle(null);
       setError(err instanceof Error ? err.message : "조회에 실패했습니다.");
@@ -287,7 +283,7 @@ export function GpsConverterPanel() {
     setPickedPoint(null);
     setTab("single");
     // 둘러보는 중이므로 임시 마커는 남기지 않는다.
-    void runSingleRef.current(`${pickedPoint.lat}, ${pickedPoint.lng}`, false);
+    void runSingleRef.current(`${pickedPoint.lat}, ${pickedPoint.lng}`);
   }, [pickedPoint, setPickedPoint]);
 
   /*
@@ -316,7 +312,7 @@ export function GpsConverterPanel() {
     }
     setError(null);
     // 「이동」은 그 지점을 보러 가는 조작이다. 등록이 아니므로 마커를 남기지 않는다.
-    void runSingle(`${lat}, ${lng}`, false);
+    void runSingle(`${lat}, ${lng}`);
   };
 
   return (
@@ -429,7 +425,7 @@ export function GpsConverterPanel() {
             ) : (
               <MapPin className="mr-1.5 h-3.5 w-3.5" />
             )}
-            {isBusy ? "조회 중..." : "조회 후 지도에 표시"}
+            {isBusy ? "조회 중..." : "조회"}
           </Button>
 
           <div className="rounded-md border border-slate-800 bg-slate-900/40 p-2">
