@@ -2,7 +2,12 @@
 
 import dynamic from "next/dynamic";
 import { useActiveMarkers } from "@/features/map-marker/hooks/use-active-markers";
-import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
+import {
+  STORE_DEFAULT_MODE,
+  STORE_DEFAULT_NAV,
+  useMapMarkerStore,
+} from "@/features/map-marker/store/use-map-marker-store";
+import { useHasMounted } from "@/hooks/use-has-mounted";
 import { AppShell } from "@/features/shell/components/app-shell";
 import { KakaoMapCanvas } from "@/features/map-marker/components/map/kakao-map-canvas";
 
@@ -42,9 +47,25 @@ const CctvVideoModal = dynamic(
 );
 
 export function MapMarkerPage() {
-  const mode = useMapMarkerStore((state) => state.mode);
+  const hasMounted = useHasMounted();
+  const storedMode = useMapMarkerStore((state) => state.mode);
+  const storedActiveNav = useMapMarkerStore((state) => state.activeNav);
   const selectedCctv = useMapMarkerStore((state) => state.selectedCctv);
   const setSelectedCctv = useMapMarkerStore((state) => state.setSelectedCctv);
+
+  /*
+   * **하이드레이션 경계는 여기 한 곳뿐이다.**
+   *
+   * `mode`·`activeNav`는 zustand persist 대상이라 클라이언트 첫 렌더에 이미
+   * localStorage 값으로 복원돼 있다. 서버는 기본값으로 HTML을 만들었으므로
+   * 그대로 쓰면 트리가 통째로 어긋난다(레일 활성 항목·패널 내용·건수 라벨).
+   * 마운트 전에는 서버와 같은 기본값을 그리고, 마운트 후 실제 값으로 넘어간다.
+   *
+   * 아래로 내려가는 값은 전부 이 안전값이다 — 지도까지 같은 값을 봐야
+   * 플로팅 컨트롤의 모드별 버튼도 어긋나지 않는다.
+   */
+  const mode = hasMounted ? storedMode : STORE_DEFAULT_MODE;
+  const activeNav = hasMounted ? storedActiveNav : STORE_DEFAULT_NAV;
   // 이 훅은 스토어에 쓰는 부수효과가 있어 트리에서 **한 번만** 부른다.
   const {
     markers,
@@ -64,6 +85,7 @@ export function MapMarkerPage() {
     <>
       <AppShell
         mode={mode}
+        activeNav={activeNav}
         markers={markers}
         filterOptions={filterOptions}
         filters={effectiveFilters}

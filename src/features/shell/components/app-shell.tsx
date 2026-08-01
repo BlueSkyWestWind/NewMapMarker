@@ -4,6 +4,7 @@ import { match } from "ts-pattern";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
+import { useHasMounted } from "@/hooks/use-has-mounted";
 import { NavRail } from "@/features/shell/components/nav-rail";
 import { TopSearchBar } from "@/features/shell/components/top-search-bar";
 import { WorkPanel } from "@/features/shell/components/work-panel";
@@ -11,10 +12,13 @@ import {
   NAV_RAIL_WIDTH_PX,
   WORK_PANEL_WIDTH_PX,
 } from "@/features/shell/constants";
+import type { NavKey } from "@/features/shell/types/nav";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
 import type { CSSProperties, ReactNode } from "react";
 
 interface AppShellProps extends PanelDataProps {
+  /** 하이드레이션 안전값. `MapMarkerPage`가 마운트 전후를 판정해 내려 준다. */
+  activeNav: NavKey;
   equipmentCount: number;
   batteryCount: number;
   locationCount: number;
@@ -32,6 +36,7 @@ interface AppShellProps extends PanelDataProps {
  */
 export function AppShell({
   mode,
+  activeNav,
   markers,
   filterOptions,
   filters,
@@ -42,6 +47,7 @@ export function AppShell({
   isLoading,
   children,
 }: AppShellProps) {
+  const hasMounted = useHasMounted();
   const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
   const toggleSidebar = useMapMarkerStore((state) => state.toggleSidebar);
 
@@ -54,7 +60,8 @@ export function AppShell({
 
   const countSummary = [
     countLabel,
-    isLoading ? "로딩 중" : "",
+    // 조회 상태도 서버에는 없다. 마운트 전에는 붙이지 않는다.
+    hasMounted && isLoading ? "로딩 중" : "",
     mode !== "location" && mode !== "weather" && invalidCoordinateCount > 0
       ? `좌표 없음 ${invalidCoordinateCount}건`
       : "",
@@ -76,11 +83,12 @@ export function AppShell({
         } as CSSProperties
       }
     >
-      <NavRail countSummary={countSummary} />
+      <NavRail countSummary={countSummary} activeNav={activeNav} />
 
       {isSidebarOpen ? (
         <WorkPanel
           mode={mode}
+          activeNav={activeNav}
           markers={markers}
           filterOptions={filterOptions}
           filters={filters}

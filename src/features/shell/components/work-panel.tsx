@@ -13,6 +13,7 @@ import { MarkersPanel } from "@/features/shell/components/panels/markers-panel";
 import { BackupPanel } from "@/features/shell/components/panels/backup-panel";
 import { SettingsPanel } from "@/features/shell/components/panels/settings-panel";
 import { NAV_ITEMS } from "@/features/shell/types/nav";
+import type { NavKey } from "@/features/shell/types/nav";
 import type { MapMode } from "@/features/map-marker/types/marker";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
 
@@ -29,6 +30,8 @@ const DashboardPanel = dynamic(
 );
 
 interface WorkPanelProps extends PanelDataProps {
+  /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
+  activeNav: NavKey;
   equipmentCount: number;
   batteryCount: number;
   locationCount: number;
@@ -38,6 +41,7 @@ const MARKERS_MODES: MapMode[] = ["equipment", "battery"];
 
 export function WorkPanel({
   mode,
+  activeNav,
   markers,
   filterOptions,
   filters,
@@ -47,7 +51,6 @@ export function WorkPanel({
 }: WorkPanelProps) {
   const hasMounted = useHasMounted();
   const { isAuthenticated } = useAuthSession();
-  const activeNav = useMapMarkerStore((state) => state.activeNav);
   const setMode = useMapMarkerStore((state) => state.setMode);
 
   const authed = hasMounted && isAuthenticated;

@@ -8,15 +8,17 @@ import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useHasMounted } from "@/hooks/use-has-mounted";
 import { isNavAccessible, visibleNavItems } from "@/features/shell/types/nav";
+import type { NavKey } from "@/features/shell/types/nav";
 
 interface NavRailProps {
   countSummary: string;
+  /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
+  activeNav: NavKey;
 }
 
-export function NavRail({ countSummary }: NavRailProps) {
+export function NavRail({ countSummary, activeNav }: NavRailProps) {
   const hasMounted = useHasMounted();
   const { isAuthenticated } = useAuthSession();
-  const activeNav = useMapMarkerStore((state) => state.activeNav);
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
 
   // 인증 분기는 마운트 이후에만 한다. SSR 결과와 어긋나면 하이드레이션이 깨진다.

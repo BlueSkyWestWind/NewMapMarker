@@ -100,6 +100,13 @@ interface MapMarkerUiState {
   closeAllModals: () => void;
 }
 
+/**
+ * 서버 렌더가 쓰는 초기값. persist 복원 전 화면은 반드시 이 값으로 그려야
+ * 하이드레이션이 어긋나지 않는다(`AppShell` 참조).
+ */
+export const STORE_DEFAULT_MODE: MapMode = "equipment";
+export const STORE_DEFAULT_NAV: NavKey = "dashboard";
+
 const emptyFilterState: MarkerFilterState = {
   selectedYears: new Set(),
   selectedBusinesses: new Set(),
@@ -124,8 +131,8 @@ function getPendingKey(mode: MapMode) {
 export const useMapMarkerStore = create<MapMarkerUiState>()(
   persist(
     (set, get) => ({
-      mode: "equipment",
-      activeNav: "dashboard",
+      mode: STORE_DEFAULT_MODE,
+      activeNav: STORE_DEFAULT_NAV,
       lastDomainMode: "equipment",
       /**
        * 메뉴 전환. **필터·선택·CCTV 조회 결과를 보존한다** (계획서 §3.9).
