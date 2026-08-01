@@ -47,9 +47,6 @@ interface MapMarkerUiState {
   /** 영상 모달을 띄울 CCTV. null이면 닫힘 */
   selectedCctv: CctvItem | null;
   setSelectedCctv: (item: CctvItem | null) => void;
-  /** 날씨 모드에서 국소 검색 시 검색된 마커만 지도에 표시하기 위한 ID 목록. null이면 전체 표시 */
-  weatherSearchMarkerIds: string[] | null;
-  setWeatherSearchMarkerIds: (ids: string[] | null) => void;
   /** 날씨 탭에 저장된 오늘의 작업 국소 목록 */
   savedWeatherSites: SiteMatch[];
   saveWeatherSites: (sites: SiteMatch[]) => void;
@@ -141,8 +138,6 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       toggleCctvVisible: () => set((state) => ({ isCctvVisible: !state.isCctvVisible })),
       selectedCctv: null,
       setSelectedCctv: (item) => set({ selectedCctv: item }),
-      weatherSearchMarkerIds: null,
-      setWeatherSearchMarkerIds: (ids) => set({ weatherSearchMarkerIds: ids }),
       savedWeatherSites: [],
       saveWeatherSites: (sites) => set({ savedWeatherSites: sites }),
       clearSavedWeatherSites: () => set({ savedWeatherSites: [] }),
@@ -159,7 +154,6 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
                 filters: emptyFilterState,
                 selectedMarkerId: null,
                 selectedMarkerIds: [],
-                weatherSearchMarkerIds: null,
                 cctvMarkers: [],
                 selectedCctv: null,
                 isCctvVisible: true,

@@ -23,20 +23,11 @@ import {
   searchSitesMulti,
 } from "@/features/worksite-weather/lib/site-search";
 import {
+  OVERALL_TONE,
   VERDICT_ICON,
   VERDICT_LABEL,
   type SiteMatch,
-  type Verdict,
 } from "@/features/worksite-weather/types/weather";
-
-const OVERALL_TONE: Record<Verdict, string> = {
-  unknown: "border-slate-700 bg-slate-900/60 text-slate-300",
-  safe: "border-emerald-600/50 bg-emerald-950/40 text-emerald-200",
-  caution: "border-amber-600/50 bg-amber-950/40 text-amber-200",
-  warning: "border-orange-600/50 bg-orange-950/40 text-orange-200",
-  danger: "border-rose-600/50 bg-rose-950/40 text-rose-200",
-  stop: "border-rose-500 bg-rose-950/70 text-rose-100",
-};
 
 const MATCHED_BY_LABEL: Record<SiteMatch["matchedBy"], string> = {
   name: "국소명",
@@ -111,22 +102,6 @@ export function WorksiteWeatherPanel() {
     if (!query.trim()) return [];
     return searchSitesMulti(candidates, query);
   }, [candidates, query]);
-
-  const setWeatherSearchMarkerIds = useMapMarkerStore(
-    (state) => state.setWeatherSearchMarkerIds,
-  );
-
-  // 날씨 탭 검색 결과에 따른 지도 상 핀 마커 필터링 연동
-  useEffect(() => {
-    if (mode === "weather" && query.trim() && searchResults.length > 0) {
-      const matchedIds = searchResults
-        .map((s) => s.id)
-        .filter((id) => !id.startsWith("geocode:"));
-      setWeatherSearchMarkerIds(matchedIds);
-    } else {
-      setWeatherSearchMarkerIds(null);
-    }
-  }, [mode, query, searchResults, setWeatherSearchMarkerIds]);
 
   const activeKeywords = useMemo(() => parseMultiKeywords(query), [query]);
 

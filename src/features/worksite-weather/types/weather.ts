@@ -47,6 +47,19 @@ export const VERDICT_TONE: Record<Verdict, string> = {
   stop: "bg-red-950 border-red-800 text-red-100",
 };
 
+/**
+ * 종합 판정 배너용 톤. 테두리를 강조한다는 점만 `VERDICT_TONE`과 다르고 등급 의미는 같다.
+ * 배너를 그리는 화면이 둘 이상(사이드바 패널·대시보드)이라 여기서만 정의한다.
+ */
+export const OVERALL_TONE: Record<Verdict, string> = {
+  unknown: "border-slate-700 bg-slate-900/60 text-slate-300",
+  safe: "border-emerald-600/50 bg-emerald-950/40 text-emerald-200",
+  caution: "border-amber-600/50 bg-amber-950/40 text-amber-200",
+  warning: "border-orange-600/50 bg-orange-950/40 text-orange-200",
+  danger: "border-rose-600/50 bg-rose-950/40 text-rose-200",
+  stop: "border-rose-500 bg-rose-950/70 text-rose-100",
+};
+
 /** 슬롯 데이터의 출처. 신뢰도 차이를 화면 배지로 노출한다. */
 export type SlotSource = "past" | "ncst" | "ultra" | "vilage" | "missing";
 

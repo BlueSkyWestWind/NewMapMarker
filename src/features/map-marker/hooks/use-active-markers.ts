@@ -12,6 +12,7 @@ import {
   hasAnyFilterSelection,
   mergeFilterState,
 } from "@/features/map-marker/lib/marker-filters";
+import { selectActiveMarkers } from "@/features/map-marker/lib/select-active-markers";
 import type {
   MarkerFilterState,
   MarkerRecord,
@@ -60,27 +61,13 @@ export function useActiveMarkers() {
   const previousModeRef = useRef(mode);
 
   const markers = useMemo<MarkerRecord[]>(() => {
-    // 날씨 모드는 지도에 마커를 두지 않는다.
-    // 사이드바가 날씨 패널만 렌더하므로(map-sidebar.tsx) 이 목록의 유일한 소비처가 지도다.
-    if (mode === "weather") {
-      return [];
-    }
-
-    // 위치 모드는 DB 없이 브라우저 메모리 목록만 사용한다.
-    if (mode === "location") {
-      return pendingLocationMarkers;
-    }
-
-    const isEquipment = mode === "equipment";
-    const base = !data
-      ? []
-      : isEquipment
-        ? data.equipmentMarkers
-        : data.batteryMarkers;
-    const pending = isEquipment ? pendingEquipmentMarkers : pendingBatteryMarkers;
-    const pendingIds = new Set(pending.map((marker) => marker.id));
-
-    return [...base.filter((marker) => !pendingIds.has(marker.id)), ...pending];
+    return selectActiveMarkers(mode, {
+      equipmentMarkers: data?.equipmentMarkers ?? null,
+      batteryMarkers: data?.batteryMarkers ?? null,
+      pendingEquipmentMarkers,
+      pendingBatteryMarkers,
+      pendingLocationMarkers,
+    });
   }, [
     data,
     mode,
