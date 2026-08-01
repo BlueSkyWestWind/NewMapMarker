@@ -13,6 +13,20 @@
 - UI 표: 셀 **줄바꿈 금지**. 가로는 박스·모달 폭을 키우고 **가로 스크롤 금지**. 세로 스크롤은 허용.
   → 규칙: `.cursor/rules/table-no-wrap.mdc`
 
+## 스택 규칙
+
+`.ruler/`에서 승계했다(2026-08-01 ruler 제거). 일반론은 버리고 이 프로젝트 고유 규칙만 남겼다.
+
+- 컴포넌트는 `"use client"`. `page.tsx`의 `params`는 **Promise**로 받는다.
+- 라이브러리: `ts-pattern`(분기) · `@tanstack/react-query`(서버 상태) · `zustand`(전역 상태) ·
+  `date-fns` · `es-toolkit` · `zod` · `react-hook-form` · `lucide-react` · `shadcn/ui` · `tailwindcss`.
+- 디렉터리: `src/features/{feature}/{components,hooks,lib,constants,types}` · `src/components/ui`(shadcn) ·
+  `src/lib` · `src/hooks`.
+- **shadcn 컴포넌트 추가는 설치 명령만 알려 준다.** 실행은 사용자가 한다 — `npx shadcn@latest add <name>`.
+- **Supabase는 로컬 실행 금지.** 테이블 변경은 `supabase/migrations/*.sql`로 만들어 두면 사용자가 적용한다.
+- 패키지 매니저는 **npm**.
+- 생성 후 UTF-8 기준으로 한글이 깨졌는지 확인한다.
+
 ## 코드베이스 메모 (반복된 실수)
 
 - 검증: `npx tsc --noEmit` · `npx eslint . --max-warnings=0` · `npm test`(vitest) · `npx next build`.
