@@ -6,7 +6,11 @@
  * Tailwind 임의값 대신 이 상수를 import 한다.
  */
 export const NAV_RAIL_WIDTH_PX = 200;
-export const WORK_PANEL_WIDTH_PX = 340;
+/**
+ * 340에서 380으로 넓혔다. 세그먼트가 4개가 되면서 「위치/좌표」 라벨이 잘렸고,
+ * 변환 결과·건축물대장 표도 340에서는 답답했다.
+ */
+export const WORK_PANEL_WIDTH_PX = 380;
 
 /**
  * 지도 영역의 좌측 오프셋. **뷰포트 고정(`position: fixed`) 요소만** 이 값이 필요하다.

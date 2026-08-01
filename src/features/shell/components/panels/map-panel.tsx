@@ -46,7 +46,7 @@ export function MapPanel({
       <div className="space-y-3">
         <PanelSection
           icon={Waypoints}
-          title="주소/좌표 통합 변환기"
+          title="위치/좌표"
           iconClassName="h-3.5 w-3.5 text-indigo-400"
         >
           <GpsConverterPanel />

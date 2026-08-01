@@ -33,7 +33,7 @@ const DEFAULT_SEGMENTS: MapSegment[] = [
 /**
  * 도메인 세그먼트. Ver 2.0에서 최상위 탭이 아니라 패널 안 컨트롤로 내려왔다.
  *
- * 라벨이 모두 짧아 4개까지 340px 한 줄에 들어간다.
+ * 라벨이 모두 짧아 4개까지 한 줄에 들어간다. 폭 배분은 내용 길이에 맞춘다.
  * 안전장치로 `truncate`를 두되, 라벨을 늘릴 때는 폭을 다시 확인해야 한다.
  */
 export function ModeTabs({
@@ -63,7 +63,9 @@ export function ModeTabs({
             disabled={isLocked}
             title={isLocked ? "로그인 후 이용할 수 있습니다" : undefined}
             className={cn(
-              "flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-md px-1 py-2 text-[11px] font-semibold transition-colors",
+              // flex-auto: 남는 폭을 균등이 아니라 **내용 길이에 맞춰** 나눈다.
+              // flex-1(균등 4분할)이면 긴 라벨만 자리가 모자라 잘린다.
+              "flex min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-md px-1 py-2 text-[11px] font-semibold transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
               isActive
                 ? "bg-indigo-600 text-white shadow-glow"
