@@ -149,6 +149,9 @@ export function KakaoMapCanvas({
   );
   const clusterIconStyle = useMapMarkerStore((state) => state.clusterIconStyle);
   const isCadastralMode = useMapMarkerStore((state) => state.isCadastralMode);
+  const isVworldParcelVisible = useMapMarkerStore(
+    (state) => state.isVworldParcelVisible,
+  );
   const placeSearch = useMapMarkerStore((state) => state.placeSearch);
   const cctvMarkers = useMapMarkerStore((state) => state.cctvMarkers);
   const isCctvVisible = useMapMarkerStore((state) => state.isCctvVisible);
@@ -829,7 +832,11 @@ export function KakaoMapCanvas({
     const bounds = new kakao.maps.LatLngBounds();
     let boundsHasPoint = false;
 
-    placeSearch.parcels.forEach((parcel) => {
+    // 지적도를 끄면 경계선만 감춘다. 중심 마커·이동은 그대로 둔다 —
+    // 폴리곤이 없다고 검색 결과 자체가 사라지면 어디를 찾았는지 알 수 없다.
+    const parcels = isVworldParcelVisible ? placeSearch.parcels : [];
+
+    parcels.forEach((parcel) => {
       parcel.rings.forEach((ring) => {
         if (ring.length < 3) return;
         const path = ring.map((pt) => new kakao.maps.LatLng(pt.lat, pt.lng));
@@ -866,7 +873,7 @@ export function KakaoMapCanvas({
       if (map.getLevel() > 3) map.setLevel(3);
       map.panTo(center);
     }
-  }, [placeSearch, isReady]);
+  }, [placeSearch, isVworldParcelVisible, isReady]);
 
   /**
    * 도로 CCTV 마커 레이어 (장비 모드).

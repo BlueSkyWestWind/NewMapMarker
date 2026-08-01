@@ -58,15 +58,27 @@ export function SettingsPanel() {
   const setClusterIconStyle = useMapMarkerStore((state) => state.setClusterIconStyle);
   const isCadastralMode = useMapMarkerStore((state) => state.isCadastralMode);
   const setCadastralMode = useMapMarkerStore((state) => state.setCadastralMode);
+  const isVworldParcelVisible = useMapMarkerStore(
+    (state) => state.isVworldParcelVisible,
+  );
+  const setVworldParcelVisible = useMapMarkerStore(
+    (state) => state.setVworldParcelVisible,
+  );
 
   return (
     <div className="space-y-3">
       <PanelSection icon={Layers} title="지도 표시" iconClassName="h-3.5 w-3.5 text-indigo-400">
         <ToggleRow
           label="지적편집도"
-          hint="필지 경계를 겹쳐 본다"
+          hint="카카오 용도지역 오버레이"
           isOn={isCadastralMode}
           onToggle={() => setCadastralMode(!isCadastralMode)}
+        />
+        <ToggleRow
+          label="브이월드 지적도"
+          hint="조회한 필지의 경계선"
+          isOn={isVworldParcelVisible}
+          onToggle={() => setVworldParcelVisible(!isVworldParcelVisible)}
         />
       </PanelSection>
 

@@ -2,7 +2,16 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Download, ExternalLink, Loader2, MapPin, Search } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  Eye,
+  FileDown,
+  Loader2,
+  MapPin,
+  Search,
+  SquareStack,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +26,11 @@ import {
   runBatchLookup,
   type BatchRow,
 } from "@/features/gpsmap/lib/batch-lookup";
-import { downloadBatchExcel } from "@/features/gpsmap/lib/export-excel";
+import {
+  downloadBatchExcel,
+  downloadSingleExcel,
+} from "@/features/gpsmap/lib/export-excel";
+import { GpsResultTable } from "@/features/gpsmap/components/gps-result-table";
 import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
 import type { GpsLookupResult } from "@/features/gpsmap/lib/lookup";
 import type { LocationMarker } from "@/features/map-marker/types/marker";
@@ -48,6 +61,13 @@ export function GpsConverterPanel() {
   const { toast } = useToast();
   const addPendingMarkers = useMapMarkerStore((state) => state.addPendingMarkers);
   const setPlaceSearch = useMapMarkerStore((state) => state.setPlaceSearch);
+  const openRoadview = useMapMarkerStore((state) => state.openRoadview);
+  const isVworldParcelVisible = useMapMarkerStore(
+    (state) => state.isVworldParcelVisible,
+  );
+  const setVworldParcelVisible = useMapMarkerStore(
+    (state) => state.setVworldParcelVisible,
+  );
 
   const [tab, setTab] = useState<ConverterTab>("single");
   const [query, setQuery] = useState("");
@@ -62,7 +82,7 @@ export function GpsConverterPanel() {
   const batchCount = useMemo(() => parseBatchInputs(batchText).length, [batchText]);
   const doneCount = rows.filter((row) => row.status === "done").length;
 
-  /** 조회 결과를 지도로 옮긴다. 임시 마커 + 지도 이동. */
+  /** 조회 결과를 지도로 옮긴다. 임시 마커 + 필지 경계 + 지도 이동. */
   const dropMarkers = (results: GpsLookupResult[]) => {
     const markers: LocationMarker[] = results.map((result, index) =>
       createLocationMarker({
@@ -75,12 +95,30 @@ export function GpsConverterPanel() {
     if (markers.length === 0) return;
 
     addPendingMarkers("location", markers);
-    // 첫 결과로 지도를 옮겨 준다. 찍어 놓고 어디 있는지 못 찾으면 소용이 없다.
+
+    /*
+     * 첫 결과로 지도를 옮기고 VWorld 필지 경계를 함께 넘긴다.
+     * `runSingleLookup`은 링 배열(`LatLng[][]`)을 주는데 지도는 `Parcel[]`을 받으므로
+     * 여기서 모양을 맞춘다. 표시 여부는 스토어 토글이 결정한다.
+     */
+    const first = results[0];
     setPlaceSearch({
       label: markers[0].name,
       center: { lat: markers[0].lat, lng: markers[0].lng },
-      parcels: [],
+      parcels:
+        first.parcels.length > 0
+          ? [{ rings: first.parcels.map((ring) => ring.map((p) => ({ lat: p.lat, lng: p.lng }))) }]
+          : [],
     });
+  };
+
+  /** 결과 지점의 로드뷰를 연다. 모달은 페이지가 소유한다. */
+  const openResultRoadview = (result: GpsLookupResult) => {
+    openRoadview(
+      result.center.lat,
+      result.center.lng,
+      result.roadAddress || result.oldAddress || result.input,
+    );
   };
 
   const runSingle = async (input?: string) => {
@@ -237,28 +275,31 @@ export function GpsConverterPanel() {
           </div>
 
           {single ? (
-            <dl className="space-y-1 rounded-md border border-slate-800 bg-slate-900/40 p-2 text-[11px]">
-              <div className="flex gap-2">
-                <dt className="w-14 shrink-0 text-slate-500">도로명</dt>
-                <dd className="min-w-0 break-all text-slate-200">{single.roadAddress || "-"}</dd>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 border-slate-700 text-[11px]"
+                  onClick={() => downloadSingleExcel(single)}
+                >
+                  <FileDown className="mr-1 h-3.5 w-3.5" aria-hidden />
+                  엑셀
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 border-slate-700 text-[11px]"
+                  onClick={() => openResultRoadview(single)}
+                >
+                  <Eye className="mr-1 h-3.5 w-3.5" aria-hidden />
+                  로드뷰
+                </Button>
               </div>
-              <div className="flex gap-2">
-                <dt className="w-14 shrink-0 text-slate-500">지번</dt>
-                <dd className="min-w-0 break-all text-slate-200">{single.oldAddress || "-"}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="w-14 shrink-0 text-slate-500">좌표</dt>
-                <dd className="min-w-0 break-all tabular-nums text-slate-200">
-                  {single.center.lat.toFixed(6)}, {single.center.lng.toFixed(6)}
-                </dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="w-14 shrink-0 text-slate-500">도분초</dt>
-                <dd className="min-w-0 break-all tabular-nums text-slate-200">
-                  {single.latDms} / {single.lngDms}
-                </dd>
-              </div>
-            </dl>
+
+              <p className="text-[11px] font-semibold text-slate-300">변환 결과</p>
+              <GpsResultTable result={single} />
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -341,6 +382,35 @@ export function GpsConverterPanel() {
       {tab === "excel" ? <LocationExcelSection /> : null}
 
       {error ? <p className="text-[11px] text-rose-400">{error}</p> : null}
+
+      {/* 조회한 필지 경계를 지도에 겹쳐 보여줄지. 끄면 경계선만 감추고 위치 마커는 남는다. */}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isVworldParcelVisible}
+        onClick={() => setVworldParcelVisible(!isVworldParcelVisible)}
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-900/40 px-2 py-1.5 text-left hover:bg-slate-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <SquareStack className="h-3.5 w-3.5 shrink-0 text-rose-300" aria-hidden />
+          <span className="truncate text-[11px] text-slate-200">
+            브이월드 지적도(필지 경계)
+          </span>
+        </span>
+        <span
+          className={cn(
+            "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+            isVworldParcelVisible ? "bg-indigo-600" : "bg-slate-700",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+              isVworldParcelVisible ? "translate-x-4" : "translate-x-0.5",
+            )}
+          />
+        </span>
+      </button>
 
       <Link
         href="/gpsmap"

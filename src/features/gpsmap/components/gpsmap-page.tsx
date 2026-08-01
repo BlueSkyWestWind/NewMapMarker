@@ -13,6 +13,7 @@ import {
   type VworldMapHandle,
 } from '@/features/gpsmap/components/vworld-map-pane';
 import { RoadviewPane } from '@/features/gpsmap/components/roadview-pane';
+import { GpsResultTable } from '@/features/gpsmap/components/gps-result-table';
 import { runSingleLookup, type GpsLookupResult } from '@/features/gpsmap/lib/lookup';
 import {
   dmsToDecimal,
@@ -614,47 +615,8 @@ export function GpsMapPage() {
                   </div>
                 ) : null}
               </div>
-              <table className="w-full text-[11px]">
-                <tbody>
-                  <Row label="검색출처" value={result.source} />
-                  <Row label="구 주소" value={result.oldAddress} />
-                  <Row label="신 주소" value={result.roadAddress} />
-                  <Row label="우편번호" value={result.zipcode} />
-                  <Row
-                    label="좌표"
-                    value={`${result.center.lat.toFixed(6)}, ${result.center.lng.toFixed(6)}`}
-                  />
-                  <Row label="위도(도분초)" value={result.latDms} />
-                  <Row label="경도(도분초)" value={result.lngDms} />
-                  <Row label="구글좌표" value={result.googleCoord} />
-                  <Row label="PNU" value={result.pnu} />
-                </tbody>
-              </table>
-            </div>
-
-            <div>
-              <div className="mb-1 text-[11px] font-semibold tracking-wide text-slate-400">
-                건축물대장
-              </div>
-              {building ? (
-                <table className="w-full text-[11px]">
-                  <tbody>
-                    <Row label="건물명칭" value={building.name} />
-                    <Row label="동명칭" value={building.dongName} />
-                    <Row label="지상층수" value={building.groundFloors} />
-                    <Row label="지하층수" value={building.basementFloors} />
-                    <Row label="연면적" value={building.totalArea} />
-                    <Row label="대지면적" value={building.platArea} />
-                    <Row label="건축면적" value={building.buildingArea} />
-                    <Row label="주용도" value={building.mainUse} />
-                    <Row label="세부용도" value={building.detailUse} />
-                  </tbody>
-                </table>
-              ) : (
-                <p className="text-[11px] text-slate-500">
-                  건축물대장 조회 결과가 없습니다. (VWorld 국가중점 API 권한·PNU 확인)
-                </p>
-              )}
+              {/* 표 자체는 위치 세그먼트 패널과 같은 컴포넌트를 쓴다 — 항목이 갈리지 않게. */}
+              <GpsResultTable result={result} />
             </div>
           </>
         ) : null}

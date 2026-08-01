@@ -32,6 +32,12 @@ interface MapMarkerUiState {
   isClusteringEnabled: boolean;
   clusterIconStyle: ClusterIconStyle;
   isCadastralMode: boolean;
+  /**
+   * VWorld 연속지적도(필지 경계) 폴리곤 표시 여부.
+   * 카카오 지적편집도(`isCadastralMode`)와 별개다 — 이쪽은 조회한 필지의 실제 경계선이다.
+   */
+  isVworldParcelVisible: boolean;
+  setVworldParcelVisible: (visible: boolean) => void;
   markerListFilter: string;
   filters: MarkerFilterState;
   pendingEquipmentMarkers: MarkerRecord[];
@@ -160,6 +166,9 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       isClusteringEnabled: true,
       clusterIconStyle: "donut",
       isCadastralMode: false,
+      isVworldParcelVisible: true,
+      setVworldParcelVisible: (visible) =>
+        set({ isVworldParcelVisible: visible }),
       markerListFilter: "",
       filters: emptyFilterState,
       pendingEquipmentMarkers: [],
@@ -340,6 +349,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
         isClusteringEnabled: state.isClusteringEnabled,
         clusterIconStyle: state.clusterIconStyle,
         isCadastralMode: state.isCadastralMode,
+        isVworldParcelVisible: state.isVworldParcelVisible,
         savedWeatherSites: state.savedWeatherSites,
       }),
     },
