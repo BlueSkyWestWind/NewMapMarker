@@ -457,7 +457,7 @@ export function GpsConverterPanel() {
             <Button
               type="button"
               variant="outline"
-              className="mt-1.5 h-7 w-full border-slate-700 text-[11px]"
+              className="mt-1.5 h-7 w-full border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
               onClick={moveToDms}
               disabled={isBusy}
             >
@@ -471,7 +471,7 @@ export function GpsConverterPanel() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-8 border-slate-700 text-[11px]"
+                  className="h-8 border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
                   onClick={() => downloadSingleExcel(single)}
                 >
                   <FileDown className="mr-1 h-3.5 w-3.5" aria-hidden />
@@ -480,7 +480,7 @@ export function GpsConverterPanel() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-8 border-slate-700 text-[11px]"
+                  className="h-8 border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
                   onClick={() => openResultRoadview(single)}
                 >
                   <Eye className="mr-1 h-3.5 w-3.5" aria-hidden />
@@ -523,7 +523,7 @@ export function GpsConverterPanel() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-8 border-slate-700 px-2 text-[11px]"
+                className="h-8 border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 px-2 text-[11px]"
                 onClick={stopBatch}
               >
                 <Square className="mr-1 h-3 w-3" aria-hidden />
@@ -600,7 +600,7 @@ export function GpsConverterPanel() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-8 w-full border-slate-700 text-[11px]"
+                className="h-8 w-full border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
                 onClick={() => downloadBatchExcel(rows)}
                 disabled={doneCount === 0}
               >
@@ -644,7 +644,7 @@ export function GpsConverterPanel() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-8 border-slate-700 text-[11px]"
+                      className="h-8 border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
                       onClick={() => downloadSingleExcel(viewedBatchResult)}
                     >
                       <FileDown className="mr-1 h-3.5 w-3.5" aria-hidden />
@@ -653,7 +653,7 @@ export function GpsConverterPanel() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-8 border-slate-700 text-[11px]"
+                      className="h-8 border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
                       onClick={() => openResultRoadview(viewedBatchResult)}
                     >
                       <Eye className="mr-1 h-3.5 w-3.5" aria-hidden />
