@@ -7,7 +7,7 @@ import { useExcelUploadActions } from "@/features/map-marker/hooks/use-excel-upl
 
 /**
  * 위치 모드용 엑셀 업로드.
- * 장비 엑셀과 동일한 파서(위경도/주소)를 쓰며, DB 없이 지도에 바로 표시한다.
+ * 장비 엑셀과 동일한 파서(위경도/주소)를 쓰며, DB 없이 지도와 대시보드에 바로 표시한다.
  */
 export function LocationExcelSection() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -18,7 +18,7 @@ export function LocationExcelSection() {
     <div className="space-y-2">
       <p className="text-[11px] text-slate-400">
         장비 엑셀과 동일한 형식입니다. 위도/경도 또는 주소가 포함된 Excel/CSV를
-        올리면 임시 위치로 표시됩니다. (로그인·DB 저장 없음)
+        올리면 지도와 대시보드에 위치로 표시됩니다. (로그인·DB 저장 없음)
       </p>
       <Button
         type="button"

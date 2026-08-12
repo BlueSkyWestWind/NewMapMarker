@@ -5,6 +5,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ClusterIconStyle } from "@/features/map-marker/lib/cluster-pie";
 import type { PlaceSearchResult } from "@/features/map-marker/lib/parcel-boundary";
+import type { GpsLookupResult } from "@/features/gpsmap/lib/lookup";
 import type {
   MapMode,
   MarkerFilterState,
@@ -77,6 +78,12 @@ interface MapMarkerUiState {
   roadviewPosition: { lat: number; lng: number; name: string } | null;
   /** 장소 검색으로 조회한 필지 경계(지도에 폴리곤으로 표시). persist 안 함 */
   placeSearch: PlaceSearchResult | null;
+  /**
+   * 위치/좌표 변환기의 단건 조회 결과. 상단 바 [엑셀] 버튼이 이걸 내려받는다
+   * (사이드바 버튼을 지도 상단 바로 옮겼다 — 결과가 사이드바와 상단 바 양쪽에서 필요). persist 안 함
+   */
+  converterSingleResult: GpsLookupResult | null;
+  setConverterSingleResult: (result: GpsLookupResult | null) => void;
   /** 지도에 표시할 도로 CCTV 목록(장비 모드). 조회 결과라 persist 하지 않는다 */
   cctvMarkers: CctvItem[];
   setCctvMarkers: (items: CctvItem[]) => void;
@@ -86,9 +93,14 @@ interface MapMarkerUiState {
   /** 영상 모달을 띄울 CCTV. null이면 닫힘 */
   selectedCctv: CctvItem | null;
   setSelectedCctv: (item: CctvItem | null) => void;
+  /** 장비·축전지·위치 마커 표시 여부. CCTV 탭 등에서 지도 우하단 토글로 켜고 끈다 */
+  isMarkersVisible: boolean;
+  toggleMarkersVisible: () => void;
   /** 날씨 탭에 저장된 오늘의 작업 국소 목록 */
   savedWeatherSites: SiteMatch[];
   saveWeatherSites: (sites: SiteMatch[]) => void;
+  /** 기존 목록을 지우지 않고 덧붙인다(id 중복 제외) — 위치 탭에서 등록할 때 쓴다 */
+  addWeatherSites: (sites: SiteMatch[]) => void;
   clearSavedWeatherSites: () => void;
   removeSavedWeatherSite: (id: string) => void;
   setMode: (mode: MapMode) => void;
@@ -215,7 +227,22 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
               ? "converter"
               : segmentOfMode(nextMode);
 
-          return { activeNav: nav, mode: nextMode, mapSegment: nextSegment };
+          // CCTV 탭을 벗어나면 조회 결과를 지운다. 다른 메뉴에 남아 있을 이유가 없다.
+          const leavingCctv =
+            state.activeNav === "cctv" && nav !== "cctv"
+              ? {
+                  cctvMarkers: [],
+                  selectedCctv: null,
+                  isCctvVisible: true,
+                }
+              : null;
+
+          return {
+            activeNav: nav,
+            mode: nextMode,
+            mapSegment: nextSegment,
+            ...leavingCctv,
+          };
         }),
       isSidebarOpen: true,
       isClusteringEnabled: true,
@@ -244,6 +271,8 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       isRoadviewOpen: false,
       roadviewPosition: null,
       placeSearch: null,
+      converterSingleResult: null,
+      setConverterSingleResult: (result) => set({ converterSingleResult: result }),
       cctvMarkers: [],
       // 조회하면 바로 보이게 하고, 이후에는 토글로 제어한다
       setCctvMarkers: (items) => set({ cctvMarkers: items }),
@@ -251,8 +280,20 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       toggleCctvVisible: () => set((state) => ({ isCctvVisible: !state.isCctvVisible })),
       selectedCctv: null,
       setSelectedCctv: (item) => set({ selectedCctv: item }),
+      isMarkersVisible: true,
+      toggleMarkersVisible: () =>
+        set((state) => ({ isMarkersVisible: !state.isMarkersVisible })),
       savedWeatherSites: [],
       saveWeatherSites: (sites) => set({ savedWeatherSites: sites }),
+      addWeatherSites: (sites) =>
+        set((state) => {
+          const existingIds = new Set(state.savedWeatherSites.map((s) => s.id));
+          const additions = sites.filter((s) => !existingIds.has(s.id));
+          if (additions.length === 0) return state;
+          return {
+            savedWeatherSites: [...state.savedWeatherSites, ...additions],
+          };
+        }),
       clearSavedWeatherSites: () => set({ savedWeatherSites: [] }),
       removeSavedWeatherSite: (id) =>
         set((state) => ({

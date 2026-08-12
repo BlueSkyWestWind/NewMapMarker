@@ -19,8 +19,9 @@ interface AuthModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+// 라이트/다크 전환 증명용(Ver 2.1) — 하드코딩 slate 대신 세만틱 토큰을 쓴다.
 const fieldClassName =
-  'h-9 bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus-visible:ring-emerald-500';
+  'h-9 bg-secondary border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-emerald-500';
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const { supabase } = useAuthSession();
@@ -64,15 +65,15 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md rounded-2xl border-slate-800 bg-slate-900 p-6 text-slate-100 shadow-2xl [&_button.absolute]:text-slate-400 [&_button.absolute]:hover:text-slate-100 [&_button.absolute]:hover:bg-slate-800 [&_button.absolute]:focus:ring-slate-600 [&_button.absolute]:ring-offset-slate-900">
-        <DialogHeader className="border-b border-slate-800 pb-4">
-          <DialogTitle className="text-lg font-bold text-slate-100">
+      <DialogContent className="sm:max-w-md rounded-2xl p-6 [&_button.absolute]:hover:bg-accent [&_button.absolute]:hover:text-accent-foreground">
+        <DialogHeader className="border-b pb-4">
+          <DialogTitle className="text-lg font-bold">
             로그인
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-1">
           <div className="space-y-2">
-            <Label htmlFor="auth-email" className="text-xs text-slate-300">
+            <Label htmlFor="auth-email" className="text-xs text-muted-foreground">
               이메일
             </Label>
             <Input
@@ -87,7 +88,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="auth-password" className="text-xs text-slate-300">
+            <Label htmlFor="auth-password" className="text-xs text-muted-foreground">
               비밀번호
             </Label>
             <Input

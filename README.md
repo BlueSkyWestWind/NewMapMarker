@@ -3,8 +3,10 @@
 통신 장비·축전지 **국소를 지도에 관리하고, 당일 작업 안전 날씨를 판정**하는 웹 앱입니다.
 `001.MapMarker`(바닐라 JS)를 Next.js 15 + TypeScript 구조로 재구성했습니다.
 
-- 현재 릴리스: **Ver_1.1** (2026-07-26)
-- 문서: [`docs/Ver_1.1/`](./docs/Ver_1.1/Ver_1.1_README.md) · [이전 버전](./docs/Ver_1.0/)
+- 현재 릴리스: **Ver_2.1** (2026-08-02) — 디자인 토큰 재매핑 + 라이트/다크 테마 전환
+- 문서: [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) ·
+  [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md)(UI 셸 개편·대시보드) ·
+  [이전 버전](./docs/Ver_1.1/)
 
 ## 구조
 
@@ -16,14 +18,21 @@ src/
       map-tile-proxy/          # 지도 타일 프록시 (호스트 allowlist 기반 SSRF 방지)
       roadview-dates/          # 로드뷰 촬영일자 조회 프록시
       worksite-weather/        # 국소 작업 안전 날씨 판정 (기상청 API 허브)
-      cctv/                    # 도로 CCTV 조회 (ITS 국가교통정보센터)
-    gpsmap/                    # 주소/좌표 통합 변환기
+      its-key/                 # ITS 인증키를 브라우저에 런타임 전달 (CCTV는 브라우저 직접 호출)
+    gpsmap/                    # 주소/좌표 통합 변환기 (독립 라우트, 로직은 features/gpsmap/lib 공유)
   components/
-    ui/                        # shadcn/ui (Radix)
+    ui/                        # shadcn/ui (Radix) — Calendly 유래 토큰으로 라이트/다크 렌더
     public-env-script.tsx      # 런타임 공개 env 를 브라우저에 주입
     kakao-sdk-script.tsx       # 카카오 지도 SDK 로더
-  hooks/ lib/ types/           # use-toast · utils · public-env · supabase/client · kakao-maps.d.ts
-  features/map-marker/         # 지도·마커 도메인 (69파일)
+  hooks/ lib/ types/           # use-toast · use-has-mounted · utils · public-env · supabase/client · kakao-maps.d.ts
+  features/shell/              # 좌측 메뉴 레일 + 상단 검색 + 패널 스위치 (Ver_2.0 신설, 14파일)
+    constants.ts                # 레일/패널 폭 단일 소스 (CSS 변수로 흘림)
+    types/nav.ts                # NavKey 7종(대시보드·지도·마커관리·그룹관리·CCTV·백업/복원·설정)
+    components/                 # app-shell · nav-rail · top-search-bar · panels/(지도·마커·백업·설정)
+  features/dashboard/          # 당일 국소 작업 가능 여부 요약 (Ver_2.0 신설, 4파일)
+    hooks/use-worksite-board.ts # 저장 국소 동시 4건 날씨 조회, 행 단위 실패 격리
+    components/                 # worksite-board · worksite-row · dashboard-panel(빈 상태 포함)
+  features/map-marker/         # 지도·마커 도메인 (73파일)
     api.ts                     # Supabase 조회 (fetchAllRows 페이지네이션)
     constants/ providers/ store/ hooks/
     lib/                       # marker-svg · cluster-pie · marker-filters · geocode · address-group
@@ -39,8 +48,9 @@ src/
                                # site-search · worksite-weather-api · kma-client(서버 전용)
                                # export-tbm
     hooks/ components/         # 패널 · 타임라인 표 · 위험 요약 · 태풍/위성 모달
-  features/gpsmap/             # 주소·좌표 변환 (VWorld · Leaflet)
-docs/                          # Ver_1.0 · Ver_1.1 문서 세트 · 검수 보고서
+  features/gpsmap/             # 주소·좌표 변환 (VWorld · Leaflet, 14파일)
+  features/cctv/               # 도로 CCTV 조회 — ITS를 브라우저에서 직접 호출 (13파일)
+docs/                          # Ver_1.0 ~ Ver_2.1 문서 세트 · 검수 보고서 · project_review.md
 supabase/migrations/           # DB 마이그레이션 7개
 e2e/                           # Playwright 스모크 테스트
 ```
@@ -49,7 +59,10 @@ e2e/                           # Playwright 스모크 테스트
 
 | 기능 | 상태 |
 |------|------|
-| 장비/축전지/위치/**날씨** 4모드 전환 | ✅ |
+| **좌측 메뉴 셸**(대시보드·지도·마커관리·CCTV·백업/복원·설정) + 전역 검색(`Ctrl+K`) | ✅ |
+| **대시보드** — 오늘의 작업 국소 저장 목록의 실시간 작업 가능 여부 요약 | ✅ |
+| **라이트/다크 테마 전환**(설정 메뉴, 기본은 다크) | ✅ |
+| 지도 세그먼트(장비/축전지/위치) · 마커관리 세그먼트(장비/축전지) 전환 | ✅ |
 | Supabase 마커·정보·축전지 로드 (전량 페이지네이션) | ✅ |
 | 연도·사업·색상·태그·용량 필터 | ✅ |
 | 지도 마커 렌더·클러스터(파이/도넛) | ✅ |
@@ -65,6 +78,25 @@ e2e/                           # Playwright 스모크 테스트
 | 동/구역 실제 그룹 분리·원복(대표 직접 선택) | ✅ |
 | **국소 작업 안전 날씨 판정 (07~17시)** | ✅ |
 | **TBM 안전 자료 엑셀 저장** | ✅ |
+| **도로 CCTV 조회·영상 재생**(ITS, 브라우저 직접 호출) | ✅ |
+| **주소/좌표 통합 변환기**(단건·일괄·엑셀, GPS 메뉴) | ✅ |
+
+### UI 셸 + 대시보드 + 라이트/다크 테마 (Ver_2.0~2.1 신규)
+
+화면의 최상위 전환 축을 **모드(데이터 도메인)** 에서 **메뉴(기능 영역)** 로 옮기고,
+**대시보드**("오늘 이 국소에서 작업해도 되는가")를 기본 진입 화면으로 뒀다.
+
+- **좌측 메뉴 레일 7종** — 대시보드 · 지도 · 마커관리 · 그룹관리(준비 중) · CCTV · 데이터백업/복원 · 설정.
+  비로그인 시 인증 필요 항목은 숨김(비활성이 아니라 목록에서 제외)
+- **대시보드** — 저장해 둔 오늘의 작업 국소를 동시 4건까지 조회해 시간대별 작업 가능 여부를 요약.
+  개별 조회 실패는 해당 행만 격리되고 나머지 행은 정상 표시
+- **전역 검색**(`Ctrl+K`) — 사이드바 장소 검색과 동일한 구현을 공유
+- **라이트/다크 테마 전환** — 설정 메뉴에서 토글. 기본값은 다크. shadcn 원시 컴포넌트(`Button`·
+  `Input`·`Card`·`Dialog`·`Badge` 등)와 커스텀 컴포넌트 전반이 Calendly에서 채택한 반경·섀도
+  구조 위에 기존 인디고 브랜드 색으로 재매핑된 라이트 팔레트로 렌더된다. 카카오맵 오버레이
+  말풍선(위성 이미지 위에 얹히는 요소)만 항상 다크로 고정
+- 폭 상수(`--rail-w`·`--panel-w`)는 `features/shell/constants.ts` 단일 소스에서 CSS 변수로 흘러
+  반응형 미디어 쿼리에 쓰인다
 
 ### 국소 작업 안전 날씨 (Ver_1.1 신규)
 
@@ -100,7 +132,7 @@ e2e/                           # Playwright 스모크 테스트
 npm install
 npm run dev          # 개발 서버 (Turbopack)
 npm run lint         # eslint .
-npm run test         # vitest 단위 테스트 (221건 / 15파일)
+npm run test         # vitest 단위 테스트 (278건 / 20파일)
 npm run test:e2e     # Playwright 스모크 (dev 서버 재사용)
 npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 ```
@@ -229,7 +261,10 @@ npx wrangler secret put ITS_API_KEY
 | `ITS_API_KEY` | [ITS 국가교통정보센터 오픈데이터](https://www.its.go.kr/opendata/) 인증키 |
 
 기상 API 키와 동일하게 **Secret 타입**으로 등록하세요. 로컬은 `.env.local`에 추가합니다.
-미설정 시 `도로 CCTV 조회` 패널이 502와 함께 안내 문구를 표시합니다.
+
+> CCTV 조회는 **브라우저가 ITS를 직접 호출**합니다(서버 경유 불가, 상세는
+> [`Ver_1.1_CCTV_PLAN.md`](./docs/Ver_1.1/Ver_1.1_CCTV_PLAN.md) 부록 E). `/api/its-key` 라우트가
+> 이 키를 런타임에 브라우저로 전달합니다. 미설정 시 CCTV 조회가 인증키 오류로 실패합니다.
 
 ### 환경 변수 (선택)
 
@@ -248,10 +283,15 @@ npx wrangler secret put ITS_API_KEY
 
 | 문서 | 내용 |
 |------|------|
-| [`docs/Ver_1.1/`](./docs/Ver_1.1/Ver_1.1_README.md) | 현재 버전 문서 세트 (15종) |
-| [`docs/Ver_1.0/`](./docs/Ver_1.0/) | 이전 버전 + 변경요청(CR-001~004) |
+| [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) | 현재 버전 — 디자인 토큰 재매핑 + 라이트/다크 테마 |
+| [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md) | UI 셸 개편 + 대시보드 신설 문서 세트 |
+| [`docs/Ver_1.1/`](./docs/Ver_1.1/Ver_1.1_README.md) | 국소 작업 안전 날씨 + CCTV 문서 세트 |
+| [`docs/Ver_1.0/`](./docs/Ver_1.0/) | 최초 버전 + 변경요청(CR-001~004) |
 | [`docs/PROJECT_ANALYSIS_2026-07-18.md`](./docs/PROJECT_ANALYSIS_2026-07-18.md) | 검수 보고서 (1~5차) |
-| [`docs/implementation_plan.md`](./docs/implementation_plan.md) | 작업 계획 누적 |
+| [`docs/Ver_2.0/project_review.md`](./docs/Ver_2.0/project_review.md) | 구조 점검 누적 기록 |
+| [`docs/VWORLD_CLOUDFLARE_SETUP.md`](./docs/VWORLD_CLOUDFLARE_SETUP.md) | VWorld 배포 설정 가이드 |
 | [`docs/walkthrough.md`](./docs/walkthrough.md) | 작업 결과 누적 |
 
-시작점: [`Ver_1.1_PLAN`](./docs/Ver_1.1/Ver_1.1_PLAN.md) → [`Ver_1.1_PRD`](./docs/Ver_1.1/Ver_1.1_PRD.md) → [`Ver_1.1_IA`](./docs/Ver_1.1/Ver_1.1_IA.md)
+시작점: [`Ver_2.1_implementation_plan`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) →
+[`Ver_2.0_PLAN`](./docs/Ver_2.0/Ver_2.0_implementation_plan.md) →
+[`Ver_2.0_IA`](./docs/Ver_2.0/Ver_2.0_IA.md)

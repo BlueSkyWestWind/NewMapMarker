@@ -75,6 +75,9 @@ export function GpsConverterPanel() {
   const setMapPickMode = useMapMarkerStore((state) => state.setMapPickMode);
   const pickedPoint = useMapMarkerStore((state) => state.pickedPoint);
   const setPickedPoint = useMapMarkerStore((state) => state.setPickedPoint);
+  const setConverterSingleResult = useMapMarkerStore(
+    (state) => state.setConverterSingleResult,
+  );
 
   const [tab, setTab] = useState<ConverterTab>("single");
   const [query, setQuery] = useState("");
@@ -292,6 +295,15 @@ export function GpsConverterPanel() {
     };
   }, [setMapPickMode]);
 
+  /*
+   * 상단 바 [엑셀] 버튼이 내려받을 결과를 스토어에 올린다(단건 조회 탭에서만).
+   * 일괄 변환 탭에는 이미 자체 엑셀 버튼이 있으므로 그쪽으로 넘어가면 비운다.
+   */
+  useEffect(() => {
+    setConverterSingleResult(tab === "single" ? single : null);
+    return () => setConverterSingleResult(null);
+  }, [tab, single, setConverterSingleResult]);
+
   /** 도분초를 십진수로 바꿔 그 지점으로 강제 이동한다. */
   const moveToDms = () => {
     const lat = dmsToDecimal(`${dms.latD} ${dms.latM} ${dms.latS} ${dms.latCS}`);
@@ -402,27 +414,6 @@ export function GpsConverterPanel() {
 
           {single ? (
             <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-8 border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
-                  onClick={() => downloadSingleExcel(single)}
-                >
-                  <FileDown className="mr-1 h-3.5 w-3.5" aria-hidden />
-                  엑셀
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-8 border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-slate-100 text-[11px]"
-                  onClick={() => openResultRoadview(single)}
-                >
-                  <Eye className="mr-1 h-3.5 w-3.5" aria-hidden />
-                  로드뷰
-                </Button>
-              </div>
-
               <p className="text-[11px] font-semibold text-slate-300">변환 결과</p>
               <GpsResultTable result={single} />
             </div>

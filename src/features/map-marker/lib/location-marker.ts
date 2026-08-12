@@ -1,5 +1,11 @@
 import { DEFAULT_MARKER_COLOR } from "@/features/map-marker/constants/facility-teams";
-import type { LocationMarker } from "@/features/map-marker/types/marker";
+import type { EquipmentMarker, LocationMarker } from "@/features/map-marker/types/marker";
+import {
+  equipmentMarkerToCandidate,
+  isSubCandidate,
+  normalize,
+} from "@/features/worksite-weather/lib/site-search";
+import type { SiteMatch } from "@/features/worksite-weather/types/weather";
 
 function createLocationMarkerId() {
   return `loc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -63,4 +69,66 @@ export function createLocationMarkerFromExcelRow(
     name,
     address,
   });
+}
+
+/**
+ * 위치 마커를 대시보드 작업 국소(SiteMatch)로 변환한다.
+ * 좌표만 있으면 기상 조회가 가능하므로 작업 유형은 기본값(지상)으로 둔다.
+ */
+export function locationMarkerToSiteMatch(marker: LocationMarker): SiteMatch {
+  return {
+    id: marker.id,
+    name: marker.name,
+    address: marker.address,
+    lat: marker.lat,
+    lng: marker.lng,
+    workType: "ground",
+    matchedBy: "manual",
+  };
+}
+
+/**
+ * 위치 마커의 주소와 같은 주소를 가진 장비 마커를 찾는다(대표 국소만 대상 — SUB는 제외).
+ */
+export function findEquipmentMarkerByAddress(
+  equipmentMarkers: EquipmentMarker[],
+  address: string,
+): EquipmentMarker | null {
+  const needle = normalize(address);
+  if (!needle) return null;
+
+  for (const marker of equipmentMarkers) {
+    if (isSubCandidate(equipmentMarkerToCandidate(marker))) continue;
+    const road = normalize(marker.roadAddress ?? "");
+    const jibun = normalize(marker.jibunAddress ?? "");
+    if ((road && road === needle) || (jibun && jibun === needle)) {
+      return marker;
+    }
+  }
+  return null;
+}
+
+/**
+ * 위치 등록을 대시보드 작업 국소로 변환한다.
+ * 주소가 같은 장비 마커가 있으면 그 장비 마커를 그대로 국소로 쓴다 — 지도·대시보드에
+ * 위치 핀이 아니라 기존 장비 마커로 표시되어 중복이 생기지 않는다.
+ */
+export function resolveWeatherSiteForLocation(
+  marker: LocationMarker,
+  equipmentMarkers: EquipmentMarker[],
+): SiteMatch {
+  const matched = findEquipmentMarkerByAddress(equipmentMarkers, marker.address);
+  if (!matched) {
+    return locationMarkerToSiteMatch(marker);
+  }
+
+  return {
+    id: matched.id,
+    name: matched.name || matched.finalStationName || marker.name,
+    address: matched.roadAddress || matched.jibunAddress || marker.address,
+    lat: matched.lat,
+    lng: matched.lng,
+    workType: matched.workType === "elevated" ? "elevated" : "ground",
+    matchedBy: "address",
+  };
 }

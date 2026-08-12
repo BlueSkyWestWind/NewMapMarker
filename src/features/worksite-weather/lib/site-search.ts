@@ -62,7 +62,7 @@ export function isSubCandidate(marker: SiteCandidate): boolean {
 }
 
 /** 공백·하이픈 차이로 검색이 실패하지 않게 정규화한다. */
-function normalize(value: string): string {
+export function normalize(value: string): string {
   return value.replace(/[\s-]+/g, "").toLowerCase();
 }
 

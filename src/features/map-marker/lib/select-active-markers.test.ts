@@ -174,7 +174,7 @@ describe("selectActiveMarkers", () => {
       expect(ids(result)).toEqual(["e1"]);
     });
 
-    it("임시 위치 마커도 올리지 않는다", () => {
+    it("작업등록한 위치 마커는 올린다(주소가 겹치는 장비가 없는 경우)", () => {
       const result = selectActiveMarkers(
         "weather",
         sources({
@@ -182,7 +182,30 @@ describe("selectActiveMarkers", () => {
           savedWeatherSiteIds: ["l1"],
         }),
       );
-      expect(result).toEqual([]);
+      expect(ids(result)).toEqual(["l1"]);
+    });
+
+    it("등록되지 않은 위치 마커는 감춘다", () => {
+      const result = selectActiveMarkers(
+        "weather",
+        sources({
+          pendingLocationMarkers: [marker("l1"), marker("l2")],
+          savedWeatherSiteIds: ["l1"],
+        }),
+      );
+      expect(ids(result)).toEqual(["l1"]);
+    });
+
+    it("장비·위치 등록이 섞이면 둘 다 올린다", () => {
+      const result = selectActiveMarkers(
+        "weather",
+        sources({
+          equipmentMarkers: [marker("e1")],
+          pendingLocationMarkers: [marker("l1")],
+          savedWeatherSiteIds: ["e1", "l1"],
+        }),
+      );
+      expect(ids(result)).toEqual(["e1", "l1"]);
     });
 
     it("DB 로드 전이면 빈 목록을 준다", () => {

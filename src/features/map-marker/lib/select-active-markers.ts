@@ -11,7 +11,10 @@ export interface ActiveMarkerSources {
   pendingEquipmentMarkers: MarkerRecord[];
   pendingBatteryMarkers: MarkerRecord[];
   pendingLocationMarkers: MarkerRecord[];
-  /** 대시보드에 올릴 작업등록 국소의 id. 지도에는 이 중 **장비 마커만** 뜬다(§3.4). */
+  /**
+   * 대시보드에 올릴 작업등록 국소의 id. 지도에는 이 중 **장비·위치 마커만** 뜬다(§3.4).
+   * 축전지 국소는 목록에만 남는다 — 축전지 id가 섞여 들어와도 지도에는 오르지 않는다.
+   */
   savedWeatherSiteIds: string[];
 }
 
@@ -26,18 +29,24 @@ export function selectActiveMarkers(
   sources: ActiveMarkerSources,
 ): MarkerRecord[] {
   /*
-   * 대시보드(weather)는 일반 마커를 전부 감추고 **작업등록한 장비 국소만** 올린다.
+   * 대시보드(weather)는 일반 마커를 전부 감추고 **작업등록한 국소만** 올린다.
    *
    * 축전지 국소는 목록에만 나오고 지도에는 올리지 않는다(사용자 확정) —
    * 따라서 지도 마커 수 ≤ 목록 건수이고, 둘이 같을 필요는 없다.
+   * 위치 탭에서 등록한 국소는 장비 마커와 주소가 같으면 이미 그 장비 id로 저장되어
+   * equipmentMarkers 쪽에서 걸리고, 주소가 다르면 위치 마커 자체를 올린다.
    */
   if (mode === "weather") {
     if (sources.savedWeatherSiteIds.length === 0) return [];
 
     const savedIds = new Set(sources.savedWeatherSiteIds);
-    return (sources.equipmentMarkers ?? []).filter((marker) =>
+    const equipmentHits = (sources.equipmentMarkers ?? []).filter((marker) =>
       savedIds.has(marker.id),
     );
+    const locationHits = sources.pendingLocationMarkers.filter((marker) =>
+      savedIds.has(marker.id),
+    );
+    return [...equipmentHits, ...locationHits];
   }
 
   // 위치 모드는 DB 없이 브라우저 메모리 목록만 사용한다.

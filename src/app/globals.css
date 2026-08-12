@@ -4,25 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    /* 브랜드 강조: 톤다운 보티지 블루 #3a4cd1 = hsl(230 60% 52%) */
+    /* 라이트 팔레트 — Calendly 톤 재매핑(Ver 2.1). Cloud/Paper/Ink Navy/Slate Gray/Hairline */
+    --background: 220 27% 98%; /* Cloud #f8f9fb */
+    --foreground: 207 78% 19%; /* Ink Navy #0b3558 */
+    --card: 0 0% 100%; /* Paper #ffffff */
+    --card-foreground: 207 78% 19%; /* Ink Navy */
+    --popover: 0 0% 100%; /* Paper */
+    --popover-foreground: 207 78% 19%; /* Ink Navy */
+    /* 브랜드 강조: 톤다운 보티지 블루 #3a4cd1 = hsl(230 60% 52%) — 라이트·다크 동일 브랜드 유지 */
     --primary: 230 60% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --secondary: 218 36% 96%; /* Pebble #f0f3f8 */
+    --secondary-foreground: 207 78% 19%; /* Ink Navy */
+    --muted: 218 36% 96%; /* Pebble */
+    --muted-foreground: 210 31% 41%; /* Slate Gray #476788 */
+    --accent: 218 36% 96%; /* Pebble */
+    --accent-foreground: 207 78% 19%; /* Ink Navy */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
+    --border: 211 41% 88%; /* Hairline #d4e0ed */
+    --input: 211 41% 88%; /* Hairline */
     --ring: 230 60% 52%;
     /* 컨테이너 반경을 부드럽게 (lg 12 · md 10 · sm 8) */
     --radius: 0.75rem;
@@ -31,6 +32,78 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    /*
+     * 네임드 반경·섀도 토큰(Ver 2.1) — Calendly DESIGN.md의 구조만 채택했다.
+     * 색상은 위 팔레트로 이미 재매핑했으니 여기 섀도는 슬레이트틴트 그대로 쓴다.
+     * 라이트 카드용이다 — 다크는 기존 `shadow-glow`(인디고 발광)를 그대로 쓴다.
+     */
+    --radius-buttons: 8px;
+    --radius-inputs: 8px;
+    --radius-cards: 24px;
+    --radius-productcards: 16px;
+    --radius-badges: 9999px;
+    --shadow-elevation-sm: rgba(71, 103, 136, 0.04) 0px 4px 5px 0px,
+      rgba(71, 103, 136, 0.03) 0px 4px 10px 0px, rgba(71, 103, 136, 0.05) 0px 10px 20px 0px;
+    --shadow-elevation-md: rgba(71, 103, 136, 0.04) 0px 4px 5px 0px,
+      rgba(71, 103, 136, 0.03) 0px 8px 15px 0px, rgba(71, 103, 136, 0.06) 0px 15px 30px 0px;
+    --shadow-elevation-lg: rgba(71, 103, 136, 0.04) 0px 4px 5px 0px,
+      rgba(71, 103, 136, 0.03) 0px 8px 15px 0px, rgba(71, 103, 136, 0.08) 0px 30px 50px 0px;
+
+    /*
+     * slate 램프(라이트) — Ver 2.1. 앱 전역이 bg-slate-900·text-slate-100 같은 클래스를
+     * 직접 쓰므로(808곳), 매 파일을 고치는 대신 램프 자체를 라이트/다크 두 벌로 뒀다.
+     * "숫자가 클수록 어둡다"는 다크 쪽 관례를 유지하되 실제 색은 뒤집는다 —
+     * 900번대(배경 역할)는 밝게, 100번대(본문 텍스트 역할)는 Ink Navy로 어둡게.
+     * 950=Cloud·900=Paper·800=Hairline·500=Slate Gray·100=Ink Navy에 정확히 앵커링했다.
+     */
+    --slate-950: 220 27% 98%; /* Cloud — 페이지·최외곽 배경 */
+    --slate-900: 0 0% 100%; /* Paper — 패널·카드 배경 */
+    --slate-800: 211 41% 88%; /* Hairline — 테두리 */
+    --slate-700: 211 35% 80%;
+    --slate-600: 210 30% 65%;
+    --slate-500: 210 31% 41%; /* Slate Gray — 중간 톤 muted */
+    --slate-400: 209 35% 32%;
+    --slate-300: 208 45% 26%;
+    --slate-200: 207 55% 22%;
+    --slate-100: 207 78% 19%; /* Ink Navy — 본문 텍스트 */
+    --slate-50: 207 85% 12%; /* 강조 텍스트 */
+
+    /*
+     * 상태색 100~300(라이트) — bg-{color}-600/20 text-{color}-200 뱃지 패턴에서
+     * 옅은 텍스트가 흰 배경에 묻히던 문제. 같은 색상 계열의 600~800(진한 톤)으로 바꿨다.
+     * 400 이상은 건드리지 않았다(테두리·저투명도 배경 워시는 라이트에서도 무난하다).
+     */
+    --amber-100: 23 83% 31%;
+    --amber-200: 26 90% 37%;
+    --amber-300: 32 95% 44%;
+    --blue-100: 226 71% 40%;
+    --blue-200: 224 76% 48%;
+    --blue-300: 221 83% 53%;
+    --emerald-100: 163 88% 20%;
+    --emerald-200: 163 94% 24%;
+    --emerald-300: 161 94% 30%;
+    --indigo-100: 234 53% 36%;
+    --indigo-200: 233 56% 44%;
+    --indigo-300: 233 62% 52%;
+    --orange-100: 15 79% 34%;
+    --orange-200: 17 88% 40%;
+    --orange-300: 21 90% 48%;
+    --red-100: 0 70% 35%;
+    --red-200: 0 74% 42%;
+    --red-300: 0 72% 51%;
+    --rose-100: 343 80% 35%;
+    --rose-200: 345 83% 41%;
+    --rose-300: 347 77% 50%;
+    --sky-100: 201 90% 27%;
+    --sky-200: 201 96% 32%;
+    --sky-300: 200 98% 39%;
+    --teal-100: 176 69% 22%;
+    --teal-200: 175 77% 26%;
+    --teal-300: 175 84% 32%;
+    --violet-100: 263 69% 42%;
+    --violet-200: 263 70% 50%;
+    --violet-300: 262 83% 58%;
   }
 
   .dark {
@@ -59,6 +132,54 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    /*
+     * slate 램프(다크) — 기존 tailwind.config.ts 하드코딩 hex를 HSL로 그대로 옮겼다.
+     * 값을 하나도 바꾸지 않았으므로 다크 모드 렌더는 Ver 2.1 이전과 동일하다(회귀 없음).
+     */
+    --slate-50: 240 23% 97%;
+    --slate-100: 240 15% 95%;
+    --slate-200: 240 12% 90%;
+    --slate-300: 240 9% 81%;
+    --slate-400: 240 6% 63%;
+    --slate-500: 240 5% 44%;
+    --slate-600: 240 7% 29%;
+    --slate-700: 240 8% 21%;
+    --slate-800: 240 8% 14%;
+    --slate-900: 240 6% 9%;
+    --slate-950: 240 10% 6%;
+
+    /* 상태색 100~300(다크) — Tailwind 기본 팔레트 값을 HSL로 그대로 옮겼다(회귀 없음). */
+    --amber-100: 48 96% 89%;
+    --amber-200: 48 97% 77%;
+    --amber-300: 46 97% 65%;
+    --blue-100: 214 95% 93%;
+    --blue-200: 213 97% 87%;
+    --blue-300: 212 96% 78%;
+    --emerald-100: 149 80% 90%;
+    --emerald-200: 152 76% 80%;
+    --emerald-300: 156 72% 67%;
+    --indigo-100: 230 79% 93%;
+    --indigo-200: 231 75% 86%;
+    --indigo-300: 232 73% 76%;
+    --orange-100: 34 100% 92%;
+    --orange-200: 32 98% 83%;
+    --orange-300: 31 97% 72%;
+    --red-100: 0 93% 94%;
+    --red-200: 0 96% 89%;
+    --red-300: 0 94% 82%;
+    --rose-100: 356 100% 95%;
+    --rose-200: 353 96% 90%;
+    --rose-300: 353 96% 82%;
+    --sky-100: 204 94% 94%;
+    --sky-200: 201 94% 86%;
+    --sky-300: 199 95% 74%;
+    --teal-100: 167 85% 89%;
+    --teal-200: 168 84% 78%;
+    --teal-300: 171 77% 64%;
+    --violet-100: 251 91% 95%;
+    --violet-200: 251 95% 92%;
+    --violet-300: 252 95% 85%;
   }
 }
 

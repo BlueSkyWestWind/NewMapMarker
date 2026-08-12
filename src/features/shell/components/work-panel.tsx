@@ -70,7 +70,7 @@ export function WorkPanel({
   const countLabel = match(mode)
     .with("equipment", () => `장비 ${equipmentCount}건`)
     .with("battery", () => `축전지 ${batteryCount}건`)
-    .with("location", () => `위치 ${locationCount}건 · 임시`)
+    .with("location", () => `위치 ${locationCount}건`)
     .with("weather", () => "")
     .exhaustive();
 

@@ -50,17 +50,56 @@ export function DashboardPanel() {
     setSelectedMarkerId(siteId);
   };
 
+  const weatherButtons = (
+    <div className="grid grid-cols-2 gap-1.5">
+      <Button
+        type="button"
+        size="sm"
+        className="h-8 border border-sky-500/40 bg-gradient-to-r from-sky-600/20 to-indigo-600/20 text-[11px] text-sky-200"
+        onClick={() => setIsSatelliteOpen(true)}
+      >
+        <Satellite className="mr-1 h-3.5 w-3.5" aria-hidden />
+        위성/레이더
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        className="h-8 border border-rose-500/40 bg-rose-950/40 text-[11px] text-rose-200"
+        onClick={() => setIsTyphoonOpen(true)}
+      >
+        <Wind className="mr-1 h-3.5 w-3.5" aria-hidden />
+        태풍 정보
+      </Button>
+    </div>
+  );
+
+  const weatherModals = (
+    <>
+      <TyphoonModal
+        isOpen={isTyphoonOpen}
+        onClose={() => setIsTyphoonOpen(false)}
+        typhoon={data?.typhoon ?? null}
+      />
+      <WeatherSatelliteModal
+        isOpen={isSatelliteOpen}
+        onClose={() => setIsSatelliteOpen(false)}
+      />
+    </>
+  );
+
   if (rows.length === 0) {
     return (
       <div className="space-y-3">
+        {weatherButtons}
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center">
           <BookmarkPlus className="h-6 w-6 text-sky-400" aria-hidden />
           <p className="text-xs font-semibold text-slate-200">
             저장된 작업 국소가 없습니다
           </p>
           <p className="text-[11px] leading-relaxed text-slate-500">
-            지도에서 국소를 검색해 「오늘의 작업 국소로 저장」을 누르면
-            여기에 당일 기상 판정이 표시됩니다.
+            지도에서 국소를 검색해 「오늘의 작업 국소로 저장」을 누르거나,
+            위치 탭에서 엑셀·주소로 위치를 등록하면 여기에 당일 기상 판정이
+            표시됩니다.
           </p>
           <Button
             type="button"
@@ -71,32 +110,14 @@ export function DashboardPanel() {
             지도로 이동
           </Button>
         </div>
+        {weatherModals}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-1.5">
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 border border-sky-500/40 bg-gradient-to-r from-sky-600/20 to-indigo-600/20 text-[11px] text-sky-200"
-          onClick={() => setIsSatelliteOpen(true)}
-        >
-          <Satellite className="mr-1 h-3.5 w-3.5" aria-hidden />
-          위성/레이더
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 border border-rose-500/40 bg-rose-950/40 text-[11px] text-rose-200"
-          onClick={() => setIsTyphoonOpen(true)}
-        >
-          <Wind className="mr-1 h-3.5 w-3.5" aria-hidden />
-          태풍 정보
-        </Button>
-      </div>
+      {weatherButtons}
 
       <WorksiteBoard
         rows={rows}
@@ -168,15 +189,7 @@ export function DashboardPanel() {
         </section>
       ) : null}
 
-      <TyphoonModal
-        isOpen={isTyphoonOpen}
-        onClose={() => setIsTyphoonOpen(false)}
-        typhoon={data?.typhoon ?? null}
-      />
-      <WeatherSatelliteModal
-        isOpen={isSatelliteOpen}
-        onClose={() => setIsSatelliteOpen(false)}
-      />
+      {weatherModals}
     </div>
   );
 }

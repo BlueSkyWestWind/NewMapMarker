@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
+import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import { geocodeAddressQueue } from "@/features/map-marker/lib/geocode";
-import { createLocationMarker } from "@/features/map-marker/lib/location-marker";
+import {
+  createLocationMarker,
+  resolveWeatherSiteForLocation,
+} from "@/features/map-marker/lib/location-marker";
 import type { LocationMarker } from "@/features/map-marker/types/marker";
 
 interface AddressItem {
@@ -46,15 +50,18 @@ function parseAddressLines(text: string): AddressItem[] {
 }
 
 /**
- * 위치 모드: 여러 주소를 붙여 넣으면 각 주소를 지오코딩해 임시 마커로 표시한다.
+ * 위치 모드: 여러 주소를 붙여 넣으면 각 주소를 지오코딩해 지도에 마커로 표시하고,
+ * 대시보드의 오늘의 작업 국소 목록에도 함께 등록한다.
  * (로그인·DB 저장 없음. 새로고침 시 사라짐)
  */
 export function LocationAddressSection() {
   const { toast } = useToast();
   const addPendingMarkers = useMapMarkerStore((state) => state.addPendingMarkers);
+  const addWeatherSites = useMapMarkerStore((state) => state.addWeatherSites);
   const pendingLocation = useMapMarkerStore(
     (state) => state.pendingLocationMarkers,
   );
+  const { data: markersData } = useMapMarkersQuery();
 
   const [text, setText] = useState("");
   const [isBusy, setIsBusy] = useState(false);
@@ -104,10 +111,18 @@ export function LocationAddressSection() {
 
       if (newMarkers.length > 0) {
         addPendingMarkers("location", newMarkers);
+        addWeatherSites(
+          newMarkers.map((marker) =>
+            resolveWeatherSiteForLocation(
+              marker,
+              markersData?.equipmentMarkers ?? [],
+            ),
+          ),
+        );
       }
 
       const failedAddresses = geocoded.failedItems.map((item) => item.address);
-      const parts = [`임시 위치 ${newMarkers.length}건을 지도에 표시했습니다.`];
+      const parts = [`위치 ${newMarkers.length}건을 지도와 대시보드에 표시했습니다.`];
       if (skipped > 0) parts.push(`중복 제외 ${skipped}건`);
       if (geocoded.failCount > 0) parts.push(`주소 찾기 실패 ${geocoded.failCount}건`);
 
@@ -140,8 +155,8 @@ export function LocationAddressSection() {
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-slate-400">
-        주소를 한 줄에 하나씩 붙여 넣고 [마커 표시]를 누르면 지도에 임시 위치로
-        표시됩니다. <span className="text-slate-500">(이름[Tab]주소 형식도 지원)</span>
+        주소를 한 줄에 하나씩 붙여 넣고 [마커 표시]를 누르면 지도와 대시보드에
+        위치로 표시됩니다. <span className="text-slate-500">(이름[Tab]주소 형식도 지원)</span>
       </p>
       <Textarea
         value={text}

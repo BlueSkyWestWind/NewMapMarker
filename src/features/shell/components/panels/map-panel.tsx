@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { FileSpreadsheet, Filter, List, Search, Waypoints } from "lucide-react";
+import { FileSpreadsheet, Filter, List, MapPin, Search, Waypoints } from "lucide-react";
 import { FilterPanel } from "@/features/map-marker/components/sidebar/filter-panel";
+import { LocationAddressSection } from "@/features/map-marker/components/sidebar/location-address-section";
 import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
 import { MarkersListPanel } from "@/features/map-marker/components/sidebar/markers-list-panel";
 import { PlaceSearchSection } from "@/features/map-marker/components/sidebar/place-search-section";
@@ -66,7 +67,15 @@ export function MapPanel({
           <LocationExcelSection />
         </PanelSection>
 
-        <PanelSection icon={List} title={`임시 위치 (${markers.length})`}>
+        <PanelSection
+          icon={MapPin}
+          title="주소로 위치 찍기"
+          iconClassName="h-3.5 w-3.5 text-emerald-400"
+        >
+          <LocationAddressSection />
+        </PanelSection>
+
+        <PanelSection icon={List} title={`등록 위치 (${markers.length})`}>
           <MarkersListPanel mode={mode} markers={markers} filters={filters} />
         </PanelSection>
       </div>

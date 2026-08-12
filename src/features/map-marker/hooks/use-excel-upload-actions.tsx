@@ -13,7 +13,11 @@ import {
   geocodeAddressQueue,
   splitAddressFields,
 } from "@/features/map-marker/lib/geocode";
-import { createLocationMarkerFromExcelRow } from "@/features/map-marker/lib/location-marker";
+import {
+  createLocationMarkerFromExcelRow,
+  resolveWeatherSiteForLocation,
+} from "@/features/map-marker/lib/location-marker";
+import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import type { ErpParsedRow } from "@/features/map-marker/lib/excel/data-manager/erp-parse";
 import { applyMarkerRolesFromStoredGroupRole } from "@/features/map-marker/lib/address-group";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
@@ -225,6 +229,7 @@ export function useExcelUploadActions() {
   const { supabase, isAuthenticated } = useAuthSession();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: markersData } = useMapMarkersQuery();
   const mode = useMapMarkerStore((state) => state.mode);
   const pendingEquipment = useMapMarkerStore(
     (state) => state.pendingEquipmentMarkers,
@@ -244,6 +249,7 @@ export function useExcelUploadActions() {
   const addPendingMarkers = useMapMarkerStore(
     (state) => state.addPendingMarkers,
   );
+  const addWeatherSites = useMapMarkerStore((state) => state.addWeatherSites);
   const clearPendingMarkers = useMapMarkerStore(
     (state) => state.clearPendingMarkers,
   );
@@ -369,7 +375,8 @@ export function useExcelUploadActions() {
   );
 
   /**
-   * 장비 엑셀과 동일한 파서로 읽고, 위치 모드 임시 마커로만 올린다. (DB/로그인 불필요)
+   * 장비 엑셀과 동일한 파서로 읽고, 위치 모드 마커로 지도에 올린다. (DB/로그인 불필요)
+   * 대시보드의 오늘의 작업 국소 목록에도 함께 등록한다.
    */
   const uploadLocationExcel = useCallback(
     async (file: File, input?: HTMLInputElement | null) => {
@@ -457,8 +464,16 @@ export function useExcelUploadActions() {
         }
 
         addPendingMarkers("location", newMarkers);
+        addWeatherSites(
+          newMarkers.map((marker) =>
+            resolveWeatherSiteForLocation(
+              marker,
+              markersData?.equipmentMarkers ?? [],
+            ),
+          ),
+        );
 
-        let summary = `임시 위치 ${newMarkers.length}건이 지도에 표시되었습니다.`;
+        let summary = `위치 ${newMarkers.length}건이 지도와 대시보드에 표시되었습니다.`;
         if (failCount > 0) {
           summary += ` (주소 찾기 실패: ${failCount}건)`;
         }
@@ -478,7 +493,15 @@ export function useExcelUploadActions() {
         resetFileInput(input ?? null);
       }
     },
-    [addPendingMarkers, pendingLocation, toast, isAuthenticated, supabase],
+    [
+      addPendingMarkers,
+      addWeatherSites,
+      markersData,
+      pendingLocation,
+      toast,
+      isAuthenticated,
+      supabase,
+    ],
   );
 
   /**

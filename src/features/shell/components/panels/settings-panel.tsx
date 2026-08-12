@@ -1,7 +1,9 @@
 "use client";
 
-import { CircleDot, Layers, PieChart, Shapes } from "lucide-react";
+import { useTheme } from "next-themes";
+import { CircleDot, Layers, PieChart, Shapes, SunMoon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useHasMounted } from "@/hooks/use-has-mounted";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { PanelSection } from "@/features/shell/components/panels/panel-section";
 
@@ -51,6 +53,10 @@ function ToggleRow({ label, hint, isOn, onToggle }: ToggleRowProps) {
  * 지도를 보면서 즉시 눌러야 하는 것들이 함께 있어서다. 여기는 한 번 정해 두는 값만 모은다.
  */
 export function SettingsPanel() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const hasMounted = useHasMounted();
+  // 마운트 전에는 서버 기본값(다크)과 같은 값을 그려 하이드레이션이 어긋나지 않게 한다.
+  const isLight = hasMounted && resolvedTheme === "light";
   const mode = useMapMarkerStore((state) => state.mode);
   const isClusteringEnabled = useMapMarkerStore((state) => state.isClusteringEnabled);
   const setClusteringEnabled = useMapMarkerStore((state) => state.setClusteringEnabled);
@@ -67,6 +73,15 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-3">
+      <PanelSection icon={SunMoon} title="화면 테마" iconClassName="h-3.5 w-3.5 text-indigo-400">
+        <ToggleRow
+          label="라이트 모드"
+          hint="기본은 다크. 대시보드·사이드바 등 일부 화면은 라이트에서도 다크로 남는다"
+          isOn={isLight}
+          onToggle={() => setTheme(isLight ? "dark" : "light")}
+        />
+      </PanelSection>
+
       <PanelSection icon={Layers} title="지도 표시" iconClassName="h-3.5 w-3.5 text-indigo-400">
         <ToggleRow
           label="지적편집도"

@@ -167,6 +167,7 @@ export function KakaoMapCanvas({
   const placeSearch = useMapMarkerStore((state) => state.placeSearch);
   const cctvMarkers = useMapMarkerStore((state) => state.cctvMarkers);
   const isCctvVisible = useMapMarkerStore((state) => state.isCctvVisible);
+  const isMarkersVisible = useMapMarkerStore((state) => state.isMarkersVisible);
   const setSelectedCctv = useMapMarkerStore((state) => state.setSelectedCctv);
   const searchPolygonsRef = useRef<KakaoPolygon[]>([]);
   const searchMarkerRef = useRef<KakaoMarker | null>(null);
@@ -424,17 +425,19 @@ export function KakaoMapCanvas({
     markerDataByIdRef.current = new Map();
     clusterer?.clear();
 
-    const visibleMarkers = markers.filter((marker) => {
-      // 같은 번지 SUB는 기본 숨김. 단 "개별 표시 해제(detachedVisible)"된 것만 노출.
-      if (
-        mode === "equipment" &&
-        isEquipmentSubMarker(marker as EquipmentMarker) &&
-        !(marker as EquipmentMarker).detachedVisible
-      ) {
-        return false;
-      }
-      return markerPassesFilters(marker, mode, filters);
-    });
+    const visibleMarkers = !isMarkersVisible
+      ? []
+      : markers.filter((marker) => {
+          // 같은 번지 SUB는 기본 숨김. 단 "개별 표시 해제(detachedVisible)"된 것만 노출.
+          if (
+            mode === "equipment" &&
+            isEquipmentSubMarker(marker as EquipmentMarker) &&
+            !(marker as EquipmentMarker).detachedVisible
+          ) {
+            return false;
+          }
+          return markerPassesFilters(marker, mode, filters);
+        });
 
     const markersToCluster: KakaoMarker[] = [];
     const plottedMarkers: MarkerRecord[] = [];
@@ -507,7 +510,7 @@ export function KakaoMapCanvas({
             address: geocoded?.address ?? "",
           });
           toast({
-            description: `"${data.name}" 임시 위치가 변경되었습니다.`,
+            description: `"${data.name}" 위치가 변경되었습니다.`,
           });
           return;
         }
@@ -609,6 +612,7 @@ export function KakaoMapCanvas({
     markers,
     mode,
     filters,
+    isMarkersVisible,
     isClusteringEnabled,
     isInfoWindowCaptureMode,
     queryClient,

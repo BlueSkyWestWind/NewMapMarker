@@ -41,6 +41,9 @@ export function MarkersListPanel({
   const removePendingMarkers = useMapMarkerStore(
     (state) => state.removePendingMarkers,
   );
+  const removeSavedWeatherSite = useMapMarkerStore(
+    (state) => state.removeSavedWeatherSite,
+  );
   const selectedMarkerId = useMapMarkerStore((state) => state.selectedMarkerId);
   const isLocationMode = mode === "location";
 
@@ -77,7 +80,7 @@ export function MarkersListPanel({
       {isLocationMode ? (
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-100">
-            임시 위치 ({countLabel})
+            등록 위치 ({countLabel})
           </h2>
         </div>
       ) : null}
@@ -145,6 +148,7 @@ export function MarkersListPanel({
                       onClick={(event) => {
                         event.stopPropagation();
                         removePendingMarkers("location", [marker.id]);
+                        removeSavedWeatherSite(marker.id);
                       }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />

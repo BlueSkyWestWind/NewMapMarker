@@ -20,8 +20,8 @@ import type { CctvQuery } from "@/features/cctv/lib/cctv-api";
  * 계획서 1단계 — 수집(§5.1)과 선결 확인(§10)까지만 구현한다.
  * 링크 매핑·시군구 귀속은 표준노드링크·행정경계 데이터가 있어야 하므로 미구현이다.
  *
- * 조회 결과는 지도 레이어로만 넘긴다. 아코디언을 접어도 유지되어야 하므로
- * 언마운트 시 정리하지 않는다 — 탭을 옮기면 스토어의 setMode가 비운다.
+ * 조회 결과는 지도 레이어로만 넘긴다. 이 컴포넌트 자체는 언마운트 시 정리하지
+ * 않는다 — CCTV 탭을 벗어나면 스토어의 setActiveNav가 cctvMarkers를 비운다.
  * 영상 모달도 이 패널이 아니라 항상 떠 있는 페이지에 둔다(마커 클릭 대응).
  */
 export function CctvPanel() {
@@ -109,7 +109,7 @@ export function CctvPanel() {
           {data.items.length > 0 ? (
             <p className="rounded-md border border-teal-800/50 bg-teal-950/40 px-2.5 py-2 text-[10px] leading-relaxed text-teal-200">
               지도에 <span className="font-semibold">{data.items.length.toLocaleString()}대</span>{" "}
-              표시 중 · 마커 클릭 시 영상, 우하단 버튼으로 켜고 끄기
+              표시 중 · 마커 클릭 시 영상, 우하단 버튼으로 CCTV·마커 각각 켜고 끄기
             </p>
           ) : (
             <p className="text-[10px] text-slate-500">조회된 CCTV가 없습니다.</p>

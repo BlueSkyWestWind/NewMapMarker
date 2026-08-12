@@ -1,8 +1,106 @@
 # 프로젝트 분석 보고서
 
 - 대상: `0004_NewMapMarker` (구 `002_geographic_tech` — 배터리/장비 지도 마커 + GPSMAP)
-- 작성일: 2026-07-18 (초판) · 2차 2026-07-19 · 3차 2026-07-22 · 4차 2026-07-23 · **5차 2026-07-26**
+- 작성일: 2026-07-18 (초판) · 2차 2026-07-19 · 3차 2026-07-22 · 4차 2026-07-23 · 5차 2026-07-26 · **6차 2026-08-01**
 - 검사 방법: 구조 스캔 · `tsc --noEmit` · `eslint .` · `next build` · `vitest run` · 패턴 그렙(XSS/any/console/SSRF/env)
+
+---
+
+## [2026-08-01] 6차 검수 — Ver 2.0 UI 셸 개편 이후 전체 재검수
+
+> 범위: 5차(2026-07-26) 이후 커밋 전부. **Ver 2.0 셸 개편**(사이드 레일 + 상단 검색바 + 패널형 UI) ·
+> **대시보드 신설**(`features/dashboard/`, 날씨 판정을 국소 목록으로) · `/gpsmap`을 위치 세그먼트로 통합 ·
+> CCTV 기능(`features/cctv/`) 추가 · `useActiveMarkers` 3중 호출 정리(`00d86d2`).
+> HEAD `00d86d2`, 워킹트리 **클린**(미커밋 없음).
+>
+> **이 회차와 같은 날, 별도 문서 `docs/Ver_2.0/project_review.md`에 이미 매우 상세한 1차 구조 점검이
+> 기록되어 있다** (H-1~H-3·M-1~M-6·L-1~L-4, 근거·조치·커밋까지 포함). 그 문서와 겹치는 내용은
+> 반복하지 않고 **링크로 대체**한다. 이 6차 항목은 (a) 독립 재검증 실행 결과와 (b) 그 문서가
+> 다루지 않은 관찰만 담는다.
+
+### 검사 결과 요약 (독립 실행, 2026-08-01)
+
+| 검사 | 결과 |
+| --- | --- |
+| `npx tsc --noEmit` | ✅ 0 오류 |
+| `npx eslint . --max-warnings=0` | ✅ 0 문제 |
+| `npx vitest run` | ✅ **19 files / 269 tests** 통과 (1.44s) |
+| `npx next build` | ✅ 성공 (정적 11 페이지) |
+| 홈 First Load JS | **284 kB** (5차 조치 후 289 kB 대비 -5 kB, 회귀 없음) |
+| `/gpsmap` | 349 kB (5차 351 kB와 동일 수준) |
+
+`docs/Ver_2.0/project_review.md`가 같은 날 기록한 `vitest 264/19` → 이번 실행 **269/19**로 5건 증가.
+`00d86d2`(H-3 조치, `use-marker-list` 분리)에 딸린 테스트로 추정 — 정상 증가.
+
+### 규모 델타 (5차 시점 대비, 5차는 별도 파일 수 미기재)
+
+| 항목 | 3차(07-22) | 6차(현재) | 비고 |
+| --- | --- | --- | --- |
+| `src` ts/tsx 파일 | 110 | **186** | +76 |
+| 총 LOC | ~20,600 | **31,647** | Ver 2.0 셸·대시보드·CCTV 신설분 포함 |
+| 최대 단일 파일 | 1,508 (업로드 훅) | **2,017** (`marker-detail-modal.tsx`) | 변화 없음(4차부터 지속, R2/G1/L-4로 이미 기록됨) |
+| 신규 feature 폴더 | — | **`shell/`(986줄) · `dashboard/`(494줄) · `cctv/`(1,321줄)** | 아래 구조 참고 |
+
+**신설 구조 요지** (상세는 `Ver_2.0/project_review.md` §1.1 참조)
+
+```
+src/features/
+  shell/       사이드 레일 + 상단 검색바 + 패널 조립(app-shell·nav-rail·top-search-bar)
+               패널 5종(map·markers·backup·settings·coming-soon)
+  dashboard/   worksite-weather 판정을 국소 목록 보드로 (dashboard-panel·worksite-board·worksite-row)
+  cctv/        ITS 도로 CCTV 조회 — its-client(261) · cctv-panel · cctv-video-modal, 테스트 4파일
+  gpsmap/      기존 /gpsmap 라우트 + 위치 세그먼트 변환기(gps-converter-panel)가 **로직 공유**
+```
+
+### 이번 회차에서 새로 확인한 것 (Ver_2.0 리뷰가 다루지 않은 항목)
+
+#### 🟡 S6-1 — `/gpsmap` 라우트가 UI에서 도달 불가 (의도된 것으로 판단, 관찰만)
+
+- 근거: `git log` 커밋 `c15c7d6`("변환기에서 `/gpsmap` 링크 제거, 일괄 결과 상세 보기 이관") 이후,
+  `src` 전체에서 `href="/gpsmap"` 형태의 실제 라우트 링크를 **찾지 못함**(문자열 매치는 전부 주석·import 경로).
+  `next build`는 여전히 `/gpsmap`을 정적 페이지로 생성(349 kB, 홈 번들엔 영향 없음).
+- 판단: `gps-result-table.tsx:23`·`gps-converter-panel.tsx:60` 주석이 "`/gpsmap` 전체화면과 **같은 컴포넌트**를
+  쓴다"고 명시 — 로직 중복이 아니라 **의도적으로 유지된 직접-URL 전체화면 라우트**로 보인다.
+  다만 내비게이션에서 진입로가 없어 신규 사용자는 존재를 모른다. 문제로 올리지 않고 관찰로만 기록.
+- 확인 필요: 이 라우트가 여전히 필요한 대상(예: 즐겨찾기로 접근하는 특정 사용자)이 있는지는 **미확인**.
+
+#### ⚪ S6-2 — `batteryMarkerToCandidate`의 `as any` 2곳은 항상 `null`을 반환한다 (무해, 정리 여지)
+
+- 위치: `src/features/worksite-weather/lib/site-search.ts:36-37`
+  `groupRole: (marker as any).groupRole ?? null, parentMarkerId: (marker as any).parentMarkerId ?? null`
+- 근거: `types/marker.ts:56-66`의 `BatteryMarker`는 `groupRole`/`parentMarkerId` 필드가 **애초에 없음**
+  (그룹 대표/SUB 개념은 `EquipmentMarker`(27-54행) 전용). 따라서 이 `as any` 캐스팅은 항상
+  `undefined ?? null` → `null`을 반환하며, `isSubCandidate`(같은 파일:61)도 축전지 후보에 대해 항상 `false`다.
+  결과적으로 **버그는 아니다** — 축전지 국소는 SUB 개념이 없으므로 항상 검색 결과에 남는 게 맞는 동작.
+- 문제: `as any`가 실제 타입 공백이 아니라 **의도적 상수**를 감추고 있어, 나중에 `BatteryMarker`에
+  `groupKey` 등이 추가돼도 이 두 줄은 타입 오류 없이 조용히 `null`을 반환한다(방어 신호 상실).
+- 제안(낮은 우선순위): `(marker as any).groupRole ?? null` → 그냥 `groupRole: null, parentMarkerId: null`
+  리터럴로 교체. 의미는 같고 `any` 2곳(§2 R3/R5 계열 잔존 카운트)이 준다.
+
+#### ⚪ S6-3 — `any` 잔존 현황 재확인 (변화 거의 없음)
+
+- 전수: 19곳(테스트 파일 제외). 분포: `roadview-modal.tsx` 9(R3, 3차부터 지속) ·
+  `excel/data-manager/*.ts` 5(R4, `ThisType<any>` 의도적 유지) · `use-marker-edit-form.ts` 2(R5) ·
+  `site-search.ts` 2(S6-2, 신규) · `marker-detail-modal.tsx` 1.
+- 판단: 기존 R3/R4/R5 판정과 동일 — 실사용 위험 없음, 정리는 선택 과제로 유지.
+
+### 잔여 항목 상태 (변화 없는 것 확인)
+
+- **R2/G1/L-4 대형 파일**: `marker-detail-modal.tsx` 2,017 · `use-excel-upload-actions.tsx` 1,516 ·
+  `kakao-map-canvas.tsx` 1,126 · `full-backup.ts` 836 — Ver 2.0은 셸 개편이 범위라 **의도적으로 손대지 않음**
+  (`Ver_2.0/project_review.md` L-4와 동일 판단, 재확인만).
+- **P4 죽은 코드**(`computeCaptureOverlayOffsets`) — 계속 보존(사용자 요청).
+- **홈 번들 회귀 없음** — Ver 2.0에서 패널·대시보드·CCTV가 대거 추가됐음에도 284 kB로 5차보다 오히려 낮음.
+  대부분 `next/dynamic` 지연 로드로 편입된 것으로 보임(개별 청크 추적은 하지 않음 — 필요 시 후속).
+
+### 우선순위 제안 (6차 기준, 신규 발견 낮은 항목뿐 — 급한 것 없음)
+
+| 순위 | 항목 | 이유 |
+| --- | --- | --- |
+| 1 | `Ver_2.0/project_review.md`의 **M-5**(장비 일괄 삭제 부재 확인 대기) | 유일한 미결 항목. 사용자 확인만 남음 |
+| 2 | S6-2 `as any` 2곳 리터럴 치환 | 저비용, 방어 신호 회복 |
+| 3 | S6-1 `/gpsmap` 도달 경로 필요 여부 확인 | 필요 없으면 라우트 제거 후보, 필요하면 그대로 |
+| 4 | R2/G1 대형 파일 재분할 | 5차부터 이어진 배경 부채, Ver 2.0 범위 밖 |
 
 ---
 

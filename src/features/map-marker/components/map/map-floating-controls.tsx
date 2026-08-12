@@ -6,6 +6,8 @@ import {
   CircleDot,
   Layers,
   LocateFixed,
+  MapPin,
+  MapPinOff,
   Minus,
   PieChart,
   Plus,
@@ -43,6 +45,10 @@ export function MapFloatingControls({
   const cctvMarkers = useMapMarkerStore((state) => state.cctvMarkers);
   const isCctvVisible = useMapMarkerStore((state) => state.isCctvVisible);
   const toggleCctvVisible = useMapMarkerStore((state) => state.toggleCctvVisible);
+  const isMarkersVisible = useMapMarkerStore((state) => state.isMarkersVisible);
+  const toggleMarkersVisible = useMapMarkerStore(
+    (state) => state.toggleMarkersVisible,
+  );
   const setClusteringEnabled = useMapMarkerStore(
     (state) => state.setClusteringEnabled,
   );
@@ -150,6 +156,25 @@ export function MapFloatingControls({
         title="지적편집도"
       >
         <Layers className={isCadastralMode ? "text-indigo-300" : ""} />
+      </Button>
+
+      <Button
+        type="button"
+        size="icon"
+        variant="secondary"
+        className={
+          isMarkersVisible
+            ? "h-9 w-9 border border-indigo-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+            : "h-9 w-9 bg-slate-900/90 text-slate-100"
+        }
+        onClick={toggleMarkersVisible}
+        title={isMarkersVisible ? "마커 숨기기" : "마커 표시"}
+      >
+        {isMarkersVisible ? (
+          <MapPin className="h-4 w-4 text-indigo-300" />
+        ) : (
+          <MapPinOff className="h-4 w-4" />
+        )}
       </Button>
 
       {/* 조회한 CCTV가 있을 때만 노출. 목록은 사이드바에 두지 않고 여기서 켜고 끈다 */}

@@ -258,8 +258,15 @@ export async function fetchParcel(
     key: apiKey(), domain: domainParam(), crs: 'EPSG:4326',
     geomFilter: `POINT(${lng} ${lat})`, format: 'json', geometry: 'true', size: '5',
   })}`;
-  const data = await jsonp<ReqDataResp>(url);
-  const features = data?.response?.result?.featureCollection?.features ?? [];
+  let data = await jsonp<ReqDataResp>(url);
+  let features = data?.response?.result?.featureCollection?.features ?? [];
+  // VWorld 필지 조회가 유효한 좌표에도 간헐적으로 빈 결과를 준다(재조회하면 나옴).
+  // 사용자가 [조회]를 두 번 눌러야 경계가 뜨는 문제 — 여기서 한 번 더 시도해 흡수한다.
+  if (features.length === 0) {
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
+    data = await jsonp<ReqDataResp>(url);
+    features = data?.response?.result?.featureCollection?.features ?? [];
+  }
   const first = features[0]?.properties ?? null;
   const parcels: LatLng[][] = [];
   for (const feature of features) {

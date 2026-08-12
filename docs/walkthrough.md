@@ -1,5 +1,64 @@
 # Walkthrough
 
+## [2026-08-02] 디자인 토큰 재매핑 + 라이트/다크 전환 인프라 (Ver 2.1)
+
+### 개요 및 목적
+
+Calendly에서 추출한 디자인 토큰 4종(`DESIGN.md`·`tokens.json`·`variables.css`·`theme.css`)의
+**구조(반경·섀도 스케일)** 만 채택하고 색상은 기존 인디고 브랜드에 맞게 재매핑했다.
+동시에 이미 절반 배선돼 있던 `next-themes` 인프라를 완성해 라이트/다크 전환이 실제로
+동작하게 만들었다. 계획서 `docs/Ver_2.1/Ver_2.1_implementation_plan.md`.
+
+### 변경된 내용
+
+- `src/app/globals.css` — `:root`(라이트) 색상을 Calendly 팔레트로 재매핑
+  (Cloud→background, Paper→card, Ink Navy→foreground, Slate Gray→muted-foreground,
+  Pebble→secondary/muted/accent, Hairline→border/input). `--primary`/`--ring`은
+  기존 인디고 브랜드값 유지(라이트·다크 동일 브랜드). `.dark`는 값 변경 없음.
+  네임드 반경(`--radius-buttons` 등)·3단 슬레이트틴트 섀도(`--shadow-elevation-*`) 토큰 추가.
+- `tailwind.config.ts` — 위 토큰을 `rounded-buttons/cards/...`, `shadow-elevation-sm/md/lg`
+  유틸리티로 노출.
+- `src/app/providers.tsx` — `defaultTheme="system"` → `"dark"` 고정, `enableSystem` 제거.
+  (토글 없이 시스템 감지만 있던 상태라 라이트 OS 사용자에게 `Button`/`Input` 등
+  shadcn 원시 컴포넌트만 밝게 깨지는 버그가 있었다 — 오늘 세션에서 고친 "검색창 글씨 안 보임"과
+  `AGENTS.md`의 "outline·secondary·ghost 밝게 렌더" 메모가 전부 이 원인이었다.)
+- `src/features/shell/components/panels/settings-panel.tsx` — "화면 테마" 섹션에
+  `useTheme()` 기반 라이트/다크 `ToggleRow` 추가.
+- `src/features/map-marker/components/modals/auth-modal.tsx` — **증명용 1개 화면**을
+  하드코딩 `slate-*`에서 세만틱 토큰(`bg-secondary`·`text-foreground`·`border-input` 등)으로
+  전환. 로그인 모달이 라이트 모드에서 실제로 흰 배경·네이비 텍스트로 바뀌는 것을 스크린샷으로 확인.
+
+### 추가 — 전체 화면 라이트 적용 (같은 날, 범위 확장)
+
+로그인 모달 증명 확인 후, 사용자가 "전체를 해달라"고 요청해 나머지 커스텀 컴포넌트까지
+확장했다. 다만 49개 파일에 흩어진 `slate-*` 유틸리티(808곳)를 하나씩 손대는 대신,
+**색상 램프 자체를 CSS 변수로 바꾸는 방식**을 택했다 — 컴포넌트 파일은 한 줄도 안 고쳤다.
+
+- `tailwind.config.ts` — `slate` 램프(11단계) 전체를
+  `hsl(var(--slate-N) / <alpha-value>)`로 전환. `bg-slate-900/60` 같은 투명도 조합도
+  `<alpha-value>` 덕분에 그대로 동작. `indigo`와 상태색(`amber`·`blue`·`emerald`·`orange`·
+  `red`·`rose`·`sky`·`teal`·`violet`)은 **100~300 단계만** 같은 방식으로 전환했다 —
+  다크에서 "옅은 배경 위 텍스트"용으로 고른 값이라 흰 배경에서 안 보이는 게 문제였을 뿐,
+  400 이상(테두리·저투명도 배경 워시)은 두 테마 모두 무난해 손대지 않았다.
+- `src/app/globals.css` — 위 램프의 라이트·다크 두 세트를 `:root`/`.dark`에 정의.
+  **다크 세트는 기존 하드코딩 hex를 HSL로 그대로 옮긴 값**이라 다크 모드는 픽셀 단위로
+  동일하다. 라이트 세트는 slate를 Cloud/Paper/Hairline/Slate Gray/Ink Navy에 앵커링해
+  반전시켰고(900번대=밝은 배경 역할, 100번대=Ink Navy 텍스트 역할), 상태색은 각 색상군의
+  600~800(진한 톤)으로 바꿔 가독성을 확보했다.
+- 브랜드 색(`indigo` 400 이상, `--primary`)은 라이트·다크 동일하게 유지 — 처음 계획대로
+  브랜드 일관성을 지켰다.
+
+### 검증 결과 (전체 화면 적용 이후)
+
+- 실행: `npx tsc --noEmit` → 통과 · `npx eslint . --max-warnings=0` → 통과 ·
+  `npm test`(278개) → 통과 · `npx next build`(홈 287 kB) → 통과
+- Playwright로 대시보드·지도 탭·CCTV 탭을 다크/라이트 각각 스크린샷 비교.
+  다크는 전부 기존과 동일(회귀 없음). 라이트는 사이드바·필터·검색·목록·지도 플로팅
+  컨트롤·상태색 뱃지(위성/레이더·태풍정보·CCTV 조회 등)까지 전부 Calendly 팔레트로
+  일관되게 렌더됨을 확인. 콘솔 에러 없음.
+- **남은 것**: 카카오맵 오버레이 말풍선(`globals.css`의 `.overlay-*`, 하드코딩 hex)은
+  계획대로 제외 — 위성·도로 이미지 위에 얹히는 요소라 테마와 무관하게 항상 어둡게 유지한다.
+
 ## [2026-08-01] UI 셸 개편 + 대시보드 신설 (Ver 2.0)
 
 ### 개요 및 목적
