@@ -10,6 +10,7 @@ import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-
 import { geocodeAddressQueue } from "@/features/map-marker/lib/geocode";
 import {
   createLocationMarker,
+  findSavedMarkerByAddress,
   resolveWeatherSiteForLocation,
 } from "@/features/map-marker/lib/location-marker";
 import type { LocationMarker } from "@/features/map-marker/types/marker";
@@ -95,19 +96,52 @@ export function LocationAddressSection() {
     setIsBusy(true);
     setStatus(`주소 좌표 변환 시작... (총 ${targets.length}건)`);
     try {
-      const geocoded = await geocodeAddressQueue(targets, (current, total) => {
+      // 이미 등록된(장비·축전지) 마커와 같은 주소면 새로 지오코딩하지 않고
+      // 그 마커의 좌표를 그대로 쓴다 — 등록 위치와 어긋나지 않게.
+      const savedEquipment = markersData?.equipmentMarkers ?? [];
+      const savedBattery = markersData?.batteryMarkers ?? [];
+      const startIndex = pendingLocation.length + 1;
+
+      const matchedFromSaved: LocationMarker[] = [];
+      const toGeocode: AddressItem[] = [];
+      for (const item of targets) {
+        const saved = findSavedMarkerByAddress(
+          item.address,
+          savedEquipment,
+          savedBattery,
+        );
+        if (saved) {
+          matchedFromSaved.push(
+            createLocationMarker({
+              lat: saved.lat,
+              lng: saved.lng,
+              name: item.name || saved.name,
+              address: item.address,
+            }),
+          );
+        } else {
+          toGeocode.push(item);
+        }
+      }
+
+      const geocoded = await geocodeAddressQueue(toGeocode, (current, total) => {
         setStatus(`주소 좌표 변환 중... (${current}/${total})`);
       });
 
-      const startIndex = pendingLocation.length + 1;
-      const newMarkers: LocationMarker[] = geocoded.results.map((item, index) =>
-        createLocationMarker({
-          lat: item.lat,
-          lng: item.lng,
-          name: item.name || item.address || `위치 ${startIndex + index}`,
-          address: item.address,
-        }),
+      const geocodedMarkers: LocationMarker[] = geocoded.results.map(
+        (item, index) =>
+          createLocationMarker({
+            lat: item.lat,
+            lng: item.lng,
+            name:
+              item.name ||
+              item.address ||
+              `위치 ${startIndex + matchedFromSaved.length + index}`,
+            address: item.address,
+          }),
       );
+
+      const newMarkers: LocationMarker[] = [...matchedFromSaved, ...geocodedMarkers];
 
       if (newMarkers.length > 0) {
         addPendingMarkers("location", newMarkers);
@@ -123,6 +157,9 @@ export function LocationAddressSection() {
 
       const failedAddresses = geocoded.failedItems.map((item) => item.address);
       const parts = [`위치 ${newMarkers.length}건을 지도와 대시보드에 표시했습니다.`];
+      if (matchedFromSaved.length > 0) {
+        parts.push(`등록된 마커 위치 사용 ${matchedFromSaved.length}건`);
+      }
       if (skipped > 0) parts.push(`중복 제외 ${skipped}건`);
       if (geocoded.failCount > 0) parts.push(`주소 찾기 실패 ${geocoded.failCount}건`);
 

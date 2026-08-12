@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   findEquipmentMarkerByAddress,
+  findSavedMarkerByAddress,
   locationMarkerToSiteMatch,
   resolveWeatherSiteForLocation,
 } from "./location-marker";
-import type { EquipmentMarker, LocationMarker } from "@/features/map-marker/types/marker";
+import type {
+  BatteryMarker,
+  EquipmentMarker,
+  LocationMarker,
+} from "@/features/map-marker/types/marker";
 
 function equipment(overrides: Partial<EquipmentMarker> = {}): EquipmentMarker {
   return {
@@ -44,6 +49,26 @@ function location(overrides: Partial<LocationMarker> = {}): LocationMarker {
     facilityTeam: "",
     createdAt: "",
     address: "광주 북구 월출동 695-6",
+    ...overrides,
+  };
+}
+
+function battery(overrides: Partial<BatteryMarker> = {}): BatteryMarker {
+  return {
+    id: "b1",
+    name: "축전지1",
+    lat: 35.3,
+    lng: 127.3,
+    memo: "",
+    tags: [],
+    color: "#000",
+    facilityTeam: "",
+    createdAt: "",
+    address: "여수시 돌산읍 우두리 1142-2",
+    items: [],
+    capacity: 0,
+    quantity: 0,
+    stationName: "",
     ...overrides,
   };
 }
@@ -94,6 +119,43 @@ describe("findEquipmentMarkerByAddress", () => {
       parentMarkerId: "parent-1",
     });
     const result = findEquipmentMarkerByAddress([marker], "광주 북구 월출동 695-6");
+    expect(result).toBeNull();
+  });
+});
+
+describe("findSavedMarkerByAddress", () => {
+  it("장비 마커 주소가 같으면 그 마커의 좌표를 쓴다", () => {
+    const marker = equipment({
+      id: "e1",
+      lat: 35.1,
+      lng: 127.1,
+      roadAddress: "여수시 돌산읍 우두리 1142-2",
+    });
+    const result = findSavedMarkerByAddress(
+      "여수시 돌산읍 우두리 1142-2",
+      [marker],
+      [],
+    );
+    expect(result).toEqual({ id: "e1", name: "장비1", lat: 35.1, lng: 127.1 });
+  });
+
+  it("장비에 없으면 축전지 마커에서 찾는다", () => {
+    const marker = battery({
+      id: "b1",
+      lat: 35.3,
+      lng: 127.3,
+      address: "여수시 돌산읍 우두리 1142-2",
+    });
+    const result = findSavedMarkerByAddress(
+      "여수시 돌산읍 우두리 1142-2",
+      [],
+      [marker],
+    );
+    expect(result).toEqual({ id: "b1", name: "축전지1", lat: 35.3, lng: 127.3 });
+  });
+
+  it("둘 다 없으면 null을 반환한다", () => {
+    const result = findSavedMarkerByAddress("존재하지 않는 주소", [], []);
     expect(result).toBeNull();
   });
 });

@@ -1,5 +1,9 @@
 import { DEFAULT_MARKER_COLOR } from "@/features/map-marker/constants/facility-teams";
-import type { EquipmentMarker, LocationMarker } from "@/features/map-marker/types/marker";
+import type {
+  BatteryMarker,
+  EquipmentMarker,
+  LocationMarker,
+} from "@/features/map-marker/types/marker";
 import {
   equipmentMarkerToCandidate,
   isSubCandidate,
@@ -105,6 +109,52 @@ export function findEquipmentMarkerByAddress(
       return marker;
     }
   }
+  return null;
+}
+
+/** 주소로 찾은 저장된(DB) 마커의 위치·이름만 뽑아낸 결과 */
+export interface SavedMarkerPosition {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+/**
+ * 입력 주소와 같은 저장된 마커(장비·축전지)가 있으면 그 마커의 좌표를 그대로 쓴다.
+ * 새로 지오코딩하면 기존 등록 위치와 미세하게 어긋날 수 있어, 이미 등록된 주소는
+ * 저장된 마커 위치를 우선한다(장비 → 축전지 순, 둘 다 대표 국소만 대상).
+ */
+export function findSavedMarkerByAddress(
+  address: string,
+  equipmentMarkers: EquipmentMarker[],
+  batteryMarkers: BatteryMarker[] = [],
+): SavedMarkerPosition | null {
+  const equipmentMatch = findEquipmentMarkerByAddress(equipmentMarkers, address);
+  if (equipmentMatch) {
+    return {
+      id: equipmentMatch.id,
+      name: equipmentMatch.name || equipmentMatch.finalStationName || address,
+      lat: equipmentMatch.lat,
+      lng: equipmentMatch.lng,
+    };
+  }
+
+  const needle = normalize(address);
+  if (!needle) return null;
+
+  const batteryMatch = batteryMarkers.find(
+    (marker) => normalize(marker.address ?? "") === needle,
+  );
+  if (batteryMatch) {
+    return {
+      id: batteryMatch.id,
+      name: batteryMatch.name || batteryMatch.stationName || address,
+      lat: batteryMatch.lat,
+      lng: batteryMatch.lng,
+    };
+  }
+
   return null;
 }
 

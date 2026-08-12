@@ -296,6 +296,16 @@ export function GpsConverterPanel() {
   }, [setMapPickMode]);
 
   /*
+   * 조회 결과로 띄운 파란 위치 표시(+필지 경계)는 이 변환기가 켠 것이다.
+   * 떠날 때 지우지 않으면 다른 메뉴로 넘어가도 지도에 계속 남는다.
+   */
+  useEffect(() => {
+    return () => {
+      setPlaceSearch(null);
+    };
+  }, [setPlaceSearch]);
+
+  /*
    * 상단 바 [엑셀] 버튼이 내려받을 결과를 스토어에 올린다(단건 조회 탭에서만).
    * 일괄 변환 탭에는 이미 자체 엑셀 버튼이 있으므로 그쪽으로 넘어가면 비운다.
    */
