@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookmarkPlus, Satellite, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,17 @@ import {
 export function DashboardPanel() {
   const { rows, retry } = useWorksiteBoard();
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
+  const setMapSegment = useMapMarkerStore((state) => state.setMapSegment);
   const setSelectedMarkerId = useMapMarkerStore((state) => state.setSelectedMarkerId);
+  const selectedMarkerIds = useMapMarkerStore(
+    (state) => state.selectedMarkerIds,
+  );
+  const setSelectedMarkerIds = useMapMarkerStore(
+    (state) => state.setSelectedMarkerIds,
+  );
+  const clearSelectedMarkers = useMapMarkerStore(
+    (state) => state.clearSelectedMarkers,
+  );
   const clearSavedWeatherSites = useMapMarkerStore(
     (state) => state.clearSavedWeatherSites,
   );
@@ -40,9 +50,29 @@ export function DashboardPanel() {
   const [isTyphoonOpen, setIsTyphoonOpen] = useState(false);
   const [isSatelliteOpen, setIsSatelliteOpen] = useState(false);
 
+  const allSiteIds = rows.map((row) => row.site.id);
+  const isAllOverlaysOpen =
+    allSiteIds.length > 0 &&
+    allSiteIds.every((id) => selectedMarkerIds.includes(id));
+
+  const handleToggleAllOverlays = () => {
+    if (isAllOverlaysOpen) {
+      clearSelectedMarkers();
+    } else {
+      setSelectedMarkerIds(allSiteIds);
+    }
+  };
+
   const selectedRow =
     rows.find((row) => row.site.id === selectedId) ?? rows[0] ?? null;
+  const selectedSiteId = selectedRow?.site.id;
   const data = selectedRow?.status === "ok" ? selectedRow.data : undefined;
+
+  useEffect(() => {
+    if (selectedSiteId) {
+      setSelectedMarkerId(selectedSiteId);
+    }
+  }, [selectedSiteId, setSelectedMarkerId]);
 
   const handleSelect = (siteId: string) => {
     setSelectedId(siteId);
@@ -105,7 +135,10 @@ export function DashboardPanel() {
             type="button"
             size="sm"
             className="mt-1 h-8 text-[11px]"
-            onClick={() => setActiveNav("map")}
+            onClick={() => {
+              setActiveNav("map");
+              setMapSegment("location");
+            }}
           >
             지도로 이동
           </Button>
@@ -122,7 +155,9 @@ export function DashboardPanel() {
       <WorksiteBoard
         rows={rows}
         selectedSiteId={selectedRow?.site.id ?? null}
+        isAllOverlaysOpen={isAllOverlaysOpen}
         onSelect={handleSelect}
+        onToggleAllOverlays={handleToggleAllOverlays}
         onRetry={retry}
         onRemove={removeSavedWeatherSite}
         onClearAll={clearSavedWeatherSites}

@@ -38,11 +38,11 @@ export function WeatherTimelineTable({ slots }: WeatherTimelineTableProps) {
   return (
     <table className="w-full table-fixed border-collapse text-[11px]">
       <colgroup>
+        <col className="w-[9%]" />
+        <col className="w-[27%]" />
         <col className="w-[11%]" />
-        <col className="w-[35%]" />
-        <col className="w-[14%]" />
-        <col className="w-[18%]" />
-        <col className="w-[12%]" />
+        <col className="w-[19%]" />
+        <col className="w-[24%]" />
         <col className="w-[10%]" />
       </colgroup>
       <thead>
