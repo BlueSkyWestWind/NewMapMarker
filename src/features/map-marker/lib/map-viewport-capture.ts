@@ -11,9 +11,16 @@ export const MAP_CAPTURE_SCALE = 2;
 
 const TILE_PROXY_CONCURRENCY = 8;
 const TILE_DATA_URL_CACHE_LIMIT = 512;
-const MIN_MAP_COVERAGE_RATIO = 0.5;
+const MIN_MAP_COVERAGE_RATIO = 0.12;
 const MAX_CAPTURE_ATTEMPTS = 2;
 const tileDataUrlCache = new Map<string, string>();
+const tileDataUrlRequests = new Map<string, Promise<string>>();
+
+class TileProxyError extends Error {
+  constructor(public readonly status: number) {
+    super(`타일 프록시 실패 (${status})`);
+  }
+}
 
 function isKakaoTileUrl(src: string): boolean {
   if (!src || src.startsWith("data:") || src.startsWith("blob:")) return false;
@@ -65,28 +72,39 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 async function fetchTileAsDataUrl(tileUrl: string): Promise<string> {
   const cached = tileDataUrlCache.get(tileUrl);
   if (cached) return cached;
+  const pending = tileDataUrlRequests.get(tileUrl);
+  if (pending) return pending;
 
-  const response = await fetch(
-    `/api/map-tile-proxy?url=${encodeURIComponent(tileUrl)}`,
-    { cache: "force-cache" },
-  );
+  const request = (async () => {
+    const response = await fetch(
+      `/api/map-tile-proxy?url=${encodeURIComponent(tileUrl)}`,
+      { cache: "force-cache" },
+    );
 
-  if (!response.ok) {
-    throw new Error(`타일 프록시 실패 (${response.status})`);
+    if (!response.ok) {
+      throw new TileProxyError(response.status);
+    }
+
+    const blob = await response.blob();
+    if (!blob.type.startsWith("image/")) {
+      throw new Error("타일 프록시 응답이 이미지가 아닙니다.");
+    }
+
+    const dataUrl = await blobToDataUrl(blob);
+    tileDataUrlCache.set(tileUrl, dataUrl);
+    if (tileDataUrlCache.size > TILE_DATA_URL_CACHE_LIMIT) {
+      const oldestKey = tileDataUrlCache.keys().next().value;
+      if (oldestKey) tileDataUrlCache.delete(oldestKey);
+    }
+    return dataUrl;
+  })();
+
+  tileDataUrlRequests.set(tileUrl, request);
+  try {
+    return await request;
+  } finally {
+    tileDataUrlRequests.delete(tileUrl);
   }
-
-  const blob = await response.blob();
-  if (!blob.type.startsWith("image/")) {
-    throw new Error("타일 프록시 응답이 이미지가 아닙니다.");
-  }
-
-  const dataUrl = await blobToDataUrl(blob);
-  tileDataUrlCache.set(tileUrl, dataUrl);
-  if (tileDataUrlCache.size > TILE_DATA_URL_CACHE_LIMIT) {
-    const oldestKey = tileDataUrlCache.keys().next().value;
-    if (oldestKey) tileDataUrlCache.delete(oldestKey);
-  }
-  return dataUrl;
 }
 
 async function mapPool<T, R>(
@@ -117,11 +135,47 @@ function estimateExpectedTileCount(width: number, height: number): number {
   return Math.max(8, Math.ceil(width / 256) * Math.ceil(height / 256));
 }
 
+function isVisibleInMapContainer(
+  element: HTMLElement,
+  mapContainer: HTMLElement,
+): boolean {
+  const containerRect = mapContainer.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  if (
+    elementRect.width <= 0 ||
+    elementRect.height <= 0 ||
+    elementRect.right <= containerRect.left ||
+    elementRect.left >= containerRect.right ||
+    elementRect.bottom <= containerRect.top ||
+    elementRect.top >= containerRect.bottom
+  ) {
+    return false;
+  }
+
+  let current: HTMLElement | null = element;
+  while (current && current !== mapContainer) {
+    const style = window.getComputedStyle(current);
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      Number(style.opacity) <= 0.01
+    ) {
+      return false;
+    }
+    current = current.parentElement;
+  }
+  return true;
+}
+
 function listLoadedTileImages(mapContainer: HTMLElement): HTMLImageElement[] {
   return Array.from(mapContainer.querySelectorAll("img")).filter((img) => {
     const src = img.currentSrc || img.src;
     if (!isKakaoTileUrl(src)) return false;
-    return img.complete && img.naturalWidth > 0;
+    return (
+      img.complete &&
+      img.naturalWidth > 0 &&
+      isVisibleInMapContainer(img, mapContainer)
+    );
   });
 }
 
@@ -131,6 +185,7 @@ function countIncompleteTileImages(mapContainer: HTMLElement): number {
   mapContainer.querySelectorAll("img").forEach((img) => {
     const src = img.currentSrc || img.src;
     if (!isKakaoTileUrl(src)) return;
+    if (!isVisibleInMapContainer(img, mapContainer)) return;
     if (!img.complete || img.naturalWidth === 0) count += 1;
   });
   return count;
@@ -147,6 +202,7 @@ function listBackgroundTileElements(
     if (!bg || bg === "none") return;
     const url = extractCssBackgroundUrl(bg);
     if (!url || !isKakaoTileUrl(url)) return;
+    if (!isVisibleInMapContainer(element, mapContainer)) return;
     results.push({ element, url });
   });
 
@@ -274,10 +330,11 @@ async function prefetchMapTileDataUrls(
     TILE_PROXY_CONCURRENCY,
     async (img) => {
       const src = img.currentSrc || img.src;
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
         try {
           return await fetchTileAsDataUrl(src);
-        } catch {
+        } catch (error) {
+          if (error instanceof TileProxyError && error.status === 429) break;
           await wait(200 * attempt);
         }
       }
@@ -289,10 +346,11 @@ async function prefetchMapTileDataUrls(
     backgroundTiles,
     TILE_PROXY_CONCURRENCY,
     async ({ url }) => {
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
         try {
           return await fetchTileAsDataUrl(url);
-        } catch {
+        } catch (error) {
+          if (error instanceof TileProxyError && error.status === 429) break;
           await wait(200 * attempt);
         }
       }
