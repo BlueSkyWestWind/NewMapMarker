@@ -51,6 +51,7 @@ interface MapRegionCapturePanelProps {
   excludedTiles?: Set<number>;
   onClose: () => void;
   onReselectRegion: () => void;
+  onEditRegion: () => void;
   onGuideChange?: (guide: CaptureGuideState) => void;
 }
 
@@ -79,6 +80,7 @@ export function MapRegionCapturePanel({
   excludedTiles,
   onClose,
   onReselectRegion,
+  onEditRegion,
   onGuideChange,
 }: MapRegionCapturePanelProps) {
   const setSelectedMarkerIds = useMapMarkerStore(
@@ -467,6 +469,7 @@ export function MapRegionCapturePanel({
     <CapturePanelView
       onClose={onClose}
       onReselectRegion={onReselectRegion}
+      onEditRegion={onEditRegion}
       phase={phase}
       captureLevel={captureLevel}
       currentMapLevel={currentMapLevel}

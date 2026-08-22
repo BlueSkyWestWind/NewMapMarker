@@ -23,6 +23,7 @@ export type CapturePhase = "preview" | "capturing" | "done" | "error";
 export interface CapturePanelViewProps {
   onClose: () => void;
   onReselectRegion: () => void;
+  onEditRegion: () => void;
   phase: CapturePhase;
   captureLevel: number;
   currentMapLevel: number;
@@ -63,6 +64,7 @@ export interface CapturePanelViewProps {
 export function CapturePanelView({
   onClose,
   onReselectRegion,
+  onEditRegion,
   phase,
   captureLevel,
   currentMapLevel,
@@ -164,35 +166,6 @@ export function CapturePanelView({
       </div>
 
       <div className="mb-3 space-y-1">
-        <Label className="text-[11px] text-slate-400">A3 방향</Label>
-        <Select
-          value={captureOrientation}
-          onValueChange={(value) =>
-            onOrientationChange(value as CaptureOrientation)
-          }
-          disabled={isBusy}
-        >
-          <SelectTrigger className="h-8 border-slate-600 bg-slate-800 text-slate-100">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="border-slate-600 bg-slate-800 text-slate-100">
-            <SelectItem
-              value="landscape"
-              className="text-slate-100 focus:bg-slate-700 focus:text-slate-100"
-            >
-              가로 (420 × 297)
-            </SelectItem>
-            <SelectItem
-              value="portrait"
-              className="text-slate-100 focus:bg-slate-700 focus:text-slate-100"
-            >
-              세로 (297 × 420)
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="mb-3 space-y-1">
         <Label className="text-[11px] text-slate-400">겹침 %</Label>
         <Input
           type="number"
@@ -243,7 +216,7 @@ export function CapturePanelView({
                 : "격자 좌상단 번호를 클릭하면 해당 칸을 캡처에서 제외합니다"}
             </span>
             <span className="mt-0.5 block text-amber-300/80">
-              영역 이동 핸들로 위치 조정 · 우하단 원형 핸들로 범위 크기 조절
+              격자 이동 핸들로 위치 조정 · 우하단 원형 핸들로 격자 범위 조절
             </span>
           </>
         ) : (
@@ -257,7 +230,7 @@ export function CapturePanelView({
         ) : null}
       </div>
 
-      <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
+      <div className="mb-3 flex items-center justify-between gap-2 text-xs text-slate-400">
         <span>
           {phase === "capturing"
             ? `촬영 중 ${progressCurrent}/${progressTotal}`
@@ -265,14 +238,24 @@ export function CapturePanelView({
               ? `완료 ${capturedTilesCount}장`
               : "미리보기"}
         </span>
-        <button
-          type="button"
-          className="text-sky-300 hover:text-sky-200 disabled:opacity-40"
-          disabled={isBusy}
-          onClick={onReselectRegion}
-        >
-          범위 다시 지정
-        </button>
+        <span className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="rounded border border-amber-500/60 px-2 py-1 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 disabled:opacity-40"
+            disabled={isBusy}
+            onClick={onEditRegion}
+          >
+            범위 수정
+          </button>
+          <button
+            type="button"
+            className="text-sky-300 hover:text-sky-200 disabled:opacity-40"
+            disabled={isBusy}
+            onClick={onReselectRegion}
+          >
+            처음부터
+          </button>
+        </span>
       </div>
 
       {phase === "capturing" ? (

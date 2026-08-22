@@ -46,6 +46,7 @@ interface BoundsEditState {
   startX: number;
   startY: number;
   rect: ScreenRect;
+  boundsRect: ScreenRect;
 }
 
 const MIN_REGION_SIZE_PX = 120;
@@ -202,7 +203,26 @@ export function MapRegionBoundsGuide({
   }, [map, bounds, plan, viewportSpan]);
 
   if (!regionRect) return null;
-  const displayedRegionRect = editRect ?? regionRect;
+  const gridRect =
+    cells.length > 0
+      ? cells.reduce<ScreenRect>(
+          (result, cell) => {
+            const right = Math.max(
+              result.left + result.width,
+              cell.left + cell.width,
+            );
+            const bottom = Math.max(
+              result.top + result.height,
+              cell.top + cell.height,
+            );
+            const left = Math.min(result.left, cell.left);
+            const top = Math.min(result.top, cell.top);
+            return { left, top, width: right - left, height: bottom - top };
+          },
+          { ...cells[0] },
+        )
+      : regionRect;
+  const displayedRegionRect = editRect ?? gridRect;
   const canEditBounds = interactive && !!onBoundsChange;
   const viewportWidth = mapContainer?.clientWidth ?? window.innerWidth;
   const viewportHeight = mapContainer?.clientHeight ?? window.innerHeight;
@@ -237,6 +257,7 @@ export function MapRegionBoundsGuide({
       startX: event.clientX,
       startY: event.clientY,
       rect: { ...displayedRegionRect },
+      boundsRect: { ...regionRect },
     };
     setEditRect({ ...displayedRegionRect });
   };
@@ -273,13 +294,33 @@ export function MapRegionBoundsGuide({
     const finalRect = editRect;
     editRef.current = null;
     setEditRect(null);
-    if (finalRect) onBoundsChange?.(screenRectToBounds(map, finalRect));
+    if (!finalRect) return;
+
+    const nextBoundsRect =
+      edit.mode === "move"
+        ? {
+            ...edit.boundsRect,
+            left: edit.boundsRect.left + (finalRect.left - edit.rect.left),
+            top: edit.boundsRect.top + (finalRect.top - edit.rect.top),
+          }
+        : {
+            ...edit.boundsRect,
+            width: Math.max(
+              MIN_REGION_SIZE_PX,
+              edit.boundsRect.width + (finalRect.width - edit.rect.width),
+            ),
+            height: Math.max(
+              MIN_REGION_SIZE_PX,
+              edit.boundsRect.height + (finalRect.height - edit.rect.height),
+            ),
+          };
+    onBoundsChange?.(screenRectToBounds(map, nextBoundsRect));
   };
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[15] overflow-hidden">
       <div
-        className="absolute border-2 border-dashed border-sky-400 bg-sky-400/10"
+        className="absolute border-2 border-dashed border-amber-300/90 bg-transparent"
         data-capture-hide="true"
         style={{
           left: displayedRegionRect.left,
@@ -303,9 +344,9 @@ export function MapRegionBoundsGuide({
             onPointerUp={finishBoundsEdit}
             onPointerCancel={finishBoundsEdit}
             data-capture-hide="true"
-            title="드래그하여 캡처 영역 이동"
+            title="드래그하여 캡처 격자 이동"
           >
-            영역 이동
+            격자 이동
           </button>
           <button
             type="button"
@@ -319,7 +360,7 @@ export function MapRegionBoundsGuide({
             onPointerUp={finishBoundsEdit}
             onPointerCancel={finishBoundsEdit}
             data-capture-hide="true"
-            title="드래그하여 캡처 범위 크기 조절"
+            title="드래그하여 캡처 격자 범위 크기 조절"
           />
         </>
       ) : null}

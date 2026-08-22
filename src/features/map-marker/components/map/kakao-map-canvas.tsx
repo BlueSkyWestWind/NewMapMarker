@@ -1102,6 +1102,7 @@ export function KakaoMapCanvas({
           })}
           excludedTiles={excludedTiles}
           onGuideChange={handleCaptureGuideChange}
+          onEditRegion={() => setIsRegionSelectMode(true)}
           onClose={() => {
             setIsCapturePanelOpen(false);
             setCaptureBounds(null);
