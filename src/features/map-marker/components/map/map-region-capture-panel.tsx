@@ -29,7 +29,6 @@ import {
   downloadBlob,
   waitForCaptureOverlays,
   waitForKakaoMapIdle,
-  waitForMapTilesReady,
 } from "@/features/map-marker/lib/map-viewport-capture";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type { MarkerRecord } from "@/features/map-marker/types/marker";
@@ -357,17 +356,12 @@ export function MapRegionCapturePanel({
           if (cancelledRef.current) {
             throw new Error("CAPTURE_CANCELLED");
           }
-          // 지도 타일이 100% 로드될 때까지 대기한 뒤 촬영 (빈/흐린 타일 방지)
-          await waitForMapTilesReady(mapContainer);
-          if (cancelledRef.current) {
-            throw new Error("CAPTURE_CANCELLED");
-          }
           // 타일마다 현재 화면 기준으로 정보창을 다시 배치 (잘림·겹침 방지)
           if (includeInfoWindows && openedCount > 0) {
             await waitForCaptureOverlays(mapContainer, 1, 800);
             runCaptureOverlayLayout();
           }
-          return captureMapViewport(mapContainer, map);
+          return captureMapViewport(mapContainer);
         },
         onProgress: (current, total) => {
           if (cancelledRef.current) return;

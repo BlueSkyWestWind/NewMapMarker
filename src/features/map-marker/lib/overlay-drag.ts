@@ -342,6 +342,7 @@ export function enableOverlayDrag({
   if (!(panel instanceof HTMLElement) || !(header instanceof HTMLElement)) {
     return;
   }
+  const dragHandle = panel.classList.contains("text-label") ? panel : header;
 
   let currentOffset: OverlayPanelOffset = { ...initialOffset };
   applyOverlayOffset(content, currentOffset);
@@ -352,10 +353,10 @@ export function enableOverlayDrag({
   });
   resizeObserver.observe(panel);
 
-  header.classList.add("overlay-header-draggable");
-  header.title = "드래그하여 정보창 위치 이동";
+  dragHandle.classList.add("overlay-header-draggable");
+  dragHandle.title = "드래그하여 위치 이동";
 
-  header.addEventListener("pointerdown", (event) => {
+  dragHandle.addEventListener("pointerdown", (event) => {
     const target = event.target;
     if (target instanceof Element && target.closest(".overlay-close")) {
       return;
@@ -371,12 +372,12 @@ export function enableOverlayDrag({
     const pointerId = event.pointerId;
 
     map.setDraggable(false);
-    header.classList.add("is-dragging");
+    dragHandle.classList.add("is-dragging");
     content.style.zIndex = "20";
     overlay.setZIndex?.(20);
 
     try {
-      header.setPointerCapture(pointerId);
+      dragHandle.setPointerCapture(pointerId);
     } catch {
       // ignore
     }
@@ -388,19 +389,19 @@ export function enableOverlayDrag({
       isFinished = true;
 
       map.setDraggable(true);
-      header.classList.remove("is-dragging");
+      dragHandle.classList.remove("is-dragging");
       content.style.zIndex = "";
       overlay.setZIndex?.(10);
 
-      header.removeEventListener("pointermove", handlePointerMove);
-      header.removeEventListener("pointerup", handlePointerUp);
-      header.removeEventListener("pointercancel", handlePointerUp);
+      dragHandle.removeEventListener("pointermove", handlePointerMove);
+      dragHandle.removeEventListener("pointerup", handlePointerUp);
+      dragHandle.removeEventListener("pointercancel", handlePointerUp);
       document.removeEventListener("pointerup", handlePointerUp, true);
       document.removeEventListener("pointercancel", handlePointerUp, true);
 
       try {
-        if (header.hasPointerCapture(pointerId)) {
-          header.releasePointerCapture(pointerId);
+        if (dragHandle.hasPointerCapture(pointerId)) {
+          dragHandle.releasePointerCapture(pointerId);
         }
       } catch {
         // ignore
@@ -426,9 +427,9 @@ export function enableOverlayDrag({
       finishDrag();
     };
 
-    header.addEventListener("pointermove", handlePointerMove);
-    header.addEventListener("pointerup", handlePointerUp);
-    header.addEventListener("pointercancel", handlePointerUp);
+    dragHandle.addEventListener("pointermove", handlePointerMove);
+    dragHandle.addEventListener("pointerup", handlePointerUp);
+    dragHandle.addEventListener("pointercancel", handlePointerUp);
     document.addEventListener("pointerup", handlePointerUp, true);
     document.addEventListener("pointercancel", handlePointerUp, true);
   });

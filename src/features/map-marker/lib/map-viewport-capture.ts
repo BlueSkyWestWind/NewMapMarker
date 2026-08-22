@@ -10,8 +10,10 @@ async function loadHtml2Canvas() {
 export const MAP_CAPTURE_SCALE = 2;
 
 const TILE_PROXY_CONCURRENCY = 8;
-const MIN_MAP_COVERAGE_RATIO = 0.28;
-const MAX_CAPTURE_ATTEMPTS = 4;
+const TILE_DATA_URL_CACHE_LIMIT = 512;
+const MIN_MAP_COVERAGE_RATIO = 0.5;
+const MAX_CAPTURE_ATTEMPTS = 2;
+const tileDataUrlCache = new Map<string, string>();
 
 function isKakaoTileUrl(src: string): boolean {
   if (!src || src.startsWith("data:") || src.startsWith("blob:")) return false;
@@ -61,6 +63,9 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 async function fetchTileAsDataUrl(tileUrl: string): Promise<string> {
+  const cached = tileDataUrlCache.get(tileUrl);
+  if (cached) return cached;
+
   const response = await fetch(
     `/api/map-tile-proxy?url=${encodeURIComponent(tileUrl)}`,
     { cache: "force-cache" },
@@ -75,7 +80,13 @@ async function fetchTileAsDataUrl(tileUrl: string): Promise<string> {
     throw new Error("타일 프록시 응답이 이미지가 아닙니다.");
   }
 
-  return blobToDataUrl(blob);
+  const dataUrl = await blobToDataUrl(blob);
+  tileDataUrlCache.set(tileUrl, dataUrl);
+  if (tileDataUrlCache.size > TILE_DATA_URL_CACHE_LIMIT) {
+    const oldestKey = tileDataUrlCache.keys().next().value;
+    if (oldestKey) tileDataUrlCache.delete(oldestKey);
+  }
+  return dataUrl;
 }
 
 async function mapPool<T, R>(
@@ -143,9 +154,6 @@ function listBackgroundTileElements(
 }
 
 /**
- * 지도 이동/줌 후 idle까지 대기한다.
- */
-/**
  * 정보창(CustomOverlay) DOM이 붙을 때까지 짧게 대기한다.
  */
 export async function waitForCaptureOverlays(
@@ -163,35 +171,6 @@ export async function waitForCaptureOverlays(
   }
 
   return mapContainer.querySelectorAll(".custom-overlay").length;
-}
-
-/**
- * 현재 뷰포트의 지도 타일(위성 포함)이 모두 로드될 때까지 대기한다.
- * kakao의 "tilesloaded" 이벤트가 로딩 완료 신호다.
- * 이미 로드가 끝나 이벤트가 오지 않을 수 있으므로 timeout 폴백을 둔다.
- */
-export function waitForKakaoMapTilesLoaded(
-  map: KakaoMap,
-  timeoutMs: number = 8000,
-): Promise<void> {
-  return new Promise((resolve) => {
-    if (!window.kakao?.maps) {
-      resolve();
-      return;
-    }
-
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      window.kakao?.maps.event.removeListener(map, "tilesloaded", onLoaded);
-      resolve();
-    };
-
-    const onLoaded = () => finish();
-    window.kakao.maps.event.addListener(map, "tilesloaded", onLoaded);
-    window.setTimeout(finish, timeoutMs);
-  });
 }
 
 export function waitForKakaoMapIdle(
@@ -264,7 +243,10 @@ export async function waitForMapTilesReady(
     await wait(200);
   }
 
-  return listLoadedTileImages(mapContainer).length;
+  return (
+    listLoadedTileImages(mapContainer).length +
+    listBackgroundTileElements(mapContainer).length
+  );
 }
 
 type PrefetchResult = {
@@ -328,7 +310,10 @@ async function prefetchMapTileDataUrls(
     if (dataUrl) backgroundDataUrls.set(index, dataUrl);
   });
 
-  return { imageDataUrls, backgroundDataUrls };
+  return {
+    imageDataUrls,
+    backgroundDataUrls,
+  };
 }
 
 function clearCaptureIndexes(mapContainer: HTMLElement) {
@@ -427,7 +412,6 @@ async function captureOnce(
  */
 export async function captureMapViewport(
   mapContainer: HTMLElement,
-  map: KakaoMap,
 ): Promise<HTMLCanvasElement> {
   const width = mapContainer.clientWidth;
   const height = mapContainer.clientHeight;
@@ -445,15 +429,21 @@ export async function captureMapViewport(
     let bestCoverage = -1;
 
     for (let attempt = 1; attempt <= MAX_CAPTURE_ATTEMPTS; attempt += 1) {
-      await waitForKakaoMapIdle(map, 6000);
-      // 위성 타일까지 완전히 로드된 뒤 촬영 (흰/빈 타일 방지)
-      await waitForKakaoMapTilesLoaded(map, 8000);
       await waitForMapTilesReady(mapContainer, {
-        timeoutMs: 10000 + attempt * 1000,
+        timeoutMs: 5000,
       });
-      await wait(400);
+      await wait(150);
 
-      const canvas = await captureOnce(mapContainer, width, height, scale);
+      let canvas: HTMLCanvasElement;
+      try {
+        canvas = await captureOnce(mapContainer, width, height, scale);
+      } catch (error) {
+        if (attempt === MAX_CAPTURE_ATTEMPTS) {
+          throw error;
+        }
+        await wait(300 * attempt);
+        continue;
+      }
       const coverage = estimateMapCoverageRatio(canvas);
 
       if (coverage > bestCoverage) {
@@ -466,14 +456,18 @@ export async function captureMapViewport(
       }
 
       // 타일이 덜 채워졌으면 잠시 더 기다린 뒤 재시도
-      await wait(600 * attempt);
+      await wait(300 * attempt);
     }
 
     if (!bestCanvas) {
       throw new Error("지도 화면 캡처에 실패했습니다.");
     }
 
-    // 최선 결과라도 반환 (완전 실패보다는 나음)
+    if (bestCoverage < MIN_MAP_COVERAGE_RATIO) {
+      throw new Error(
+        "지도 타일이 비어 있어 캡처를 중단했습니다. 잠시 후 다시 시도해 주세요.",
+      );
+    }
     return bestCanvas;
   } finally {
     clearCaptureIndexes(mapContainer);

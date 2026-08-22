@@ -206,7 +206,7 @@ export function MapRegionBoundsGuide({
             className={
               cellClassName +
               (canToggle
-                ? " cursor-pointer pointer-events-auto hover:bg-sky-400/30 hover:border-sky-200"
+                ? " pointer-events-none"
                 : "")
             }
             data-capture-hide="true"
@@ -216,18 +216,28 @@ export function MapRegionBoundsGuide({
               width: cell.width,
               height: cell.height,
             }}
-            onClick={
-              canToggle ? () => onToggleTile?.(cell.index) : undefined
-            }
-            title={
-              canToggle
-                ? isExcluded
-                  ? "클릭하면 캡처에 포함"
-                  : "클릭하면 캡처에서 제외"
-                : undefined
-            }
           >
-            <span className={badgeClassName}>{cell.label}</span>
+            <button
+              type="button"
+              className={
+                badgeClassName +
+                (canToggle
+                  ? " pointer-events-auto cursor-pointer hover:ring-2 hover:ring-sky-200"
+                  : " pointer-events-none")
+              }
+              onClick={
+                canToggle ? () => onToggleTile?.(cell.index) : undefined
+              }
+              title={
+                canToggle
+                  ? isExcluded
+                    ? "클릭하면 캡처에 포함"
+                    : "클릭하면 캡처에서 제외"
+                  : undefined
+              }
+            >
+              {cell.label}
+            </button>
             {isExcluded ? (
               <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-slate-400/60">
                 ✕

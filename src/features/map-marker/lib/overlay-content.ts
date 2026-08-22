@@ -533,7 +533,7 @@ export function createOverlayContent(
 
 /**
  * 캡처용 텍스트 라벨: 정보창(버튼/닫기 등) 없이 국소명 + 주소만 텍스트로 표시한다.
- * 드래그 위치 조정을 위해 overlay-header/custom-overlay 구조는 유지하되,
+ * 라벨 전체 드래그 위치 조정을 위해 overlay-header/custom-overlay 구조는 유지하되,
  * 연결선(stem)·삼각형(pointer)은 숨긴다.
  */
 export function createCaptureLabelContent(

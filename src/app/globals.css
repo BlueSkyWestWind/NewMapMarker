@@ -278,10 +278,11 @@
   word-break: keep-all;
 }
 
-/* 캡처용 텍스트 라벨: 정보창 박스 없이 국소명 + 주소만 텍스트로 표시 */
+/* 캡처용 텍스트 라벨: 위성사진 명암과 무관하게 읽히는 고정 대비 라벨 */
 .custom-overlay.text-label {
   background: transparent;
   border: none;
+  border-radius: 0;
   box-shadow: none;
   padding: 0;
   width: max-content;
@@ -291,9 +292,8 @@
   animation: none;
   overflow: visible;
   text-shadow:
-    0 0 3px rgba(0, 0, 0, 0.95),
-    0 1px 3px rgba(0, 0, 0, 0.95),
-    0 0 6px rgba(0, 0, 0, 0.8);
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 3px rgba(0, 0, 0, 0.75);
 }
 
 .custom-overlay.text-label .overlay-header {
@@ -305,18 +305,22 @@
 
 .custom-overlay.text-label .overlay-title {
   font-size: 15px;
-  font-weight: 700;
-  color: #ffffff;
+  font-weight: 800;
+  color: #fbbf24;
   white-space: nowrap;
   max-width: none;
 }
 
 .custom-overlay.text-label .overlay-address {
   font-size: 12.5px;
-  font-weight: 500;
-  color: #f1f5f9;
+  font-weight: 600;
+  color: #bae6fd;
   line-height: 1.35;
   white-space: nowrap;
+}
+
+.custom-overlay.text-label .overlay-address .jibun-addr {
+  color: #cbd5e1;
 }
 
 /* 마커를 가리키는 삼각형. JS에서 위치·회전을 갱신한다 */
