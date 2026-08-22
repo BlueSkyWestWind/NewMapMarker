@@ -27,6 +27,8 @@ import {
   canvasToBlob,
   captureMapViewport,
   downloadBlob,
+  getA3CaptureViewportRect,
+  type CaptureOrientation,
   waitForCaptureOverlays,
   waitForKakaoMapIdle,
 } from "@/features/map-marker/lib/map-viewport-capture";
@@ -86,6 +88,8 @@ export function MapRegionCapturePanel({
     (state) => state.setInfoWindowCaptureMode,
   );
   const [overlapPercent, setOverlapPercent] = useState(5);
+  const [captureOrientation, setCaptureOrientation] =
+    useState<CaptureOrientation>("landscape");
   const [includeInfoWindows, setIncludeInfoWindows] = useState(true);
   const [captureLevel, setCaptureLevel] = useState(() =>
     clampMapLevel(map.getLevel()),
@@ -139,9 +143,13 @@ export function MapRegionCapturePanel({
     setErrorMessage("");
 
     try {
+      const captureRect = getA3CaptureViewportRect(
+        mapContainer,
+        captureOrientation,
+      );
       const viewportSize = {
-        width: mapContainer.clientWidth || 1,
-        height: mapContainer.clientHeight || 1,
+        width: captureRect.width || 1,
+        height: captureRect.height || 1,
       };
       const currentLevel = map.getLevel();
       const currentSpan = measureViewportSpan(map, viewportSize);
@@ -182,7 +190,14 @@ export function MapRegionCapturePanel({
     } finally {
       setIsPreparing(false);
     }
-  }, [bounds, captureLevel, map, mapContainer, overlapPercent]);
+  }, [
+    bounds,
+    captureLevel,
+    captureOrientation,
+    map,
+    mapContainer,
+    overlapPercent,
+  ]);
 
   useEffect(() => {
     onGuideChangeRef.current?.({
@@ -361,12 +376,24 @@ export function MapRegionCapturePanel({
             await waitForCaptureOverlays(mapContainer, 1, 800);
             runCaptureOverlayLayout();
           }
-          return captureMapViewport(mapContainer);
+          return captureMapViewport(mapContainer, captureOrientation);
         },
         onProgress: (current, total) => {
           if (cancelledRef.current) return;
+          setErrorMessage("");
           setProgressCurrent(current);
           setProgressTotal(total);
+        },
+        shouldRetryTile: (error) => {
+          if (cancelledRef.current) return false;
+          return !(error instanceof Error && error.message === "CAPTURE_CANCELLED");
+        },
+        onTileRetry: (_tile, index, attempt) => {
+          if (cancelledRef.current) return;
+          setErrorMessage(
+            `${index + 1}번 위치의 지도 타일을 다시 불러오는 중입니다. ` +
+              `(재시도 ${attempt}회 · 앞서 촬영한 ${index}장은 보관 중)`,
+          );
         },
       });
 
@@ -445,6 +472,11 @@ export function MapRegionCapturePanel({
       onOverlapChange={(value) => {
         setPhase("preview");
         setOverlapPercent(Math.min(40, Math.max(0, Number(value) || 0)));
+      }}
+      captureOrientation={captureOrientation}
+      onOrientationChange={(value) => {
+        setPhase("preview");
+        setCaptureOrientation(value);
       }}
       includeInfoWindows={includeInfoWindows}
       onToggleInfoWindows={setIncludeInfoWindows}

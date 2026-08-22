@@ -87,27 +87,49 @@ export async function runGridCapture(options: {
   /** setCenter 후 추가 대기(ms). 기본 타일 로딩 대기는 capture 쪽에서 수행 */
   settleMs?: number;
   onProgress?: (current: number, total: number, tile: CaptureTilePlan) => void;
+  /** 타일 한 칸 실패 시 기존 성공분을 유지하고 같은 칸을 다시 촬영할지 결정 */
+  shouldRetryTile?: (
+    error: unknown,
+    tile: CaptureTilePlan,
+    attempt: number,
+  ) => boolean;
+  onTileRetry?: (
+    tile: CaptureTilePlan,
+    index: number,
+    attempt: number,
+    error: unknown,
+  ) => void;
 }): Promise<GridCaptureResult> {
   const tiles: CapturedTileImage[] = [];
   const actualCenters: LatLngLiteral[] = [];
 
   for (let index = 0; index < options.plan.tiles.length; index += 1) {
     const tile = options.plan.tiles[index];
-    options.onProgress?.(index + 1, options.plan.tiles.length, tile);
+    let attempt = 0;
 
-    await options.setCenter(tile.center);
-    await waitForMapSettle(options.settleMs ?? 500);
+    while (true) {
+      attempt += 1;
+      try {
+        await options.setCenter(tile.center);
+        await waitForMapSettle(options.settleMs ?? 500);
 
-    const canvas = await options.captureViewport();
+        const canvas = await options.captureViewport();
 
-    // 캡처와 동일 시점의 실제 중심 기록 (setCenter 스냅·idle 이후)
-    actualCenters.push(options.getCenter());
-
-    tiles.push({
-      row: tile.row,
-      col: tile.col,
-      canvas,
-    });
+        // 캡처와 동일 시점의 실제 중심 기록 (setCenter 스냅·idle 이후)
+        actualCenters.push(options.getCenter());
+        tiles.push({
+          row: tile.row,
+          col: tile.col,
+          canvas,
+        });
+        options.onProgress?.(index + 1, options.plan.tiles.length, tile);
+        break;
+      } catch (error) {
+        if (!options.shouldRetryTile?.(error, tile, attempt)) throw error;
+        options.onTileRetry?.(tile, index, attempt, error);
+        await waitForMapSettle(Math.min(5000, 1000 * attempt));
+      }
+    }
 
     if (index < options.plan.tiles.length - 1) {
       await waitForMapSettle(200);

@@ -16,6 +16,7 @@ import {
   MAX_RECOMMENDED_CAPTURE_TILES,
   type CaptureGridPlan,
 } from "@/features/map-marker/lib/map-capture-stitch";
+import type { CaptureOrientation } from "@/features/map-marker/lib/map-viewport-capture";
 
 export type CapturePhase = "preview" | "capturing" | "done" | "error";
 
@@ -30,6 +31,8 @@ export interface CapturePanelViewProps {
   onLevelChange: (value: string) => void;
   overlapPercent: number;
   onOverlapChange: (value: string) => void;
+  captureOrientation: CaptureOrientation;
+  onOrientationChange: (value: CaptureOrientation) => void;
   includeInfoWindows: boolean;
   onToggleInfoWindows: (checked: boolean) => void;
   markersInBoundsCount: number;
@@ -68,6 +71,8 @@ export function CapturePanelView({
   onLevelChange,
   overlapPercent,
   onOverlapChange,
+  captureOrientation,
+  onOrientationChange,
   includeInfoWindows,
   onToggleInfoWindows,
   markersInBoundsCount,
@@ -156,6 +161,35 @@ export function CapturePanelView({
         ) : (
           <p className="text-[11px] text-slate-500">숫자가 작을수록 확대됩니다.</p>
         )}
+      </div>
+
+      <div className="mb-3 space-y-1">
+        <Label className="text-[11px] text-slate-400">A3 방향</Label>
+        <Select
+          value={captureOrientation}
+          onValueChange={(value) =>
+            onOrientationChange(value as CaptureOrientation)
+          }
+          disabled={isBusy}
+        >
+          <SelectTrigger className="h-8 border-slate-600 bg-slate-800 text-slate-100">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="border-slate-600 bg-slate-800 text-slate-100">
+            <SelectItem
+              value="landscape"
+              className="text-slate-100 focus:bg-slate-700 focus:text-slate-100"
+            >
+              가로 (420 × 297)
+            </SelectItem>
+            <SelectItem
+              value="portrait"
+              className="text-slate-100 focus:bg-slate-700 focus:text-slate-100"
+            >
+              세로 (297 × 420)
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="mb-3 space-y-1">
@@ -312,7 +346,15 @@ export function CapturePanelView({
       ) : null}
 
       {errorMessage ? (
-        <p className="text-xs text-rose-300">{errorMessage}</p>
+        <p
+          className={
+            phase === "capturing"
+              ? "text-xs text-amber-300"
+              : "text-xs text-rose-300"
+          }
+        >
+          {errorMessage}
+        </p>
       ) : null}
     </div>
   );

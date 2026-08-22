@@ -8,6 +8,16 @@ async function loadHtml2Canvas() {
 
 /** 캡처 해상도 배율 — 글씨 판독용 */
 export const MAP_CAPTURE_SCALE = 2;
+export type CaptureOrientation = "landscape" | "portrait";
+
+export interface CaptureViewportRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const A3_LANDSCAPE_RATIO = 420 / 297;
 
 const TILE_PROXY_CONCURRENCY = 8;
 const TILE_DATA_URL_CACHE_LIMIT = 512;
@@ -15,6 +25,32 @@ const MIN_MAP_COVERAGE_RATIO = 0.12;
 const MAX_CAPTURE_ATTEMPTS = 2;
 const tileDataUrlCache = new Map<string, string>();
 const tileDataUrlRequests = new Map<string, Promise<string>>();
+
+export function getA3CaptureViewportRect(
+  mapContainer: HTMLElement,
+  orientation: CaptureOrientation,
+): CaptureViewportRect {
+  const containerWidth = mapContainer.clientWidth;
+  const containerHeight = mapContainer.clientHeight;
+  const targetRatio =
+    orientation === "landscape"
+      ? A3_LANDSCAPE_RATIO
+      : 1 / A3_LANDSCAPE_RATIO;
+
+  let width = containerWidth;
+  let height = Math.round(width / targetRatio);
+  if (height > containerHeight) {
+    height = containerHeight;
+    width = Math.round(height * targetRatio);
+  }
+
+  return {
+    x: Math.max(0, Math.floor((containerWidth - width) / 2)),
+    y: Math.max(0, Math.floor((containerHeight - height) / 2)),
+    width,
+    height,
+  };
+}
 
 class TileProxyError extends Error {
   constructor(public readonly status: number) {
@@ -422,6 +458,8 @@ async function captureOnce(
   width: number,
   height: number,
   scale: number,
+  x: number,
+  y: number,
 ): Promise<HTMLCanvasElement> {
   const { imageDataUrls, backgroundDataUrls } =
     await prefetchMapTileDataUrls(mapContainer);
@@ -434,6 +472,8 @@ async function captureOnce(
     backgroundColor: "#0f172a",
     logging: false,
     scale,
+    x,
+    y,
     width,
     height,
     imageTimeout: 20000,
@@ -470,9 +510,12 @@ async function captureOnce(
  */
 export async function captureMapViewport(
   mapContainer: HTMLElement,
+  orientation: CaptureOrientation,
 ): Promise<HTMLCanvasElement> {
-  const width = mapContainer.clientWidth;
-  const height = mapContainer.clientHeight;
+  const { x, y, width, height } = getA3CaptureViewportRect(
+    mapContainer,
+    orientation,
+  );
   if (width <= 0 || height <= 0) {
     throw new Error("지도 컨테이너 크기를 확인할 수 없습니다.");
   }
@@ -494,7 +537,7 @@ export async function captureMapViewport(
 
       let canvas: HTMLCanvasElement;
       try {
-        canvas = await captureOnce(mapContainer, width, height, scale);
+        canvas = await captureOnce(mapContainer, width, height, scale, x, y);
       } catch (error) {
         if (attempt === MAX_CAPTURE_ATTEMPTS) {
           throw error;
