@@ -1057,12 +1057,14 @@ export function KakaoMapCanvas({
       {captureBounds && mapInstance && isCapturePanelOpen ? (
         <MapRegionBoundsGuide
           map={mapInstance}
+          mapContainer={mapRef.current}
           bounds={captureBounds}
           plan={captureGuide.plan}
           viewportSpan={captureGuide.viewportSpan}
           capturedCount={captureGuide.capturedCount}
           excludedIndices={excludedTiles}
           onToggleTile={handleToggleExcludedTile}
+          onBoundsChange={setCaptureBounds}
           interactive={captureGuide.capturedCount === 0}
         />
       ) : null}

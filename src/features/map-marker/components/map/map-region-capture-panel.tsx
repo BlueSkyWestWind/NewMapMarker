@@ -112,6 +112,7 @@ export function MapRegionCapturePanel({
 
   const cancelledRef = useRef(false);
   const previousSelectionRef = useRef<string[] | null>(null);
+  const previewMarkerIdsRef = useRef<string[]>([]);
   const onGuideChangeRef = useRef(onGuideChange);
   onGuideChangeRef.current = onGuideChange;
   const previewUrlRef = useRef(previewUrl);
@@ -236,8 +237,13 @@ export function MapRegionCapturePanel({
   // 미리보기 단계에서 정보창을 미리 열어 사용자가 원하는 위치로 드래그할 수 있게 한다.
   // (자동 배치를 하지 않고, 캡처 시 이 위치를 그대로 촬영)
   // 값이 실제로 바뀔 때만 상태를 갱신해 무한 렌더 루프를 방지한다.
+  const currentMarkerIdsInBounds = includeInfoWindows
+    ? getMarkerIdsInBounds(markers, bounds)
+    : [];
   const desiredMarkerIdsKey = includeInfoWindows
-    ? getMarkerIdsInBounds(markers, bounds).join(",")
+    ? Array.from(
+        new Set([...previewMarkerIdsRef.current, ...currentMarkerIdsInBounds]),
+      ).join(",")
     : "";
 
   useEffect(() => {
@@ -246,6 +252,7 @@ export function MapRegionCapturePanel({
     const store = useMapMarkerStore.getState();
 
     if (!includeInfoWindows) {
+      previewMarkerIdsRef.current = [];
       if (store.isInfoWindowCaptureMode) setInfoWindowCaptureMode(false);
       return;
     }
@@ -259,6 +266,7 @@ export function MapRegionCapturePanel({
     const desiredIds = desiredMarkerIdsKey
       ? desiredMarkerIdsKey.split(",")
       : [];
+    previewMarkerIdsRef.current = desiredIds;
     if (store.selectedMarkerIds.join(",") !== desiredMarkerIdsKey) {
       setSelectedMarkerIds(desiredIds);
     }

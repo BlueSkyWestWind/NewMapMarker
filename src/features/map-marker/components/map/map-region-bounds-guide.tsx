@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type {
   CaptureGridPlan,
   MapBoundsLiteral,
@@ -19,6 +19,10 @@ interface MapRegionBoundsGuideProps {
   onToggleTile?: (index: number) => void;
   /** 칸 클릭 상호작용 허용 여부 */
   interactive?: boolean;
+  /** 범위 이동·크기 조절 결과 */
+  onBoundsChange?: (bounds: MapBoundsLiteral) => void;
+  /** 편집 핸들을 지도 화면 안에 유지하기 위한 컨테이너 */
+  mapContainer?: HTMLElement;
 }
 
 interface ScreenRect {
@@ -32,6 +36,36 @@ interface GridCellScreen extends ScreenRect {
   key: string;
   label: string;
   index: number;
+}
+
+type BoundsEditMode = "move" | "resize";
+
+interface BoundsEditState {
+  mode: BoundsEditMode;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  rect: ScreenRect;
+}
+
+const MIN_REGION_SIZE_PX = 120;
+
+function screenRectToBounds(map: KakaoMap, rect: ScreenRect): MapBoundsLiteral {
+  const projection = map.getProjection();
+  if (!projection) throw new Error("지도 projection을 읽을 수 없습니다.");
+  const nw = projection.coordsFromContainerPoint(
+    new window.kakao.maps.Point(rect.left, rect.top),
+  );
+  const se = projection.coordsFromContainerPoint(
+    new window.kakao.maps.Point(
+      rect.left + rect.width,
+      rect.top + rect.height,
+    ),
+  );
+  return {
+    sw: { lat: se.getLat(), lng: nw.getLng() },
+    ne: { lat: nw.getLat(), lng: se.getLng() },
+  };
 }
 
 function projectBoundsToScreen(
@@ -76,9 +110,13 @@ export function MapRegionBoundsGuide({
   excludedIndices,
   onToggleTile,
   interactive = false,
+  onBoundsChange,
+  mapContainer,
 }: MapRegionBoundsGuideProps) {
   const [regionRect, setRegionRect] = useState<ScreenRect | null>(null);
+  const [editRect, setEditRect] = useState<ScreenRect | null>(null);
   const [cells, setCells] = useState<GridCellScreen[]>([]);
+  const editRef = useRef<BoundsEditState | null>(null);
 
   useEffect(() => {
     if (!window.kakao?.maps) return;
@@ -164,6 +202,79 @@ export function MapRegionBoundsGuide({
   }, [map, bounds, plan, viewportSpan]);
 
   if (!regionRect) return null;
+  const displayedRegionRect = editRect ?? regionRect;
+  const canEditBounds = interactive && !!onBoundsChange;
+  const viewportWidth = mapContainer?.clientWidth ?? window.innerWidth;
+  const viewportHeight = mapContainer?.clientHeight ?? window.innerHeight;
+  const moveHandleLeft = Math.min(
+    viewportWidth - 56,
+    Math.max(56, displayedRegionRect.left + displayedRegionRect.width / 2),
+  );
+  const moveHandleTop = Math.min(
+    viewportHeight - 18,
+    Math.max(18, displayedRegionRect.top),
+  );
+  const resizeHandleLeft = Math.min(
+    viewportWidth - 14,
+    Math.max(14, displayedRegionRect.left + displayedRegionRect.width),
+  );
+  const resizeHandleTop = Math.min(
+    viewportHeight - 14,
+    Math.max(14, displayedRegionRect.top + displayedRegionRect.height),
+  );
+
+  const startBoundsEdit = (
+    event: PointerEvent<HTMLButtonElement>,
+    mode: BoundsEditMode,
+  ) => {
+    if (!canEditBounds || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    editRef.current = {
+      mode,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      rect: { ...displayedRegionRect },
+    };
+    setEditRect({ ...displayedRegionRect });
+  };
+
+  const moveBoundsEdit = (event: PointerEvent<HTMLButtonElement>) => {
+    const edit = editRef.current;
+    if (!edit || edit.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const dx = event.clientX - edit.startX;
+    const dy = event.clientY - edit.startY;
+
+    if (edit.mode === "move") {
+      setEditRect({
+        ...edit.rect,
+        left: edit.rect.left + dx,
+        top: edit.rect.top + dy,
+      });
+      return;
+    }
+
+    setEditRect({
+      ...edit.rect,
+      width: Math.max(MIN_REGION_SIZE_PX, edit.rect.width + dx),
+      height: Math.max(MIN_REGION_SIZE_PX, edit.rect.height + dy),
+    });
+  };
+
+  const finishBoundsEdit = (event: PointerEvent<HTMLButtonElement>) => {
+    const edit = editRef.current;
+    if (!edit || edit.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const finalRect = editRect;
+    editRef.current = null;
+    setEditRect(null);
+    if (finalRect) onBoundsChange?.(screenRectToBounds(map, finalRect));
+  };
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[15] overflow-hidden">
@@ -171,12 +282,47 @@ export function MapRegionBoundsGuide({
         className="absolute border-2 border-dashed border-sky-400 bg-sky-400/10"
         data-capture-hide="true"
         style={{
-          left: regionRect.left,
-          top: regionRect.top,
-          width: regionRect.width,
-          height: regionRect.height,
+          left: displayedRegionRect.left,
+          top: displayedRegionRect.top,
+          width: displayedRegionRect.width,
+          height: displayedRegionRect.height,
         }}
       />
+
+      {canEditBounds ? (
+        <>
+          <button
+            type="button"
+            className="pointer-events-auto absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-move rounded border border-amber-300 bg-slate-900/90 px-2 py-1 text-[10px] font-semibold text-amber-200 shadow-lg"
+            style={{
+              left: moveHandleLeft,
+              top: moveHandleTop,
+            }}
+            onPointerDown={(event) => startBoundsEdit(event, "move")}
+            onPointerMove={moveBoundsEdit}
+            onPointerUp={finishBoundsEdit}
+            onPointerCancel={finishBoundsEdit}
+            data-capture-hide="true"
+            title="드래그하여 캡처 영역 이동"
+          >
+            영역 이동
+          </button>
+          <button
+            type="button"
+            className="pointer-events-auto absolute z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize rounded-full border-2 border-amber-200 bg-amber-500 shadow-lg"
+            style={{
+              left: resizeHandleLeft,
+              top: resizeHandleTop,
+            }}
+            onPointerDown={(event) => startBoundsEdit(event, "resize")}
+            onPointerMove={moveBoundsEdit}
+            onPointerUp={finishBoundsEdit}
+            onPointerCancel={finishBoundsEdit}
+            data-capture-hide="true"
+            title="드래그하여 캡처 범위 크기 조절"
+          />
+        </>
+      ) : null}
 
       {cells.map((cell) => {
         const isExcluded = excludedIndices?.has(cell.index) ?? false;

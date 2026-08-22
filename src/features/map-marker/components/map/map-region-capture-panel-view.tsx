@@ -242,6 +242,9 @@ export function CapturePanelView({
                 ? `격자 ${excludedCount}칸 제외됨 · 지도의 칸을 클릭해 조정하세요`
                 : "격자 좌상단 번호를 클릭하면 해당 칸을 캡처에서 제외합니다"}
             </span>
+            <span className="mt-0.5 block text-amber-300/80">
+              영역 이동 핸들로 위치 조정 · 우하단 원형 핸들로 범위 크기 조절
+            </span>
           </>
         ) : (
           "격자 정보를 준비하지 못했습니다."
