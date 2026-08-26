@@ -243,8 +243,17 @@ export function KakaoMapCanvas({
       mapTypeId: window.kakao.maps.MapTypeId.HYBRID,
     });
 
-    // 기본 휠 줌은 한 번에 여러 레벨이 건너뛰어질 수 있어, 1단계씩 세밀 조절한다
-    map.setZoomable(false);
+    // 터치 기기는 핀치 줌을 지원하기 위해 카카오맵 기본 줌을 켜고,
+    // 데스크톱 마우스는 한 번에 여러 레벨이 건너뛰어지는 것을 막기 위해 1단계씩 세밀 조절한다
+    const isTouchDevice =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches;
+
+    if (isTouchDevice) {
+      map.setZoomable(true);
+    } else {
+      map.setZoomable(false);
+    }
     let lastWheelZoomAt = 0;
     const WHEEL_ZOOM_THROTTLE_MS = 80;
 
