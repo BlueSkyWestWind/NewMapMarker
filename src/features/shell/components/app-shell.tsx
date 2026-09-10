@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { match } from "ts-pattern";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -8,6 +9,15 @@ import { useHasMounted } from "@/hooks/use-has-mounted";
 import { NavRail } from "@/features/shell/components/nav-rail";
 import { TopSearchBar } from "@/features/shell/components/top-search-bar";
 import { WorkPanel } from "@/features/shell/components/work-panel";
+
+// 바코드/QR 탭에서만 필요하다. zbar-wasm·xlsx 의존 트리와 묶여 무거워 지연 로딩한다.
+const BarcodeResultsMain = dynamic(
+  () =>
+    import("@/features/barcode/components/barcode-results-main").then(
+      (m) => m.BarcodeResultsMain,
+    ),
+  { ssr: false },
+);
 import {
   NAV_RAIL_WIDTH_PX,
   WORK_PANEL_WIDTH_PX,
@@ -103,11 +113,20 @@ export function AppShell({
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopSearchBar
-          showMapPickControls={activeNav === "map" && segment === "converter"}
-        />
+        {/* 장소 검색은 지도 전용이다 — 바코드/QR에는 지도가 없으니 검색바도 필요 없다. */}
+        {activeNav === "barcode" ? null : (
+          <TopSearchBar
+            showMapPickControls={activeNav === "map" && segment === "converter"}
+          />
+        )}
         <main className="relative min-h-0 flex-1">
-          {children}
+          {/*
+           * 바코드/QR은 지도와 무관한 순수 도구라 지도를 보일 이유가 없다.
+           * 언마운트하지 않고 숨기기만 한다 — 다시 돌아왔을 때 카카오맵 SDK를
+           * 재초기화하지 않고 마커·카메라 위치가 그대로 남는다.
+           */}
+          <div className={activeNav === "barcode" ? "hidden" : "contents"}>{children}</div>
+          {activeNav === "barcode" ? <BarcodeResultsMain /> : null}
 
           <Button
             type="button"

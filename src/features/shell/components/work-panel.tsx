@@ -30,6 +30,15 @@ const DashboardPanel = dynamic(
   },
 );
 
+// zbar-wasm(바코드 인식)·xlsx(엑셀 후보검색)가 무거워 진입 전까지 번들에서 뺀다.
+const BarcodePanel = dynamic(
+  () => import("@/features/barcode/components/barcode-panel").then((m) => m.BarcodePanel),
+  {
+    ssr: false,
+    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
+  },
+);
+
 interface WorkPanelProps extends PanelDataProps {
   /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
   activeNav: NavKey;
@@ -100,6 +109,7 @@ export function WorkPanel({
       />
     ))
     .with("cctv", () => <CctvPanel />)
+    .with("barcode", () => <BarcodePanel />)
     .with("backup", () => (
       <BackupPanel
         mode={mode}

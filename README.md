@@ -3,7 +3,7 @@
 통신 장비·축전지 **국소를 지도에 관리하고, 당일 작업 안전 날씨를 판정**하는 웹 앱입니다.
 `001.MapMarker`(바닐라 JS)를 Next.js 15 + TypeScript 구조로 재구성했습니다.
 
-- 현재 릴리스: **Ver_2.1** (2026-08-02) — 디자인 토큰 재매핑 + 라이트/다크 테마 전환
+- 현재 릴리스: **Ver_2.1** (2026-09-11) — 디자인 토큰 재매핑 + 라이트/다크 테마 + 바코드/QR 도구
 - 문서: [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) ·
   [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md)(UI 셸 개편·대시보드) ·
   [이전 버전](./docs/Ver_1.1/)
@@ -27,7 +27,7 @@ src/
   hooks/ lib/ types/           # use-toast · use-has-mounted · utils · public-env · supabase/client · kakao-maps.d.ts
   features/shell/              # 좌측 메뉴 레일 + 상단 검색 + 패널 스위치 (Ver_2.0 신설, 14파일)
     constants.ts                # 레일/패널 폭 단일 소스 (CSS 변수로 흘림)
-    types/nav.ts                # NavKey 7종(대시보드·지도·마커관리·그룹관리·CCTV·백업/복원·설정)
+    types/nav.ts                # NavKey 8종(대시보드·지도·마커관리·그룹관리·CCTV·바코드/QR·백업/복원·설정)
     components/                 # app-shell · nav-rail · top-search-bar · panels/(지도·마커·백업·설정)
   features/dashboard/          # 당일 국소 작업 가능 여부 요약 (Ver_2.0 신설, 4파일)
     hooks/use-worksite-board.ts # 저장 국소 동시 4건 날씨 조회, 행 단위 실패 격리
@@ -50,6 +50,7 @@ src/
     hooks/ components/         # 패널 · 타임라인 표 · 위험 요약 · 태풍/위성 모달
   features/gpsmap/             # 주소·좌표 변환 (VWorld · Leaflet, 14파일)
   features/cctv/               # 도로 CCTV 조회 — ITS를 브라우저에서 직접 호출 (13파일)
+  features/barcode/            # 사진 바코드 인식 · QR 생성 · 엑셀 후보 검색
 docs/                          # Ver_1.0 ~ Ver_2.1 문서 세트 · 검수 보고서 · project_review.md
 supabase/migrations/           # DB 마이그레이션 7개
 e2e/                           # Playwright 스모크 테스트
@@ -80,6 +81,17 @@ e2e/                           # Playwright 스모크 테스트
 | **TBM 안전 자료 엑셀 저장** | ✅ |
 | **도로 CCTV 조회·영상 재생**(ITS, 브라우저 직접 호출) | ✅ |
 | **주소/좌표 통합 변환기**(단건·일괄·엑셀, GPS 메뉴) | ✅ |
+| **바코드 사진 인식·QR 코드 생성·엑셀 후보 검색** | ✅ |
+
+### 바코드/QR 도구 (Ver_2.1 신규)
+
+로그인 후 좌측 `바코드/QR` 메뉴에서 바코드 번호를 입력하거나 촬영 사진을 불러와 QR 코드를 생성합니다.
+
+- 여러 바코드 번호를 줄 단위로 입력하고 QR 코드를 한 줄에 3개씩 생성
+- 사진 선택 또는 드래그 앤 드롭으로 바코드를 인식하고 촬영 썸네일을 결과와 연결
+- 결과 사진 확대 창에서 창 이동, 좌·우 90° 회전, 50~300% 확대·축소 및 사진 내부 드래그 지원
+- 엑셀 파일에서 후보 값을 검색해 입력 목록에 추가
+- `@undecaf/zbar-wasm`, `qrcode`, `xlsx` 의존 트리는 메뉴 진입 전까지 지연 로딩
 
 ### UI 셸 + 대시보드 + 라이트/다크 테마 (Ver_2.0~2.1 신규)
 
@@ -132,7 +144,7 @@ e2e/                           # Playwright 스모크 테스트
 npm install
 npm run dev          # 개발 서버 (Turbopack)
 npm run lint         # eslint .
-npm run test         # vitest 단위 테스트 (278건 / 20파일)
+npm run test         # vitest 단위 테스트 (330건 / 27파일)
 npm run test:e2e     # Playwright 스모크 (dev 서버 재사용)
 npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 ```

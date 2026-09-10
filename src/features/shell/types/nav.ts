@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Map,
   MapPin,
+  ScanBarcode,
   Settings,
   Video,
   type LucideIcon,
@@ -16,6 +17,7 @@ export type NavKey =
   | "markers"
   | "groups"
   | "cctv"
+  | "barcode"
   | "backup"
   | "settings";
 
@@ -37,6 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: false },
   // CCTV는 ITS 공공데이터 읽기 전용 조회라 인증을 걸지 않는다.
   { key: "cctv", label: "CCTV", icon: Video, auth: false, enabled: true },
+  { key: "barcode", label: "바코드/QR", icon: ScanBarcode, auth: true, enabled: true },
   { key: "backup", label: "데이터백업/복원", icon: Database, auth: true, enabled: true },
   { key: "settings", label: "설정", icon: Settings, auth: true, enabled: true },
 ];
