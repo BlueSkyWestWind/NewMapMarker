@@ -8,6 +8,94 @@
 
 ---
 
+## [2026-09-26] 2차 구조 점검 — Ver 2.1 현행 구조 및 경로 탐색 변경분
+
+점검 범위: `src/` **228개 TypeScript/TSX 파일 · 36,616줄**, App Router·API 라우트·feature 레이어·Supabase 마이그레이션·테스트 설정·현재 Git 작업 트리.
+검증 실행: `npm test` · `npx tsc --noEmit` · `npx eslint . --max-warnings=0` · `npm run build` · `npm run test:e2e`.
+
+### 1. 구조 요약
+
+#### 1.1 레이어 트리
+
+```
+src/
+├── app/                         App Router 진입점·Providers·GPS 라우트·API 6개
+├── components/ui/               Radix/shadcn 기반 공통 UI
+├── features/shell/              메뉴 레일·패널 전환·동적 로딩 경계
+├── features/map-marker/         카카오 지도·마커·엑셀 백업/복원·캡처
+├── features/dashboard/          저장 국소 날씨 요약·경로탐색 패널 조립
+├── features/worksite-weather/   기상 수집·판정 순수 로직·날씨 UI
+├── features/gpsmap/             VWorld/Leaflet 주소·좌표 변환
+├── features/cctv/               ITS CCTV 조회·재생
+├── features/barcode/             사진 바코드 인식·QR·엑셀 검색
+└── features/route/              경로 상태·TSP·카카오 경로 API·지도 폴리라인
+```
+
+#### 1.2 주요 데이터 흐름
+
+| 기능 | 흐름 |
+| --- | --- |
+| 메뉴/지도 | `AppShell` → `WorkPanel` → feature 패널 → Zustand/TanStack Query → 지도 캔버스 |
+| 경로탐색 | 대시보드 `RoutePanel` → 출발지/방문지 상태 → 근접거리 TSP 정렬 → `/api/kakao-route` → 카카오 REST → 지도 폴리라인·요약 |
+| 날씨 | 저장 국소 → `/api/worksite-weather` → 기상청 소스 병합 → 판정 엔진 → 대시보드/날씨 패널 |
+| 데이터 | 로그인/업로드 UI → feature hook → Supabase 또는 엑셀 data-manager → 목록·지도 갱신 |
+
+#### 1.3 설계상 잘 지켜지고 있는 것
+
+- `npm test`: **333건 / 28파일 통과**.
+- `npx tsc --noEmit`: **통과**.
+- `npx eslint . --max-warnings=0`: **통과**.
+- `npm run build`: **통과**. 홈 First Load JS **291kB**로 프로젝트 기준 295kB 이하이며, GPSMap은 별도 라우트로 분리되어 있다.
+- 카카오 경로 API 요청은 `zod`로 좌표·방문지 수·선택값을 검증하고, 본문 크기 제한·출처 가드·오류 코드 매핑·캐시를 갖춘다(`src/app/api/kakao-route/route.ts`).
+- 무거운 대시보드·바코드·GPS 변환기·모달은 `dynamic()`으로 지연 로딩한다.
+- Git 추적 파일 기준 `.env`·인증서·키 파일은 확인되지 않았다.
+
+### 2. 발견된 문제점
+
+#### 높음
+
+이번 점검에서 사용자 차단·데이터 손실로 즉시 분류할 신규 높음 항목은 확인되지 않았다.
+
+#### 중간
+
+**M2-1. E2E 스모크가 현재 실행 환경에서 완료되지 않는다**
+
+- 위치: `playwright.config.ts:19-24`, `e2e/smoke.spec.ts`.
+- 근거: `npm run test:e2e`가 기존 3000 포트 점유를 감지해 3001 개발 서버를 띄운 뒤, 브라우저 테스트가 시작된 상태에서 90초 이상 종료되지 않았다. 중단 결과는 exit code 1이며 통과/실패 테스트 결과가 남지 않았다.
+- 영향: 앱 셸의 실제 브라우저 회귀 안전망을 이번 점검에서 확인할 수 없다. 현재 스모크는 인증·외부 API와 무관한 기본 렌더만 확인하도록 작성되어 있어, 실행 불능은 검증 공백이다.
+- 제안: 기존 3000 서버를 재사용할지 명시적으로 정하고, CI에서는 고정된 빈 포트/서버 수명주기를 사용한다. Chromium 실행 가능 여부와 `page.goto` 단계별 타임아웃을 분리해 원인을 드러내며, 포트 점유 상태에서도 테스트가 유한 시간 안에 종료되는지 고정한다.
+
+**M2-2. 타입 안전성 설정이 프로젝트 규칙보다 느슨하다**
+
+- 위치: `tsconfig.json:8,20` — `strictNullChecks: false`, `noImplicitAny: false`; `eslint.config.mjs:25-27` — `no-explicit-any`, `no-unused-vars` 비활성.
+- 근거: 실제 `any` 사용이 `use-marker-edit-form.ts`, `roadview-modal.tsx`, `site-search.ts`, `headers.ts` 등에 남아 있다. 빌드는 성공하지만 이 설정에서는 null/암시적 any/미사용 코드가 오류로 승격되지 않는다.
+- 영향: 지도 SDK·엑셀·외부 API 경계에서 잘못된 응답이 컴파일 단계에서 걸러지지 않아, 대형 파일 리팩터링 때 회귀를 조기에 발견하기 어렵다. 특히 프로젝트 AGENTS의 TypeScript `any` 금지 규칙과 실행 설정이 불일치한다.
+- 제안: 즉시 전체 전환하지 말고 새/변경 파일부터 `strictNullChecks`와 명시적 타입을 적용한다. 이후 `any` 사용을 SDK 선언·zod 파싱·구체 타입으로 줄이고, ESLint 규칙을 단계적으로 warning→error로 올린다.
+
+**M2-3. 현재 작업 트리에 기준점이 불명확한 변경이 남아 있다**
+
+- 위치: `git status --short` — 수정 8개, 신규 `.bkit/`, `skills-lock.json`, `src/features/route/`, `/api/kakao-route/` 및 관련 테스트.
+- 근거: 지도·대시보드·시설팀·타입 선언 등 기존 파일 수정과 경로탐색 신규 파일이 한 작업 트리에 함께 있다. 이번 점검에서는 사용자 변경을 보존하기 위해 정리·커밋하지 않았다.
+- 영향: 어떤 변경이 현재 Ver 2.1 기준인지, 어떤 변경이 다음 기능 작업인지 구분하기 어렵고, 문제 재현·롤백·리뷰 범위가 흐려진다.
+- 제안: 기능 단위로 diff를 검토한 뒤 사용자가 관리하는 기준에 따라 커밋 또는 별도 브랜치로 경계를 만든다. 특히 `.bkit/`와 `skills-lock.json`은 프로젝트 산출물인지 도구 상태인지 추적 여부를 명시한다.
+
+#### 낮음
+
+**L2-1. 패키지 버전과 문서 릴리스 버전이 서로 다른 체계를 쓴다**
+
+- 위치: `package.json:3` — `0.1.0`; `README.md` — 현재 릴리스 `Ver_2.1`.
+- 영향: 오류 보고·배포 산출물·화면/문서에서 버전을 대조할 때 사용자가 서로 다른 버전으로 오해할 수 있다.
+- 제안: npm/package 버전을 제품 릴리스와 함께 올릴지, 내부 패키지 버전으로 유지할지 정책을 문서화하고 배포 체크리스트에 반영한다.
+
+### 3. 우선순위 제안
+
+| 순서 | 항목 | 이유 |
+| --- | --- | --- |
+| 1 | M2-1 | E2E가 완료되지 않아 브라우저 런타임 회귀를 확인할 수 없음 |
+| 2 | M2-2 | 외부 API·엑셀·지도 경계가 많아 타입 안전성 완화의 누적 위험이 큼 |
+| 3 | M2-3 | 변경 경계가 흐리면 이후 점검과 복구 기준이 약해짐 |
+| 4 | L2-1 | 기능 장애는 아니지만 배포 식별성과 운영 추적에 혼란을 줌 |
+
 ## [2026-08-01] 1차 구조 점검 — Ver 2.0 계획 대비 현행 구조 검증
 
 점검 범위: `src/` **160파일 · 29,095줄** 전체 + `docs/Ver_2.0/` 문서 5종.

@@ -10,6 +10,7 @@
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"

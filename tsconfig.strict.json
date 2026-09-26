@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/features/route/**/*.ts",
+    "src/app/api/kakao-route/route.ts",
+    "src/lib/api/kakao-route-upstream.ts",
+    "src/types/kakao-maps.d.ts"
+  ]
+}

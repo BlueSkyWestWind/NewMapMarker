@@ -12,7 +12,10 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:3000",
+    // 개발 서버가 3000을 사용 중이어도 기존 서버와 엉뚱하게 연결되지 않도록
+    // E2E 전용 포트를 사용한다. 브라우저 창은 항상 표시하지 않는다.
+    baseURL: "http://localhost:3100",
+    headless: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -20,9 +23,9 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: true,
+    command: "npm run dev -- --port 3100",
+    url: "http://localhost:3100",
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

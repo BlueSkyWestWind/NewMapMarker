@@ -33,6 +33,17 @@ const eslintConfig = [
       '@typescript-eslint/no-unused-vars': 'off',
     },
   },
+  {
+    files: [
+      'src/features/route/**/*.{ts,tsx}',
+      'src/app/api/kakao-route/**/*.ts',
+      'src/lib/api/kakao-route-upstream.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': 'error',
+    },
+  },
 ];
 
 export default eslintConfig;

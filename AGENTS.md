@@ -13,23 +13,6 @@
 - UI 표: 셀 **줄바꿈 금지**. 가로는 박스·모달 폭을 키우고 **가로 스크롤 금지**. 세로 스크롤은 허용.
   → 규칙: `.cursor/rules/table-no-wrap.mdc`
 
-## 코드 작업 방식 (오케스트레이션 기본 적용)
-
-- **코드 변경이 필요한 요청은 트리거 문구 없이도 기본적으로 `orchestration` 스킬을 거친다.**
-  클로드가 확인(요구사항 파악·명세서 작성) → **Orca CLI**로 안티그래비티(`--agent antigravity`)에
-  코딩 요청(사용자에게 안 묻고) → 안티그래비티가 작성+자체검토 → 클로드가 최종 확인, 순서로 진행한다.
-- 핸드오프는 반드시 Orca의 `orchestration` 명령(`run-create`/`task-create`/`worker-start`/
-  `check --wait`)을 거친다. `antigravity-ide` CLI를 직접 shell-out 하지 않는다 — Orca 밖에서
-  별도 창이 뜨고 대시보드에 안 잡힌다.
-  **`--agent gemini`를 쓰지 않는다** — 이름이 비슷하지만 구글 Gemini CLI라는 별개 도구다.
-  `--agent antigravity`는 Antigravity IDE에 이미 로그인된 계정을 자동으로 재사용하므로
-  별도 로그인 절차가 필요 없다.
-- 오타·설정값 하나 고치는 것 같은 사소한 수정도 예외 없이 이 흐름을 탄다.
-- 스킬 상세: `.claude/skills/orchestration/SKILL.md`(마스터 `000.Agents` 저장소의
-  `.agents/skills/orchestration/`가 원본, 이 폴더 것은 junction).
-- 이 절차 안에서도 `AGENTS.md` §0.2 예외 표(데이터 규칙·파괴적 작업·문서 버전·대외 산출물)와
-  §7 가드레일은 그대로 적용 — 해당하면 스킬보다 우선해 사용자에게 확인한다.
-
 ## 스택 규칙
 
 `.ruler/`에서 승계했다(2026-08-01 ruler 제거). 일반론은 버리고 이 프로젝트 고유 규칙만 남겼다.

@@ -4,6 +4,7 @@
 `001.MapMarker`(바닐라 JS)를 Next.js 15 + TypeScript 구조로 재구성했습니다.
 
 - 현재 릴리스: **Ver_2.1** (2026-09-11) — 디자인 토큰 재매핑 + 라이트/다크 테마 + 바코드/QR 도구
+- 버전 표기: `Ver_X.Y`는 사용자 대상 제품 릴리스이며, `package.json`의 `0.1.0`은 npm/배포 패키지 식별자다. 제품 릴리스 변경만으로 npm 버전을 자동 변경하지 않는다.
 - 문서: [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) ·
   [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md)(UI 셸 개편·대시보드) ·
   [이전 버전](./docs/Ver_1.1/)
