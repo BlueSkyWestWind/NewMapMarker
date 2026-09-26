@@ -5,6 +5,7 @@ import { BookmarkPlus, Satellite, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
+import { RoutePanel } from "@/features/route/components/route-panel";
 import { WorksiteBoard } from "@/features/dashboard/components/worksite-board";
 import { useWorksiteBoard } from "@/features/dashboard/hooks/use-worksite-board";
 import { HazardSummaryList } from "@/features/worksite-weather/components/hazard-summary-list";
@@ -49,6 +50,7 @@ export function DashboardPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isTyphoonOpen, setIsTyphoonOpen] = useState(false);
   const [isSatelliteOpen, setIsSatelliteOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"weather" | "route">("weather");
 
   const allSiteIds = rows.map((row) => row.site.id);
   const isAllOverlaysOpen =
@@ -117,9 +119,48 @@ export function DashboardPanel() {
     </>
   );
 
+  const tabBar = (
+    <div className="flex gap-1 rounded-md border border-slate-800 bg-slate-900/60 p-1">
+      <button
+        type="button"
+        className={cn(
+          "flex-1 rounded px-2 py-1 text-[11px] font-semibold transition-colors",
+          activeTab === "weather"
+            ? "bg-slate-700 text-slate-100"
+            : "text-slate-400 hover:text-slate-200",
+        )}
+        onClick={() => setActiveTab("weather")}
+      >
+        기상 요약
+      </button>
+      <button
+        type="button"
+        className={cn(
+          "flex-1 rounded px-2 py-1 text-[11px] font-semibold transition-colors",
+          activeTab === "route"
+            ? "bg-slate-700 text-slate-100"
+            : "text-slate-400 hover:text-slate-200",
+        )}
+        onClick={() => setActiveTab("route")}
+      >
+        길찾기
+      </button>
+    </div>
+  );
+
+  if (activeTab === "route") {
+    return (
+      <div className="space-y-3">
+        {tabBar}
+        <RoutePanel />
+      </div>
+    );
+  }
+
   if (rows.length === 0) {
     return (
       <div className="space-y-3">
+        {tabBar}
         {weatherButtons}
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center">
           <BookmarkPlus className="h-6 w-6 text-sky-400" aria-hidden />
@@ -150,6 +191,7 @@ export function DashboardPanel() {
 
   return (
     <div className="space-y-3">
+      {tabBar}
       {weatherButtons}
 
       <WorksiteBoard

@@ -50,6 +50,14 @@ declare global {
           fillOpacity?: number;
           zIndex?: number;
         }) => KakaoPolygon;
+        Polyline: new (options: {
+          path: KakaoLatLng[];
+          strokeWeight?: number;
+          strokeColor?: string;
+          strokeOpacity?: number;
+          strokeStyle?: string;
+          zIndex?: number;
+        }) => KakaoPolyline;
         RoadviewOverlay: new () => KakaoRoadviewOverlay;
         Roadview: new (
           container: HTMLElement,
@@ -137,6 +145,13 @@ declare global {
   interface KakaoPolygon {
     setMap: (map: KakaoMap | null) => void;
     setPath: (path: KakaoLatLng[] | KakaoLatLng[][]) => void;
+    setOptions: (options: Record<string, unknown>) => void;
+  }
+
+  interface KakaoPolyline {
+    setMap: (map: KakaoMap | null) => void;
+    getPath: () => KakaoLatLng[];
+    setPath: (path: KakaoLatLng[]) => void;
     setOptions: (options: Record<string, unknown>) => void;
   }
 
