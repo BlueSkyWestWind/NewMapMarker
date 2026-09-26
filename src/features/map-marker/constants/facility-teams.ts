@@ -44,15 +44,13 @@ const COLOR_NAME_ALIASES: Record<string, string> = {
   오렌지: '#f97316',
 };
 
+/** 장비(공정관리) 백업 내보내기 전용 — 축전지는 담당팀 색상 정의를 별도로 쓰므로 여기서
+ * FACILITY_TEAMS를 조회하지 않는다. 조회하면 장비 색상이 우연히 팀 색상 hex와 같을 때
+ * (예: 라임 #84cc16 = 3팀) 백업 엑셀에 팀명이 잘못 찍힌다. */
 export function getColorDisplayName(colorHex: string): string {
   const normalized = (colorHex || '').toLowerCase().trim();
   if (!normalized) {
     return LEGACY_COLOR_NAMES[DEFAULT_MARKER_COLOR];
-  }
-  for (const team of Object.values(FACILITY_TEAMS)) {
-    if (team.color.toLowerCase() === normalized) {
-      return team.label;
-    }
   }
   return LEGACY_COLOR_NAMES[normalized] ?? colorHex;
 }

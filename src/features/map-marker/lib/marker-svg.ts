@@ -120,11 +120,15 @@ export function getEffectiveMarkerColor(marker: MarkerRecord, mode: MapMode) {
   return marker.color || DEFAULT_MARKER_COLOR;
 }
 
-export function getMarkerColorLabel(colorHex: string) {
+export function getMarkerColorLabel(colorHex: string, mode: MapMode) {
   const normalized = (colorHex || "").toLowerCase().trim();
-  for (const [teamId, team] of Object.entries(FACILITY_TEAMS)) {
-    if (team.color.toLowerCase() === normalized) {
-      return getFacilityTeamDisplayName(teamId);
+  // 축전지 담당팀 색상과 장비 색상 팔레트가 hex를 공유할 수 있어(예: 라임 #84cc16),
+  // mode로 구분하지 않으면 장비 색상이 엉뚱한 담당팀 이름으로 표시된다.
+  if (mode === "battery") {
+    for (const [teamId, team] of Object.entries(FACILITY_TEAMS)) {
+      if (team.color.toLowerCase() === normalized) {
+        return getFacilityTeamDisplayName(teamId);
+      }
     }
   }
   return LEGACY_COLOR_NAMES[normalized] ?? colorHex;

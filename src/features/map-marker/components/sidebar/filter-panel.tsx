@@ -136,7 +136,7 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
         selected={filters.selectedColors}
         onToggle={(value) => toggleFilterValue('color', value)}
         onSetAll={(values) => selectAllFilterValues('color', values)}
-        renderLabel={(value) => getMarkerColorLabel(value)}
+        renderLabel={(value) => getMarkerColorLabel(value, mode)}
       />
       <FilterGroup
         title="태그"
