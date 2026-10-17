@@ -13,10 +13,8 @@ import type {
  * 클라이언트는 정규화된 요청 1개만 보낸다. 편도/왕복 오케스트레이션과
  * GET/POST 자동 선택은 이 라우트와 kakao-route-upstream이 감춘다.
  *
- * 인증: 이 저장소의 다른 프록시 라우트(kakao-static-map 등)와 동일하게
- * guardProxyRequest(동일 출처 + IP 레이트리밋)만 사용한다. 프로젝트 전체에
- * 서버 세션 인증 helper가 없어, 이 라우트만을 위해 새로 만들지 않기로
- * 사용자와 합의했다(§3.2 "기존과 다른 인증 체계를 새로 만들지 않는다").
+ * 인증: 다른 프록시 라우트와 동일하게 guardProxyRequest를 쓴다
+ * (동일 출처 + IP 레이트리밋 + 로그인 Bearer 토큰 검증).
  */
 
 const MAX_BODY_BYTES = 32 * 1024;
@@ -103,7 +101,7 @@ function errorResponse(error: RouteErrorPayload): NextResponse {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const blocked = guardProxyRequest(request);
+  const blocked = await guardProxyRequest(request);
   if (blocked) return blocked;
 
   const rawText = await request.text();

@@ -79,7 +79,8 @@ function loadKakaoSdk(appKey: string, forceReload = false) {
         KAKAO_SDK_SCRIPT_ID,
       ) as HTMLScriptElement | null;
 
-      // 레이아웃에서 미리 넣은 script가 있으면 제거하지 않고 로드를 기다린다.
+      // 정적 삽입은 없다(로그인 전에는 SDK를 받지 않는다). 이미 동적으로 넣은 script가 남아 있으면
+      // 제거하지 않고 로드를 기다린다.
       if (existing && !forceReload) {
         if (window.kakao?.maps?.load) {
           finishSuccess();

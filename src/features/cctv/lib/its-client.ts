@@ -1,3 +1,4 @@
+import { authedFetch } from "@/lib/api/authed-fetch";
 import type { BoundingBox } from "@/features/cctv/constants/its-config";
 import { parseCctvDirection } from "@/features/cctv/lib/parse-direction";
 import type { CctvItem } from "@/features/cctv/types/cctv";
@@ -12,8 +13,9 @@ import type { CctvItem } from "@/features/cctv/types/cctv";
  * 반면 사용자 브라우저는 한국에서 접속하므로 ITS에 직접 닿고, ITS는 CORS를 지원한다
  * (`Access-Control-Allow-Origin`이 Origin을 반향). 경위는 계획서 부록 E.
  *
- * ⚠️ 그 대가로 **인증키가 번들에 노출된다.** ITS 키는 무료이고 재발급이 가능하며,
+ * ⚠️ 그 대가로 **인증키가 브라우저로 전달된다.** ITS 키는 무료이고 재발급이 가능하며,
  * 서버 경유가 불가능한 상황에서 선택한 트레이드오프다(부록 E.9).
+ * 다만 키는 정적 번들에 넣지 않고, 로그인한 사용자에게만 `/api/its-key`로 내려준다.
  *
  * 응답 봉투는 성공과 실패의 **모양이 다르다.**
  * 성공 `{ response: { data: [...] } }` · 실패 `{ header: { resultCode, resultMsg }, body: "" }`
@@ -27,7 +29,7 @@ export class ItsError extends Error {}
 let keyPromise: Promise<string> | null = null;
 
 async function fetchApiKeyFromServer(): Promise<string> {
-  const response = await fetch("/api/its-key", { cache: "no-store" });
+  const response = await authedFetch("/api/its-key", { cache: "no-store" });
   const body = (await response.json().catch(() => ({}))) as {
     key?: string;
     error?: string;
@@ -40,16 +42,9 @@ async function fetchApiKeyFromServer(): Promise<string> {
 }
 
 /**
- * ITS 인증키.
- *
- * 빌드 시점에 값이 박혔으면 그대로 쓰고(로컬 `.env.local` 경로),
- * 없으면 런타임에 서버에서 받아온다. `NEXT_PUBLIC_*`은 빌드 때만 치환되므로
- * Cloudflare 런타임 변수로 등록한 경우 이 경로가 아니면 키를 찾지 못한다.
+ * ITS 인증키. 로그인 후 서버에서만 받는다(번들에 내장하지 않는다 — 비로그인 방문자도 꺼낼 수 있다).
  */
 async function getApiKey(): Promise<string> {
-  const inlined = (process.env.NEXT_PUBLIC_ITS_API_KEY ?? "").trim();
-  if (inlined) return inlined;
-
   // 실패한 약속을 남겨 두면 이후 조회가 영구히 같은 오류로 막힌다
   keyPromise ??= fetchApiKeyFromServer().catch((error: unknown) => {
     keyPromise = null;

@@ -3,6 +3,7 @@ import type {
   RouteErrorPayload,
   RoutePlanRequest,
 } from "@/features/route/types/route";
+import { authedFetch } from "@/lib/api/authed-fetch";
 
 export class RouteApiError extends Error {
   code: RouteErrorPayload["code"];
@@ -17,7 +18,7 @@ export class RouteApiError extends Error {
 export async function planRoute(
   request: RoutePlanRequest,
 ): Promise<NormalizedRouteResult> {
-  const response = await fetch("/api/kakao-route", {
+  const response = await authedFetch("/api/kakao-route", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

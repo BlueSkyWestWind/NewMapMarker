@@ -2,6 +2,7 @@ import type {
   SiteMatch,
   WorksiteWeatherResponse,
 } from "@/features/worksite-weather/types/weather";
+import { authedFetch } from "@/lib/api/authed-fetch";
 
 /**
  * 브라우저 → 자기 서버(`/api/worksite-weather`) 조회.
@@ -28,7 +29,7 @@ export function worksiteWeatherKey(site: SiteMatch): string {
 async function requestWorksiteWeather(
   site: SiteMatch,
 ): Promise<WorksiteWeatherResponse> {
-  const response = await fetch(`/api/worksite-weather?${buildWorksiteWeatherQuery(site)}`);
+  const response = await authedFetch(`/api/worksite-weather?${buildWorksiteWeatherQuery(site)}`);
 
   // 서버가 500을 내면 본문이 평문 "Internal Server Error"라 JSON 파싱이 깨진다.
   // 그대로 두면 사용자에게 "Unexpected token 'I'" 같은 메시지가 노출된다.

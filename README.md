@@ -274,10 +274,11 @@ npx wrangler secret put ITS_API_KEY
 | `ITS_API_KEY` | [ITS 국가교통정보센터 오픈데이터](https://www.its.go.kr/opendata/) 인증키 |
 
 기상 API 키와 동일하게 **Secret 타입**으로 등록하세요. 로컬은 `.env.local`에 추가합니다.
+**`NEXT_PUBLIC_` 접두사를 붙이지 마세요** — 빌드 때 번들에 박혀 비로그인 방문자에게도 노출됩니다.
 
 > CCTV 조회는 **브라우저가 ITS를 직접 호출**합니다(서버 경유 불가, 상세는
 > [`Ver_1.1_CCTV_PLAN.md`](./docs/Ver_1.1/Ver_1.1_CCTV_PLAN.md) 부록 E). `/api/its-key` 라우트가
-> 이 키를 런타임에 브라우저로 전달합니다. 미설정 시 CCTV 조회가 인증키 오류로 실패합니다.
+> 이 키를 **로그인한 사용자에게만** 런타임에 전달합니다(Bearer 토큰 검증). 미설정 시 CCTV 조회가 인증키 오류로 실패합니다.
 
 ### 환경 변수 (선택)
 

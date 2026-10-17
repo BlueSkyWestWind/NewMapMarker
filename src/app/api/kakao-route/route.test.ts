@@ -2,6 +2,11 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 
+// 이 파일은 입력 검증·응답 변환을 본다. 로그인 토큰 검증은 verify-auth-token 테스트가 맡는다.
+vi.mock("@/lib/api/verify-auth-token", () => ({
+  verifyAuthToken: async () => ({ ok: true, userId: "test-user" }),
+}));
+
 const ORIGIN = { id: "o", name: "출발", lat: 35.1, lng: 126.9 };
 
 function makeRequest(body: unknown): NextRequest {

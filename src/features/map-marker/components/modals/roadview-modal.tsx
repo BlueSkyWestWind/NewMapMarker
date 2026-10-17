@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import { Calendar, AlertTriangle, Loader2 } from 'lucide-react';
+import { authedFetch } from '@/lib/api/authed-fetch';
 
 interface RoadviewDateItem {
   panoId: string;
@@ -56,7 +57,8 @@ export function RoadviewModal() {
     lastFetchedPanoId.current = panoId;
 
     const fetchDates = async (url: string) => {
-      const response = await fetch(url);
+      // 우리 서버(/api/)에만 로그인 토큰을 보낸다. 카카오 직접 호출 폴백에는 보내지 않는다.
+      const response = url.startsWith('/api/') ? await authedFetch(url) : await fetch(url);
       if (!response.ok) throw new Error();
       return response.json();
     };

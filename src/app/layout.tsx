@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { KakaoSdkScript } from "@/components/kakao-sdk-script";
 import { PublicEnvScript } from "@/components/public-env-script";
 import "./globals.css";
 import Providers from "./providers";
@@ -31,7 +30,6 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <PublicEnvScript />
-        <KakaoSdkScript />
         <Providers>{children}</Providers>
       </body>
     </html>

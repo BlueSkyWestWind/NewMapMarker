@@ -1,3 +1,5 @@
+import { authedFetch } from "@/lib/api/authed-fetch";
+
 /**
  * html2canvas(약 190KB)는 지도 캡처를 실행하는 순간에만 필요하다.
  * 정적 import하면 캡처 패널을 통해 홈 첫 로딩 번들에 실린다.
@@ -112,7 +114,7 @@ async function fetchTileAsDataUrl(tileUrl: string): Promise<string> {
   if (pending) return pending;
 
   const request = (async () => {
-    const response = await fetch(
+    const response = await authedFetch(
       `/api/map-tile-proxy?url=${encodeURIComponent(tileUrl)}`,
       { cache: "force-cache" },
     );

@@ -10,26 +10,22 @@ import { guardProxyRequest } from "@/lib/api/proxy-guard";
  * 치환되므로 Cloudflare의 런타임 변수로 넣으면 참조만 남고 `undefined`가 된다.
  * 여기서 런타임에 읽어 넘기면 빌드/런타임 변수 구분에 걸리지 않는다.
  *
- * 어차피 공개되는 값이라 이 라우트가 노출 수준을 높이지 않는다.
- * 오히려 정적 번들에 박히는 것보다 낫다 — 출처 검사와 레이트리밋이 걸린다.
+ * **로그인한 사용자에게만** 전달한다(Bearer 토큰 검증). 키가 정적 번들에 박히면 비로그인
+ * 방문자도 꺼낼 수 있으므로, 이 라우트로만 내려준다. 출처 검사와 레이트리밋도 함께 걸린다.
  */
 export async function GET(request: NextRequest) {
-  const blocked = guardProxyRequest(request);
+  const blocked = await guardProxyRequest(request);
   if (blocked) return blocked;
 
-  // 어느 이름으로 등록했든 찾도록 둘 다 본다. 이름 때문에 다시 실패하지 않게.
-  const key = (
-    process.env.NEXT_PUBLIC_ITS_API_KEY ??
-    process.env.ITS_API_KEY ??
-    ""
-  ).trim();
+  // 서버 전용 변수만 읽는다. NEXT_PUBLIC_*은 빌드 때 번들에 박혀 비로그인 방문자에게도 노출된다.
+  const key = (process.env.ITS_API_KEY ?? "").trim();
 
   if (!key) {
     return NextResponse.json(
       {
         error:
           "ITS 인증키가 설정되지 않았습니다. " +
-          "Cloudflare 변수에 ITS_API_KEY(또는 NEXT_PUBLIC_ITS_API_KEY)를 등록하세요. " +
+          "Cloudflare 변수에 ITS_API_KEY를 등록하세요. " +
           "(발급: https://www.its.go.kr/opendata/)",
       },
       { status: 500 },

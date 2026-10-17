@@ -20,7 +20,7 @@ function isAllowedTileHost(hostname: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = guardProxyRequest(request);
+  const blocked = await guardProxyRequest(request);
   if (blocked) return blocked;
 
   const rawUrl = request.nextUrl.searchParams.get("url");

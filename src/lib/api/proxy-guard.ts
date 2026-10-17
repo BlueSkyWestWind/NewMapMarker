@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAuthToken } from "@/lib/api/verify-auth-token";
 
 /**
  * 브라우저에서만 호출되는 프록시 라우트(정적맵·타일·로드뷰)를 외부 남용으로부터 보호한다.
@@ -89,8 +90,14 @@ function isRateLimited(request: NextRequest): boolean {
 
 /**
  * 프록시 라우트 진입부에서 호출. 차단해야 하면 NextResponse를, 통과면 null을 반환한다.
+ *
+ * 순서: 출처 검사 → 레이트리밋 → 로그인 토큰 검증.
+ * 토큰 검증이 Supabase 호출이라 가장 비싸므로, 앞의 두 검사로 걸러진 요청은 거기까지 가지 않는다.
+ * **async다 — 호출부는 반드시 `await` 한다.** (빼먹으면 Promise가 항상 truthy라 모든 요청이 막힌다)
  */
-export function guardProxyRequest(request: NextRequest): NextResponse | null {
+export async function guardProxyRequest(
+  request: NextRequest,
+): Promise<NextResponse | null> {
   if (!isSameOriginRequest(request)) {
     return NextResponse.json(
       { error: "허용되지 않은 요청 출처입니다." },
@@ -102,6 +109,11 @@ export function guardProxyRequest(request: NextRequest): NextResponse | null {
       { error: "요청이 너무 많습니다. 잠시 후 다시 시도하세요." },
       { status: 429, headers: { "Retry-After": "60" } },
     );
+  }
+
+  const auth = await verifyAuthToken(request);
+  if (auth.ok === false) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   return null;
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardProxyRequest } from '@/lib/api/proxy-guard';
 
 export async function GET(request: NextRequest) {
-  const blocked = guardProxyRequest(request);
+  const blocked = await guardProxyRequest(request);
   if (blocked) return blocked;
 
   const panoId = request.nextUrl.searchParams.get('panoId');
@@ -25,9 +25,10 @@ export async function GET(request: NextRequest) {
       status: response.status,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
-        // 촬영일자는 자주 바뀌지 않으므로 캐시해 쿼터를 절약한다.
+        // 촬영일자는 자주 바뀌지 않으므로 브라우저에서 캐시해 쿼터를 절약한다.
+        // 로그인 사용자용 응답이라 공유 캐시(CDN)에 남지 않도록 private으로 둔다.
         'Cache-Control': response.ok
-          ? 'public, max-age=3600, s-maxage=86400'
+          ? 'private, max-age=3600'
           : 'no-store',
       },
     });

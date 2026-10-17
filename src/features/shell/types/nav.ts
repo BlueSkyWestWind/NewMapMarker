@@ -37,7 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "map", label: "지도", icon: Map, auth: false, enabled: true },
   { key: "markers", label: "마커관리", icon: MapPin, auth: true, enabled: true },
   { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: false },
-  // CCTV는 ITS 공공데이터 읽기 전용 조회라 인증을 걸지 않는다.
+  // 앱 전체가 로그인 벽(AuthGate) 안에 있어 CCTV도 로그인 후에만 열린다. 이 auth 플래그는 레일 노출 여부용이다.
   { key: "cctv", label: "CCTV", icon: Video, auth: false, enabled: true },
   { key: "barcode", label: "바코드/QR", icon: ScanBarcode, auth: true, enabled: true },
   { key: "backup", label: "데이터백업/복원", icon: Database, auth: true, enabled: true },

@@ -45,7 +45,7 @@ function parseWorkType(raw: string | null): WorkType {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = guardProxyRequest(request);
+  const blocked = await guardProxyRequest(request);
   if (blocked) return blocked;
 
   const params = request.nextUrl.searchParams;
