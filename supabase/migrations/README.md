@@ -27,19 +27,21 @@ Supabase 대시보드 → **SQL Editor** 에 아래 한 파일만 붙여넣고 *
 
 전 테이블 공통:
 
-- **조회(SELECT)**: `anon`, `authenticated` 모두 허용 → 비로그인도 지도 관람 가능
-- **조작(INSERT/UPDATE/DELETE)**: `authenticated`(로그인)만 허용
+- **조회·조작(SELECT/INSERT/UPDATE/DELETE) 전부**: `authenticated`(로그인)만 허용 → 비로그인(anon)은 마커를 읽지도 쓰지도 못한다
+
+> 위 정책은 `20261017000000_require_login_for_marker_read.sql` 적용 후의 상태다. 정식 스키마 파일(`20260718120000_…`)은 anon 조회를 여는 정책을 만들므로, **새 DB를 만들 때는 두 파일을 순서대로 모두 실행**해야 한다.
 
 ## 파일 목록
 
 | 파일 | 역할 |
 | --- | --- |
-| `20260718120000_recreate_full_schema_with_erp.sql` | **최신·정식.** 전체 스키마(+ERP, `parent_marker_id`, `group_role`) + RLS. 이 파일 하나로 완결 |
+| `20261017000000_require_login_for_marker_read.sql` | **보안.** anon 조회·쓰기 정책 삭제 → 로그인 사용자만 마커 접근. 정식 스키마 파일 **다음에** 실행 |
+| `20260718120000_recreate_full_schema_with_erp.sql` | **정식 스키마.** 전체 스키마(+ERP, `parent_marker_id`, `group_role`) + RLS(초기 상태는 anon 조회 허용) |
 | `20260627000001_enable_rls_and_policies.sql` | (구) RLS 활성화·정책. 위 파일에 통합되어 대체됨 |
 | `20260627000000_disable_rls_battery_tables.sql` | (구) 축전지 RLS 임시 비활성 핫픽스. 위 파일에서 정상 RLS로 복구됨 |
 | `20260626000000_map_marker_schema_reference.sql` | 스키마 요약 주석(참조용) |
 
-> Supabase CLI(`supabase db push`)로 순서대로 적용하면 위 3·4번째의 (구) RLS 파일이 먼저 실행됐다가 최신 파일이 최종 상태로 덮어씁니다. **SQL Editor 수동 실행 시에는 최신 파일 하나만** 실행하면 됩니다.
+> Supabase CLI(`supabase db push`)로 순서대로 적용하면 위 3·4번째의 (구) RLS 파일이 먼저 실행됐다가 최신 파일이 최종 상태로 덮어씁니다. **SQL Editor 수동 실행 시에는 `20260718120000_…` → `20261017000000_…` 두 파일만** 순서대로 실행하면 됩니다.
 
 ## 기존 `001.MapMarker` DB 재사용
 
