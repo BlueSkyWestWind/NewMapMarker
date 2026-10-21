@@ -1,5 +1,26 @@
 # Walkthrough
 
+## [2026-10-21] /gpsmap 엑셀 라이브러리 지연 로딩 (Ver 2.3)
+
+### 개요 및 목적
+
+로딩 속도 점검에서 `/gpsmap`이 엑셀 라이브러리(`xlsx`, 약 155 KB 압축)를 첫 방문부터 받는 것을 확인했다. 엑셀 내려받기를 누를 때만 필요하다.
+
+### 변경된 내용
+
+- `gps-converter-panel.tsx`·`gpsmap-page.tsx`의 `export-excel` 정적 import를 클릭 시점의 `import()`로 교체(같은 폴더 `map-pick-controls.tsx`가 이미 쓰던 방식).
+- 화면·동작 변화 없음. 엑셀 내려받기 첫 클릭에서만 청크를 받는다.
+- 위성(하이브리드) 기본 지도와 메뉴 전환 구조는 바꾸지 않았다. 지도 메뉴 전환 지연은 프로파일 결과 우리 JS가 아니라 React 렌더·브라우저 레이아웃이라 보류.
+
+### 검증 결과
+
+- `/gpsmap` First Load JS 363 kB → 205 kB (빌드 출력), 홈 294 kB 그대로
+- 콜드 로딩(Edge, 로컬 프로덕션 빌드, 3회 중앙값): JS 전송 380 → 225 KB, 모바일급(Slow 4G + CPU 4x) LCP 2,588 → 1,928 ms
+- `npx tsc --noEmit` · `npx eslint . --max-warnings=0` 통과, `npm test` 410건 통과
+- 엑셀 내려받기 버튼의 실제 동작은 UI에서 직접 확인하지 못했다(사용자 확인 필요)
+
+---
+
 ## [2026-10-21] 구조 정비 (Ver 2.3)
 
 ### 개요 및 목적

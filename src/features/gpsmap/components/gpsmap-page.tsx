@@ -25,10 +25,11 @@ import {
   runBatchLookup,
   type BatchRow,
 } from '@/features/gpsmap/lib/batch-lookup';
-import {
-  downloadBatchExcel,
-  downloadSingleExcel,
-} from '@/features/gpsmap/lib/export-excel';
+// xlsx(SheetJS)는 무거워 첫 로딩에 싣지 않는다 — 내려받기를 누르는 시점에만 불러온다.
+const downloadBatchExcel = (rows: BatchRow[]) =>
+  void import('@/features/gpsmap/lib/export-excel').then((m) => m.downloadBatchExcel(rows));
+const downloadSingleExcel = (result: GpsLookupResult) =>
+  void import('@/features/gpsmap/lib/export-excel').then((m) => m.downloadSingleExcel(result));
 
 type WorkMode = 'single' | 'batch';
 
