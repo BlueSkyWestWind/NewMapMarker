@@ -35,6 +35,7 @@ Supabase 대시보드 → **SQL Editor** 에 아래 한 파일만 붙여넣고 *
 
 | 파일 | 역할 |
 | --- | --- |
+| `20261021000000_fix_erp_schema_lint_warnings.sql` | **Advisor 정리.** `erp` 스키마(다른 앱 소유)의 `set_updated_at` search_path 고정 + `*_auth_all` 정책 경고 해소. 동작은 그대로(권한 강화 아님). 해당 스키마가 없으면 아무 일도 안 한다 |
 | `20261017000000_require_login_for_marker_read.sql` | **보안.** anon 조회·쓰기 정책 삭제 → 로그인 사용자만 마커 접근. 정식 스키마 파일 **다음에** 실행 |
 | `20260718120000_recreate_full_schema_with_erp.sql` | **정식 스키마.** 전체 스키마(+ERP, `parent_marker_id`, `group_role`) + RLS(초기 상태는 anon 조회 허용) |
 | `20260627000001_enable_rls_and_policies.sql` | (구) RLS 활성화·정책. 위 파일에 통합되어 대체됨 |
@@ -46,3 +47,16 @@ Supabase 대시보드 → **SQL Editor** 에 아래 한 파일만 붙여넣고 *
 ## 기존 `001.MapMarker` DB 재사용
 
 이미 구축된 DB가 있으면 `.env`만 연결하면 됩니다. 다만 이 앱은 `erp_details` 테이블과 `markers.parent_marker_id` / `group_role` 컬럼을 사용하므로, 없으면 위 최신 파일을 재실행해 **누락분만 추가**하세요(재실행 안전).
+
+## Security Advisor 경고 정리 (2026-10-21, 22건)
+
+| 경고 | 건수 | 해결 |
+| --- | --- | --- |
+| `public.markers/information/erp_details` 의 `*_insert_anon`·`*_update_anon` (RLS Policy Always True) | 6 | `20261017000000_require_login_for_marker_read.sql` |
+| `erp.*_auth_all` (RLS Policy Always True) | 14 | `20261021000000_fix_erp_schema_lint_warnings.sql` (경고 해소, 권한은 동일) |
+| `erp.set_updated_at` (Function Search Path Mutable) | 1 | `20261021000000_fix_erp_schema_lint_warnings.sql` |
+| Leaked Password Protection Disabled | 1 | SQL 아님. 대시보드 **Authentication → Sign In / Providers → Email → Prevent use of leaked passwords** 켜기 (Pro 플랜 이상에서 제공) |
+
+> **가입 차단 확인**: 이 앱의 `authenticated` 는 "이 Supabase 프로젝트에 가입된 누구나"다. 앱 화면에는 가입 UI가 없지만,
+> 대시보드 **Authentication → Sign In / Providers → Allow new users to sign up** 이 켜져 있으면 anon 키로 직접 가입해 로그인 벽을 통과할 수 있다.
+> 사용자를 직접 만들어 쓴다면 이 옵션을 끄는 것을 권한다.

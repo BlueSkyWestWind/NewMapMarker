@@ -8,6 +8,99 @@
 
 ---
 
+## [2026-10-21] 3차 구조 점검 — Ver 2.2 로그인 벽 이후, Ver 2.3 정비 대상 선별
+
+점검 범위: `src/` 비테스트 **201파일 · 33,501줄**, 테스트 31파일, `package.json` 의존성, `docs/`, 설정 파일, Supabase 마이그레이션.
+실측 방법: 파일별 줄 수 집계 · 미참조 파일 스캔(스크립트) · 의존성별 import 수 · `npm audit` · **임시 tsconfig로 `strictNullChecks`+`noImplicitAny` 전체 적용 시 오류 수 측정**(측정 후 임시 파일 삭제).
+기준선: `npm test` 354건/31파일 통과 · `tsc`·`eslint` 0건 · 홈 First Load JS **294 kB**(`/gpsmap` 363 kB).
+
+### 1. 잘된 점 (유지)
+
+| 항목 | 근거 |
+| --- | --- |
+| feature 단위 분리와 순수 로직 중심 설계 | `worksite-weather/lib` 12모듈이 전부 순수함수이고 테스트 10파일이 밀집. `route`도 4파일 테스트 |
+| 번들 관리 | 대시보드·바코드·변환기·모달을 `dynamic()`로 분리, `/gpsmap`은 별도 라우트. 홈 294 kB < 기준 295 kB |
+| 서버 경계 | 모든 프록시 라우트가 `guardProxyRequest`(출처→레이트리밋→로그인 토큰)를 거치고, `kakao-route`는 zod로 입력 검증·크기 제한 |
+| 데이터 보호 | RLS(authenticated 전용) + 앱 전체 로그인 벽 + ITS 키 서버 전용. 시크릿은 `.env*` 미커밋 |
+| 단일 소스 상수 | 폭 상수(`shell/constants.ts`), `VERDICT_*`, 디자인 토큰이 한 곳에서 흐른다 |
+| 문서·이력 체계 | `docs/Ver_X.Y/` 폴더, 이 파일에 점검 누적, 계획→실행→검증 기록이 남는다 |
+
+### 2. 못된 점
+
+#### 높음
+
+**H3-1. 의존성 취약점 31건 — critical 2건(`next` 포함)**
+
+- 근거: `npm audit` = low 1 · moderate 7 · high 21 · **critical 2**(`next` 직접 의존성, `proxy-addr` 간접 의존성). `next 15.5.18`은 같은 마이너 내 패치(`15.5.x` 상위)로 해소 가능. 사용하지 않는 `axios`도 high 항목에 포함.
+- 영향: 인터넷에 노출된 앱이 알려진 취약 버전을 쓴다.
+- 제안: 패치 버전 상향 + 미사용 의존성 제거 + `npm audit fix`(강제 아님). `tailwindcss 4`·`eslint-config-next` 다운그레이드 같은 major 제안은 제외.
+
+#### 중간
+
+**M3-1. `map-marker` feature 비대와 거대 단일 함수**
+
+- 근거: `map-marker` = 69파일 · 18,408줄 = **전체의 55%**. 상위 3파일이 4,875줄(14.6%): `marker-detail-modal.tsx` 2,017줄(컴포넌트 1개가 1,700줄, hook 호출 26개), `use-excel-upload-actions.tsx` 1,539줄(훅 1개가 1,300줄), `kakao-map-canvas.tsx` 1,319줄(컴포넌트 1개가 1,200줄).
+- 영향: 변경 때마다 회귀 범위를 가늠하기 어렵고, `.tsx` 테스트가 불가능해 안전망이 없다.
+- 제안: 1단계로 **컴포넌트 밖에 있는 순수 헬퍼만** `lib/`로 옮기고(marker-detail-modal 43–304줄 ≈ 260줄, excel-upload 32–227줄 ≈ 195줄) 테스트로 고정. 컴포넌트 본체 분할은 별도 스펙으로 분리(이번 범위 밖).
+
+**M3-2. 타입 안전성 설정이 느슨하고, 그 영향이 한 곳에 몰려 있다**
+
+- 근거: `tsconfig.json`의 `strictNullChecks:false`·`noImplicitAny:false`, ESLint `no-unused-vars`·`no-explicit-any` 비활성. **전 `src`에 엄격 설정을 임시 적용하면 오류 157건 / 17파일**이고, 그중 **map-marker 153건, 그중 `lib/excel/data-manager` 116건**(`parse.ts` 61 · `export.ts` 22 · `info-records.ts` 17 · `headers.ts` 9 · `date-utils.ts` 4 · `shared.ts` 3). 코드별로 TS18046(`unknown` 사용) 53 · TS7006(암시적 any 매개변수) 50 · TS18048(undefined 가능) 35. `: any` 19곳, `eslint-disable` 5곳. 또한 `data-manager`는 `Record<string, any> & ThisType<any>` 믹스인 객체가 `this`로 서로를 부르는 구조(`index.ts`)인데 **전용 테스트가 0건**이다. 외부에서 쓰는 메서드는 `parseExcelOrCSV`·`parseInfoExcel`·`upsertInformationToSupabase`·`exportFullBackupToExcel`·`parseFullBackupExcel`.
+- 영향: 엑셀·지도 SDK 같은 외부 경계의 null/타입 오류가 컴파일 단계에서 걸리지 않는다. 느슨한 설정 때문에 **미사용 코드가 쌓였다**(아래 3.1이 증거).
+- 제안: 157건은 한 번에 끝낼 수 있는 규모다. 영역별로 0건으로 만든 뒤 `tsconfig.json`에 전체 적용하고, 부분 적용용 `tsconfig.strict.json`은 폐지.
+
+**M3-3. 테스트 안전망이 기능별로 비대칭이다**
+
+- 근거: feature별 테스트 파일 수 / 비테스트 줄 수 — `map-marker` 7 / 18,408 · `gpsmap` 1 / 2,805 · `shell`·`dashboard`·`barcode`·`components` **0** / 각 1,042·610·1,257·1,446. `vitest.config.ts`의 `include`가 `.ts`뿐이라 `.tsx` 테스트는 조용히 실행되지 않는다. E2E는 이 PC에 Playwright 브라우저가 없어 실행되지 않는다(2026-10-17 확인).
+- 제안: 새 의존성(jsdom 등) 없이 **순수 로직을 `.ts`로 분리해 테스트**하는 방향을 유지한다. E2E는 `npx playwright install chromium` 안내와 함께 문서화.
+
+#### 낮음
+
+**L3-1. 문서가 코드보다 뒤처졌다** — `README.md`의 "현재 릴리스"가 `Ver_2.1`인데 로그인 벽·길찾기(2.2)가 들어갔다. 루트에 `PROJECT_ANALYSIS_2026-07-18.md`·`walkthrough.md`·`Ver_2.2_implementation_plan.md`가 버전 폴더 밖에 있다. `.env.example`이 없어 필요한 환경변수를 코드에서 찾아야 한다. `AGENTS.md`의 "위성/레이더 버튼이 두 파일에 하드코딩" 메모는 3.1의 죽은 파일 때문에 생긴 것이라 정리 후 낡는다.
+
+**L3-2. 템플릿 잔재** — `public/easynext.png`(참조 0건), `next.config.ts`의 `images.remotePatterns: [{ hostname: '**' }]`(모든 외부 호스트 허용; `next/image`는 바코드 화면 2곳뿐).
+
+### 3. 불필요한 것 / 합칠 것
+
+#### 3.1 불필요 (삭제 후보 — 미참조 스캔 결과, 삭제 전 `tsc`·`build`로 재확인)
+
+| 대상 | 근거 |
+| --- | --- |
+| `worksite-weather/components/worksite-weather-panel.tsx` (534줄) | 어디에서도 import되지 않음. 대시보드가 하위 컴포넌트를 직접 조립하는 구조로 바뀌며 고아가 됨 |
+| `components/ui/` 9개: `accordion`·`avatar`·`badge`·`card`·`checkbox`·`file-upload`·`form`·`separator`·`sheet` | import 0건. shadcn이라 필요하면 `npx shadcn@latest add`로 재생성 가능 |
+| 미사용 의존성 7개: `axios`·`@hookform/resolvers`·`date-fns`·`es-toolkit`·`framer-motion`·`react-use`·`server-only` (+ 위 UI 삭제 후 연쇄로 고아가 되는 5개: `react-hook-form`, `@radix-ui/react-{accordion,avatar,checkbox,separator}`) | `src`·설정 어디에도 import 0건(`react-hook-form`은 `form.tsx` 1곳뿐). `esbuild`는 wrangler/OpenNext 도구 체인과 얽혀 있어 **삭제 대상에서 제외** |
+| `createSupabaseBrowserClient`(`@deprecated`) | 사용처 0건 |
+| `public/easynext.png` | 참조 0건 |
+
+> 스캔은 문자열 기반이라 `dynamic(() => import(...))`·배럴(`index.ts`) 같은 경로에서 오탐이 있다. `data-manager/index.ts`·`map-capture-stitch/index.ts`는 디렉터리 import라 오탐으로 판정, 삭제 대상에서 제외한다.
+
+#### 3.2 합칠 것
+
+| 대상 | 방향 |
+| --- | --- |
+| 위성/레이더·태풍 버튼 하드코딩(2곳) | 3.1의 패널 삭제로 `dashboard-panel.tsx` 1곳으로 합쳐진다. `AGENTS.md` 메모 갱신 |
+| `tsconfig.json` + `tsconfig.strict.json`(부분 적용) | 엄격 설정을 `tsconfig.json` 하나로 통합하고 `typecheck:strict` 스크립트 제거 |
+| `marker-detail-modal`·`use-excel-upload-actions` 안의 인라인 순수 함수 | `features/map-marker/lib/`로 이동해 테스트 가능하게 |
+| 루트에 흩어진 문서 | 버전 폴더(`docs/Ver_X.Y/`) 또는 `docs/archive/`로 |
+
+### 4. 알아 둘 것 (조치 불필요)
+
+- `wrangler.jsonc`에 Supabase URL·publishable 키·카카오 JS 키·VWorld 키가 커밋돼 있다. 모두 브라우저 공개용이고 RLS·도메인 제한이 보호 수단이다. 저장소가 공개라는 점은 유지.
+- 서버 레이트리밋은 isolate 단위 메모리라 분산 환경에서 best-effort다(코드 주석에 명시).
+- Supabase 프로젝트는 다른 앱(`0007_Process_Management`, Serena 프로젝트 `ProcessManagement`)과 공유된다. `erp` 스키마는 이 저장소 소유가 아니다.
+
+### 5. 우선순위 제안
+
+| 순서 | 항목 | 이유 |
+| --- | --- | --- |
+| 1 | H3-1 | 노출된 앱의 critical 취약점. 작업량 작음 |
+| 2 | 3.1 삭제 | 줄 수·의존성이 즉시 줄고, 이후 작업의 소음이 사라짐 |
+| 3 | M3-2 | 157건으로 규모가 한정적이고, 이후 모든 리팩터링의 안전망 |
+| 4 | M3-1 1단계 | 순수 헬퍼 분리는 위험이 낮고 테스트로 고정 가능 |
+| 5 | L3-1, L3-2 | 문서·설정 정리 |
+
+---
+
 ## [2026-09-26] 2차 구조 점검 — Ver 2.1 현행 구조 및 경로 탐색 변경분
 
 점검 범위: `src/` **228개 TypeScript/TSX 파일 · 36,616줄**, App Router·API 라우트·feature 레이어·Supabase 마이그레이션·테스트 설정·현재 Git 작업 트리.
