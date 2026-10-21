@@ -126,15 +126,16 @@ export function evaluateSlot(input: SlotVerdictInput): SlotVerdictResult {
     isSnow: input.isSnow,
   });
 
+  // heat/cold/wind가 safe·unknown이 아니면 해당 입력값은 null이 아니다(각 verdict 함수가 null이면 unknown을 준다).
   if (heat !== "safe" && heat !== "unknown") {
-    reasons.push(`체감온도 ${round1(input.apparent)}℃`);
+    reasons.push(`체감온도 ${round1(input.apparent as number)}℃`);
   }
   if (cold !== "safe" && cold !== "unknown") {
-    reasons.push(`체감온도 ${round1(input.apparent)}℃`);
+    reasons.push(`체감온도 ${round1(input.apparent as number)}℃`);
   }
   if (wind !== "safe" && wind !== "unknown") {
     const suffix = input.workType === "elevated" ? " (고소작업 가중)" : "";
-    reasons.push(`풍속 ${round1(input.windSpeed)}m/s${suffix}`);
+    reasons.push(`풍속 ${round1(input.windSpeed as number)}m/s${suffix}`);
   }
   if (input.pcp >= RAIN_THRESHOLDS.pcpStop) {
     reasons.push(`강수량 ${input.pcpLabel}`);

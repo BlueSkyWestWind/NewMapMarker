@@ -48,17 +48,6 @@ const leafletZoomFromKakaoLevel = (level: number) =>
 const kakaoLevelFromLeafletZoom = (zoom: number) =>
   Math.max(1, Math.min(14, 20 - Math.round(zoom || 17)));
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <tr className="border-b border-slate-800">
-      <th className="w-24 bg-slate-900/60 px-2 py-1.5 text-left font-medium text-slate-400">
-        {label}
-      </th>
-      <td className="break-all px-2 py-1.5 text-slate-100">{value || '-'}</td>
-    </tr>
-  );
-}
-
 export function GpsMapPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuthSession();
   const hasMounted = useHasMounted();
@@ -305,7 +294,6 @@ export function GpsMapPage() {
     abortRef.current?.abort();
   };
 
-  const building = result?.building;
   const doneCount = batchRows.filter((row) => row.status === 'done').length;
   const errorCount = batchRows.filter((row) => row.status === 'error').length;
 

@@ -2,7 +2,12 @@ export {};
 
 declare global {
   interface Window {
-    kakao?: {
+    /**
+     * 카카오 지도 SDK 전역. 로드 전에는 실제로 undefined지만, 지도 컴포넌트는
+     * `useKakaoMapSdk().isReady` 이후에만 접근하므로 optional로 두지 않는다.
+     * 로드 여부를 직접 확인해야 하는 곳(SDK 로더 등)은 `window.kakao?.maps`로 쓴다.
+     */
+    kakao: {
       maps: {
         load: (callback: () => void) => void;
         LatLng: new (lat: number, lng: number) => KakaoLatLng;

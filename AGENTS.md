@@ -19,7 +19,8 @@
 
 - 컴포넌트는 `"use client"`. `page.tsx`의 `params`는 **Promise**로 받는다.
 - 라이브러리: `ts-pattern`(분기) · `@tanstack/react-query`(서버 상태) · `zustand`(전역 상태) ·
-  `date-fns` · `es-toolkit` · `zod` · `react-hook-form` · `lucide-react` · `shadcn/ui` · `tailwindcss`.
+  `zod` · `lucide-react` · `shadcn/ui` · `tailwindcss`.
+  (`date-fns`·`es-toolkit`·`react-hook-form`·`axios` 등은 쓰이지 않아 Ver 2.3에서 제거했다 — 필요해질 때 추가한다.)
 - 디렉터리: `src/features/{feature}/{components,hooks,lib,constants,types}` · `src/components/ui`(shadcn) ·
   `src/lib` · `src/hooks`.
   features: `map-marker`(지도/마커) · `worksite-weather`(작업 안전 날씨) · `dashboard`(당일 국소 요약) ·
@@ -49,7 +50,8 @@
   대비가 깨진다(직접 확인함).
 - **zustand `persist` 값(`mode`·`activeNav`·`mapSegment`)은 하이드레이션을 깬다.**
   마운트 전후 판정은 `map-marker-page.tsx` 한 곳에서만 하고 안전값을 props로 내린다.
-- **ESLint가 미사용 import·변수를 잡지 않는다.** 이동·삭제 리팩터 뒤에는 직접 확인.
+- **ESLint가 미사용 import·변수·매개변수를 오류로 잡는다(Ver 2.3~).** 의도적으로 남기려면 `_` 접두사. 이동·삭제 리팩터 뒤 `npx eslint . --max-warnings=0`이 빈 import를 알려 준다.
+- **엄격 타입(`strictNullChecks`·`noImplicitAny`)이 `tsconfig.json` 하나로 켜져 있다(Ver 2.3~).** 부분 적용용 `tsconfig.strict.json`은 없다.
 - 무거운 모듈(gpsmap lib·대시보드·Leaflet)은 `dynamic()`. 정적 import 하면 홈 번들이 150 kB 는다.
 - `useActiveMarkers`는 스토어에 쓴다(필터 동기화) — **`map-marker-page` 한 곳에서만** 호출한다.
   목록만 필요하면 부수효과 없는 **`useMarkerList`** 를 쓴다.
@@ -62,8 +64,9 @@
 - **"기능이 안 보인다"≠"없다".** `dashboard-panel.tsx`의 빈 상태(`rows.length === 0`)
   early return처럼, 조건부 분기가 기존 요소를 빠뜨렸을 수 있다. 새로 만들기 전에
   해당 컴포넌트의 모든 return 경로부터 확인한다.
-- 위성/레이더·태풍정보 버튼은 `dashboard-panel.tsx`·`worksite-weather-panel.tsx`에
-  공유 컴포넌트 없이 각각 하드코딩(라벨도 다름). 한쪽만 고치면 다른 쪽은 안 바뀐다.
+- 위성/레이더·태풍정보 버튼은 `dashboard-panel.tsx` 한 곳에만 있다(`worksite-weather-panel.tsx`는
+  Ver 2.3에서 미참조 파일로 삭제). TBM 엑셀 내보내기(`worksite-weather/lib/export-tbm.ts`)는
+  그 패널에서만 호출돼 지금 화면에서 닿을 수 없다 — 복원/삭제 결정 전까지 파일만 남겨 둔다.
 
 ## Config 관리
 

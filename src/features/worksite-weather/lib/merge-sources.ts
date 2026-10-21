@@ -207,11 +207,11 @@ function buildSlot(
   const sno = parseAmount(normalized.snoRaw);
 
   // 체감온도는 기온·습도·풍속이 모두 있어야 계산된다. 하나라도 없으면 null로 둔다.
-  const canComputeApparent =
-    normalized.temp !== null && normalized.humidity !== null && normalized.windSpeed !== null;
-  const apparent = canComputeApparent
-    ? round1(apparentTemp(normalized.temp, normalized.humidity, normalized.windSpeed).value)
-    : null;
+  const { temp, humidity, windSpeed } = normalized;
+  const apparent =
+    temp !== null && humidity !== null && windSpeed !== null
+      ? round1(apparentTemp(temp, humidity, windSpeed).value)
+      : null;
 
   const { verdict, reasons } = evaluateSlot({
     time,

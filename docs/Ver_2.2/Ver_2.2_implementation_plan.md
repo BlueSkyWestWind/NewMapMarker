@@ -66,7 +66,7 @@
 
 **Files:**
 - Modify: `README.md`
-- Modify: `docs/Ver_2.2_implementation_plan.md`
+- Modify: `docs/Ver_2.2/Ver_2.2_implementation_plan.md`
 
 **Interfaces:**
 - Consumes: 제품 릴리스 `Ver_2.1`, npm `package.json` 버전 `0.1.0`

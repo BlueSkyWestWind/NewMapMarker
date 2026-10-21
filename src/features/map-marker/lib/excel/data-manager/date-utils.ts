@@ -1,9 +1,3 @@
-import * as XLSX from 'xlsx';
-import {
-  FACILITY_TEAM_MAP,
-  parseFacilityTeamInput,
-  getFacilityTeamExportLabel,
-} from './shared';
 
 export const dateUtilMethods: Record<string, any> & ThisType<any> = {
     /**
@@ -13,10 +7,10 @@ export const dateUtilMethods: Record<string, any> & ThisType<any> = {
      * @param {string|number} d 일
      * @returns {boolean} 유효 여부
      */
-    isValidDateRange(y, m, d) {
-        const year = parseInt(y, 10);
-        const month = parseInt(m, 10);
-        const day = parseInt(d, 10);
+    isValidDateRange(y: string | number, m: string | number, d: string | number): boolean {
+        const year = parseInt(String(y), 10);
+        const month = parseInt(String(m), 10);
+        const day = parseInt(String(d), 10);
         const currentYear = new Date().getFullYear();
         if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
         if (year < 1980 || year > currentYear + 10) return false;
@@ -34,7 +28,7 @@ export const dateUtilMethods: Record<string, any> & ThisType<any> = {
      * @param {string|number|Date|null|undefined} value 원본 날짜 값
      * @returns {string} yyyy-mm-dd 또는 빈 문자열
      */
-    formatDateToYmd(value) {
+    formatDateToYmd(value: string | number | Date | null | undefined): string {
         if (value === null || value === undefined) return "";
         if (value instanceof Date) {
             if (isNaN(value.getTime())) return "";

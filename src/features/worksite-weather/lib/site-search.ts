@@ -166,7 +166,6 @@ export function searchSites(
     if (isSubCandidate(marker)) continue;
 
     const name = normalize(marker.name ?? "");
-    const address = normalize(marker.address ?? "");
     const station = normalize(marker.stationName ?? "");
     const aliases = parseAliases(marker.siteAlias).map(normalize);
 

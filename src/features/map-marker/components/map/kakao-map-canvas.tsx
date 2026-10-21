@@ -572,6 +572,9 @@ export function KakaoMapCanvas({
             });
           } else {
             try {
+              if (!supabase) {
+                throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
+              }
               const tableName =
                 mode === "battery" ? "battery_markers" : "markers";
               const { error } = await supabase

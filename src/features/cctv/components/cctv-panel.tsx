@@ -32,7 +32,6 @@ export function CctvPanel() {
 
   const { data, isFetching, error } = useCctvQuery(query);
   const setCctvMarkers = useMapMarkerStore((state) => state.setCctvMarkers);
-  const setSelectedCctv = useMapMarkerStore((state) => state.setSelectedCctv);
 
   const toggleRoadType = (code: string) => {
     setSelectedRoadTypes((prev) =>

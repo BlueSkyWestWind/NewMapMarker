@@ -3,9 +3,11 @@
 통신 장비·축전지 **국소를 지도에 관리하고, 당일 작업 안전 날씨를 판정**하는 웹 앱입니다.
 `001.MapMarker`(바닐라 JS)를 Next.js 15 + TypeScript 구조로 재구성했습니다.
 
-- 현재 릴리스: **Ver_2.1** (2026-09-11) — 디자인 토큰 재매핑 + 라이트/다크 테마 + 바코드/QR 도구
+- 현재 릴리스: **Ver_2.3** (2026-10-21) — 앱 전체 로그인 벽·서버 API 토큰 검증(2.2) + 구조 정비(미사용 코드·의존성 제거, 엄격 타입 전환)
 - 버전 표기: `Ver_X.Y`는 사용자 대상 제품 릴리스이며, `package.json`의 `0.1.0`은 npm/배포 패키지 식별자다. 제품 릴리스 변경만으로 npm 버전을 자동 변경하지 않는다.
-- 문서: [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) ·
+- 문서: [`docs/Ver_2.3/`](./docs/Ver_2.3/Ver_2.3_implementation_plan.md)(구조 정비) ·
+  [`docs/Ver_2.2/`](./docs/Ver_2.2/Ver_2.2_implementation_plan.md)(로그인 벽) ·
+  [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) ·
   [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md)(UI 셸 개편·대시보드) ·
   [이전 버전](./docs/Ver_1.1/)
 
@@ -24,7 +26,6 @@ src/
   components/
     ui/                        # shadcn/ui (Radix) — Calendly 유래 토큰으로 라이트/다크 렌더
     public-env-script.tsx      # 런타임 공개 env 를 브라우저에 주입
-    kakao-sdk-script.tsx       # 카카오 지도 SDK 로더
   hooks/ lib/ types/           # use-toast · use-has-mounted · utils · public-env · supabase/client · kakao-maps.d.ts
   features/shell/              # 좌측 메뉴 레일 + 상단 검색 + 패널 스위치 (Ver_2.0 신설, 14파일)
     constants.ts                # 레일/패널 폭 단일 소스 (CSS 변수로 흘림)
@@ -48,12 +49,12 @@ src/
                                # verdict(판정 엔진) · merge-sources · parse-wrn-text
                                # site-search · worksite-weather-api · kma-client(서버 전용)
                                # export-tbm
-    hooks/ components/         # 패널 · 타임라인 표 · 위험 요약 · 태풍/위성 모달
+    hooks/ components/         # 타임라인 표 · 위험 요약 · 태풍/위성 모달 (대시보드가 조립)
   features/gpsmap/             # 주소·좌표 변환 (VWorld · Leaflet, 14파일)
   features/cctv/               # 도로 CCTV 조회 — ITS를 브라우저에서 직접 호출 (13파일)
   features/barcode/            # 사진 바코드 인식 · QR 생성 · 엑셀 후보 검색
-docs/                          # Ver_1.0 ~ Ver_2.1 문서 세트 · 검수 보고서 · project_review.md
-supabase/migrations/           # DB 마이그레이션 7개
+docs/                          # Ver_1.0 ~ Ver_2.3 문서 세트 · 검수 보고서 · project_review.md
+supabase/migrations/           # DB 마이그레이션 11개 + README(적용 순서·RLS 정책)
 e2e/                           # Playwright 스모크 테스트
 ```
 
@@ -201,6 +202,7 @@ npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 
 Cloudflare **Workers & Pages → newmarker → Settings → Variables and Secrets** 에 등록하세요.
 (`.env.local`은 Git에 포함되지 않아 CI 빌드·배포 환경에는 자동으로 전달되지 않습니다.)
+로컬 개발용 변수 목록(값 없음)은 [`.env.example`](./.env.example)을 복사해 `.env.local`로 쓰세요.
 
 | 변수 | 설명 |
 |------|------|
@@ -297,7 +299,9 @@ npx wrangler secret put ITS_API_KEY
 
 | 문서 | 내용 |
 |------|------|
-| [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) | 현재 버전 — 디자인 토큰 재매핑 + 라이트/다크 테마 |
+| [`docs/Ver_2.3/`](./docs/Ver_2.3/Ver_2.3_implementation_plan.md) | 현재 버전 — 구조 정비(미사용 코드·의존성 제거, 엄격 타입 전환, 취약점 패치) |
+| [`docs/Ver_2.2/`](./docs/Ver_2.2/) | 앱 전체 로그인 벽 + 서버 API 토큰 검증 + 길찾기 |
+| [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) | 디자인 토큰 재매핑 + 라이트/다크 테마 |
 | [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md) | UI 셸 개편 + 대시보드 신설 문서 세트 |
 | [`docs/Ver_1.1/`](./docs/Ver_1.1/Ver_1.1_README.md) | 국소 작업 안전 날씨 + CCTV 문서 세트 |
 | [`docs/Ver_1.0/`](./docs/Ver_1.0/) | 최초 버전 + 변경요청(CR-001~004) |
@@ -306,6 +310,7 @@ npx wrangler secret put ITS_API_KEY
 | [`docs/VWORLD_CLOUDFLARE_SETUP.md`](./docs/VWORLD_CLOUDFLARE_SETUP.md) | VWorld 배포 설정 가이드 |
 | [`docs/walkthrough.md`](./docs/walkthrough.md) | 작업 결과 누적 |
 
-시작점: [`Ver_2.1_implementation_plan`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) →
+시작점: [`Ver_2.3_implementation_plan`](./docs/Ver_2.3/Ver_2.3_implementation_plan.md) →
+[`Ver_2.1_implementation_plan`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) →
 [`Ver_2.0_PLAN`](./docs/Ver_2.0/Ver_2.0_implementation_plan.md) →
 [`Ver_2.0_IA`](./docs/Ver_2.0/Ver_2.0_IA.md)

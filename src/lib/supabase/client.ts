@@ -33,9 +33,4 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   return browserClient;
 }
 
-/** @deprecated getSupabaseBrowserClient 사용 */
-export function createSupabaseBrowserClient() {
-  return getSupabaseBrowserClient();
-}
-
 export type SupabaseBrowserClient = SupabaseClient;

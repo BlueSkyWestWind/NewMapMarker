@@ -1,13 +1,42 @@
 import * as XLSX from 'xlsx';
-import {
-  FACILITY_TEAM_MAP,
-  parseFacilityTeamInput,
-  getFacilityTeamExportLabel,
-} from './shared';
+import { FACILITY_TEAM_MAP, getFacilityTeamExportLabel } from './shared';
 import {
   DEFAULT_BATTERY_CAPACITY,
   DEFAULT_BATTERY_QUANTITY,
 } from '@/features/map-marker/constants/map-config';
+
+/** 내보내기에 쓰는 마커 필드. 앱 마커 객체의 일부만 읽는다. */
+interface ExportMarker {
+  id?: string;
+  name?: string;
+  lat?: number | string;
+  lng?: number | string;
+  memo?: string;
+  tags?: string[];
+  createdAt?: string;
+  facilityTeam?: string;
+  color?: string;
+  facilityCode?: string;
+  roadAddress?: string;
+  jibunAddress?: string;
+}
+
+interface BatteryExportItem {
+  erpName?: string;
+  capacity?: number;
+  quantity?: number;
+  stationName?: string;
+  address?: string;
+  createdAt?: string;
+}
+
+interface BatteryExportMarker extends ExportMarker {
+  items?: BatteryExportItem[];
+  capacity?: number;
+  quantity?: number;
+  stationName?: string;
+  address?: string;
+}
 
 export const exportMethods: Record<string, any> & ThisType<any> = {
 
@@ -15,7 +44,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
      * 마커 데이터를 CSV 형식의 문자열로 변환하고 다운로드합니다.
      * @param {Array} markers 저장된 마커 배열
      */
-    exportToCSV(markers) {
+    exportToCSV(markers: ExportMarker[]) {
         if (!markers || markers.length === 0) {
             throw new Error("내보낼 마커 데이터가 없습니다.");
         }
@@ -24,7 +53,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
         const headers = ["아이디", "장소 이름", "위도", "경도", "메모", "태그", "등록일"];
         
         // 데이터 행 변환
-        const rows = markers.map(marker => {
+        const rows = markers.map((marker: ExportMarker) => {
             const id = marker.id || "";
             // 쌍따옴표 내의 데이터에 쌍따옴표가 있을 경우 이중 처리
             const name = (marker.name || "").replace(/"/g, '""');
@@ -61,12 +90,12 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
      * @param {string} [filename] 다운로드 파일명
      * @returns {number}보낸 행 수
      */
-    exportMarkersToExcel(markers, filename) {
+    exportMarkersToExcel(markers: ExportMarker[], filename?: string): number {
         if (!markers || markers.length === 0) {
             throw new Error("백업할 마커 데이터가 없습니다.");
         }
 
-        const rows = markers.map(marker => ({
+        const rows = markers.map((marker: ExportMarker) => ({
             "아이디": marker.id || "",
             "장소 이름": marker.name || "",
             "위도": typeof marker.lat === "number" ? marker.lat.toString() : (marker.lat || ""),
@@ -103,12 +132,12 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
      * @param {string} [filename] 다운로드 파일명
      * @returns {number}보낸 행 수
      */
-    exportInfoToExcel(infoList, filename) {
+    exportInfoToExcel(infoList: Record<string, unknown>[], filename?: string): number {
         if (!infoList || infoList.length === 0) {
             throw new Error("백업할 상세 장비 데이터가 없습니다.");
         }
 
-        const rows = infoList.map(row => ({
+        const rows = infoList.map((row: Record<string, unknown>) => ({
             "통합시설코드": row.facility_code || "",
             "마커아이디": row.marker_id || "",
             "프로젝트코드": row.project_code || "",
@@ -141,13 +170,13 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
     /**
      * 축전지 데이터를 백업용 Excel(.xlsx) 파일로 내보냅니다.
      */
-    exportBatteryMarkersToExcel(markers, filename) {
+    exportBatteryMarkersToExcel(markers: BatteryExportMarker[], filename?: string): number {
         if (!markers || markers.length === 0) {
             throw new Error("백업할 마커 데이터가 없습니다.");
         }
 
-        const rows = [];
-        markers.forEach(marker => {
+        const rows: Record<string, unknown>[] = [];
+        markers.forEach((marker: BatteryExportMarker) => {
             const items = marker.items && marker.items.length > 0 ? marker.items : [{
                 erpName: marker.memo || "",
                 capacity: marker.capacity || DEFAULT_BATTERY_CAPACITY,
@@ -157,7 +186,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
                 createdAt: marker.createdAt || ""
             }];
 
-            items.forEach(item => {
+            items.forEach((item: BatteryExportItem) => {
                 rows.push({
                     "통합시설명칭(ERP)": item.erpName || marker.memo || "",
                     "주소": item.address || marker.address || "",
@@ -195,7 +224,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
      * 브라우저에서 ArrayBuffer 기반 다운로드를 실행시키는 헬퍼 메서드
      * @private
      */
-    _triggerDownloadBuffer(buffer, filename, mimeType) {
+    _triggerDownloadBuffer(buffer: BlobPart, filename: string, mimeType: string) {
         const blob = new Blob([buffer], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -213,7 +242,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
      * 브라우저에서 다운로드를 실행시키는 헬퍼 메서드
      * @private
      */
-    _triggerDownload(content, filename, mimeType) {
+    _triggerDownload(content: string, filename: string, mimeType: string) {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");

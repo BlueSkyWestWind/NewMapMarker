@@ -18,6 +18,8 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
+// 값으로는 쓰지 않고 `typeof actionTypes`로 타입만 뽑는다.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",

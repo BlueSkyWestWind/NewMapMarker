@@ -272,18 +272,43 @@
 
 ---
 
-## 실행 기록 (Task 1에서 기준선을 채우고, Task 11에서 결과를 채운다)
+## 실행 기록 (2026-10-21 완료)
 
-| 지표 | 기준선 (2026-10-21) | 결과 |
+| 지표 | 기준선 | 결과 |
 | --- | --- | --- |
-| 비테스트 소스 파일 / 줄 수 | 201 / 33,501 | |
-| 테스트 건수 / 파일 | 354 / 31 | |
-| 홈 First Load JS | 294 kB (상한 295) | |
-| `/gpsmap` First Load JS | 363 kB | |
-| `npm audit` (critical / high / 전체) | 2 / 21 / 31 | |
-| 엄격 타입(strictNullChecks+noImplicitAny) 오류 | 157 (17파일) | |
-| `: any` 사용 | 19 | |
-| 미사용 변수(ESLint 규칙 적용 시) | 73 (19파일) | |
-| 미참조 파일 | 10 (+오탐 배럴 2) | |
-| 미사용 의존성 | 7 (+연쇄 5) | |
-| 최대 파일 줄 수 | 2,017 (`marker-detail-modal.tsx`) | |
+| 비테스트 소스 파일 / 줄 수 | 201 / 33,501 | 193 / 32,557 |
+| 테스트 건수 / 파일 | 354 / 31 | **410 / 34** (+56) |
+| 홈 First Load JS | 294 kB (상한 295) | 294 kB |
+| `/gpsmap` First Load JS | 363 kB | 363 kB |
+| `npm audit` (critical / high / 전체) | 2 / 21 / 31 | **0 / 13 / 18** |
+| 엄격 타입(strictNullChecks+noImplicitAny) 오류 | 157 (17파일) | **0** (`tsconfig.json`에 전역 적용) |
+| `: any` 사용 | 19 | 19 (변화 없음 — 이번 합격 조건 아님) |
+| 미사용 변수(ESLint 규칙) | 73 (19파일) | **0** (규칙 활성, 72건 정리) |
+| 미참조 파일 | 10 (+오탐 배럴 2) | 0 (+배럴 2, `export-tbm.ts` 보류 1) |
+| 미사용 의존성 | 7 (+연쇄 5) | 0 |
+| 최대 파일 줄 수 | 2,017 | 1,799 (`marker-detail-modal.tsx`) |
+
+## 판단 기록 (Rulings)
+
+계획과 달라지거나 계획이 정하지 않은 것을 실행 중에 정한 내용이다. 틀렸을 때의 비용을 함께 적는다.
+
+1. **`export-tbm.ts`는 삭제하지 않고 남겼다.** (Task 2) 삭제한 날씨 패널에서만 호출되던 TBM 엑셀 내보내기라 지금은 화면에서 닿을 수 없다. 코드만 지우면 "기능 삭제"라는 결정을 대신 내리게 된다. 복원/삭제는 사용자 결정. *비용: 호출처 없는 약 100줄 잔류.*
+2. **`use-worksite-weather.ts`는 삭제했다.** (Task 2) 같은 패널에서만 쓰였고 react-query 래퍼라 재작성 비용이 작다.
+3. **전체 백업 왕복 테스트는 만들지 않았다.** (Task 4) `full-backup.ts`는 엄격 오류가 0건이라 이번 타입 작업 대상이 아니고, 입력 테이블 구조가 커서 효용 대비 비용이 크다. *비용: 해당 파일의 회귀 안전망 부재(이전과 동일).*
+4. **헤더만 있는 파일은 "빈 배열"이 아니라 거부된다.** (Task 4) 현재 동작을 그대로 고정했다("엑셀 파일에 데이터가 없습니다"). 계획 문구와 달랐다.
+5. **BOM 없는 UTF-8 한글 CSV는 헤더를 인식하지 못해 거부된다.** (Task 4) 기존 동작의 한계로 발견했고, **고치지 않고 테스트로만 고정**했다(범위 밖). 앱이 내보내는 파일은 BOM이 있어 정상이다. *비용: 다른 도구로 만든 BOM 없는 CSV 업로드가 실패한다 — 별도 개선 후보.*
+6. **`window.kakao` 전역 선언을 필수로 바꿨다.** (Task 5) 35건을 한 줄로 해소하는 대신, 로드 여부를 직접 확인해야 하는 `use-kakao-map-sdk.ts`에만 `loadedKakao()` 헬퍼로 optional 읽기를 둔다. *비용: SDK 로드 전에 다른 곳에서 `window.kakao.maps`를 쓰면 타입이 못 막는다(지금은 `isReady` 이후에만 접근).*
+7. **`kakao-map-canvas.tsx`의 `supabase` null 가드를 try 안에 추가했다.** (Task 5) 로그인 상태에서는 도달하지 않는 경로이고, 도달 시 기존 `TypeError` 대신 명확한 메시지가 같은 catch로 흐른다.
+8. **`tsconfig.strict.json`에 중간 `include` 확장을 하지 않았다.** (Task 5·6) 같은 세션에서 전역 전환까지 끝내므로 임시 설정으로 측정만 하고 삭제했다.
+9. **`buildUploadResultDescription`은 훅에 남겼다.** (Task 8) JSX를 반환해 `.ts` 모듈로 옮길 수 없다.
+10. **`walkthrough.md`·`PROJECT_ANALYSIS_2026-07-18.md`는 이동하지 않았다.** (Task 10) `.serena/memories/core.md`와 Ver 1.x 가이드가 누적 문서로 가리킨다. `Ver_2.2_implementation_plan.md`만 이동했다.
+11. **`npm audit`의 남은 high 13건은 보류했다.** (Task 3) `tailwindcss 4`(major)·OpenNext/Cloudflare 도구 체인 상향이 필요하다. 런타임이 아니라 개발·빌드 경로다.
+12. **`main` 브랜치에서 직접 작업했다.** 이 프로젝트의 기존 작업 방식이며, 커밋·푸시는 사용자 요청 후에 한다.
+
+## 남은 일 (이번 계획 범위 밖)
+
+- `export-tbm.ts` 복원/삭제 결정
+- `MarkerDetailModal`(약 1,500줄)·`useExcelUploadActions`(약 1,100줄)·`KakaoMapCanvas`(약 1,200줄) **본체 분할** — `.tsx` 테스트 불가 문제를 먼저 풀어야 한다(별도 스펙)
+- `shell`·`dashboard`·`barcode` 테스트 공백, `: any` 19곳, `data-manager` 믹스인(`this`) 구조
+- BOM 없는 UTF-8 CSV 지원
+- 사용자 확인: Cloudflare 배포 빌드 통과, 로그인 후 지도·CCTV·바코드 화면, `npx playwright install chromium` 후 `npm run test:e2e`

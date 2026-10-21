@@ -12,8 +12,6 @@ interface WeatherTimelineTableProps {
   slots: WeatherSlot[];
 }
 
-const HEAD = ["시각", "기온/체감", "습도", "바람", "강수", "판정"];
-
 function formatWind(slot: WeatherSlot): string {
   if (slot.windSpeed === null) return "-";
   return `${slot.windDir} ${slot.windSpeed}`;

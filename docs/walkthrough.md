@@ -1,5 +1,29 @@
 # Walkthrough
 
+## [2026-10-21] 구조 정비 (Ver 2.3)
+
+### 개요 및 목적
+
+3차 구조 점검(`docs/Ver_2.0/project_review.md`)에서 찾은 취약 의존성·죽은 코드·느슨한 타입 설정을 **기능 변경 없이** 정리했다.
+
+### 변경된 내용
+
+- 취약점: `next 15.5.18 → 15.5.28`, `npm audit fix`(강제 아님). 전체 31건 → 18건, critical 2 → 0.
+- 삭제: 미참조 `worksite-weather-panel.tsx`(534줄)·`use-worksite-weather.ts`·`components/ui` 9개·`public/easynext.png`·`createSupabaseBrowserClient`, 미사용 의존성 12개.
+- 타입: `strictNullChecks`·`noImplicitAny`를 `tsconfig.json` 하나로 전역 적용(엄격 오류 157건 → 0건), `tsconfig.strict.json`·`typecheck:strict` 폐지. ESLint `no-unused-vars` 활성화(72건 정리).
+- 분리: `marker-detail-modal.tsx`·`use-excel-upload-actions.tsx`의 순수 함수를 `lib/marker-detail-rows.ts`·`lib/excel-upload-helpers.ts`로 이동(+테스트).
+- 설정·문서: `.env.example` 추가, `next.config.ts`의 `images.remotePatterns: **` 제거, README·AGENTS 갱신.
+- 기능 변경 없음. 판단·보류 사항은 `docs/Ver_2.3/Ver_2.3_implementation_plan.md` 하단 "실행 기록" 참고.
+
+### 검증 결과
+
+- `npx tsc --noEmit` · `npx eslint . --max-warnings=0` 통과
+- `npm test` 통과: 34개 파일, 410개 테스트(기준선 354 → +56, 엑셀 매니저 특성화 테스트 포함)
+- `npx next build` 통과: 홈 294 kB(상한 295), `/gpsmap` 363 kB — 기준선과 동일
+- 로그인 벽: 보호 라우트 토큰 없는 호출 401, 홈·`/gpsmap` HTML에 카카오 SDK 없음
+
+---
+
 ## [2026-09-11] 확대된 바코드 사진 내부 이동 (Ver 2.1)
 
 ### 개요 및 목적

@@ -73,8 +73,6 @@ export function CapturePanelView({
   onLevelChange,
   overlapPercent,
   onOverlapChange,
-  captureOrientation,
-  onOrientationChange,
   includeInfoWindows,
   onToggleInfoWindows,
   markersInBoundsCount,

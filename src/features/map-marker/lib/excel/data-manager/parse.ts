@@ -6,6 +6,9 @@ import {
   DEFAULT_BATTERY_QUANTITY,
 } from '@/features/map-marker/constants/map-config';
 
+/** 엑셀·CSV 시트 한 행. `defval: ""`로 읽어 빈 칸은 빈 문자열이고, 셀 형식에 따라 숫자·불리언·날짜가 올 수 있다. */
+type SheetRow = Record<string, string | number | boolean | Date | null | undefined>;
+
 export const parseMethods: Record<string, any> & ThisType<any> = {
 
     /**
@@ -19,14 +22,14 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
             
             reader.onload = (event) => {
                 try {
-                    const data = new Uint8Array(event.target.result as ArrayBuffer);
+                    const data = new Uint8Array((event.target as FileReader).result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: 'array' });
                     
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     
                     // 빈 셀도 빈 문자열 ""로 명시적으로 수집하여 인덱스 밀림 방지
-                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                    const rows = XLSX.utils.sheet_to_json<SheetRow>(worksheet, { defval: "" });
                     
                     if (rows.length === 0) {
                         throw new Error("엑셀 파일에 데이터가 없습니다.");
@@ -63,14 +66,15 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                         throw new Error("위치 정보에 해당하는 열(위도/경도 또는 주소)을 찾을 수 없습니다.");
                     }
                     
+                    const nameKey: string = mapping.name;
                     const parsedData = rows.map((row, idx) => {
-                        const rawName = String(row[mapping.name] || '').trim();
+                        const rawName = String(row[nameKey] || '').trim();
                         
                         // 이름이 없는 빈 행은 스킵
                         if (!rawName) return null;
                         
-                        const latVal = mapping.lat ? parseFloat(row[mapping.lat]) : NaN;
-                        const lngVal = mapping.lng ? parseFloat(row[mapping.lng]) : NaN;
+                        const latVal = mapping.lat ? parseFloat(String(row[mapping.lat])) : NaN;
+                        const lngVal = mapping.lng ? parseFloat(String(row[mapping.lng])) : NaN;
                         const addressVal = mapping.address ? String(row[mapping.address]).trim() : "";
                         const memoVal = mapping.memo ? String(row[mapping.memo]).trim() : "";
                         const tagsVal = mapping.tags ? String(row[mapping.tags]).trim() : "";
@@ -168,11 +172,11 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
             
             reader.onload = (event) => {
                 try {
-                    const data = new Uint8Array(event.target.result as ArrayBuffer);
+                    const data = new Uint8Array((event.target as FileReader).result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                     const worksheet = this.resolveInfoExcelSheet(workbook);
                     
-                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+                    const rows = XLSX.utils.sheet_to_json<SheetRow>(worksheet, { defval: "", raw: false });
                     
                     if (rows.length === 0) {
                         throw new Error("엑셀 파일에 데이터가 없습니다.");
@@ -246,11 +250,11 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
 
             reader.onload = (event) => {
                 try {
-                    const data = new Uint8Array(event.target.result as ArrayBuffer);
+                    const data = new Uint8Array((event.target as FileReader).result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: "array" });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                    const rows = XLSX.utils.sheet_to_json<SheetRow>(worksheet, { defval: "" });
 
                     if (rows.length === 0) {
                         throw new Error("엑셀 파일에 데이터가 없습니다.");
@@ -279,12 +283,15 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                         throw new Error("위도·경도에 해당하는 열을 찾을 수 없습니다.");
                     }
 
+                    const nameKey: string = mapping.name;
+                    const latKey: string = mapping.lat;
+                    const lngKey: string = mapping.lng;
                     const validatedMarkers = rows.map((row, index) => {
-                        const rawName = String(row[mapping.name] || "").trim();
+                        const rawName = String(row[nameKey] || "").trim();
                         if (!rawName) return null;
 
-                        const latNum = parseFloat(row[mapping.lat]);
-                        const lngNum = parseFloat(row[mapping.lng]);
+                        const latNum = parseFloat(String(row[latKey]));
+                        const lngNum = parseFloat(String(row[lngKey]));
                         if (isNaN(latNum) || isNaN(lngNum)) {
                             throw new Error(`[행 ${index + 2}] 위도 또는 경도 값이 올바르지 않습니다. (장소: ${rawName})`);
                         }
@@ -344,14 +351,14 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
             
             reader.onload = (event) => {
                 try {
-                    const data = new Uint8Array(event.target.result as ArrayBuffer);
+                    const data = new Uint8Array((event.target as FileReader).result as ArrayBuffer);
                     const workbook = XLSX.read(data, { type: 'array' });
                     
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     
                     // 빈 셀도 빈 문자열 ""로 수집하여 인덱스 밀림 방지
-                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                    const rows = XLSX.utils.sheet_to_json<SheetRow>(worksheet, { defval: "" });
                     
                     if (rows.length === 0) {
                         throw new Error("엑셀 파일에 데이터가 없습니다.");
@@ -408,11 +415,11 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                         
                         const addressVal = mapping.address ? String(row[mapping.address]).trim() : "";
                         const localAddressVal = mapping.localAddress ? String(row[mapping.localAddress]).trim() : "";
-                        const capacityVal = mapping.capacity ? parseInt(row[mapping.capacity], 10) : DEFAULT_BATTERY_CAPACITY;
-                        const quantityVal = mapping.quantity ? parseInt(row[mapping.quantity], 10) : DEFAULT_BATTERY_QUANTITY;
+                        const capacityVal = mapping.capacity ? parseInt(String(row[mapping.capacity]), 10) : DEFAULT_BATTERY_CAPACITY;
+                        const quantityVal = mapping.quantity ? parseInt(String(row[mapping.quantity]), 10) : DEFAULT_BATTERY_QUANTITY;
                         
-                        const latVal = mapping.lat ? parseFloat(row[mapping.lat]) : NaN;
-                        const lngVal = mapping.lng ? parseFloat(row[mapping.lng]) : NaN;
+                        const latVal = mapping.lat ? parseFloat(String(row[mapping.lat])) : NaN;
+                        const lngVal = mapping.lng ? parseFloat(String(row[mapping.lng])) : NaN;
                         
                         const memoVal = mapping.memo ? String(row[mapping.memo]).trim() : "";
                         const tagsVal = mapping.tags ? String(row[mapping.tags]).trim() : "";

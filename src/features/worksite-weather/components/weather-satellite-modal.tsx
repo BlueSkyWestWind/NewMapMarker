@@ -2,19 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  Cloud,
-  ExternalLink,
-  GripHorizontal,
-  Maximize2,
-  Minimize2,
-  Move,
-  Radar,
-  RefreshCw,
-  RotateCcw,
-  Satellite,
-  X,
-} from "lucide-react";
+import { Cloud, GripHorizontal, Maximize2, Minimize2, Radar, RefreshCw, RotateCcw, Satellite, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface WeatherSatelliteModalProps {

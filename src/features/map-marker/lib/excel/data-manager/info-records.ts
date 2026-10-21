@@ -1,9 +1,23 @@
-import * as XLSX from 'xlsx';
-import {
-  FACILITY_TEAM_MAP,
-  parseFacilityTeamInput,
-  getFacilityTeamExportLabel,
-} from './shared';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/** information 테이블 행(또는 엑셀에서 파싱한 같은 모양의 객체). 값의 형태는 호출부마다 달라 unknown으로 둔다. */
+type InfoRecord = Record<string, unknown>;
+
+/** markers 테이블 행 또는 앱 마커 객체. 이 파일은 id·name·facility_code(Code)만 읽는다. */
+type MarkerLike = Record<string, unknown>;
+
+interface MarkerIndex {
+  byId: Map<string, string>;
+  byFacilityCode: Map<string, string>;
+  byPlaceName: Map<string, string[]>;
+}
+
+/** Supabase(PostgREST) 오류에서 이 파일이 읽는 필드. */
+interface DbErrorLike {
+  message?: string;
+  details?: string;
+  code?: string;
+}
 
 export const infoRecordMethods: Record<string, any> & ThisType<any> = {
 
@@ -12,8 +26,8 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {Object} record information 테이블 행 객체
      * @returns {Object} 날짜가 정규화된 행 객체
      */
-    normalizeInfoRecord(record) {
-        const normalized = {
+    normalizeInfoRecord(record: InfoRecord): InfoRecord {
+        const normalized: InfoRecord = {
             ...record,
             install_date: this.formatDateToYmd(record.install_date),
             open_date: this.formatDateToYmd(record.open_date)
@@ -33,12 +47,12 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {Array} markersList markers 테이블 행 또는 앱 마커 객체 배열
      * @returns {{ byId: Map, byFacilityCode: Map, byPlaceName: Map }}
      */
-    buildMarkerIndex(markersList) {
-        const byId = new Map();
-        const byFacilityCode = new Map();
-        const byPlaceName = new Map();
+    buildMarkerIndex(markersList: MarkerLike[] | null | undefined): MarkerIndex {
+        const byId = new Map<string, string>();
+        const byFacilityCode = new Map<string, string>();
+        const byPlaceName = new Map<string, string[]>();
 
-        (markersList || []).forEach(marker => {
+        (markersList || []).forEach((marker: MarkerLike) => {
             const id = String(marker.id || "").trim();
             if (!id) return;
 
@@ -54,7 +68,7 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
                 if (!byPlaceName.has(name)) {
                     byPlaceName.set(name, []);
                 }
-                byPlaceName.get(name).push(id);
+                byPlaceName.get(name)?.push(id);
             }
         });
 
@@ -69,7 +83,7 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {{ byId: Map, byFacilityCode: Map, byPlaceName: Map }} markerIndex
      * @returns {Object} marker_id가 보강된 행
      */
-    enrichInfoRecordMarkerId(record, markerIndex) {
+    enrichInfoRecordMarkerId(record: InfoRecord, markerIndex: MarkerIndex): InfoRecord {
         const enriched = { ...record };
         const explicitId = String(record.marker_id || "").trim();
 
@@ -86,7 +100,7 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
 
         const placeName = String(record.place_name || "").trim();
         if (placeName && markerIndex.byPlaceName.has(placeName)) {
-            const candidates = markerIndex.byPlaceName.get(placeName);
+            const candidates = markerIndex.byPlaceName.get(placeName) ?? [];
             if (candidates.length === 1) {
                 enriched.marker_id = candidates[0];
                 return enriched;
@@ -107,9 +121,9 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {Array} markersList markers 테이블 행 또는 앱 마커 객체 배열
      * @returns {Array}
      */
-    enrichInfoRecordsWithMarkerId(records, markersList) {
+    enrichInfoRecordsWithMarkerId(records: InfoRecord[], markersList: MarkerLike[] | null | undefined): InfoRecord[] {
         const markerIndex = this.buildMarkerIndex(markersList);
-        return records.map(record => this.enrichInfoRecordMarkerId(record, markerIndex));
+        return records.map((record: InfoRecord) => this.enrichInfoRecordMarkerId(record, markerIndex));
     },
 
 
@@ -119,7 +133,7 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {{ includeMarkerId?: boolean }} [options]
      * @returns {Object}
      */
-    buildInfoUpsertRecord(record, options: { includeMarkerId?: boolean } = {}) {
+    buildInfoUpsertRecord(record: InfoRecord, options: { includeMarkerId?: boolean } = {}): Record<string, string> {
         const includeMarkerId = options.includeMarkerId !== false;
         const payload: Record<string, string> = {
             facility_code: String(record.facility_code || "").trim(),
@@ -152,7 +166,7 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {Object} error Supabase 오류 객체
      * @returns {boolean}
      */
-    isInformationMarkerIdError(error) {
+    isInformationMarkerIdError(error: DbErrorLike | null | undefined): boolean {
         const message = String(error?.message || error?.details || "").toLowerCase();
         const code = String(error?.code || "");
         return (
@@ -169,7 +183,7 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {Object} error Supabase 오류 객체
      * @returns {string}
      */
-    translateInformationUpsertError(error) {
+    translateInformationUpsertError(error: DbErrorLike | null | undefined): string {
         const message = String(error?.message || "");
         const code = String(error?.code || "");
 
@@ -197,13 +211,17 @@ export const infoRecordMethods: Record<string, any> & ThisType<any> = {
      * @param {Array} markersList markers 테이블 행 또는 앱 마커 객체 배열
      * @returns {Promise<{ count: number, unlinkedCount: number, warning?: string }>}
      */
-    async upsertInformationToSupabase(supabase, records, markersList) {
+    async upsertInformationToSupabase(
+        supabase: SupabaseClient,
+        records: InfoRecord[],
+        markersList: MarkerLike[] | null | undefined,
+    ) {
         const enriched = this.enrichInfoRecordsWithMarkerId(
-            records.map(row => this.normalizeInfoRecord(row)),
+            records.map((row: InfoRecord) => this.normalizeInfoRecord(row)),
             markersList
         );
-        const prepared = enriched.map(row => this.buildInfoUpsertRecord(row, { includeMarkerId: true }));
-        const unlinkedCount = prepared.filter(row => !row.marker_id).length;
+        const prepared = enriched.map((row: InfoRecord) => this.buildInfoUpsertRecord(row, { includeMarkerId: true }));
+        const unlinkedCount = prepared.filter((row: Record<string, string>) => !row.marker_id).length;
 
         let updatedCount = 0;
         let insertedCount = 0;

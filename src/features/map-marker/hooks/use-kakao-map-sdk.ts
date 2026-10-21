@@ -9,9 +9,17 @@ const KAKAO_SDK_LOAD_TIMEOUT_MS = 20000;
 
 let kakaoLoadPromise: Promise<void> | null = null;
 
+/**
+ * SDK 로드 여부를 확인할 때 쓰는 읽기. 전역 선언은 로드 이후 기준(필수)이라
+ * 로드 전 `undefined`일 수 있는 이 파일에서만 optional로 좁혀 읽는다.
+ */
+function loadedKakao(): Window["kakao"] | undefined {
+  return (window as { kakao?: Window["kakao"] }).kakao;
+}
+
 function waitForKakaoMapsReady(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (!window.kakao?.maps?.load) {
+    if (!loadedKakao()?.maps?.load) {
       reject(new Error("카카오 지도 SDK가 초기화되지 않았습니다."));
       return;
     }
@@ -56,11 +64,11 @@ function loadKakaoSdk(appKey: string, forceReload = false) {
     removeKakaoSdkScript();
     // 이전 실패 상태의 전역 객체를 비워 재초기화한다.
     if (window.kakao) {
-      delete (window as Window & { kakao?: unknown }).kakao;
+      delete (window as { kakao?: unknown }).kakao;
     }
   }
 
-  if (window.kakao?.maps?.load) {
+  if (loadedKakao()?.maps?.load) {
     return waitForKakaoMapsReady();
   }
 
@@ -82,7 +90,7 @@ function loadKakaoSdk(appKey: string, forceReload = false) {
       // 정적 삽입은 없다(로그인 전에는 SDK를 받지 않는다). 이미 동적으로 넣은 script가 남아 있으면
       // 제거하지 않고 로드를 기다린다.
       if (existing && !forceReload) {
-        if (window.kakao?.maps?.load) {
+        if (loadedKakao()?.maps?.load) {
           finishSuccess();
           return;
         }
@@ -114,7 +122,7 @@ function loadKakaoSdk(appKey: string, forceReload = false) {
         // load 이벤트가 이미 지난 경우를 대비해 폴링한다.
         const startedAt = Date.now();
         const pollId = window.setInterval(() => {
-          if (window.kakao?.maps?.load) {
+          if (loadedKakao()?.maps?.load) {
             window.clearInterval(pollId);
             window.clearTimeout(timeoutId);
             existing.removeEventListener("load", onLoad);

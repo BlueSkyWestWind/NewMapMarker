@@ -2,18 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  AlertTriangle,
-  ExternalLink,
-  GripHorizontal,
-  Maximize2,
-  Minimize2,
-  RefreshCw,
-  RotateCcw,
-  ShieldAlert,
-  Wind,
-  X,
-} from "lucide-react";
+import { AlertTriangle, GripHorizontal, Maximize2, Minimize2, RefreshCw, RotateCcw, ShieldAlert, Wind, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TyphoonInfo } from "@/features/worksite-weather/types/weather";
 

@@ -30,7 +30,11 @@ const eslintConfig = [
     rules: {
       '@typescript-eslint/no-empty-object-type': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
+      // 미사용 import·변수·매개변수는 오류다. 의도적으로 남기는 것은 `_` 접두사를 붙인다.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
   {
@@ -41,7 +45,6 @@ const eslintConfig = [
     ],
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unused-vars': 'error',
     },
   },
 ];

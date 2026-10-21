@@ -1,20 +1,5 @@
-import type {
-  LatLngLiteral, MapBoundsLiteral, ViewportSize,
-  CaptureTilePlan, CaptureGridPlan, BuildCaptureGridOptions,
-  CapturedTileImage, GridCaptureResult,
-} from "./types";
-import {
-  DEFAULT_OVERLAP_RATIO, DEFAULT_PADDING_RATIO, MAX_RECOMMENDED_CAPTURE_TILES,
-} from "./types";
-import { readPointXY, clamp, padBounds } from "./helpers";
-import {
-  getMarkerIdsInBounds, buildBoundsFromMarkers, measureViewportSpan,
-  measurePixelOffsetBetween, screenRectToMapBounds, estimateSpanAtLevel,
-} from "./bounds";
-import {
-  buildCaptureGridPlan,
-  refineCapturePlanDestinations, buildManualStitchPlan, scaleCaptureGridPlan,
-} from "./plan";
+import type { LatLngLiteral, CaptureTilePlan, CaptureGridPlan, CapturedTileImage, GridCaptureResult } from "./types";
+import { refineCapturePlanDestinations, scaleCaptureGridPlan } from "./plan";
 
 
 /**

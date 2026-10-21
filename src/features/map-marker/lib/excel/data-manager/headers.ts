@@ -1,9 +1,4 @@
 import * as XLSX from 'xlsx';
-import {
-  FACILITY_TEAM_MAP,
-  parseFacilityTeamInput,
-  getFacilityTeamExportLabel,
-} from './shared';
 
 export const headerMethods: Record<string, any> & ThisType<any> = {
 
@@ -12,7 +7,7 @@ export const headerMethods: Record<string, any> & ThisType<any> = {
      * @param {Object} workbook XLSX 워크북
      * @returns {Object} 워크시트
      */
-    resolveInfoExcelSheet(workbook) {
+    resolveInfoExcelSheet(workbook: XLSX.WorkBook): XLSX.WorkSheet {
         const preferredNames = ["데이터", "data", "information", "Information"];
         for (const name of preferredNames) {
             if (workbook.SheetNames.includes(name)) {
@@ -23,8 +18,8 @@ export const headerMethods: Record<string, any> & ThisType<any> = {
         for (const sheetName of workbook.SheetNames) {
             const worksheet = workbook.Sheets[sheetName];
             const probe = XLSX.utils.sheet_to_json<any[]>(worksheet, { defval: "", header: 1, range: 0 });
-            const headerRow = (probe[0] || []).map(cell => String(cell).trim());
-            if (headerRow.some(header => /통합시설코드|시설코드/i.test(header))) {
+            const headerRow = (probe[0] || []).map((cell: unknown) => String(cell).trim());
+            if (headerRow.some((header: string) => /통합시설코드|시설코드/i.test(header))) {
                 return worksheet;
             }
         }
@@ -40,7 +35,7 @@ export const headerMethods: Record<string, any> & ThisType<any> = {
      * @param {RegExp} [fallbackRegex]
      * @returns {string|undefined}
      */
-    findHeaderByNames(headers, exactNames, fallbackRegex) {
+    findHeaderByNames(headers: string[], exactNames: string[], fallbackRegex?: RegExp): string | undefined {
         const trimmedHeaders = headers.map(header => String(header).trim());
         for (const exactName of exactNames) {
             const index = trimmedHeaders.findIndex(header => header === exactName);
@@ -60,7 +55,7 @@ export const headerMethods: Record<string, any> & ThisType<any> = {
      * @param {Array<string>} headers
      * @returns {Object}
      */
-    resolveInfoHeaderMapping(headers) {
+    resolveInfoHeaderMapping(headers: string[]) {
         return {
             facilityCode: this.findHeaderByNames(headers, ["통합시설코드", "시설코드"], /통합시설코드|시설코드|facility.*code/i),
             markerId: this.findHeaderByNames(headers, ["마커아이디", "marker_id"], /마커.*아이디|마커id|marker.*id/i),
@@ -82,7 +77,7 @@ export const headerMethods: Record<string, any> & ThisType<any> = {
      * @param {string} facilityCodeValue
      * @returns {boolean}
      */
-    isInfoGuideRow(facilityCodeValue) {
+    isInfoGuideRow(facilityCodeValue: unknown): boolean {
         const code = String(facilityCodeValue || "").trim();
         if (!code) {
             return true;

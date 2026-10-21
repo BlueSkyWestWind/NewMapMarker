@@ -34,7 +34,7 @@ export function RoadviewModal() {
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [, setDebugLogs] = useState<string[]>([]);
   const addLog = useCallback((msg: string) => {
     if (process.env.NODE_ENV !== "production") {
       console.log(`[RoadviewDebug] ${msg}`);

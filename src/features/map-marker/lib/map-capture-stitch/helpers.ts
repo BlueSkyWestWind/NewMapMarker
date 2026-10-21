@@ -1,11 +1,4 @@
-import type {
-  LatLngLiteral, MapBoundsLiteral, ViewportSize,
-  CaptureTilePlan, CaptureGridPlan, BuildCaptureGridOptions,
-  CapturedTileImage, GridCaptureResult,
-} from "./types";
-import {
-  DEFAULT_OVERLAP_RATIO, DEFAULT_PADDING_RATIO, MAX_RECOMMENDED_CAPTURE_TILES,
-} from "./types";
+import type { MapBoundsLiteral } from "./types";
 
 
 export function readPointXY(point: KakaoPoint): { x: number; y: number } {

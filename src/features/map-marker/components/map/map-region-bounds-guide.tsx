@@ -22,7 +22,7 @@ interface MapRegionBoundsGuideProps {
   /** 범위 이동·크기 조절 결과 */
   onBoundsChange?: (bounds: MapBoundsLiteral) => void;
   /** 편집 핸들을 지도 화면 안에 유지하기 위한 컨테이너 */
-  mapContainer?: HTMLElement;
+  mapContainer?: HTMLElement | null;
 }
 
 interface ScreenRect {

@@ -34,6 +34,7 @@
 - 근거: `npm audit` = low 1 · moderate 7 · high 21 · **critical 2**(`next` 직접 의존성, `proxy-addr` 간접 의존성). `next 15.5.18`은 같은 마이너 내 패치(`15.5.x` 상위)로 해소 가능. 사용하지 않는 `axios`도 high 항목에 포함.
 - 영향: 인터넷에 노출된 앱이 알려진 취약 버전을 쓴다.
 - 제안: 패치 버전 상향 + 미사용 의존성 제거 + `npm audit fix`(강제 아님). `tailwindcss 4`·`eslint-config-next` 다운그레이드 같은 major 제안은 제외.
+- 해소: 2026-10-21 `next 15.5.28`로 패치 상향, `axios` 등 미사용 의존성 제거, `npm audit fix`(비강제). 전체 31건 → 18건, **critical 2 → 0**. 남은 high 13건은 `tailwindcss 4`·OpenNext/Cloudflare 도구 체인의 major 상향이 필요해 의도적으로 보류(개발·빌드 도구 경로).
 
 #### 중간
 
@@ -42,27 +43,36 @@
 - 근거: `map-marker` = 69파일 · 18,408줄 = **전체의 55%**. 상위 3파일이 4,875줄(14.6%): `marker-detail-modal.tsx` 2,017줄(컴포넌트 1개가 1,700줄, hook 호출 26개), `use-excel-upload-actions.tsx` 1,539줄(훅 1개가 1,300줄), `kakao-map-canvas.tsx` 1,319줄(컴포넌트 1개가 1,200줄).
 - 영향: 변경 때마다 회귀 범위를 가늠하기 어렵고, `.tsx` 테스트가 불가능해 안전망이 없다.
 - 제안: 1단계로 **컴포넌트 밖에 있는 순수 헬퍼만** `lib/`로 옮기고(marker-detail-modal 43–304줄 ≈ 260줄, excel-upload 32–227줄 ≈ 195줄) 테스트로 고정. 컴포넌트 본체 분할은 별도 스펙으로 분리(이번 범위 밖).
+- 해소(1단계): 2026-10-21 `marker-detail-modal.tsx` 2,017 → 1,799줄, `use-excel-upload-actions.tsx` 1,539 → 1,385줄. 순수 함수를 `lib/marker-detail-rows.ts`·`lib/excel-upload-helpers.ts`로 옮기고 테스트 36건 추가(`buildUploadResultDescription`은 JSX라 훅에 잔류). **본체 분할은 미해소** — `.tsx` 테스트가 불가능한 상태라 별도 스펙으로 다룬다.
 
 **M3-2. 타입 안전성 설정이 느슨하고, 그 영향이 한 곳에 몰려 있다**
 
 - 근거: `tsconfig.json`의 `strictNullChecks:false`·`noImplicitAny:false`, ESLint `no-unused-vars`·`no-explicit-any` 비활성. **전 `src`에 엄격 설정을 임시 적용하면 오류 157건 / 17파일**이고, 그중 **map-marker 153건, 그중 `lib/excel/data-manager` 116건**(`parse.ts` 61 · `export.ts` 22 · `info-records.ts` 17 · `headers.ts` 9 · `date-utils.ts` 4 · `shared.ts` 3). 코드별로 TS18046(`unknown` 사용) 53 · TS7006(암시적 any 매개변수) 50 · TS18048(undefined 가능) 35. `: any` 19곳, `eslint-disable` 5곳. 또한 `data-manager`는 `Record<string, any> & ThisType<any>` 믹스인 객체가 `this`로 서로를 부르는 구조(`index.ts`)인데 **전용 테스트가 0건**이다. 외부에서 쓰는 메서드는 `parseExcelOrCSV`·`parseInfoExcel`·`upsertInformationToSupabase`·`exportFullBackupToExcel`·`parseFullBackupExcel`.
 - 영향: 엑셀·지도 SDK 같은 외부 경계의 null/타입 오류가 컴파일 단계에서 걸리지 않는다. 느슨한 설정 때문에 **미사용 코드가 쌓였다**(아래 3.1이 증거).
 - 제안: 157건은 한 번에 끝낼 수 있는 규모다. 영역별로 0건으로 만든 뒤 `tsconfig.json`에 전체 적용하고, 부분 적용용 `tsconfig.strict.json`은 폐지.
+- 해소: 2026-10-21 엄격 오류 157건 → 0건, `tsconfig.json` 하나로 전역 적용(`tsconfig.strict.json`·`typecheck:strict` 폐지), ESLint `no-unused-vars` 활성화(72건 정리). `data-manager`에 특성화 테스트 20건 추가. `: any` 19곳과 `Record<string, any> & ThisType<any>` 믹스인 구조는 그대로(미해소).
 
 **M3-3. 테스트 안전망이 기능별로 비대칭이다**
 
 - 근거: feature별 테스트 파일 수 / 비테스트 줄 수 — `map-marker` 7 / 18,408 · `gpsmap` 1 / 2,805 · `shell`·`dashboard`·`barcode`·`components` **0** / 각 1,042·610·1,257·1,446. `vitest.config.ts`의 `include`가 `.ts`뿐이라 `.tsx` 테스트는 조용히 실행되지 않는다. E2E는 이 PC에 Playwright 브라우저가 없어 실행되지 않는다(2026-10-17 확인).
 - 제안: 새 의존성(jsdom 등) 없이 **순수 로직을 `.ts`로 분리해 테스트**하는 방향을 유지한다. E2E는 `npx playwright install chromium` 안내와 함께 문서화.
+- 부분 해소: 2026-10-21 `data-manager`(0건)·`marker-detail-rows`·`excel-upload-helpers`에 테스트 추가(354 → 410건). **미해소**: `.tsx` 테스트 불가, `shell`·`dashboard`·`barcode`·`components` 테스트 0건, 이 PC에 Playwright 브라우저 미설치(`npx playwright install chromium` 필요).
 
 #### 낮음
 
 **L3-1. 문서가 코드보다 뒤처졌다** — `README.md`의 "현재 릴리스"가 `Ver_2.1`인데 로그인 벽·길찾기(2.2)가 들어갔다. 루트에 `PROJECT_ANALYSIS_2026-07-18.md`·`walkthrough.md`·`Ver_2.2_implementation_plan.md`가 버전 폴더 밖에 있다. `.env.example`이 없어 필요한 환경변수를 코드에서 찾아야 한다. `AGENTS.md`의 "위성/레이더 버튼이 두 파일에 하드코딩" 메모는 3.1의 죽은 파일 때문에 생긴 것이라 정리 후 낡는다.
 
+- 해소: 2026-10-21 README 현재 릴리스·문서표·구조 트리 갱신, `.env.example` 추가, `Ver_2.2_implementation_plan.md`를 `docs/Ver_2.2/`로 이동, `AGENTS.md` 메모 갱신. `walkthrough.md`·`PROJECT_ANALYSIS_2026-07-18.md`는 `.serena` 메모와 Ver 1.x 가이드가 누적 문서로 가리켜 **이동하지 않음**(의도적).
+
 **L3-2. 템플릿 잔재** — `public/easynext.png`(참조 0건), `next.config.ts`의 `images.remotePatterns: [{ hostname: '**' }]`(모든 외부 호스트 허용; `next/image`는 바코드 화면 2곳뿐).
+
+- 해소: 2026-10-21 `public/easynext.png` 삭제, `next.config.ts`의 `images.remotePatterns: **` 제거(`next/image` 2곳 모두 `unoptimized`라 영향 없음).
 
 ### 3. 불필요한 것 / 합칠 것
 
 #### 3.1 불필요 (삭제 후보 — 미참조 스캔 결과, 삭제 전 `tsc`·`build`로 재확인)
+
+> 해소: 2026-10-21 아래 표의 항목을 삭제했다. 단, 연쇄로 고아가 된 `worksite-weather/lib/export-tbm.ts`(TBM 엑셀 내보내기)는 **화면에서 닿을 수 없는 기능**이라 삭제하지 않고 남겼다 — 복원할지 삭제할지 결정이 필요하다.
 
 | 대상 | 근거 |
 | --- | --- |
