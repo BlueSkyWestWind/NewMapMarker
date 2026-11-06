@@ -103,7 +103,7 @@ export function MapMarkerPage() {
         invalidCoordinateCount={invalidCoordinateCount}
         isLoading={isLoading}
       >
-        {isError && mode !== "location" ? (
+        {isError ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-rose-300">
             <p>데이터 로드 실패: {error?.message}</p>
             <button

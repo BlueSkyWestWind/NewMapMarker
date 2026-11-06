@@ -35,6 +35,11 @@ Supabase 대시보드 → **SQL Editor** 에 아래 한 파일만 붙여넣고 *
 
 | 파일 | 역할 |
 | --- | --- |
+| `20261107000400_drop_erp_schema.sql` | **정리.** 삭제된 앱의 `erp` 스키마 제거. 되돌릴 수 없음 |
+| `20261107000300_drop_unused_public_indexes.sql` | **Advisor 정리.** 쓰지 않는 public 인덱스 4개 삭제 |
+| `20261107000200_wrap_auth_role_in_marker_policies.sql` | **Advisor 정리.** 마커 5개 테이블 정책의 `auth.role()`을 쿼리당 한 번만 계산. 권한 변화 없음 |
+| `20261107000100_site_lists_invoker_functions.sql` | **Advisor 정리.** 국소 목록 권한 함수를 SECURITY INVOKER로 변경 |
+| `20261107000000_site_lists.sql` | **국소 목록.** `app_admins`, `site_lists`, `site_list_members`와 RLS |
 | `20261021000000_fix_erp_schema_lint_warnings.sql` | **Advisor 정리.** `erp` 스키마(다른 앱 소유)의 `set_updated_at` search_path 고정 + `*_auth_all` 정책 경고 해소. 동작은 그대로(권한 강화 아님). 해당 스키마가 없으면 아무 일도 안 한다 |
 | `20261017000000_require_login_for_marker_read.sql` | **보안.** anon 조회·쓰기 정책 삭제 → 로그인 사용자만 마커 접근. 정식 스키마 파일 **다음에** 실행 |
 | `20260718120000_recreate_full_schema_with_erp.sql` | **정식 스키마.** 전체 스키마(+ERP, `parent_marker_id`, `group_role`) + RLS(초기 상태는 anon 조회 허용) |

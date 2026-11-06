@@ -32,10 +32,6 @@ import {
   createCaptureLabelContent,
   createOverlayContent,
 } from "@/features/map-marker/lib/overlay-content";
-import {
-  collectLocationGroupNames,
-  pickLocationOverlayRepresentatives,
-} from "@/features/map-marker/lib/location-marker-groups";
 import { useKakaoMapSdk } from "@/features/map-marker/hooks/use-kakao-map-sdk";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { isStagedReviewMarker } from "@/features/map-marker/lib/erp-review";
@@ -525,8 +521,11 @@ export function KakaoMapCanvas({
         const newLat = newPos.getLat();
         const newLng = newPos.getLng();
 
-        // 위치 모드: 로그인/DB 없이 브라우저 메모리만 갱신
-        if (mode === "location") {
+        // 임시 위치 마커: 로그인/DB 없이 브라우저 메모리만 갱신
+        const isTempLocation = useMapMarkerStore
+          .getState()
+          .pendingLocationMarkers.some((item) => item.id === data.id);
+        if (isTempLocation) {
           const confirmMove = window.confirm(
             `"${data.name}" 마커의 위치를 여기로 변경하시겠습니까?\n(위도: ${newLat.toFixed(6)}, 경도: ${newLng.toFixed(6)})`,
           );
@@ -711,11 +710,10 @@ export function KakaoMapCanvas({
     // 정보창 위치는 항상 사용자가 드래그한 수동 오프셋을 사용한다.
     // (자동 배치를 쓰지 않고, 캡처 시에도 사용자가 옮긴 위치 그대로 촬영)
 
-    // 위치 모드: 같은 지번의 국소명을 한 라벨에 모아 표시 (그룹당 오버레이 1개)
-    const overlayTargets =
-      mode === "location"
-        ? pickLocationOverlayRepresentatives(selectedMarkerIds, markers)
-        : selectedMarkerIds
+    // 위치 메뉴의 마커는 장비 국소이므로 정보창도 장비로 그린다.
+    const overlayMode: MapMode = mode === "location" ? "equipment" : mode;
+
+    const overlayTargets = selectedMarkerIds
             .map((markerId) => {
               const marker =
                 markerDataByIdRef.current.get(markerId) ??
@@ -738,7 +736,7 @@ export function KakaoMapCanvas({
               } => item !== null,
             );
 
-    overlayTargets.forEach(({ markerId, marker: data, groupNames }) => {
+    overlayTargets.forEach(({ markerId, marker: data }) => {
       const kakaoMarker = markersRef.current.find(
         (marker) => marker.markerId === markerId,
       );
@@ -746,27 +744,23 @@ export function KakaoMapCanvas({
       if (!kakaoMarker) return;
 
       const equipmentSubCount =
-        mode === "equipment"
+        overlayMode === "equipment"
           ? markers.filter(
               (item) => (item as EquipmentMarker).parentMarkerId === data.id,
             ).length
           : 0;
 
       const resolvedGroupNames =
-        mode === "location"
-          ? groupNames.length > 0
-            ? groupNames
-            : collectLocationGroupNames(data, markers)
-          : equipmentSubCount > 0
-            ? [`${data.name} (+${equipmentSubCount})`]
-            : undefined;
+        equipmentSubCount > 0
+          ? [`${data.name} (+${equipmentSubCount})`]
+          : undefined;
 
       // 캡처 모드에서는 정보창 대신 국소명 + 주소만 텍스트 라벨로 표시한다.
       const content = isInfoWindowCaptureMode
-        ? createCaptureLabelContent(data, mode, resolvedGroupNames)
+        ? createCaptureLabelContent(data, overlayMode, resolvedGroupNames)
         : createOverlayContent(
             data,
-            mode,
+            overlayMode,
             () => {
               overlayOffsetsRef.current.delete(markerId);
               const currentIds = useMapMarkerStore.getState().selectedMarkerIds;

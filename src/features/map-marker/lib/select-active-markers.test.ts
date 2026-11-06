@@ -21,6 +21,7 @@ function sources(overrides: Partial<ActiveMarkerSources> = {}): ActiveMarkerSour
     pendingBatteryMarkers: [],
     pendingLocationMarkers: [],
     savedWeatherSiteIds: [],
+    siteListBadges: new Map(),
     ...overrides,
   };
 }
@@ -111,16 +112,38 @@ describe("selectActiveMarkers", () => {
   });
 
   describe("위치 모드", () => {
-    it("DB를 무시하고 임시 목록만 반환한다", () => {
+    it("선택한 목록에 속한 장비 국소만 돌려주고 임시 마커는 뺀다", () => {
       const result = selectActiveMarkers(
         "location",
         sources({
-          equipmentMarkers: [marker("e1")],
+          equipmentMarkers: [marker("e1"), marker("e2")],
           batteryMarkers: [marker("b1")],
           pendingLocationMarkers: [marker("l1")],
+          siteListBadges: new Map([["e2", { colors: ["#111111"], extraCount: 0 }]]),
         }),
       );
-      expect(ids(result)).toEqual(["l1"]);
+      expect(ids(result)).toEqual(["e2"]);
+    });
+
+    it("목록 색상을 싣되 저장 색상은 바꾸지 않는다", () => {
+      const [site] = selectActiveMarkers(
+        "location",
+        sources({
+          equipmentMarkers: [{ ...marker("e1"), color: "#000000" }],
+          siteListBadges: new Map([["e1", { colors: ["#111111", "#222222"], extraCount: 2 }]]),
+        }),
+      );
+      expect(site).toMatchObject({
+        color: "#000000",
+        siteListColors: ["#111111", "#222222"],
+        siteListExtraCount: 2,
+      });
+    });
+
+    it("선택한 목록이 없으면 마커가 없다", () => {
+      expect(
+        selectActiveMarkers("location", sources({ equipmentMarkers: [marker("e1")] })),
+      ).toEqual([]);
     });
   });
 

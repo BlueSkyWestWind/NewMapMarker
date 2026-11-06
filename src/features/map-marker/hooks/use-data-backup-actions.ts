@@ -7,12 +7,15 @@ import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import {
-  FULL_BACKUP_TABLE_NAMES,
   buildDatedBackupFilename,
   type FullBackupTables,
 } from '@/features/map-marker/lib/excel/data-manager/full-backup-schema';
+import { fetchFullBackupTables } from '@/features/map-marker/lib/fetch-full-backup-tables';
 import { applyMarkerRolesFromStoredGroupRole } from '@/features/map-marker/lib/address-group';
 import type { MapMode } from '@/features/map-marker/types/marker';
+import type { SiteListBackup } from '@/features/site-lists/types';
+import { SITE_LISTS_QUERY_KEY } from '@/features/site-lists/hooks/use-site-lists';
+import { isSiteListsTableMissing } from '@/features/site-lists/lib/site-list-view';
 
 const INSERT_CHUNK_SIZE = 200;
 const ERP_INSERT_CHUNK_SIZE = 100;
@@ -144,26 +147,21 @@ export function useDataBackupActions() {
     setIsBusy(true);
     try {
       toast({ description: '전체 데이터 조회 중...' });
-      const tables = {
-        markers: [],
-        information: [],
-        erp_details: [],
-        battery_markers: [],
-        battery_specs: [],
-      } as FullBackupTables;
-
-      for (const name of FULL_BACKUP_TABLE_NAMES) {
-        const { data, error } = await supabase.from(name).select('*');
-        if (error) throw error;
-        tables[name] = (data ?? []) as Record<string, unknown>[];
-      }
+      const tables = await fetchFullBackupTables(supabase);
 
       if (!tables.erp_details.length && !tables.markers.length) {
         throw new Error('백업할 장비 데이터가 없습니다.');
       }
 
       const filename = buildDatedBackupFilename('mapmarker_backup');
-      const result = MapMarkerExcelManager.exportFullBackupToExcel(tables, filename) as {
+      // 마이그레이션 전이면 목록 없이 백업한다.
+      const siteListApi = await import('@/features/site-lists/api');
+      const siteLists = await siteListApi.fetchSiteListBackup(supabase).catch((error: unknown) => {
+        if (isSiteListsTableMissing(error)) return null;
+        throw error;
+      });
+
+      const result = MapMarkerExcelManager.exportFullBackupToExcel(tables, filename, siteLists) as {
         headerCount: number;
         tables: {
           markers: number;
@@ -181,7 +179,8 @@ export function useDataBackupActions() {
           `${filename} · 열 ${result.headerCount}개 · 국소 ${stationCount}건` +
           (result.tables.battery_markers || result.tables.battery_specs
             ? ` · 축전지 ${result.tables.battery_markers}/${result.tables.battery_specs}`
-            : ''),
+            : '') +
+          (siteLists ? ` · 국소 목록 ${siteLists.lists.length}개` : ''),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류';
@@ -268,6 +267,27 @@ export function useDataBackupActions() {
         const regroup = await applyMarkerRolesFromStoredGroupRole(supabase);
 
         await invalidateMarkers();
+
+        // 장비 복원이 끝난 뒤라, 목록 복원이 실패해도 장비 복원을 되돌리지 않고 따로 알린다.
+        try {
+          const siteListBackup = (await MapMarkerExcelManager.parseSiteListBackup(
+            file,
+          )) as SiteListBackup | null;
+          const userId = (await supabase.auth.getUser()).data.user?.id;
+          if (siteListBackup && userId) {
+            const siteListApi = await import('@/features/site-lists/api');
+            const isAdmin = await siteListApi.fetchIsAppAdmin(supabase, userId);
+            await siteListApi.restoreSiteLists(supabase, siteListBackup, isAdmin);
+            await queryClient.invalidateQueries({ queryKey: SITE_LISTS_QUERY_KEY });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '알 수 없는 오류';
+          toast({
+            variant: 'destructive',
+            description: `장비는 복원했지만 국소 목록 복원에 실패했습니다: ${message}`,
+          });
+        }
+
         toast({
           description:
             `전체 복원 완료 — markers ${markers.length} · information ${information.length} · ` +
@@ -284,7 +304,7 @@ export function useDataBackupActions() {
         resetFileInput(input ?? null);
       }
     },
-    [invalidateMarkers, supabase, toast],
+    [invalidateMarkers, queryClient, supabase, toast],
   );
 
   return {

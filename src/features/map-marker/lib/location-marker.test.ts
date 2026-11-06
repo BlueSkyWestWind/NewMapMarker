@@ -179,6 +179,7 @@ describe("resolveWeatherSiteForLocation", () => {
       lng: 127.1,
       workType: "elevated",
       matchedBy: "address",
+      tempMarkerId: location().id,
     });
   });
 

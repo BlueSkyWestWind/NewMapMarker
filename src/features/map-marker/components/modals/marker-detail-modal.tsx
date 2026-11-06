@@ -9,7 +9,9 @@ import {
 } from '@/components/ui/dialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
+import { useMapMarkersQuery } from '@/features/map-marker/hooks/use-map-markers-query';
 import { useMarkerList } from '@/features/map-marker/hooks/use-marker-list';
+import { SiteListMembership } from '@/features/site-lists/components/site-list-membership';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -88,10 +90,19 @@ export function MarkerDetailModal() {
   const isDetailOpen = useMapMarkerStore((state) => state.isDetailOpen);
   const selectedMarkerId = useMapMarkerStore((state) => state.selectedMarkerId);
   const closeAllModals = useMapMarkerStore((state) => state.closeAllModals);
-  const mode = useMapMarkerStore((state) => state.mode);
+  const storeMode = useMapMarkerStore((state) => state.mode);
+  // 위치 메뉴의 마커는 장비 국소다.
+  const mode = storeMode === 'location' ? 'equipment' : storeMode;
   
   // 목록만 필요하다. `useActiveMarkers`를 부르면 필터 부수효과가 중복 실행된다.
-  const markers = useMarkerList();
+  const listedMarkers = useMarkerList();
+  const { data: markersData } = useMapMarkersQuery();
+  // 위치 메뉴는 고른 국소만 들고 있어, 같은 번지 정보는 전체 장비에서 찾는다.
+  const markers = useMemo(
+    () =>
+      storeMode === 'location' ? (markersData?.equipmentMarkers ?? []) : listedMarkers,
+    [storeMode, markersData, listedMarkers],
+  );
   const marker = markers.find((m) => m.id === selectedMarkerId);
   const { toast } = useToast();
 
@@ -1210,6 +1221,8 @@ export function MarkerDetailModal() {
               </div>
             </div>
           </div>
+
+          {mode === 'equipment' && marker ? <SiteListMembership markerId={marker.id} /> : null}
 
           {/* GPSMAP 좌표·주소 변환 + 건축물대장 — 하나의 펼치기·숨기기 */}
           {mode === 'equipment' ? (

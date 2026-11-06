@@ -1,3 +1,4 @@
+import type { SiteListBackup } from '@/features/site-lists/types';
 import * as XLSX from 'xlsx';
 import {
   DEFAULT_MARKER_COLOR,
@@ -764,11 +765,18 @@ function buildWorksheetFromRows(
   return XLSX.utils.aoa_to_sheet(aoa);
 }
 
+const SITE_LIST_SHEET_NAME = '국소목록';
+const SITE_LIST_MEMBER_SHEET_NAME = '국소목록소속';
+
 export const fullBackupMethods: Record<string, unknown> & ThisType<Record<string, unknown>> = {
   /**
    * 공정관리(업로드)와 같은 한글 열 1시트로 전체 장비 데이터를 백업한다.
    */
-  exportFullBackupToExcel(tables: FullBackupTables, filename?: string) {
+  exportFullBackupToExcel(
+    tables: FullBackupTables,
+    filename?: string,
+    siteLists?: SiteListBackup | null,
+  ) {
     const rows = buildFullBackupSheetRows(tables);
     if (!rows.length) {
       throw new Error('백업할 데이터가 없습니다.');
@@ -777,6 +785,18 @@ export const fullBackupMethods: Record<string, unknown> & ThisType<Record<string
     const worksheet = buildWorksheetFromRows(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, SHEET_NAME);
+    if (siteLists) {
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(siteLists.lists),
+        SITE_LIST_SHEET_NAME,
+      );
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(siteLists.members),
+        SITE_LIST_MEMBER_SHEET_NAME,
+      );
+    }
 
     const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const downloadName = filename || buildDatedBackupFilename('mapmarker_backup');
@@ -801,6 +821,20 @@ export const fullBackupMethods: Record<string, unknown> & ThisType<Record<string
         battery_markers: tables.battery_markers.length,
         battery_specs: tables.battery_specs.length,
       },
+    };
+  },
+
+  /** 목록 시트를 읽는다. 시트가 없는 옛 백업이면 null이다(현재 목록을 건드리지 않는다). */
+  async parseSiteListBackup(file: File): Promise<SiteListBackup | null> {
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const listSheet = workbook.Sheets[SITE_LIST_SHEET_NAME];
+    if (!listSheet) return null;
+    const memberSheet = workbook.Sheets[SITE_LIST_MEMBER_SHEET_NAME];
+    return {
+      lists: XLSX.utils.sheet_to_json<Record<string, unknown>>(listSheet, { defval: '' }),
+      members: memberSheet
+        ? XLSX.utils.sheet_to_json<Record<string, unknown>>(memberSheet, { defval: '' })
+        : [],
     };
   },
 

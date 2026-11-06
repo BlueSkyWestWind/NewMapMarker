@@ -6,7 +6,9 @@ import {
 import {
   getEffectiveMarkerColor,
   getMarkerColorLabel,
+  getMarkerImageUri,
   getMarkerSvg,
+  getSiteListMarkerSvg,
 } from "@/features/map-marker/lib/marker-svg";
 import type {
   EquipmentMarker,
@@ -107,5 +109,32 @@ describe("추가 마커 색상 5개", () => {
 
   it("개통완료 흰색은 색상 필터 라벨이 흰색이다", () => {
     expect(getMarkerColorLabel("#ffffff", "equipment")).toBe("흰색");
+  });
+});
+
+describe("국소 목록 핀", () => {
+  const decoded = (uri: string) => decodeURIComponent(uri);
+
+  it("목록 색을 모두 칠하고 남은 수를 표시한다", () => {
+    const svg = decoded(getSiteListMarkerSvg(["#111111", "#222222", "#333333"], 2));
+    expect(svg).toContain("#111111");
+    expect(svg).toContain("#222222");
+    expect(svg).toContain("#333333");
+    expect(svg).toContain("+2");
+  });
+
+  it("남은 목록이 없으면 숫자를 쓰지 않는다", () => {
+    expect(decoded(getSiteListMarkerSvg(["#111111"], 0))).not.toContain("<text");
+  });
+
+  it("같은 색 조합은 그라디언트 ID가 같고 다른 조합은 다르다", () => {
+    const id = (colors: string[]) => decoded(getSiteListMarkerSvg(colors, 0)).match(/id="([^"]+)"/)?.[1];
+    expect(id(["#111111", "#222222"])).toBe(id(["#111111", "#222222"]));
+    expect(id(["#111111", "#222222"])).not.toBe(id(["#222222", "#111111"]));
+  });
+
+  it("목록 색이 있는 마커는 저장 색 대신 목록 핀을 쓴다", () => {
+    const marker = { id: "m", color: "#000000", siteListColors: ["#123456"], siteListExtraCount: 0 } as unknown as EquipmentMarker;
+    expect(decoded(getMarkerImageUri(marker, "location"))).toContain("#123456");
   });
 });

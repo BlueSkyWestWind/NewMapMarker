@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { selectActiveMarkers } from "@/features/map-marker/lib/select-active-markers";
+import { useSiteLists } from "@/features/site-lists/hooks/use-site-lists";
+import { buildSiteListBadges } from "@/features/site-lists/lib/site-list-view";
 import type { MarkerRecord } from "@/features/map-marker/types/marker";
 
 /**
@@ -34,6 +36,19 @@ export function useMarkerList(): MarkerRecord[] {
     [savedWeatherSites],
   );
   const { data } = useMapMarkersQuery();
+  const mapSegment = useMapMarkerStore((state) => state.mapSegment);
+  const selectedSiteListIds = useMapMarkerStore((state) => state.selectedSiteListIds);
+  const { lists, members } = useSiteLists();
+  // 변환기도 위치 모드를 쓰지만 목록 화면이 아니므로 올리지 않는다.
+  const siteListBadges = useMemo(
+    () =>
+      buildSiteListBadges(
+        lists,
+        members,
+        mapSegment === "location" ? selectedSiteListIds : [],
+      ),
+    [lists, members, mapSegment, selectedSiteListIds],
+  );
 
   return useMemo(
     () =>
@@ -44,6 +59,7 @@ export function useMarkerList(): MarkerRecord[] {
         pendingBatteryMarkers,
         pendingLocationMarkers,
         savedWeatherSiteIds,
+        siteListBadges,
       }),
     [
       savedWeatherSiteIds,
@@ -52,6 +68,7 @@ export function useMarkerList(): MarkerRecord[] {
       pendingEquipmentMarkers,
       pendingBatteryMarkers,
       pendingLocationMarkers,
+      siteListBadges,
     ],
   );
 }

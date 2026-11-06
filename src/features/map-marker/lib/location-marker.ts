@@ -180,5 +180,6 @@ export function resolveWeatherSiteForLocation(
     lng: matched.lng,
     workType: matched.workType === "elevated" ? "elevated" : "ground",
     matchedBy: "address",
+    tempMarkerId: marker.id,
   };
 }

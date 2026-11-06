@@ -175,6 +175,33 @@ export function getMarkerSvg(
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
 }
 
+/**
+ * 국소 목록 핀. 목록 색을 세로로 나눠 칠하고, 표시하지 못한 목록 수는 가운데에 쓴다.
+ * 그라디언트 ID가 겹치면 다른 핀의 색이 보이므로 색 조합으로 만든다.
+ */
+export function getSiteListMarkerSvg(colors: string[], extraCount: number) {
+  const gradId = `list-${colors.map((color) => color.replace("#", "")).join("-")}`;
+  const stops = colors
+    .flatMap((color, index) => [
+      `<stop offset="${(index / colors.length) * 100}%" stop-color="${color}" />`,
+      `<stop offset="${((index + 1) / colors.length) * 100}%" stop-color="${color}" />`,
+    ])
+    .join("");
+  const center =
+    extraCount > 0
+      ? `<circle cx="12" cy="11" r="6.5" fill="#ffffff"/><text x="12" y="13.6" font-size="7.5" font-weight="700" font-family="sans-serif" text-anchor="middle" fill="#0f172a">+${extraCount}</text>`
+      : getMarkerInnerShape("circle", "#ffffff");
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45">
+  <defs>
+    <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">${stops}</linearGradient>
+  </defs>
+  <path d="${MARKER_PIN_OUTER_PATH}" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
+  ${center}
+</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+}
+
 /** 캡처용 작은 원형 포인트 (핀 마커 대신 사용) */
 export const CAPTURE_DOT_SIZE = 12;
 /** 캡처 시 식별이 쉽도록 고정 빨간색 */
@@ -198,6 +225,10 @@ export function getMarkerImageUri(
 ) {
   if (options?.captureDot) {
     return getCaptureDotSvg(CAPTURE_DOT_COLOR);
+  }
+
+  if (marker.siteListColors?.length) {
+    return getSiteListMarkerSvg(marker.siteListColors, marker.siteListExtraCount ?? 0);
   }
 
   const color = getEffectiveMarkerColor(marker, mode);

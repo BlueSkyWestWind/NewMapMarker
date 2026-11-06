@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useExcelUploadActions } from "@/features/map-marker/hooks/use-excel-upload-actions";
 
 /**
- * 위치 모드용 엑셀 업로드.
+ * 대시보드의 임시 위치 등록.
  * 장비 엑셀과 동일한 파서(위경도/주소)를 쓰며, DB 없이 지도와 대시보드에 바로 표시한다.
  */
 export function LocationExcelSection() {

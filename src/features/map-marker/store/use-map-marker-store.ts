@@ -35,6 +35,9 @@ interface MapMarkerUiState {
    */
   lastDomainMode: DomainMode;
   setActiveNav: (nav: NavKey) => void;
+  /** 위치 메뉴에서 표시 중인 목록. persist 하지 않는다 */
+  selectedSiteListIds: string[];
+  toggleSiteList: (id: string) => void;
   /** 지도 패널의 세그먼트. `converter`는 모드가 아니라 화면이라 별도로 든다. */
   mapSegment: MapSegment;
   setMapSegment: (segment: MapSegment) => void;
@@ -286,6 +289,13 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       isMarkersVisible: true,
       toggleMarkersVisible: () =>
         set((state) => ({ isMarkersVisible: !state.isMarkersVisible })),
+      selectedSiteListIds: [],
+      toggleSiteList: (id) =>
+        set((state) => ({
+          selectedSiteListIds: state.selectedSiteListIds.includes(id)
+            ? state.selectedSiteListIds.filter((value) => value !== id)
+            : [...state.selectedSiteListIds, id],
+        })),
       savedWeatherSites: [],
       saveWeatherSites: (sites) => set({ savedWeatherSites: sites }),
       addWeatherSites: (sites) =>
@@ -297,11 +307,30 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             savedWeatherSites: [...state.savedWeatherSites, ...additions],
           };
         }),
-      clearSavedWeatherSites: () => set({ savedWeatherSites: [] }),
+      // 작업 국소를 지우면 등록할 때 만든 임시 마커도 함께 지운다. 경로 후보에 남지 않게 한다.
+      clearSavedWeatherSites: () =>
+        set((state) => {
+          const tempIds = new Set(
+            state.savedWeatherSites.map((site) => site.tempMarkerId ?? site.id),
+          );
+          return {
+            savedWeatherSites: [],
+            pendingLocationMarkers: state.pendingLocationMarkers.filter(
+              (marker) => !tempIds.has(marker.id),
+            ),
+          };
+        }),
       removeSavedWeatherSite: (id) =>
-        set((state) => ({
-          savedWeatherSites: state.savedWeatherSites.filter((s) => s.id !== id),
-        })),
+        set((state) => {
+          const site = state.savedWeatherSites.find((s) => s.id === id);
+          const tempId = site?.tempMarkerId ?? id;
+          return {
+            savedWeatherSites: state.savedWeatherSites.filter((s) => s.id !== id),
+            pendingLocationMarkers: state.pendingLocationMarkers.filter(
+              (marker) => marker.id !== tempId,
+            ),
+          };
+        }),
       // 세그먼트를 직접 누른 경우다. 도메인이 바뀌면 필터 항목 자체가 달라지므로 초기화한다.
       // 메뉴 이동은 이 함수를 쓰지 않는다 — `setActiveNav` 참조.
       setMode: (mode) =>

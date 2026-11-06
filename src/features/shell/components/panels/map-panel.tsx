@@ -1,10 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { FileSpreadsheet, Filter, List, MapPin, Waypoints } from "lucide-react";
+import { Filter, List, Waypoints } from "lucide-react";
 import { FilterPanel } from "@/features/map-marker/components/sidebar/filter-panel";
-import { LocationAddressSection } from "@/features/map-marker/components/sidebar/location-address-section";
-import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
 import { MarkersListPanel } from "@/features/map-marker/components/sidebar/markers-list-panel";
 import { PanelSection } from "@/features/shell/components/panels/panel-section";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
@@ -22,6 +20,18 @@ const GpsConverterPanel = dynamic(
   () =>
     import("@/features/gpsmap/components/gps-converter-panel").then(
       (m) => m.GpsConverterPanel,
+    ),
+  {
+    ssr: false,
+    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
+  },
+);
+
+// 위치 메뉴를 고를 때 받는다. 홈 번들 기준을 지키기 위해 첫 로딩에서 뺀다.
+const SiteListsPanel = dynamic(
+  () =>
+    import("@/features/site-lists/components/site-lists-panel").then(
+      (m) => m.SiteListsPanel,
     ),
   {
     ssr: false,
@@ -56,29 +66,7 @@ export function MapPanel({
   }
 
   if (segment === "location") {
-    return (
-      <div className="space-y-3">
-        <PanelSection
-          icon={FileSpreadsheet}
-          title="엑셀로 위치 찍기"
-          iconClassName="h-3.5 w-3.5 text-emerald-400"
-        >
-          <LocationExcelSection />
-        </PanelSection>
-
-        <PanelSection
-          icon={MapPin}
-          title="주소로 위치 찍기"
-          iconClassName="h-3.5 w-3.5 text-emerald-400"
-        >
-          <LocationAddressSection />
-        </PanelSection>
-
-        <PanelSection icon={List} title={`등록 위치 (${markers.length})`}>
-          <MarkersListPanel mode={mode} markers={markers} filters={filters} />
-        </PanelSection>
-      </div>
-    );
+    return <SiteListsPanel markers={markers} />;
   }
 
   return (

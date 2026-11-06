@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookmarkPlus, Satellite, Wind } from "lucide-react";
+import { BookmarkPlus, FileSpreadsheet, MapPin, Satellite, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
+import { LocationAddressSection } from "@/features/map-marker/components/sidebar/location-address-section";
+import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
+import { PanelSection } from "@/features/shell/components/panels/panel-section";
 import { RoutePanel } from "@/features/route/components/route-panel";
 import { WorksiteBoard } from "@/features/dashboard/components/worksite-board";
 import { useWorksiteBoard } from "@/features/dashboard/hooks/use-worksite-board";
@@ -30,7 +33,6 @@ import {
 export function DashboardPanel() {
   const { rows, retry } = useWorksiteBoard();
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
-  const setMapSegment = useMapMarkerStore((state) => state.setMapSegment);
   const setSelectedMarkerId = useMapMarkerStore((state) => state.setSelectedMarkerId);
   const selectedMarkerIds = useMapMarkerStore(
     (state) => state.selectedMarkerIds,
@@ -106,6 +108,26 @@ export function DashboardPanel() {
     </div>
   );
 
+  // 임시 위치 등록. 지도에 표시하고 오늘의 작업 국소로 함께 저장한다.
+  const siteRegistration = (
+    <>
+      <PanelSection
+        icon={FileSpreadsheet}
+        title="엑셀로 위치 찍기"
+        iconClassName="h-3.5 w-3.5 text-emerald-400"
+      >
+        <LocationExcelSection />
+      </PanelSection>
+      <PanelSection
+        icon={MapPin}
+        title="주소로 위치 찍기"
+        iconClassName="h-3.5 w-3.5 text-emerald-400"
+      >
+        <LocationAddressSection />
+      </PanelSection>
+    </>
+  );
+
   const weatherModals = (
     <>
       <TyphoonModal
@@ -170,7 +192,7 @@ export function DashboardPanel() {
           </p>
           <p className="text-[11px] leading-relaxed text-slate-500">
             지도에서 국소를 검색해 「오늘의 작업 국소로 저장」을 누르거나,
-            위치 탭에서 엑셀·주소로 위치를 등록하면 여기에 당일 기상 판정이
+            아래에서 엑셀·주소로 위치를 등록하면 여기에 당일 기상 판정이
             표시됩니다.
           </p>
           <Button
@@ -179,13 +201,13 @@ export function DashboardPanel() {
             className="mt-1 h-8 text-[11px]"
             onClick={() => {
               setActiveNav("map");
-              setMapSegment("location");
-              useShellStore.getState().setPanelStep("detail");
+              useShellStore.getState().setPanelStep("root");
             }}
           >
             지도로 이동
           </Button>
         </div>
+        {siteRegistration}
         {weatherModals}
       </div>
     );
@@ -267,6 +289,8 @@ export function DashboardPanel() {
           ) : null}
         </section>
       ) : null}
+
+      {siteRegistration}
 
       {weatherModals}
     </div>

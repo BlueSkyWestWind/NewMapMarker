@@ -47,7 +47,9 @@ export function useMarkerEditForm() {
   const isEditOpen = useMapMarkerStore((state) => state.isEditOpen);
   const selectedMarkerId = useMapMarkerStore((state) => state.selectedMarkerId);
   const closeAllModals = useMapMarkerStore((state) => state.closeAllModals);
-  const mode = useMapMarkerStore((state) => state.mode);
+  const storeMode = useMapMarkerStore((state) => state.mode);
+  // 위치 메뉴의 마커는 장비 국소다.
+  const mode = storeMode === 'location' ? 'equipment' : storeMode;
   
   // 목록만 필요하다. `useActiveMarkers`를 부르면 필터 부수효과가 중복 실행된다.
   const markers = useMarkerList();

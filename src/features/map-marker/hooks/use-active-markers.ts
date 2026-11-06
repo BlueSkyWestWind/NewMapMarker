@@ -45,10 +45,6 @@ function shouldUpdateFilters(
  */
 export function useActiveMarkers() {
   const mode = useMapMarkerStore((state) => state.mode);
-  // 건수 표시에만 쓴다. 목록 파생은 `useMarkerList`가 맡는다.
-  const pendingLocationMarkers = useMapMarkerStore(
-    (state) => state.pendingLocationMarkers,
-  );
   const { data, isLoading, isError, error, refetch } = useMapMarkersQuery();
   const filters = useMapMarkerStore((state) => state.filters);
   const setFilters = useMapMarkerStore((state) => state.setFilters);
@@ -144,12 +140,12 @@ export function useActiveMarkers() {
     filterOptions,
     effectiveFilters,
     invalidCoordinateCount,
-    isLoading: mode === "location" ? false : isLoading,
-    isError: mode === "location" ? false : isError,
+    isLoading,
+    isError,
     error,
     refetch,
     equipmentCount: data?.equipmentMarkers.length ?? 0,
     batteryCount: data?.batteryMarkers.length ?? 0,
-    locationCount: pendingLocationMarkers.length,
+    locationCount: mode === "location" ? markers.length : 0,
   };
 }

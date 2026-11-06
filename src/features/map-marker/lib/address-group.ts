@@ -1,3 +1,4 @@
+import { fetchAllRows, type FetchPageResult } from '@/features/map-marker/api';
 import type { SupabaseBrowserClient } from '@/lib/supabase/client';
 
 const LOT_PATTERN = /(\d+(?:-\d+)?번지)/;
@@ -112,6 +113,24 @@ interface RoleUpdate {
 
 const UPDATE_CHUNK_SIZE = 100;
 
+/**
+ * 재정리는 번지가 같은 마커를 모두 봐야 한다. 일부만 읽으면 묶음이 틀어지므로
+ * 서버 상한(보통 1000행)을 넘어도 끝까지 읽는다.
+ */
+function fetchMarkerParentRows(
+  supabase: SupabaseBrowserClient,
+  columns: string,
+): Promise<MarkerParentRow[]> {
+  return fetchAllRows<MarkerParentRow>(
+    (from, to) =>
+      supabase
+        .from('markers')
+        .select(columns, { count: 'exact' })
+        .order('id')
+        .range(from, to) as unknown as PromiseLike<FetchPageResult<MarkerParentRow>>,
+  );
+}
+
 async function applyRoleUpdates(
   supabase: SupabaseBrowserClient,
   updates: RoleUpdate[],
@@ -156,14 +175,10 @@ function sortByCreatedAtThenId(a: MarkerParentRow, b: MarkerParentRow) {
 export async function assignMarkerParentsByLotAddress(
   supabase: SupabaseBrowserClient,
 ): Promise<{ groupCount: number; subCount: number }> {
-  const { data, error } = await supabase
-    .from('markers')
-    .select(
-      'id, road_address, jibun_address, created_at, parent_marker_id, group_role, group_key',
-    );
-  if (error) throw error;
-
-  const rows = (data ?? []) as MarkerParentRow[];
+  const rows = await fetchMarkerParentRows(
+    supabase,
+    'id, road_address, jibun_address, created_at, parent_marker_id, group_role, group_key',
+  );
   const groups = new Map<string, MarkerParentRow[]>();
 
   for (const row of rows) {
@@ -235,12 +250,10 @@ export async function assignMarkerParentsByLotAddress(
 export async function applyMarkerRolesFromStoredGroupRole(
   supabase: SupabaseBrowserClient,
 ): Promise<{ groupCount: number; subCount: number; usedStoredRoles: boolean }> {
-  const { data, error } = await supabase
-    .from('markers')
-    .select('id, road_address, jibun_address, created_at, group_role, group_key');
-  if (error) throw error;
-
-  const rows = (data ?? []) as MarkerParentRow[];
+  const rows = await fetchMarkerParentRows(
+    supabase,
+    'id, road_address, jibun_address, created_at, group_role, group_key',
+  );
   const hasStored = rows.some((row) => normalizeGroupRole(row.group_role));
   if (!hasStored) {
     const result = await assignMarkerParentsByLotAddress(supabase);

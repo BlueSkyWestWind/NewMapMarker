@@ -1,4 +1,5 @@
 import type { MapMode, MarkerRecord } from "@/features/map-marker/types/marker";
+import type { SiteListBadge } from "@/features/site-lists/types";
 
 /**
  * 모드별 마커 선별의 입력. 훅이 스토어·쿼리에서 모은 값을 그대로 넘긴다.
@@ -16,6 +17,8 @@ export interface ActiveMarkerSources {
    * 축전지 국소는 목록에만 남는다 — 축전지 id가 섞여 들어와도 지도에는 오르지 않는다.
    */
   savedWeatherSiteIds: string[];
+  /** 위치 메뉴에서 선택한 목록에 속한 국소와 그 색상 */
+  siteListBadges: Map<string, SiteListBadge>;
 }
 
 /**
@@ -49,9 +52,20 @@ export function selectActiveMarkers(
     return [...equipmentHits, ...locationHits];
   }
 
-  // 위치 모드는 DB 없이 브라우저 메모리 목록만 사용한다.
+  // 위치 모드는 선택한 목록의 장비 국소만 올린다. 임시 마커는 대시보드에서 다룬다.
   if (mode === "location") {
-    return sources.pendingLocationMarkers;
+    return (sources.equipmentMarkers ?? []).flatMap((marker) => {
+      const badge = sources.siteListBadges.get(marker.id);
+      return badge
+        ? [
+            {
+              ...marker,
+              siteListColors: badge.colors,
+              siteListExtraCount: badge.extraCount,
+            },
+          ]
+        : [];
+    });
   }
 
   const isEquipment = mode === "equipment";

@@ -22,6 +22,10 @@ export interface BaseMarker {
   createdAt: string;
   isPending?: boolean;
   isTemp?: boolean;
+  /** 위치 메뉴에서 선택한 목록의 색상. 저장 색상 `color`와 별개다 */
+  siteListColors?: string[];
+  /** 색상으로 표시하지 못한 나머지 목록 수 */
+  siteListExtraCount?: number;
 }
 
 /** 올해 장비 기준 시설 진행 상태. 판정은 `lib/facility-status.ts` */

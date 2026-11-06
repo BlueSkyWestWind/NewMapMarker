@@ -24,7 +24,7 @@
 - 디렉터리: `src/features/{feature}/{components,hooks,lib,constants,types}` · `src/components/ui`(shadcn) ·
   `src/lib` · `src/hooks`.
   features: `map-marker`(지도/마커) · `worksite-weather`(작업 안전 날씨) · `dashboard`(당일 국소 요약) ·
-  `gpsmap`(주소/좌표 변환기) · `cctv`(도로 CCTV) · `shell`(레이아웃/네비).
+  `gpsmap`(주소/좌표 변환기) · `cctv`(도로 CCTV) · `shell`(레이아웃/네비) · `site-lists`(위치 메뉴 국소 목록).
 - **shadcn 컴포넌트 추가는 설치 명령만 알려 준다.** 실행은 사용자가 한다 — `npx shadcn@latest add <name>`.
 - **Supabase는 로컬 실행 금지.** 테이블 변경은 `supabase/migrations/*.sql`로 만들어 두면 사용자가 적용한다.
 - 패키지 매니저는 **npm**.
@@ -58,7 +58,7 @@
 - 폭 상수는 `features/shell/constants.ts` 단일 소스. CSS 변수(`--rail-w`·`--panel-w`)로 흘려
   미디어 쿼리를 얹는다. 컴포넌트에 숫자를 적지 않는다.
 - `vitest.config.ts`의 include가 `.ts`뿐 — **`.tsx` 테스트는 조용히 실행되지 않는다.**
-- 문서는 버전 폴더에 모은다(`docs/Ver_X.Y/`). 구조 점검은 `docs/Ver_2.0/project_review.md`에 누적.
+- 문서는 버전 폴더에 모은다(`docs/Ver_X.Y/`). 이전 버전은 `docs/이전버젼/`에 두고 수정하지 않는다. 현재 계획은 `docs/Ver_3.0/Ver_3.0_계획.md`.
 - **기존 화면을 옮길 때는 원본이 사양이다.** "개선"을 얹지 않는다 —
   변환기 이식에서 덧붙인 토글·링크·자동 마커 등록이 전부 재작업이 됐다.
 - **"기능이 안 보인다"≠"없다".** `dashboard-panel.tsx`의 빈 상태(`rows.length === 0`)

@@ -183,4 +183,6 @@ export interface SiteMatch {
   lng: number;
   workType: WorkType;
   matchedBy: SiteMatchKind;
+  /** 임시 마커가 장비 마커로 연결된 경우 원래 임시 마커 ID. 국소를 제거할 때 함께 지운다 */
+  tempMarkerId?: string;
 }
