@@ -46,7 +46,7 @@ test.describe("로그인 벽", () => {
 test.describe("앱 스모크 (로그인 필요)", () => {
   test.skip(!E2E_EMAIL || !E2E_PASSWORD, "E2E_EMAIL / E2E_PASSWORD 가 없어 건너뜀");
 
-  test("홈 페이지가 렌더되고 사이드바 모드 탭이 보인다", async ({ page }) => {
+  test("홈 페이지가 렌더되고 지도 하위 메뉴가 보인다", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
 
@@ -60,19 +60,16 @@ test.describe("앱 스모크 (로그인 필요)", () => {
     expect(errors, `page errors:\n${errors.join("\n")}`).toHaveLength(0);
   });
 
-  test("모드 탭 전환이 동작한다(장비 ↔ 축전지 ↔ 위치)", async ({ page }) => {
+  test("하위 메뉴 이동이 동작한다(축전지 → 뒤로 → 위치)", async ({ page }) => {
     await login(page);
 
-    const battery = page.getByRole("button", { name: "축전지" });
-    await battery.click();
-    await expect(page.getByRole("button", { name: "장비" })).toBeVisible();
-    await expect(battery).toBeVisible();
+    await page.getByRole("button", { name: "축전지" }).click();
+    await expect(page.getByRole("heading", { name: "축전지" })).toBeVisible();
 
-    const location = page.getByRole("button", { name: "위치" });
-    await location.click();
+    await page.getByRole("button", { name: "뒤로" }).click();
+    await page.getByRole("button", { name: "위치", exact: true }).click();
     await expect(
       page.getByText(/지도를 클릭하면 위치가 바로 등록됩니다/),
     ).toBeVisible();
-    await expect(location).toBeVisible();
   });
 });

@@ -2,13 +2,32 @@
 
 import dynamic from "next/dynamic";
 import { match } from "ts-pattern";
-import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useHasMounted } from "@/hooks/use-has-mounted";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { NavRail } from "@/features/shell/components/nav-rail";
 import { TopSearchBar } from "@/features/shell/components/top-search-bar";
 import { WorkPanel } from "@/features/shell/components/work-panel";
+
+// 홈 첫 로딩 번들에서 분리한다. 하단 메뉴와 시트는 모바일에서만, 트리는 펼칠 때만 필요하다.
+const MobileSheet = dynamic(
+  () =>
+    import("@/features/shell/components/mobile-shell").then((m) => m.MobileSheet),
+  { ssr: false },
+);
+const MobileBottomNav = dynamic(
+  () =>
+    import("@/features/shell/components/mobile-shell").then(
+      (m) => m.MobileBottomNav,
+    ),
+  { ssr: false },
+);
+const NavTree = dynamic(
+  () => import("@/features/shell/components/nav-tree").then((m) => m.NavTree),
+  { ssr: false },
+);
 
 // 바코드/QR 탭에서만 필요하다. zbar-wasm·xlsx 의존 트리와 묶여 무거워 지연 로딩한다.
 const BarcodeResultsMain = dynamic(
@@ -20,12 +39,15 @@ const BarcodeResultsMain = dynamic(
 );
 import {
   NAV_RAIL_WIDTH_PX,
+  NAV_TREE_WIDTH_PX,
   WORK_PANEL_WIDTH_PX,
 } from "@/features/shell/constants";
+import { hasNavSegments } from "@/features/shell/lib/nav-model";
+import { useShellStore } from "@/features/shell/store/use-shell-store";
+import { isNavAccessible } from "@/features/shell/types/nav";
 import type { NavKey } from "@/features/shell/types/nav";
 import type { MapSegment } from "@/features/shell/types/segment";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
-import type { CSSProperties, ReactNode } from "react";
 
 interface AppShellProps extends PanelDataProps {
   /** 하이드레이션 안전값. `MapMarkerPage`가 마운트 전후를 판정해 내려 준다. */
@@ -41,7 +63,8 @@ interface AppShellProps extends PanelDataProps {
 }
 
 /**
- * 4영역 레이아웃 — 레일 / 패널 / 상단 검색 / 지도.
+ * 레이아웃 — 레일 또는 트리 / 패널 / 상단 검색 / 지도. 모바일은 하단 메뉴와 시트로 바뀐다.
+ * 지도가 다시 마운트되지 않도록 데스크톱과 모바일이 같은 트리를 쓴다.
  *
  * `useActiveMarkers()`는 호출하지 않는다. 그 훅은 스토어에 쓰는 부수효과가 있어
  * 트리에서 한 번만 불러야 하고, 지금은 `MapMarkerPage`가 그 자리다.
@@ -62,7 +85,21 @@ export function AppShell({
 }: AppShellProps) {
   const hasMounted = useHasMounted();
   const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
-  const toggleSidebar = useMapMarkerStore((state) => state.toggleSidebar);
+  const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
+  const isTreeOpen = useShellStore((state) => state.isTreeOpen);
+  const panelStep = useShellStore((state) => state.panelStep);
+  const isMobile = useIsMobile();
+  const { isAuthenticated } = useAuthSession();
+  const authed = hasMounted && isAuthenticated;
+
+  // 로그아웃했는데 보고 있던 메뉴가 숨김 대상이면 빈 화면이 남는다.
+  // persist로 복원된 값도 여기서 함께 걸러진다.
+  useEffect(() => {
+    if (!hasMounted) return;
+    if (!isNavAccessible(activeNav, authed)) {
+      setActiveNav("dashboard");
+    }
+  }, [hasMounted, authed, activeNav, setActiveNav]);
 
   const countLabel = match(mode)
     .with("equipment", () => `장비 ${equipmentCount}건`)
@@ -82,6 +119,26 @@ export function AppShell({
     .filter(Boolean)
     .join(" · ");
 
+  const segmentCounts = {
+    equipment: equipmentCount,
+    battery: batteryCount,
+    location: locationCount,
+  };
+  const bodyProps = {
+    mode,
+    activeNav,
+    segment,
+    markers,
+    filterOptions,
+    filters,
+    equipmentCount,
+    batteryCount,
+  };
+  // 트리에서는 하위 메뉴 첫 단계를 트리가 대신하므로 패널이 열리지 않는다.
+  const isPanelOpen =
+    isSidebarOpen &&
+    (!isTreeOpen || !hasNavSegments(activeNav) || panelStep === "detail");
+
   return (
     <div
       className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-950"
@@ -92,23 +149,21 @@ export function AppShell({
       style={
         {
           "--rail-w": `${NAV_RAIL_WIDTH_PX}px`,
+          "--tree-w": `${NAV_TREE_WIDTH_PX}px`,
+          "--nav-w": `${isTreeOpen ? NAV_TREE_WIDTH_PX : NAV_RAIL_WIDTH_PX}px`,
           "--panel-w": `${WORK_PANEL_WIDTH_PX}px`,
         } as CSSProperties
       }
     >
-      <NavRail countSummary={countSummary} activeNav={activeNav} />
-
-      {isSidebarOpen ? (
+      {!isMobile && isTreeOpen ? (
+        <NavTree activeNav={activeNav} segment={segment} segmentCounts={segmentCounts} />
+      ) : null}
+      {!isMobile && !isTreeOpen ? <NavRail activeNav={activeNav} /> : null}
+      {!isMobile && isPanelOpen ? (
         <WorkPanel
-          mode={mode}
-          activeNav={activeNav}
-          segment={segment}
-          markers={markers}
-          filterOptions={filterOptions}
-          filters={filters}
-          equipmentCount={equipmentCount}
-          batteryCount={batteryCount}
-          locationCount={locationCount}
+          {...bodyProps}
+          countSummary={countSummary}
+          segmentCounts={segmentCounts}
         />
       ) : null}
 
@@ -128,21 +183,15 @@ export function AppShell({
           <div className={activeNav === "barcode" ? "hidden" : "contents"}>{children}</div>
           {activeNav === "barcode" ? <BarcodeResultsMain /> : null}
 
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="absolute left-3 top-3 z-20 h-8 w-8 border-slate-700 bg-slate-900/90 text-slate-200"
-            onClick={toggleSidebar}
-            title={isSidebarOpen ? "패널 접기" : "패널 펼치기"}
-          >
-            {isSidebarOpen ? (
-              <PanelLeftClose className="h-4 w-4" />
-            ) : (
-              <PanelLeftOpen className="h-4 w-4" />
-            )}
-          </Button>
+          {isMobile ? (
+            <MobileSheet
+              {...bodyProps}
+              countSummary={countSummary}
+              segmentCounts={segmentCounts}
+            />
+          ) : null}
         </main>
+        {isMobile ? <MobileBottomNav activeNav={activeNav} /> : null}
       </div>
     </div>
   );

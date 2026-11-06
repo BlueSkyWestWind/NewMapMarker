@@ -5,12 +5,8 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useHasMounted } from "@/hooks/use-has-mounted";
-import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { roadTypeLabel } from "@/features/cctv/constants/its-config";
-import {
-  COLLAPSED_LEFT_OFFSET_PX,
-  LEFT_OFFSET_PX,
-} from "@/features/shell/constants";
+import { useMapLeftOffset } from "@/features/shell/hooks/use-map-left-offset";
 import type { CctvItem } from "@/features/cctv/types/cctv";
 
 interface CctvVideoModalProps {
@@ -30,7 +26,7 @@ export function CctvVideoModal({ cctv, onClose }: CctvVideoModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const hasMounted = useHasMounted();
-  const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
+  const leftOffset = useMapLeftOffset();
 
   useEffect(() => {
     const video = videoRef.current;
@@ -115,7 +111,7 @@ export function CctvVideoModal({ cctv, onClose }: CctvVideoModalProps) {
       // 뷰포트 고정이라 좌측 셸 폭만큼 비켜야 지도 영역 중앙에 온다.
       style={{
         paddingLeft:
-          (isSidebarOpen ? LEFT_OFFSET_PX : COLLAPSED_LEFT_OFFSET_PX) + 16,
+          leftOffset + 16,
       }}
       onClick={onClose}
     >

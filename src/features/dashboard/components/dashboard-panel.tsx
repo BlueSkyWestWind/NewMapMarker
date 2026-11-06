@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BookmarkPlus, Satellite, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useShellStore } from "@/features/shell/store/use-shell-store";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { RoutePanel } from "@/features/route/components/route-panel";
 import { WorksiteBoard } from "@/features/dashboard/components/worksite-board";
@@ -179,6 +180,7 @@ export function DashboardPanel() {
             onClick={() => {
               setActiveNav("map");
               setMapSegment("location");
+              useShellStore.getState().setPanelStep("detail");
             }}
           >
             지도로 이동

@@ -7,9 +7,8 @@ import { GripHorizontal, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useHasMounted } from "@/hooks/use-has-mounted";
-import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { BarcodeQrCanvas } from "@/features/barcode/components/barcode-qr-canvas";
-import { COLLAPSED_LEFT_OFFSET_PX, LEFT_OFFSET_PX } from "@/features/shell/constants";
+import { useMapLeftOffset } from "@/features/shell/hooks/use-map-left-offset";
 import type { LightboxTarget } from "@/features/barcode/types/barcode";
 
 interface BarcodeLightboxProps {
@@ -25,7 +24,7 @@ interface BarcodeLightboxProps {
  */
 export function BarcodeLightbox({ target, onClose }: BarcodeLightboxProps) {
   const hasMounted = useHasMounted();
-  const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
+  const leftOffset = useMapLeftOffset();
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
@@ -46,7 +45,7 @@ export function BarcodeLightbox({ target, onClose }: BarcodeLightboxProps) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       style={{
-        paddingLeft: (isSidebarOpen ? LEFT_OFFSET_PX : COLLAPSED_LEFT_OFFSET_PX) + 16,
+        paddingLeft: leftOffset + 16,
       }}
       onClick={onClose}
     >

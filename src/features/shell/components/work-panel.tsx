@@ -1,124 +1,47 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { match } from "ts-pattern";
-import { ModeTabs } from "@/features/map-marker/components/sidebar/mode-tabs";
-import { CctvPanel } from "@/features/cctv/components/cctv-panel";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { ChevronLeft, ChevronRight, Lock, Search, X } from "lucide-react";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
-import { useHasMounted } from "@/hooks/use-has-mounted";
-import { ComingSoon } from "@/features/shell/components/coming-soon";
-import { MapPanel } from "@/features/shell/components/panels/map-panel";
-import { MarkersPanel } from "@/features/shell/components/panels/markers-panel";
-import { BackupPanel } from "@/features/shell/components/panels/backup-panel";
-import { SettingsPanel } from "@/features/shell/components/panels/settings-panel";
+import { PanelBody, type PanelBodyProps } from "@/features/shell/components/panel-body";
+import { useShellNav } from "@/features/shell/hooks/use-shell-nav";
+import {
+  hasNavSegments,
+  NAV_DESCRIPTIONS,
+  SEGMENT_META,
+  segmentsOfNav,
+} from "@/features/shell/lib/nav-model";
+import { useShellStore } from "@/features/shell/store/use-shell-store";
 import { NAV_ITEMS } from "@/features/shell/types/nav";
-import type { NavKey } from "@/features/shell/types/nav";
 import type { MapSegment } from "@/features/shell/types/segment";
-import type { MapMode } from "@/features/map-marker/types/marker";
-import type { PanelDataProps } from "@/features/shell/components/panels/types";
 
-// 대시보드는 진입 전까지 필요 없다. 기상 조회 화면 일체를 초기 번들에서 뺀다.
-const DashboardPanel = dynamic(
-  () =>
-    import("@/features/dashboard/components/dashboard-panel").then(
-      (m) => m.DashboardPanel,
-    ),
-  {
-    ssr: false,
-    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
-  },
-);
-
-// zbar-wasm(바코드 인식)·xlsx(엑셀 후보검색)가 무거워 진입 전까지 번들에서 뺀다.
-const BarcodePanel = dynamic(
-  () => import("@/features/barcode/components/barcode-panel").then((m) => m.BarcodePanel),
-  {
-    ssr: false,
-    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
-  },
-);
-
-interface WorkPanelProps extends PanelDataProps {
-  /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
-  activeNav: NavKey;
-  segment: MapSegment;
-  equipmentCount: number;
-  batteryCount: number;
-  locationCount: number;
+interface WorkPanelProps extends PanelBodyProps {
+  /** 건수와 좌표 없음 안내. 상세 단계의 설명으로 쓴다. */
+  countSummary: string;
+  segmentCounts: Partial<Record<MapSegment, number>>;
 }
 
-const MARKERS_SEGMENTS: MapSegment[] = ["equipment", "battery"];
+/** 드릴다운 패널. 첫 단계는 하위 메뉴 목록, 상세 단계는 기존 패널 내용이다. */
+export function WorkPanel({ countSummary, segmentCounts, ...bodyProps }: WorkPanelProps) {
+  const { activeNav, segment } = bodyProps;
+  const { pickSegment, isSegmentLocked } = useShellNav();
+  const toggleSidebar = useMapMarkerStore((state) => state.toggleSidebar);
+  const markerListFilter = useMapMarkerStore((state) => state.markerListFilter);
+  const setMarkerListFilter = useMapMarkerStore(
+    (state) => state.setMarkerListFilter,
+  );
+  const isTreeOpen = useShellStore((state) => state.isTreeOpen);
+  const panelStep = useShellStore((state) => state.panelStep);
+  const setPanelStep = useShellStore((state) => state.setPanelStep);
 
-export function WorkPanel({
-  mode,
-  activeNav,
-  segment,
-  markers,
-  filterOptions,
-  filters,
-  equipmentCount,
-  batteryCount,
-  locationCount,
-}: WorkPanelProps) {
-  const hasMounted = useHasMounted();
-  const { isAuthenticated } = useAuthSession();
-  const setMode = useMapMarkerStore((state) => state.setMode);
-  const setMapSegment = useMapMarkerStore((state) => state.setMapSegment);
-
-  const authed = hasMounted && isAuthenticated;
-  const navItem = NAV_ITEMS.find((item) => item.key === activeNav);
-
-  // 위치·변환기만 잠근다. 장비·축전지 조회는 비로그인도 가능하다.
-  const lockedSegments: MapSegment[] =
-    hasMounted && !authed ? ["location", "converter"] : [];
-
-  const showSegments = activeNav === "map" || activeNav === "markers";
-  const segmentList = activeNav === "markers" ? MARKERS_SEGMENTS : undefined;
-
-  const countLabel = match(mode)
-    .with("equipment", () => `장비 ${equipmentCount}건`)
-    .with("battery", () => `축전지 ${batteryCount}건`)
-    .with("location", () => `위치 ${locationCount}건`)
-    .with("weather", () => "")
-    .exhaustive();
-
-  const body = match(activeNav)
-    .with("dashboard", () => <DashboardPanel />)
-    .with("map", () => (
-      <MapPanel
-        mode={mode}
-        segment={segment}
-        markers={markers}
-        filterOptions={filterOptions}
-        filters={filters}
-      />
-    ))
-    .with("markers", () => (
-      <MarkersPanel
-        mode={mode}
-        markers={markers}
-        filterOptions={filterOptions}
-        filters={filters}
-      />
-    ))
-    .with("groups", () => (
-      <ComingSoon
-        title="그룹관리"
-        description="마커를 그룹으로 묶어 관리하는 기능은 아직 없습니다."
-      />
-    ))
-    .with("cctv", () => <CctvPanel />)
-    .with("barcode", () => <BarcodePanel />)
-    .with("backup", () => (
-      <BackupPanel
-        mode={mode}
-        equipmentCount={equipmentCount}
-        batteryCount={batteryCount}
-      />
-    ))
-    .with("settings", () => <SettingsPanel />)
-    .exhaustive();
+  const hasSegments = hasNavSegments(activeNav);
+  const isRoot = hasSegments && panelStep === "root";
+  const navLabel = NAV_ITEMS.find((item) => item.key === activeNav)?.label ?? "";
+  const title = hasSegments && !isRoot ? SEGMENT_META[segment].label : navLabel;
+  const description = isRoot
+    ? NAV_DESCRIPTIONS[activeNav]
+    : hasSegments && segment !== "converter"
+      ? countSummary
+      : "";
 
   return (
     <aside
@@ -126,42 +49,100 @@ export function WorkPanel({
        * 1024px 미만에서는 지도가 너무 좁아진다 — 자리를 차지하는 대신 지도 위에 겹쳐 띄운다.
        * 폭 값은 셸이 CSS 변수로 내려 주므로 여기에 숫자를 적지 않는다.
        */
-      className="flex h-full w-[var(--panel-w)] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95 text-slate-100 max-lg:absolute max-lg:inset-y-0 max-lg:left-[var(--rail-w)] max-lg:z-30 max-lg:shadow-2xl max-md:left-14 max-md:w-[min(var(--panel-w),calc(100vw-3.5rem))]"
-      aria-label={navItem?.label}
+      className="flex h-full w-[var(--panel-w)] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95 text-slate-100 max-lg:absolute max-lg:inset-y-0 max-lg:left-[var(--nav-w)] max-lg:z-30 max-lg:shadow-2xl"
+      aria-label={title}
     >
-      <header className="border-b border-slate-800 px-4 py-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h1 className="truncate text-sm font-bold">{navItem?.label ?? ""}</h1>
-          {showSegments && countLabel ? (
-            <span className="shrink-0 whitespace-nowrap text-[10px] text-slate-500">
-              {countLabel}
-            </span>
-          ) : null}
+      <header className="border-b border-slate-800 py-3 pl-7 pr-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 pt-1">
+            {hasSegments && !isRoot && !isTreeOpen ? (
+              <>
+                <p className="flex items-center gap-1 text-xs font-semibold text-slate-400">
+                  {navLabel}
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                </p>
+                <button
+                  type="button"
+                  className="my-0.5 flex h-8 items-center gap-1 pr-2 text-xs font-semibold text-slate-300 hover:text-slate-100"
+                  onClick={() => setPanelStep("root")}
+                >
+                  <ChevronLeft className="h-3 w-3" aria-hidden />
+                  뒤로
+                </button>
+              </>
+            ) : null}
+            <h1 className="text-lg font-bold leading-tight">{title}</h1>
+            {description ? (
+              <p className="mt-1 text-xs leading-snug text-slate-400">{description}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-800"
+            aria-label="패널 닫기"
+            title="패널 닫기"
+            onClick={toggleSidebar}
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
         </div>
 
-        {showSegments ? (
-          <div className="mt-3">
-            <ModeTabs
-              segment={segment}
-              /*
-               * 지도는 변환기까지 포함한 세그먼트를 다루므로 `setMapSegment`를 쓰고,
-               * 마커관리는 도메인만 바꾸면 되므로 `setMode`를 쓴다.
-               */
-              onChange={(next) => {
-                if (activeNav === "markers") {
-                  setMode(next as MapMode);
-                } else {
-                  setMapSegment(next);
-                }
-              }}
-              lockedSegments={lockedSegments}
-              segments={segmentList}
+        {isRoot ? (
+          <label className="relative mr-1 mt-3 block">
+            <span className="sr-only">이름·주소로 위치 찾기</span>
+            <Search
+              className="absolute left-3 top-3 h-4 w-4 text-slate-400"
+              aria-hidden
             />
-          </div>
+            <input
+              type="search"
+              value={markerListFilter}
+              onChange={(event) => setMarkerListFilter(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                // 위치 찾기 목록이 있는 상세 단계로 간다. 변환기에는 목록이 없다.
+                pickSegment(activeNav, segment === "converter" ? "equipment" : segment);
+              }}
+              placeholder="이름·주소로 위치 찾기..."
+              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-800 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-400 focus:border-indigo-500"
+            />
+          </label>
         ) : null}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">{body}</div>
+      {isRoot ? (
+        <div className="flex flex-col gap-0.5 p-2">
+          {segmentsOfNav(activeNav).map((key) => {
+            const { label, icon: Icon } = SEGMENT_META[key];
+            const locked = isSegmentLocked(key);
+            const count = segmentCounts[key];
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={locked}
+                title={locked ? "로그인 후 사용할 수 있습니다" : undefined}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => pickSegment(activeNav, key)}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1 whitespace-nowrap">{label}</span>
+                {locked ? <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
+                {count !== undefined ? (
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold">
+                    {count}
+                  </span>
+                ) : null}
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <PanelBody {...bodyProps} />
+        </div>
+      )}
     </aside>
   );
 }

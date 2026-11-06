@@ -1,100 +1,73 @@
 "use client";
 
-import { useEffect } from "react";
-import { MapPin } from "lucide-react";
+import { ChevronRight, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AuthHeader } from "@/features/map-marker/components/sidebar/auth-header";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
-import { useHasMounted } from "@/hooks/use-has-mounted";
-import { isNavAccessible, visibleNavItems } from "@/features/shell/types/nav";
+import { AccountMenu } from "@/features/shell/components/account-menu";
+import { useShellNav } from "@/features/shell/hooks/use-shell-nav";
+import { useShellStore } from "@/features/shell/store/use-shell-store";
+import { visibleNavItems } from "@/features/shell/types/nav";
 import type { NavKey } from "@/features/shell/types/nav";
 
 interface NavRailProps {
-  countSummary: string;
   /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
   activeNav: NavKey;
 }
 
-export function NavRail({ countSummary, activeNav }: NavRailProps) {
-  const hasMounted = useHasMounted();
-  const { isAuthenticated } = useAuthSession();
-  const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
-
-  // 인증 분기는 마운트 이후에만 한다. SSR 결과와 어긋나면 하이드레이션이 깨진다.
-  const authed = hasMounted && isAuthenticated;
-  const items = visibleNavItems(authed);
-
-  // 로그아웃했는데 보고 있던 메뉴가 숨김 대상이면 빈 화면이 남는다.
-  // persist로 복원된 값도 여기서 함께 걸러진다.
-  useEffect(() => {
-    if (!hasMounted) return;
-    if (!isNavAccessible(activeNav, authed)) {
-      setActiveNav("dashboard");
-    }
-  }, [hasMounted, authed, activeNav, setActiveNav]);
+/** 아이콘 레일. 메뉴 이름은 툴팁과 패널 제목으로 보여 준다. */
+export function NavRail({ activeNav }: NavRailProps) {
+  const { authed, pickNav } = useShellNav();
+  const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
+  const setTreeOpen = useShellStore((state) => state.setTreeOpen);
 
   return (
     <nav
-      // 768px 미만에서는 아이콘만 남긴다. 폭 값 자체는 셸이 CSS 변수로 내려 준다.
-      className="flex h-full w-[var(--rail-w)] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95 text-slate-100 max-md:w-14"
+      className="relative z-40 flex h-full w-[var(--rail-w)] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95 text-slate-100"
       aria-label="주요 메뉴"
     >
-      <div className="border-b border-slate-800 px-3 py-3 max-md:px-2">
-        <div className="flex items-center gap-2">
-          <MapPin className="h-5 w-5 shrink-0 text-emerald-400" aria-hidden />
-          <div className="min-w-0 max-md:hidden">
-            <p className="truncate text-sm font-bold leading-tight">
-              MapMarker <span className="text-indigo-400">Pro</span>
-            </p>
-            <p
-              className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-500"
-              title={countSummary}
-            >
-              {countSummary}
-            </p>
-          </div>
-        </div>
+      <div className="flex h-14 shrink-0 items-center justify-center">
+        <MapPin className="h-[22px] w-[22px] text-emerald-400" aria-hidden />
       </div>
+      <button
+        type="button"
+        className="absolute left-[38px] top-2.5 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        aria-label="메뉴 전체 펼치기"
+        title="메뉴 전체 펼치기"
+        onClick={() => setTreeOpen(true)}
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden />
+      </button>
 
-      <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
-        {items.map((item) => {
+      <ul className="min-h-0 flex-1 overflow-y-auto">
+        {visibleNavItems(authed).map((item) => {
           const Icon = item.icon;
-          const isActive = activeNav === item.key;
-          const isDisabled = !item.enabled;
-
+          const isActive = activeNav === item.key && isSidebarOpen;
           return (
             <li key={item.key}>
               <button
                 type="button"
-                disabled={isDisabled}
+                disabled={!item.enabled}
+                aria-label={item.label}
                 aria-current={isActive ? "page" : undefined}
-                title={isDisabled ? "준비 중입니다" : undefined}
+                title={item.enabled ? item.label : `${item.label} · 준비 중입니다`}
                 className={cn(
-                  "flex h-10 w-full items-center gap-2 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition-colors",
-                  "max-md:justify-center max-md:px-0",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
+                  "flex h-14 w-full items-center justify-center transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500",
                   isActive
-                    ? "bg-indigo-600 text-white shadow-glow"
+                    ? "bg-indigo-600 text-white"
                     : "text-slate-400 hover:text-slate-200",
-                  isDisabled && "cursor-not-allowed opacity-50 hover:text-slate-400",
+                  !item.enabled && "cursor-not-allowed opacity-50 hover:text-slate-400",
                 )}
-                onClick={() => {
-                  if (!isDisabled) setActiveNav(item.key);
-                }}
+                onClick={() => pickNav(item.key)}
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="max-md:hidden">{item.label}</span>
+                <Icon className="h-[18px] w-[18px]" aria-hidden />
               </button>
             </li>
           );
         })}
       </ul>
 
-      {/* 잠긴 메뉴를 숨기므로 로그인 진입점이 반드시 보여야 한다. */}
-      <div className="border-t border-slate-800 p-3">
-        <AuthHeader />
-      </div>
+      <AccountMenu />
     </nav>
   );
 }
