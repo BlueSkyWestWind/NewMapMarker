@@ -38,6 +38,7 @@ import {
 } from "@/features/map-marker/lib/location-marker-groups";
 import { useKakaoMapSdk } from "@/features/map-marker/hooks/use-kakao-map-sdk";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { isStagedReviewMarker } from "@/features/map-marker/lib/erp-review";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useRouteStore } from "@/features/route/store/use-route-store";
 import { useRouteMarkerPool } from "@/features/route/hooks/use-route-marker-pool";
@@ -777,7 +778,21 @@ export function KakaoMapCanvas({
             },
             (lat, lng, name) => openRoadview(lat, lng, name),
             (id) => openDetailModal(id),
-            (id) => openEditModal(id),
+            (id) => {
+              if (
+                isStagedReviewMarker(
+                  useMapMarkerStore.getState().stagedErpUpload,
+                  id,
+                )
+              ) {
+                toast({
+                  description:
+                    "위치등록 확인 중인 건은 수정할 수 없습니다. 먼저 [확인]으로 저장하세요.",
+                });
+                return;
+              }
+              openEditModal(id);
+            },
             async (teamId, color) => {
               if (!supabase) return;
               try {
@@ -832,6 +847,7 @@ export function KakaoMapCanvas({
     isAuthenticated,
     openDetailModal,
     openEditModal,
+    toast,
     openRoadview,
     clearSelectedMarkers,
     toggleSelectedMarkerId,

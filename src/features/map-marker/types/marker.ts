@@ -96,19 +96,41 @@ export interface MapMarkersPayload {
   batteryMarkers: BatteryMarker[];
 }
 
+/** 신규 / DB에 있지만 좌표 없음 / DB에 있고 좌표 있음 */
+export type StagedErpRowKind = "new" | "missingCoords" | "existing";
+
+/** 위치등록 파일의 한 행. 저장할 markers·information·erp_details 내용을 담는다. */
+export interface StagedErpRow {
+  id: string;
+  kind: StagedErpRowKind;
+  name: string;
+  /** 엑셀의 주소. 마커 위치와 대조할 때 쓴다 */
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  marker: Record<string, unknown>;
+  info: Record<string, unknown>;
+  erp: Record<string, unknown>;
+}
+
+/** 위치등록 파일에서 저장하지 않는 행 */
+export interface StagedErpSkippedRow {
+  name: string;
+  address: string;
+  reason: "코드 없음" | "주소 없음";
+}
+
 /**
- * 위치등록(공정관리) 업로드를 즉시 저장하지 않고 "미리보기 후 적용"하기 위한 스테이징 데이터.
- * 파싱·지오코딩까지 끝난 markers/information/erp_details 행을 담아두고, [적용] 시 DB에 커밋한다.
+ * 위치등록(공정관리) 업로드의 대기 데이터.
+ * 확인 대상은 [확인] 때 건별로, 기존 건은 [기존 건 갱신] 때 저장한다.
  */
 export interface StagedErpUpload {
-  markerRows: Record<string, unknown>[];
-  infoRows: Record<string, unknown>[];
-  erpRows: Record<string, unknown>[];
-  meta: {
-    preservedCoordCount: number;
-    newCoordCount: number;
-    geocodeFailCount: number;
-    /** 사람이 읽을 수 있게 포맷된 실패 주소 목록 */
-    geocodeFailedAddresses: string[];
-  };
+  reviewRows: StagedErpRow[];
+  existingRows: StagedErpRow[];
+  /** 코드나 주소가 없어 저장하지 않는 행 */
+  skippedRows: StagedErpSkippedRow[];
+  /** 저장한 건이 있어 대표/SUB 재정리가 남아 있는지 */
+  needsRegroup: boolean;
+  /** 사람이 읽을 수 있게 포맷된 실패 주소 목록 */
+  geocodeFailedAddresses: string[];
 }

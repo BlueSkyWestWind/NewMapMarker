@@ -1,4 +1,10 @@
 import * as XLSX from 'xlsx';
+import { dateUtilMethods } from './date-utils';
+import {
+  ERP_DATE_COLUMNS,
+  ERP_END_MARKER,
+  ERP_SHEET_NAME_PREFERENCE,
+} from './erp-columns';
 
 /**
  * 공정관리(ERP) 시트 파서.
@@ -160,11 +166,29 @@ function findHeaderRowIndex(rows: unknown[][]): number {
   return found;
 }
 
-/** 워크북에서 ERP 헤더를 가진 첫 시트와 헤더 행을 찾는다. */
+/** 후보 열 이름 순서대로 값을 찾아 yyyy-mm-dd로 돌려준다. 날짜가 아닌 값("불필요" 등)은 건너뛴다. */
+export function pickDateByColumns(
+  raw: Record<string, string | null>,
+  columns: readonly string[],
+): string {
+  for (const column of columns) {
+    const value = raw[column];
+    if (!value) continue;
+    const ymd = String(dateUtilMethods.formatDateToYmd(value));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  }
+  return '';
+}
+
+/** 워크북에서 ERP 헤더를 가진 시트와 헤더 행을 찾는다. 우선 패턴에 맞는 시트가 먼저다. */
 function pickErpSheet(
   workbook: XLSX.WorkBook,
 ): { rows: unknown[][]; headerIndex: number } | null {
-  for (const name of workbook.SheetNames) {
+  const preferred = workbook.SheetNames.filter((name) =>
+    ERP_SHEET_NAME_PREFERENCE.some((pattern) => pattern.test(name)),
+  );
+  const rest = workbook.SheetNames.filter((name) => !preferred.includes(name));
+  for (const name of [...preferred, ...rest]) {
     const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
       header: 1,
       defval: null,
@@ -205,6 +229,9 @@ export function parseErpSheet(file: File): Promise<ErpParsedRow[]> {
           const row = rows[r] ?? [];
 
           const facilityCode = cellToString(row[idxFacility]) ?? '';
+          // 양식의 데이터 끝 표시. 이 아래는 데이터가 아니다.
+          if (facilityCode === ERP_END_MARKER) break;
+
           const stationFinal =
             idxStationFinal >= 0 ? cellToString(row[idxStationFinal]) : null;
           const stationPlan =
@@ -219,14 +246,14 @@ export function parseErpSheet(file: File): Promise<ErpParsedRow[]> {
           const raw: Record<string, string | null> = {};
           const erp: Record<string, string | null> = {};
           headers.forEach((header, j) => {
-            if (!header) return;
+            // 같은 이름 열이 또 있으면(CG~CM열 사본) 앞쪽 열(A·B열 등)이 기준이다.
+            if (!header || header in raw) return;
             const value = cellToString(row[j]);
             raw[header] = value;
             const named = ERP_NAMED_COLUMN[header];
             if (named) erp[named] = value;
           });
 
-          const actaDone = raw['ACTA 구축완료일'] ?? '';
           const name = stationFinal || stationPlan || facilityCode;
           out.push({
             facilityCode,
@@ -237,8 +264,8 @@ export function parseErpSheet(file: File): Promise<ErpParsedRow[]> {
             businessType: raw['사업 구분'] ?? '',
             eqClass: raw['장비최종 대분류'] ?? '',
             eqType: raw['장비최종'] ?? '',
-            installDate: actaDone,
-            openDate: actaDone,
+            installDate: pickDateByColumns(raw, ERP_DATE_COLUMNS.installDate),
+            openDate: pickDateByColumns(raw, ERP_DATE_COLUMNS.openDate),
             finalStationName: stationFinal ?? '',
             erp,
             raw,

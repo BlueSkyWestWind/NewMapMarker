@@ -3,7 +3,6 @@
 import { FileSpreadsheet, Filter, List } from "lucide-react";
 import { BatteryExcelSection } from "@/features/map-marker/components/sidebar/battery-excel-section";
 import { EquipmentExcelSection } from "@/features/map-marker/components/sidebar/equipment-excel-section";
-import { EquipmentInfoSection } from "@/features/map-marker/components/sidebar/equipment-info-section";
 import { FilterPanel } from "@/features/map-marker/components/sidebar/filter-panel";
 import { MarkersListPanel } from "@/features/map-marker/components/sidebar/markers-list-panel";
 import { PanelSection } from "@/features/shell/components/panels/panel-section";
@@ -24,10 +23,7 @@ export function MarkersPanel({ markers, filterOptions, filters, mode }: PanelDat
           title="위치 등록 및 관리"
           iconClassName="h-3.5 w-3.5 text-indigo-400"
         >
-          <div className="space-y-2">
-            <EquipmentExcelSection />
-            <EquipmentInfoSection />
-          </div>
+          <EquipmentExcelSection />
         </PanelSection>
       ) : null}
 

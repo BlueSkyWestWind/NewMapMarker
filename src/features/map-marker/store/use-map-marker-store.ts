@@ -3,6 +3,7 @@
 import { match } from "ts-pattern";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { isStagedReviewMarker } from "@/features/map-marker/lib/erp-review";
 import type { ClusterIconStyle } from "@/features/map-marker/lib/cluster-pie";
 import type { PlaceSearchResult } from "@/features/map-marker/lib/parcel-boundary";
 import type { GpsLookupResult } from "@/features/gpsmap/lib/lookup";
@@ -50,10 +51,11 @@ interface MapMarkerUiState {
   /**
    * 위치 세그먼트에서 지도를 어떻게 쓸지.
    * `lookup`이면 클릭한 지점을 조회하고, `roadview`면 도로 오버레이를 띄워 로드뷰를 연다.
+   * `place`는 위치등록에서 주소를 못 찾은 건을 클릭한 지점에 놓는다.
    * persist 하지 않는다 — 새로고침 후에도 켜져 있으면 평소 클릭이 먹히지 않는다.
    */
-  mapPickMode: "off" | "lookup" | "roadview";
-  setMapPickMode: (mode: "off" | "lookup" | "roadview") => void;
+  mapPickMode: "off" | "lookup" | "roadview" | "place";
+  setMapPickMode: (mode: "off" | "lookup" | "roadview" | "place") => void;
   /** 지도에서 찍은 지점. 변환기 패널이 이걸 보고 조회한다. `at`은 같은 지점 재클릭 구분용 */
   pickedPoint: { lat: number; lng: number; at: number } | null;
   setPickedPoint: (point: { lat: number; lng: number; at: number } | null) => void;
@@ -421,13 +423,18 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
           isDetailOpen: true,
           isEditOpen: false,
         }),
+      // 위치등록 확인 대상은 수정 화면으로 저장하면 공정 정보가 빠지고 확인 절차도 건너뛴다.
       openEditModal: (id) =>
-        set({
-          selectedMarkerId: id,
-          selectedMarkerIds: id ? [id] : [],
-          isEditOpen: true,
-          isDetailOpen: false,
-        }),
+        set((state) =>
+          isStagedReviewMarker(state.stagedErpUpload, id)
+            ? state
+            : {
+                selectedMarkerId: id,
+                selectedMarkerIds: id ? [id] : [],
+                isEditOpen: true,
+                isDetailOpen: false,
+              },
+        ),
       openRoadview: (lat, lng, name) =>
         set({
           roadviewPosition: { lat, lng, name },

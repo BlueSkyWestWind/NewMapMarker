@@ -5,7 +5,7 @@ import {
 } from "@/features/map-marker/constants/facility-teams";
 import { splitAddressFields } from "@/features/map-marker/lib/geocode";
 import type { ErpParsedRow } from "@/features/map-marker/lib/excel/data-manager/erp-parse";
-import type { EquipmentMarker, StagedErpUpload } from "@/features/map-marker/types/marker";
+import type { EquipmentMarker, StagedErpRow } from "@/features/map-marker/types/marker";
 
 /**
  * 엑셀·위치등록 업로드 훅(`use-excel-upload-actions.tsx`)에서 쓰는 순수 함수 모음.
@@ -119,20 +119,23 @@ export function toEquipmentMarker(
   };
 }
 
-/** 스테이징된 위치등록 markerRow → 지도 표시용 임시(pending) 장비 마커 */
-export function stagedMarkerRowToPending(row: Record<string, unknown>): EquipmentMarker {
+/** 위치등록 확인 대상 행 → 지도 표시용 임시(pending) 장비 마커. 좌표가 있는 행에만 쓴다. */
+export function stagedMarkerRowToPending(row: StagedErpRow): EquipmentMarker {
+  const { roadAddress, jibunAddress } = splitAddressFields({
+    address: row.address,
+  });
   return {
-    id: String(row.id),
-    name: String(row.name ?? ""),
+    id: row.id,
+    name: row.name,
     lat: Number(row.lat),
     lng: Number(row.lng),
-    memo: String(row.memo ?? ""),
-    tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+    memo: "",
+    tags: [],
     color: PENDING_MARKER_COLOR,
     facilityTeam: "",
-    roadAddress: String(row.road_address ?? ""),
-    jibunAddress: String(row.jibun_address ?? ""),
-    facilityCode: String(row.facility_code ?? ""),
+    roadAddress,
+    jibunAddress,
+    facilityCode: String(row.marker.facility_code ?? ""),
     projectCode: "",
     facilityYear: "",
     businessType: "",
@@ -144,27 +147,6 @@ export function stagedMarkerRowToPending(row: Record<string, unknown>): Equipmen
     createdAt: new Date().toISOString().split("T")[0],
     isPending: true,
   };
-}
-
-/** 위치등록 저장 결과 토스트 요약문 (즉시 저장·적용 공용) */
-export function buildErpSummary(
-  payload: StagedErpUpload,
-  regroup: { groupCount: number; subCount: number },
-): string {
-  const { markerRows, meta } = payload;
-  let summary = `위치등록 ${markerRows.length}건을 저장했습니다.`;
-  if (meta.preservedCoordCount > 0) {
-    summary += ` (기존 위경도 유지 ${meta.preservedCoordCount}건`;
-    if (meta.newCoordCount > 0) summary += ` · 신규 좌표 ${meta.newCoordCount}건`;
-    summary += ")";
-  }
-  if (regroup.subCount > 0) {
-    summary += ` (동일 번지 취합: 그룹 ${regroup.groupCount} · 서브 ${regroup.subCount}건)`;
-  }
-  if (meta.geocodeFailCount > 0) {
-    summary += ` (주소 찾기 실패: ${meta.geocodeFailCount}건 — 좌표 없이 저장됨)`;
-  }
-  return summary;
 }
 
 /**

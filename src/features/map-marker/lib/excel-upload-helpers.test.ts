@@ -4,9 +4,7 @@ import {
   PENDING_MARKER_COLOR,
   TEMP_MARKER_COLOR,
 } from "@/features/map-marker/constants/facility-teams";
-import type { StagedErpUpload } from "@/features/map-marker/types/marker";
 import {
-  buildErpSummary,
   formatFailedAddresses,
   hasStoredCoordinates,
   isValidCoordinate,
@@ -115,14 +113,15 @@ describe("마커 변환", () => {
 
   it("stagedMarkerRowToPending: 스테이징 행을 대기 장비 마커로", () => {
     const marker = stagedMarkerRowToPending({
-      id: 7,
+      id: "7",
+      kind: "new",
       name: "국소A",
-      lat: "37.5",
-      lng: "127",
-      tags: ["a"],
-      road_address: "R",
-      jibun_address: "J",
-      facility_code: "F-1",
+      address: "광주 북구 운암동 1",
+      lat: 37.5,
+      lng: 127,
+      marker: { facility_code: "F-1" },
+      info: {},
+      erp: {},
     });
 
     expect(marker).toMatchObject({
@@ -130,53 +129,11 @@ describe("마커 변환", () => {
       name: "국소A",
       lat: 37.5,
       lng: 127,
-      tags: ["a"],
       color: PENDING_MARKER_COLOR,
-      roadAddress: "R",
-      jibunAddress: "J",
+      jibunAddress: "광주 북구 운암동 1",
       facilityCode: "F-1",
       isPending: true,
       createdAt: "2026-10-21",
     });
-  });
-});
-
-describe("buildErpSummary", () => {
-  const payload = (meta: Partial<StagedErpUpload["meta"]>): StagedErpUpload => ({
-    markerRows: [{}, {}, {}],
-    infoRows: [],
-    erpRows: [],
-    meta: {
-      preservedCoordCount: 0,
-      newCoordCount: 0,
-      geocodeFailCount: 0,
-      geocodeFailedAddresses: [],
-      ...meta,
-    },
-  });
-
-  it("기본 요약은 저장 건수만", () => {
-    expect(buildErpSummary(payload({}), { groupCount: 0, subCount: 0 })).toBe(
-      "위치등록 3건을 저장했습니다.",
-    );
-  });
-
-  it("기존 좌표 유지·신규 좌표·취합·실패 문구를 순서대로 덧붙인다", () => {
-    expect(
-      buildErpSummary(
-        payload({ preservedCoordCount: 2, newCoordCount: 1, geocodeFailCount: 1 }),
-        { groupCount: 1, subCount: 2 },
-      ),
-    ).toBe(
-      "위치등록 3건을 저장했습니다. (기존 위경도 유지 2건 · 신규 좌표 1건)" +
-        " (동일 번지 취합: 그룹 1 · 서브 2건)" +
-        " (주소 찾기 실패: 1건 — 좌표 없이 저장됨)",
-    );
-  });
-
-  it("기존 좌표 유지만 있으면 신규 좌표 문구는 없다", () => {
-    expect(buildErpSummary(payload({ preservedCoordCount: 2 }), { groupCount: 0, subCount: 0 })).toBe(
-      "위치등록 3건을 저장했습니다. (기존 위경도 유지 2건)",
-    );
   });
 });

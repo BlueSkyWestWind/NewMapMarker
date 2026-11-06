@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useActiveMarkers } from "@/features/map-marker/hooks/use-active-markers";
+import { useStagedErpDraft } from "@/features/map-marker/hooks/use-staged-erp-draft";
 import {
   STORE_DEFAULT_MODE,
   STORE_DEFAULT_NAV,
@@ -85,6 +86,7 @@ export function MapMarkerPage() {
     error,
     refetch,
   } = useActiveMarkers();
+  useStagedErpDraft();
 
   return (
     <>
