@@ -1,12 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { FileSpreadsheet, Filter, List, MapPin, Search, Waypoints } from "lucide-react";
+import { FileSpreadsheet, Filter, List, MapPin, Waypoints } from "lucide-react";
 import { FilterPanel } from "@/features/map-marker/components/sidebar/filter-panel";
 import { LocationAddressSection } from "@/features/map-marker/components/sidebar/location-address-section";
 import { LocationExcelSection } from "@/features/map-marker/components/sidebar/location-excel-section";
 import { MarkersListPanel } from "@/features/map-marker/components/sidebar/markers-list-panel";
-import { PlaceSearchSection } from "@/features/map-marker/components/sidebar/place-search-section";
 import { PanelSection } from "@/features/shell/components/panels/panel-section";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
 import type { MapSegment } from "@/features/shell/types/segment";
@@ -84,12 +83,8 @@ export function MapPanel({
 
   return (
     <div className="space-y-3">
-      <PanelSection icon={Filter} title="연도·사업·색상·태그 표시" iconClassName="h-3.5 w-3.5 text-indigo-400">
+      <PanelSection icon={Filter} title="연도·상태·사업·색상·태그 표시" iconClassName="h-3.5 w-3.5 text-indigo-400">
         <FilterPanel mode={mode} filterOptions={filterOptions} />
-      </PanelSection>
-
-      <PanelSection icon={Search} title="장소 검색">
-        <PlaceSearchSection />
       </PanelSection>
 
       <PanelSection icon={List} title="위치 찾기">

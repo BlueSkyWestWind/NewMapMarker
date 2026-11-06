@@ -3,6 +3,7 @@ import {
   DEFAULT_BATTERY_CAPACITY,
   DEFAULT_BATTERY_QUANTITY,
 } from '@/features/map-marker/constants/map-config';
+import { computeFacilityStatuses } from '@/features/map-marker/lib/facility-status';
 import type {
   BatteryMarker,
   EquipmentMarker,
@@ -162,7 +163,7 @@ export async function fetchMapMarkers(
     (infoList ?? []) as InformationRow[],
   );
 
-  const equipmentMarkers: EquipmentMarker[] = (markersList ?? []).map((row) => {
+  const equipmentBase: EquipmentMarker[] = (markersList ?? []).map((row) => {
     const markerName = row.name?.trim() ?? '';
     const infos =
       infoByMarkerId.get(row.id) ?? infoByName.get(markerName) ?? [];
@@ -189,6 +190,11 @@ export async function fetchMapMarkers(
       eqType: repInfo?.eq_type ?? '',
       installDate: repInfo?.install_date ?? '',
       openDate: repInfo?.open_date ?? '',
+      facilityRecords: infos.map((info) => ({
+        year: info.facility_year ?? '',
+        installDate: info.install_date ?? '',
+        openDate: info.open_date ?? '',
+      })),
       parentMarkerId: row.parent_marker_id ?? null,
       groupRole: row.group_role ?? null,
       groupKey: row.group_key ?? null,
@@ -199,6 +205,12 @@ export async function fetchMapMarkers(
       createdAt: formatDateOnly(row.created_at) || new Date().toISOString().split('T')[0],
     };
   });
+
+  // 기준 연도는 올해. 연도별 판정으로 넓힐 때 이 인자만 바꾼다.
+  const equipmentMarkers = computeFacilityStatuses(
+    equipmentBase,
+    new Date().getFullYear(),
+  );
 
   const specsMap = new Map<string, NonNullable<typeof batterySpecsList>>();
   (batterySpecsList ?? []).forEach((spec) => {

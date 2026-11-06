@@ -1,11 +1,19 @@
 import {
   BATTERY_UNASSIGNED_COLOR,
   DEFAULT_MARKER_COLOR,
+  FACILITY_STATUS_COLORS,
   FACILITY_TEAMS,
   LEGACY_COLOR_NAMES,
   TEMP_MARKER_COLOR,
 } from "@/features/map-marker/constants/facility-teams";
-import type { MapMode, MarkerRecord } from "@/features/map-marker/types/marker";
+import type {
+  EquipmentMarker,
+  MapMode,
+  MarkerRecord,
+} from "@/features/map-marker/types/marker";
+
+/** 흰 핀(개통완료)은 흰 테두리·흰 안쪽 점이 배경에 묻히므로 어두운 색으로 바꾼다. */
+const WHITE_PIN_OUTLINE = "#475569";
 
 const MARKER_GRADIENTS: Record<string, { start: string; end: string }> = {
   "#10b981": { start: "#10b981", end: "#059669" },
@@ -52,14 +60,17 @@ function getMarkerGradientTheme(colorHex: string) {
   return MARKER_GRADIENTS[colorHex] ?? { start: colorHex, end: colorHex };
 }
 
-function getMarkerInnerShape(innerShape: "star" | "square" | "circle") {
+function getMarkerInnerShape(
+  innerShape: "star" | "square" | "circle",
+  fill = "#ffffff",
+) {
   if (innerShape === "square") {
-    return '<rect x="7.2" y="6.2" width="9.6" height="9.6" rx="0.6" fill="#ffffff"/>';
+    return `<rect x="7.2" y="6.2" width="9.6" height="9.6" rx="0.6" fill="${fill}"/>`;
   }
   if (innerShape === "star") {
-    return '<path d="M12,5.4 L13.75,9.95 H18.6 L14.7,12.75 L16.45,17.3 L12,14.35 L7.55,17.3 L9.3,12.75 L5.4,9.95 H10.25 Z" fill="#ffffff"/>';
+    return `<path d="M12,5.4 L13.75,9.95 H18.6 L14.7,12.75 L16.45,17.3 L12,14.35 L7.55,17.3 L9.3,12.75 L5.4,9.95 H10.25 Z" fill="${fill}"/>`;
   }
-  return '<circle cx="12" cy="11" r="5.2" fill="#ffffff"/>';
+  return `<circle cx="12" cy="11" r="5.2" fill="${fill}"/>`;
 }
 
 function getBatteryMarkerShape(marker: MarkerRecord) {
@@ -116,7 +127,14 @@ export function getEffectiveMarkerColor(marker: MarkerRecord, mode: MapMode) {
     }
     return BATTERY_UNASSIGNED_COLOR;
   }
-  // location / equipment: 마커에 지정된 색 사용
+  // 장비는 올해 시설 상태색이 우선이다. 저장 색상(`marker.color`)은 바꾸지 않는다.
+  if (mode === "equipment" && !marker.isPending) {
+    const status = (marker as EquipmentMarker).facilityStatus;
+    if (status && status !== "올해 대상 없음") {
+      return FACILITY_STATUS_COLORS[status];
+    }
+  }
+  // location / 올해 대상 없는 장비: 마커에 지정된 색 사용
   return marker.color || DEFAULT_MARKER_COLOR;
 }
 
@@ -140,6 +158,9 @@ export function getMarkerSvg(
 ) {
   const theme = getMarkerGradientTheme(colorHex);
   const gradId = `grad-${colorHex.replace("#", "")}`;
+  const isWhitePin = colorHex.toLowerCase() === "#ffffff";
+  const outline = isWhitePin ? WHITE_PIN_OUTLINE : "#ffffff";
+  const innerFill = isWhitePin ? WHITE_PIN_OUTLINE : "#ffffff";
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45">
   <defs>
@@ -148,8 +169,8 @@ export function getMarkerSvg(
       <stop offset="100%" stop-color="${theme.end}" />
     </linearGradient>
   </defs>
-  <path d="${MARKER_PIN_OUTER_PATH}" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
-  ${getMarkerInnerShape(innerShape)}
+  <path d="${MARKER_PIN_OUTER_PATH}" fill="url(#${gradId})" stroke="${outline}" stroke-width="1.5"/>
+  ${getMarkerInnerShape(innerShape, innerFill)}
 </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
 }

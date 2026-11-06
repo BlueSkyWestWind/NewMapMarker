@@ -26,6 +26,13 @@ export const LEGACY_COLOR_NAMES: Record<string, string> = {
   '#84cc16': '라임',
   '#14b8a6': '틸',
   '#f97316': '오렌지',
+  '#1e3a8a': '네이비',
+  '#38bdf8': '스카이',
+  '#facc15': '옐로',
+  '#92400e': '브라운',
+  '#9f1239': '버건디',
+  // 개통완료 상태색. 저장 색상으로는 고를 수 없고 색상 필터 라벨에만 쓴다.
+  '#ffffff': '흰색',
 };
 
 /** 한글 이름·오타 → hex (백업 복원용) */
@@ -42,6 +49,11 @@ const COLOR_NAME_ALIASES: Record<string, string> = {
   라임: '#84cc16',
   틸: '#14b8a6',
   오렌지: '#f97316',
+  네이비: '#1e3a8a',
+  스카이: '#38bdf8',
+  옐로: '#facc15',
+  브라운: '#92400e',
+  버건디: '#9f1239',
 };
 
 /** 장비(공정관리) 백업 내보내기 전용 — 축전지는 담당팀 색상 정의를 별도로 쓰므로 여기서
@@ -105,6 +117,19 @@ export const COLOR_FILTER_ORDER = [
   '#ec4899',
   '#14b8a6',
   '#f97316',
+  '#1e3a8a',
+  '#38bdf8',
+  '#facc15',
+  '#92400e',
+  '#9f1239',
+  '#ffffff',
 ];
+
+/** 장비 시설 상태의 표시색. 올해 대상 없음은 저장된 마커 색을 쓴다. */
+export const FACILITY_STATUS_COLORS = {
+  미시설: '#10b981',
+  시설: '#64748b',
+  개통완료: '#ffffff',
+} as const;
 
 export const UNSPECIFIED_FILTER_LABEL = '미지정';

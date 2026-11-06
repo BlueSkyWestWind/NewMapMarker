@@ -37,7 +37,7 @@ export function MarkersPanel({ markers, filterOptions, filters, mode }: PanelDat
         </PanelSection>
       ) : null}
 
-      <PanelSection icon={Filter} title="연도·사업·색상·태그 표시" iconClassName="h-3.5 w-3.5 text-indigo-400">
+      <PanelSection icon={Filter} title="연도·상태·사업·색상·태그 표시" iconClassName="h-3.5 w-3.5 text-indigo-400">
         <FilterPanel mode={mode} filterOptions={filterOptions} />
       </PanelSection>
 

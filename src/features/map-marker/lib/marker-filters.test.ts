@@ -18,6 +18,7 @@ function emptyFilters(): MarkerFilterState {
   return {
     selectedYears: new Set(),
     selectedBusinesses: new Set(),
+    selectedStatuses: new Set(),
     selectedColors: new Set(),
     selectedTags: new Set(),
     selectedCapacities: new Set(),
@@ -129,6 +130,7 @@ describe("연도 필터 기본값 (올해 + 미지정)", () => {
   const options = (years: string[]): Options => ({
     years,
     businesses: ["신설", UNSPECIFIED_FILTER_LABEL],
+    statuses: ["미시설", "시설", "개통완료", "올해 대상 없음"],
     colors: ["#10b981"],
     tags: [UNSPECIFIED_FILTER_LABEL],
   });
@@ -151,14 +153,17 @@ describe("연도 필터 기본값 (올해 + 미지정)", () => {
     expect([...state.selectedYears]).toEqual(["2026"]);
   });
 
-  it("올해 마커가 하나도 없으면 지도가 비지 않도록 전체를 선택한다", () => {
+  it("올해 마커가 하나도 없어도 전체로 되돌리지 않는다", () => {
     const state = createDefaultFilterState(
       options(["2025", "2024", UNSPECIFIED_FILTER_LABEL]),
       JUNE_2026,
     );
-    expect([...state.selectedYears].sort()).toEqual(
-      ["2025", "2024", UNSPECIFIED_FILTER_LABEL].sort(),
-    );
+    expect([...state.selectedYears]).toEqual([UNSPECIFIED_FILTER_LABEL]);
+  });
+
+  it("올해도 미지정도 없으면 빈 집합(걸러내지 않음)이다", () => {
+    const state = createDefaultFilterState(options(["2025", "2024"]), JUNE_2026);
+    expect(state.selectedYears.size).toBe(0);
   });
 
   it("해가 바뀌면 코드 수정 없이 새 해를 기본으로 따라간다", () => {
@@ -169,6 +174,11 @@ describe("연도 필터 기본값 (올해 + 미지정)", () => {
 
   it("연도 목록이 비어 있으면(축전지·위치 모드 등) 기존처럼 비어 있다", () => {
     expect(createDefaultFilterState(options([]), JUNE_2026).selectedYears.size).toBe(0);
+  });
+
+  it("상태 필터의 기본은 미시설·시설이다", () => {
+    const state = createDefaultFilterState(options(["2026"]), JUNE_2026);
+    expect([...state.selectedStatuses]).toEqual(["미시설", "시설"]);
   });
 
   it("연도 외 차원(사업·색상·태그)은 전체 선택을 유지한다", () => {
@@ -227,5 +237,75 @@ describe("summarizeFilterSelection", () => {
 
   it("아무것도 선택하지 않으면 한도와 상관없이 선택 안 함", () => {
     expect(summarizeFilterSelection(values, sel(), 3)).toBe("선택 안 함");
+  });
+});
+
+describe("상태 필터와 그룹 연도 필터", () => {
+  it("상태 필터를 고르면 그 상태의 마커만 통과한다", () => {
+    const filters = emptyFilters();
+    filters.selectedStatuses.add("미시설");
+    expect(
+      markerPassesFilters(equipmentMarker({ facilityStatus: "미시설" }), "equipment", filters),
+    ).toBe(true);
+    expect(
+      markerPassesFilters(equipmentMarker({ facilityStatus: "개통완료" }), "equipment", filters),
+    ).toBe(false);
+  });
+
+  it("상태 정보가 없는 마커는 올해 대상 없음으로 본다", () => {
+    const filters = emptyFilters();
+    filters.selectedStatuses.add("올해 대상 없음");
+    expect(markerPassesFilters(equipmentMarker(), "equipment", filters)).toBe(true);
+  });
+
+  it("상태 필터가 비어 있으면 걸러내지 않는다", () => {
+    expect(
+      markerPassesFilters(
+        equipmentMarker({ facilityStatus: "개통완료" }),
+        "equipment",
+        emptyFilters(),
+      ),
+    ).toBe(true);
+  });
+
+  it("대표가 2025년이어도 그룹에 2026년 장비가 있으면 2026 필터를 통과한다", () => {
+    const filters = emptyFilters();
+    filters.selectedYears.add("2026");
+    const marker = equipmentMarker({ facilityYear: "2025", groupYears: ["2025", "2026"] });
+    expect(markerPassesFilters(marker, "equipment", filters)).toBe(true);
+  });
+
+  it("그룹 연도가 선택과 겹치지 않으면 탈락한다", () => {
+    const filters = emptyFilters();
+    filters.selectedYears.add("2026");
+    const marker = equipmentMarker({ groupYears: ["2024", "2025"] });
+    expect(markerPassesFilters(marker, "equipment", filters)).toBe(false);
+  });
+
+  it("그룹 연도가 비어 있으면 미지정으로 본다", () => {
+    const filters = emptyFilters();
+    filters.selectedYears.add(UNSPECIFIED_FILTER_LABEL);
+    expect(
+      markerPassesFilters(equipmentMarker({ groupYears: [] }), "equipment", filters),
+    ).toBe(true);
+  });
+
+  it("옵션은 상태를 고정 순서로, 마커에 있는 것만 모은다", () => {
+    const options = collectFilterOptions(
+      [
+        equipmentMarker({ id: "a", facilityStatus: "개통완료" }),
+        equipmentMarker({ id: "b", facilityStatus: "미시설" }),
+      ],
+      "equipment",
+    );
+    expect(options.statuses).toEqual(["미시설", "개통완료"]);
+  });
+
+  it("상태는 표시색 기준 색상 옵션에도 반영된다", () => {
+    const options = collectFilterOptions(
+      [equipmentMarker({ facilityStatus: "개통완료", color: "#6366f1" })],
+      "equipment",
+    );
+    expect(options.colors).toEqual(["#ffffff"]);
   });
 });

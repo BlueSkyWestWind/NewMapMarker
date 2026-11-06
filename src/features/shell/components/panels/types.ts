@@ -16,6 +16,7 @@ export interface PanelDataProps {
   filterOptions: {
     years: string[];
     businesses: string[];
+    statuses: string[];
     colors: string[];
     tags: string[];
   };

@@ -127,11 +127,11 @@ interface MapMarkerUiState {
     updates: Partial<MarkerRecord>,
   ) => void;
   toggleFilterValue: (
-    type: "year" | "business" | "color" | "tag",
+    type: "year" | "business" | "status" | "color" | "tag",
     value: string,
   ) => void;
   selectAllFilterValues: (
-    type: "year" | "business" | "color" | "tag",
+    type: "year" | "business" | "status" | "color" | "tag",
     values: string[],
   ) => void;
   openDetailModal: (id: string) => void;
@@ -152,6 +152,7 @@ export const STORE_DEFAULT_SEGMENT: MapSegment = "equipment";
 const emptyFilterState: MarkerFilterState = {
   selectedYears: new Set(),
   selectedBusinesses: new Set(),
+  selectedStatuses: new Set(),
   selectedColors: new Set(),
   selectedTags: new Set(),
   selectedCapacities: new Set(),
@@ -383,6 +384,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
         const keyMap = {
           year: "selectedYears",
           business: "selectedBusinesses",
+          status: "selectedStatuses",
           color: "selectedColors",
           tag: "selectedTags",
         } as const;
@@ -405,6 +407,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
         const keyMap = {
           year: "selectedYears",
           business: "selectedBusinesses",
+          status: "selectedStatuses",
           color: "selectedColors",
           tag: "selectedTags",
         } as const;

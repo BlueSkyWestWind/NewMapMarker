@@ -16,8 +16,8 @@ npx next build
 
 ## 추가 확인
 
-- **미사용 import·변수는 ESLint가 잡지 않는다.** 심볼을 옮기거나 지운 뒤에는
-  `find_referencing_symbols`로 직접 확인하거나 참조 수를 세어 본다.
+- **미사용 import·변수·매개변수는 ESLint가 오류로 잡는다(Ver 2.3~).** 의도적으로 남기려면 `_` 접두사.
+  심볼을 옮기거나 지운 뒤에는 `eslint`가 빈 import를 알려 주고, 참조 확인은 `find_referencing_symbols`.
 - 폭·치수를 바꿨으면 `shell/constants.ts` 밖에 숫자가 남지 않았는지 확인.
 - UI를 바꿨으면 브라우저 실물 확인은 **사용자 몫**이다. 하지 않았으면 "미검증"이라고 명시한다.
 - 문서 작업의 검증은 참조 경로 실존 확인이 대신한다.

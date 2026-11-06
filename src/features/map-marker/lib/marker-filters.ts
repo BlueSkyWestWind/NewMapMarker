@@ -1,4 +1,8 @@
 import {
+  DEFAULT_FACILITY_STATUSES,
+  FACILITY_STATUS_ORDER,
+} from '@/features/map-marker/lib/facility-status';
+import {
   COLOR_FILTER_ORDER,
   UNSPECIFIED_FILTER_LABEL,
 } from '@/features/map-marker/constants/facility-teams';
@@ -14,6 +18,30 @@ import type {
 export function normalizeFilterValue(value: string | undefined | null) {
   const trimmed = value?.toString().trim();
   return trimmed || UNSPECIFIED_FILTER_LABEL;
+}
+
+/**
+ * 연도 필터가 보는 연도들. 대표는 숨은 SUB의 연도까지 포함한다.
+ * 조회 때 채운 `groupYears`가 없으면(대기 마커 등) 대표 장비의 연도 하나만 쓴다.
+ */
+export function getMarkerFilterYears(equipment: EquipmentMarker): string[] {
+  if (equipment.groupYears) {
+    return equipment.groupYears.length > 0
+      ? equipment.groupYears
+      : [UNSPECIFIED_FILTER_LABEL];
+  }
+  return [normalizeFilterValue(equipment.facilityYear)];
+}
+
+function getMarkerFilterStatus(equipment: EquipmentMarker) {
+  return equipment.facilityStatus ?? '올해 대상 없음';
+}
+
+function passesYearFilter(equipment: EquipmentMarker, filters: MarkerFilterState) {
+  if (filters.selectedYears.size === 0) return true;
+  return getMarkerFilterYears(equipment).some((year) =>
+    filters.selectedYears.has(year),
+  );
 }
 
 export function markerPassesFilters(
@@ -46,12 +74,15 @@ export function markerPassesFilters(
 
   if (mode === 'equipment') {
     const equipment = marker as EquipmentMarker;
-    const year = normalizeFilterValue(equipment.facilityYear);
     const business = normalizeFilterValue(equipment.businessType);
 
+    if (!passesYearFilter(equipment, filters)) {
+      return false;
+    }
+
     if (
-      filters.selectedYears.size > 0 &&
-      !filters.selectedYears.has(year)
+      filters.selectedStatuses.size > 0 &&
+      !filters.selectedStatuses.has(getMarkerFilterStatus(equipment))
     ) {
       return false;
     }
@@ -70,6 +101,7 @@ export function markerPassesFilters(
 export function collectFilterOptions(markers: MarkerRecord[], mode: MapMode) {
   const years = new Set<string>();
   const businesses = new Set<string>();
+  const statuses = new Set<string>();
   const colors = new Set<string>();
   const tags = new Set<string>();
 
@@ -88,7 +120,8 @@ export function collectFilterOptions(markers: MarkerRecord[], mode: MapMode) {
 
     if (mode === 'equipment') {
       const equipment = marker as EquipmentMarker;
-      years.add(normalizeFilterValue(equipment.facilityYear));
+      getMarkerFilterYears(equipment).forEach((year) => years.add(year));
+      statuses.add(getMarkerFilterStatus(equipment));
       businesses.add(normalizeFilterValue(equipment.businessType));
     }
   });
@@ -120,6 +153,7 @@ export function collectFilterOptions(markers: MarkerRecord[], mode: MapMode) {
   return {
     years: sortYears([...years]),
     businesses: sortWithUnspecifiedLast([...businesses]),
+    statuses: FACILITY_STATUS_ORDER.filter((status) => statuses.has(status)),
     colors: sortColors([...colors]),
     tags: sortWithUnspecifiedLast([...tags]),
   };
@@ -129,14 +163,12 @@ export function collectFilterOptions(markers: MarkerRecord[], mode: MapMode) {
  * 연도 필터의 기본 선택. **올해 + 미지정**이다.
  *
  * - 연도 정보가 없는 마커(미지정)는 새로 등록한 직후에도 흔하므로 함께 보여 준다.
- * - 올해 마커가 하나도 없으면(예: 새해 첫날) 지도가 비지 않도록 전체를 선택한다.
- * - 연도 목록 자체가 비어 있으면(축전지·위치 모드 등) 빈 집합 그대로다.
+ * - 올해 마커가 없어도 전체로 되돌리지 않는다. 상태 필터가 올해 대상만 보여 주므로
+ *   처음 화면이 비는 것이 의도다(Ver 3.0).
+ * - 고를 값이 하나도 없으면 빈 집합이고, 빈 집합은 "걸러내지 않음"이다.
  */
 export function defaultSelectedYears(years: string[], now: Date = new Date()): Set<string> {
   const thisYear = String(now.getFullYear());
-  if (!years.includes(thisYear)) {
-    return new Set(years);
-  }
   return new Set(
     years.filter((year) => year === thisYear || year === UNSPECIFIED_FILTER_LABEL),
   );
@@ -171,6 +203,11 @@ export function createDefaultFilterState(
   return {
     selectedYears: defaultSelectedYears(options.years, now),
     selectedBusinesses: new Set(options.businesses),
+    selectedStatuses: new Set(
+      options.statuses.filter((status) =>
+        DEFAULT_FACILITY_STATUSES.includes(status),
+      ),
+    ),
     selectedColors: new Set(options.colors),
     selectedTags: new Set(options.tags),
     selectedCapacities: new Set<string>(),
@@ -184,7 +221,8 @@ export function hasAnyFilterSelection(filters: MarkerFilterState) {
     filters.selectedColors.size > 0 ||
     filters.selectedTags.size > 0 ||
     filters.selectedYears.size > 0 ||
-    filters.selectedBusinesses.size > 0
+    filters.selectedBusinesses.size > 0 ||
+    filters.selectedStatuses.size > 0
   );
 }
 
@@ -224,6 +262,10 @@ export function mergeFilterState(
       current.selectedBusinesses,
       options.businesses,
     ),
+    selectedStatuses: mergeDimension(
+      current.selectedStatuses,
+      options.statuses,
+    ),
     selectedColors: mergeDimension(
       current.selectedColors,
       options.colors,
@@ -251,6 +293,7 @@ export function getMarkerVisibilityStats(
   let excludedByTag = 0;
   let excludedByYear = 0;
   let excludedByBusiness = 0;
+  let excludedByStatus = 0;
 
   registered.forEach((marker) => {
     const color = getEffectiveMarkerColor(marker, mode).toLowerCase().trim();
@@ -276,14 +319,18 @@ export function getMarkerVisibilityStats(
 
     if (mode === 'equipment') {
       const equipment = marker as EquipmentMarker;
-      const year = normalizeFilterValue(equipment.facilityYear);
       const business = normalizeFilterValue(equipment.businessType);
 
-      if (
-        filters.selectedYears.size > 0 &&
-        !filters.selectedYears.has(year)
-      ) {
+      if (!passesYearFilter(equipment, filters)) {
         excludedByYear++;
+        return;
+      }
+
+      if (
+        filters.selectedStatuses.size > 0 &&
+        !filters.selectedStatuses.has(getMarkerFilterStatus(equipment))
+      ) {
+        excludedByStatus++;
         return;
       }
 
@@ -306,5 +353,6 @@ export function getMarkerVisibilityStats(
     excludedByTag,
     excludedByYear,
     excludedByBusiness,
+    excludedByStatus,
   };
 }

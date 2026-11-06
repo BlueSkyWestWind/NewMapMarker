@@ -18,6 +18,7 @@ interface FilterPanelProps {
   filterOptions: {
     years: string[];
     businesses: string[];
+    statuses: string[];
     colors: string[];
     tags: string[];
   };
@@ -47,15 +48,15 @@ function FilterGroup({
   const summary = summarizeFilterSelection(values, selected, summaryNameLimit);
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-slate-700/50 pb-3">
-      <p className="shrink-0 text-xs font-semibold tracking-wide text-slate-300">
+    <div className="flex min-w-0 flex-col gap-1">
+      <p className="text-xs font-semibold tracking-wide text-slate-300">
         {title}
       </p>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex h-7 min-w-[8rem] max-w-[12rem] items-center justify-between gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2 text-[11px] text-slate-200 outline-none hover:bg-slate-800 focus:border-slate-500"
+            className="flex h-9 w-full min-w-0 items-center justify-between gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2 text-[11px] text-slate-200 outline-none hover:bg-slate-800 focus:border-slate-500"
           >
             <span className="truncate">{summary}</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -110,7 +111,7 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="grid grid-cols-2 gap-3">
       {mode === 'equipment' && (
         <>
           <FilterGroup
@@ -120,6 +121,13 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
             selected={filters.selectedYears}
             onToggle={(value) => toggleFilterValue('year', value)}
             onSetAll={(values) => selectAllFilterValues('year', values)}
+          />
+          <FilterGroup
+            title="상태"
+            values={filterOptions.statuses}
+            selected={filters.selectedStatuses}
+            onToggle={(value) => toggleFilterValue('status', value)}
+            onSetAll={(values) => selectAllFilterValues('status', values)}
           />
           <FilterGroup
             title="사업구분"

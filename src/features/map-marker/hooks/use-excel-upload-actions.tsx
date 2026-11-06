@@ -598,6 +598,7 @@ export function useExcelUploadActions() {
     setFilters({
       selectedYears: new Set(),
       selectedBusinesses: new Set(),
+      selectedStatuses: new Set(),
       selectedColors: new Set(),
       selectedTags: new Set(),
       selectedCapacities: new Set(),
@@ -993,6 +994,7 @@ export function useExcelUploadActions() {
         setFilters({
           selectedYears: new Set(),
           selectedBusinesses: new Set(),
+          selectedStatuses: new Set(),
           selectedColors: new Set(),
           selectedTags: new Set(),
           selectedCapacities: new Set(),

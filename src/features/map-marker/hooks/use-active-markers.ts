@@ -30,6 +30,7 @@ function shouldUpdateFilters(
   return (
     !setsEqual(current.selectedYears, next.selectedYears) ||
     !setsEqual(current.selectedBusinesses, next.selectedBusinesses) ||
+    !setsEqual(current.selectedStatuses, next.selectedStatuses) ||
     !setsEqual(current.selectedColors, next.selectedColors) ||
     !setsEqual(current.selectedTags, next.selectedTags)
   );
@@ -54,6 +55,7 @@ export function useActiveMarkers() {
   const prevFilterOptionsRef = useRef<ReturnType<typeof collectFilterOptions>>({
     years: [],
     businesses: [],
+    statuses: [],
     colors: [],
     tags: [],
   });
@@ -89,6 +91,7 @@ export function useActiveMarkers() {
     prevFilterOptionsRef.current = {
       years: [],
       businesses: [],
+      statuses: [],
       colors: [],
       tags: [],
     };
@@ -105,6 +108,7 @@ export function useActiveMarkers() {
   const filterOptionsKey = [
     filterOptions.years.join(","),
     filterOptions.businesses.join(","),
+    filterOptions.statuses.join(","),
     filterOptions.colors.join(","),
     filterOptions.tags.join(","),
   ].join("|");

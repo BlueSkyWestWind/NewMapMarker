@@ -5,7 +5,7 @@
 - 분기: `ts-pattern` (`match().with().exhaustive()`). 새 유니온 값 추가 시 컴파일이 막히도록 `exhaustive()` 사용.
 - UI: `tailwindcss` + `shadcn/ui` + `lucide-react`.
 - 백엔드: Supabase (`supabase/migrations/*.sql`).
-- 유틸: `date-fns` · `es-toolkit` · `zod` · `react-hook-form` · `xlsx`(엑셀, 지연 import).
+- 유틸: `zod` · `xlsx`(엑셀, 지연 import). (`date-fns`·`es-toolkit`·`react-hook-form`·`axios`는 Ver 2.3에서 제거 — 필요해지면 추가.)
 - 테스트: `vitest`(단위) + `playwright`(e2e, `e2e/`).
 - 패키지 매니저: **npm**.
 

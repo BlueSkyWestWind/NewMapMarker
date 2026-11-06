@@ -24,6 +24,16 @@ export interface BaseMarker {
   isTemp?: boolean;
 }
 
+/** 올해 장비 기준 시설 진행 상태. 판정은 `lib/facility-status.ts` */
+export type FacilityStatus = "미시설" | "시설" | "개통완료" | "올해 대상 없음";
+
+/** 한 장비(information 행)의 연도와 시설·개통일 */
+export interface FacilityRecord {
+  year: string;
+  installDate: string;
+  openDate: string;
+}
+
 export interface EquipmentMarker extends BaseMarker {
   roadAddress: string;
   jibunAddress: string;
@@ -51,6 +61,12 @@ export interface EquipmentMarker extends BaseMarker {
   siteAlias?: string | null;
   /** 'ground' | 'elevated'. 고소 국소는 작업 안전 날씨에서 강풍 판정을 강화한다. */
   workType?: string | null;
+  /** 이 마커 자신의 장비 전부. 조회 때 채운다(없으면 장비 없음으로 본다) */
+  facilityRecords?: FacilityRecord[];
+  /** 연도 필터용. 자기 + 숨은 SUB의 장비 연도. 조회 때 채운다 */
+  groupYears?: string[];
+  /** 기준 연도의 대표 상태. 조회 때 채운다(없으면 `올해 대상 없음`) */
+  facilityStatus?: FacilityStatus;
 }
 
 export interface BatteryMarker extends BaseMarker {
@@ -75,6 +91,7 @@ export type MarkerRecord = EquipmentMarker | BatteryMarker | LocationMarker;
 export interface MarkerFilterState {
   selectedYears: Set<string>;
   selectedBusinesses: Set<string>;
+  selectedStatuses: Set<string>;
   selectedColors: Set<string>;
   selectedTags: Set<string>;
   selectedCapacities: Set<string>;
@@ -89,6 +106,7 @@ export interface MarkerVisibilityStats {
   excludedByTag: number;
   excludedByYear: number;
   excludedByBusiness: number;
+  excludedByStatus: number;
 }
 
 export interface MapMarkersPayload {

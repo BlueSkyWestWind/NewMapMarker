@@ -49,3 +49,12 @@ CORS 미지원이라 script 주입만 가능. 키는 `NEXT_PUBLIC_`이고 도메
 
 모드가 바뀌면 `filters`·선택 마커·`cctvMarkers`를 비운다. 이건 **세그먼트를 직접 눌렀을 때의 규칙**이다.
 메뉴 이동은 `setActiveNav`를 쓴다 — `mode`만 바꾸고 초기화는 건너뛴다.
+
+## 8. 장비 마커 표시색은 `getEffectiveMarkerColor` 한 곳 (Ver 3.0)
+
+- 장비 모드는 `facilityStatus`(미시설 `#10b981`·시설 `#64748b`·개통완료 `#ffffff`)가 저장 색(`marker.color`)보다 우선.
+  올해 대상 없음·대기·임시는 저장 색. 지도·색상 필터·클러스터·캡처가 이 함수를 공유하므로 색을 따로 계산하지 않는다.
+- `facilityStatus`·`groupYears`는 `fetchMapMarkers`가 `computeFacilityStatuses(markers, 올해)`로 **조회 때 채운다**(저장 안 함).
+  대표는 숨은 SUB의 올해 장비를 합산, `detachedVisible` SUB는 자기 것만. 판정은 `lib/facility-status.ts`.
+- 필터의 **빈 집합은 "걸러내지 않음"**이다. 기본값으로 고를 값이 없으면 그 차원은 전체가 보인다(연도·상태 공통).
+- 흰 핀(`#ffffff`)은 `getMarkerSvg`가 어두운 테두리·점으로 바꾼다. 흰 핀을 새로 그리는 곳은 같은 처리가 필요.

@@ -28,6 +28,11 @@ const COLOR_OPTIONS = [
   { value: '#84cc16', label: '라임' },
   { value: '#14b8a6', label: '틸' },
   { value: '#f97316', label: '오렌지' },
+  { value: '#1e3a8a', label: '네이비' },
+  { value: '#38bdf8', label: '스카이' },
+  { value: '#facc15', label: '옐로' },
+  { value: '#92400e', label: '브라운' },
+  { value: '#9f1239', label: '버건디' },
 ];
 
 export function MarkerEditModal() {
