@@ -125,11 +125,51 @@ export function collectFilterOptions(markers: MarkerRecord[], mode: MapMode) {
   };
 }
 
+/**
+ * 연도 필터의 기본 선택. **올해 + 미지정**이다.
+ *
+ * - 연도 정보가 없는 마커(미지정)는 새로 등록한 직후에도 흔하므로 함께 보여 준다.
+ * - 올해 마커가 하나도 없으면(예: 새해 첫날) 지도가 비지 않도록 전체를 선택한다.
+ * - 연도 목록 자체가 비어 있으면(축전지·위치 모드 등) 빈 집합 그대로다.
+ */
+export function defaultSelectedYears(years: string[], now: Date = new Date()): Set<string> {
+  const thisYear = String(now.getFullYear());
+  if (!years.includes(thisYear)) {
+    return new Set(years);
+  }
+  return new Set(
+    years.filter((year) => year === thisYear || year === UNSPECIFIED_FILTER_LABEL),
+  );
+}
+
+/**
+ * 필터 드롭다운 버튼에 보일 요약 문구.
+ *
+ * `nameLimit`이 있으면 선택된 값이 그 개수 이하일 때 **이름**을 목록 순서대로 보여 준다
+ * (연도 필터: "2026", "2026, 미지정"). 값이 하나뿐인 목록에서도 "전체" 대신 그 이름이 보인다.
+ * 한도를 넘거나 한도가 없으면 "전체" / "선택 안 함" / "n/m 선택" 규칙이다.
+ */
+export function summarizeFilterSelection(
+  values: string[],
+  selected: Set<string>,
+  nameLimit?: number,
+): string {
+  const selectedCount = values.filter((value) => selected.has(value)).length;
+  if (selectedCount === 0) return '선택 안 함';
+
+  if (nameLimit !== undefined && selectedCount <= nameLimit) {
+    return values.filter((value) => selected.has(value)).join(', ');
+  }
+  if (selectedCount === values.length) return '전체';
+  return `${selectedCount}/${values.length} 선택`;
+}
+
 export function createDefaultFilterState(
   options: ReturnType<typeof collectFilterOptions>,
+  now: Date = new Date(),
 ) {
   return {
-    selectedYears: new Set(options.years),
+    selectedYears: defaultSelectedYears(options.years, now),
     selectedBusinesses: new Set(options.businesses),
     selectedColors: new Set(options.colors),
     selectedTags: new Set(options.tags),

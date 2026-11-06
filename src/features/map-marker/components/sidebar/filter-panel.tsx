@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { summarizeFilterSelection } from '@/features/map-marker/lib/marker-filters';
 import { getMarkerColorLabel } from '@/features/map-marker/lib/marker-svg';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import type { MapMode } from '@/features/map-marker/types/marker';
@@ -29,6 +30,7 @@ function FilterGroup({
   onToggle,
   onSetAll,
   renderLabel,
+  summaryNameLimit,
 }: {
   title: string;
   values: string[];
@@ -37,15 +39,12 @@ function FilterGroup({
   /** 전체 선택([...values]) / 해제([]) 를 한 번에 반영 */
   onSetAll: (values: string[]) => void;
   renderLabel?: (value: string) => string;
+  /** 지정하면 선택된 값이 이 개수 이하일 때 "전체" 대신 값의 이름을 버튼에 보여 준다. */
+  summaryNameLimit?: number;
 }) {
   if (!values.length) return null;
 
-  const allSelected = values.every((value) => selected.has(value));
-  const summary = allSelected
-    ? '전체'
-    : selected.size === 0
-      ? '선택 안 함'
-      : `${selected.size}/${values.length} 선택`;
+  const summary = summarizeFilterSelection(values, selected, summaryNameLimit);
 
   return (
     <div className="flex items-center justify-between gap-2 border-b border-slate-700/50 pb-3">
@@ -117,6 +116,7 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
           <FilterGroup
             title="연도"
             values={filterOptions.years}
+            summaryNameLimit={3}
             selected={filters.selectedYears}
             onToggle={(value) => toggleFilterValue('year', value)}
             onSetAll={(values) => selectAllFilterValues('year', values)}
