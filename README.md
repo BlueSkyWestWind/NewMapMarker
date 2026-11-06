@@ -208,13 +208,13 @@ npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 | 항목 | 권장 값 (택 1) |
 |------|----------------|
 | **방법 A — 한 줄 배포 (권장)** | Build command: *(비워 두기)* · **Deploy command: `npm run deploy`** |
-| **방법 B — 빌드·배포 분리** | Build command: `npx opennextjs-cloudflare build` · Deploy command: `npx opennextjs-cloudflare deploy` |
+| **방법 B — 빌드·배포 분리** | Build command: `npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion` · Deploy command: `npx opennextjs-cloudflare deploy` |
 | Non-production deploy | `npm run upload` |
 | Node version | **22** (`.nvmrc`, wrangler 4.x 필수) |
 
 **하지 말 것:** Deploy command를 `npx wrangler deploy`로 두는 것 (`npm run build`만으로는 `.open-next/`가 생기지 않음)
 
-`npm run deploy` = `opennextjs-cloudflare build` + `opennextjs-cloudflare deploy`
+`npm run deploy` = `opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion` + `opennextjs-cloudflare deploy`
 (Next 빌드 → `.open-next/worker.js` 생성 후 Workers에 배포)
 
 `wrangler.jsonc`의 Worker 이름(`newmarker`)과 `WORKER_SELF_REFERENCE` service 이름이 **동일**해야 합니다.
