@@ -3,13 +3,10 @@
 통신 장비·축전지 **국소를 지도에 관리하고, 당일 작업 안전 날씨를 판정**하는 웹 앱입니다.
 `001.MapMarker`(바닐라 JS)를 Next.js 15 + TypeScript 구조로 재구성했습니다.
 
-- 현재 릴리스: **Ver_2.3** (2026-10-21) — 앱 전체 로그인 벽·서버 API 토큰 검증(2.2) + 구조 정비(미사용 코드·의존성 제거, 엄격 타입 전환)
+- 현재 릴리스: **Ver_3.0** (2026-11-07) — 장비 시설 상태 판정·필터·표시색, 위치등록 신규 건 확인 후 건별 저장, 위치 메뉴 국소 목록(관리자 목록 보호·다중 색상 핀) 및 대시보드 임시 마커 이동, 드릴다운 사이드바(레일·트리)·모바일 하단 메뉴·시트 재설계
 - 버전 표기: `Ver_X.Y`는 사용자 대상 제품 릴리스이며, `package.json`의 `0.1.0`은 npm/배포 패키지 식별자다. 제품 릴리스 변경만으로 npm 버전을 자동 변경하지 않는다.
-- 문서: [`docs/Ver_2.3/`](./docs/Ver_2.3/Ver_2.3_implementation_plan.md)(구조 정비) ·
-  [`docs/Ver_2.2/`](./docs/Ver_2.2/Ver_2.2_implementation_plan.md)(로그인 벽) ·
-  [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) ·
-  [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md)(UI 셸 개편·대시보드) ·
-  [이전 버전](./docs/Ver_1.1/)
+- 문서: [`docs/Ver_3.0/`](./docs/Ver_3.0/Ver_3.0_계획.md)([`장비상태`](./docs/Ver_3.0/Ver_3.0_장비상태_구현.md) · [`위치등록 신규확인`](./docs/Ver_3.0/Ver_3.0_위치등록_신규확인_구현.md) · [`사이드바`](./docs/Ver_3.0/Ver_3.0_사이드바_구현.md) · [`위치목록`](./docs/Ver_3.0/Ver_3.0_위치목록_구현.md)) ·
+  [`docs/이전버젼/`](./docs/이전버젼/)([`Ver_2.3`](./docs/이전버젼/Ver_2.3/Ver_2.3_implementation_plan.md) · [`Ver_2.2`](./docs/이전버젼/Ver_2.2/Ver_2.2_implementation_plan.md) · [`Ver_2.1`](./docs/이전버젼/Ver_2.1/Ver_2.1_implementation_plan.md) · [`Ver_2.0`](./docs/이전버젼/Ver_2.0/Ver_2.0_README.md) · [`Ver_1.1`](./docs/이전버젼/Ver_1.1/Ver_1.1_README.md))
 
 ## 구조
 
@@ -17,6 +14,7 @@
 src/
   app/                         # Next.js App Router (layout · page · providers · globals.css)
     api/
+      kakao-route/             # 카카오 모빌리티 길찾기 프록시 (서버 토큰 검증)
       kakao-static-map/        # 카카오 REST 정적맵 프록시 (영역 캡처용, REST 키 필요)
       map-tile-proxy/          # 지도 타일 프록시 (호스트 allowlist 기반 SSRF 방지)
       roadview-dates/          # 로드뷰 촬영일자 조회 프록시
@@ -26,23 +24,26 @@ src/
   components/
     ui/                        # shadcn/ui (Radix) — Calendly 유래 토큰으로 라이트/다크 렌더
     public-env-script.tsx      # 런타임 공개 env 를 브라우저에 주입
-  hooks/ lib/ types/           # use-toast · use-has-mounted · utils · public-env · supabase/client · kakao-maps.d.ts
-  features/shell/              # 좌측 메뉴 레일 + 상단 검색 + 패널 스위치 (Ver_2.0 신설, 14파일)
-    constants.ts                # 레일/패널 폭 단일 소스 (CSS 변수로 흘림)
+  hooks/ lib/ types/           # use-toast · use-has-mounted · use-is-mobile · utils · public-env · supabase/client · kakao-maps.d.ts
+  features/shell/              # 드릴다운 레일(56px)·트리(256px)·모바일 하단 시트 + 상단 검색 + 패널 스위치 (26파일)
+    constants.ts                # 레일/트리/패널 폭 단일 소스 (CSS 변수·모달 좌측 오프셋 계산)
     types/nav.ts                # NavKey 8종(대시보드·지도·마커관리·그룹관리·CCTV·바코드/QR·백업/복원·설정)
-    components/                 # app-shell · nav-rail · top-search-bar · panels/(지도·마커·백업·설정)
-  features/dashboard/          # 당일 국소 작업 가능 여부 요약 (Ver_2.0 신설, 4파일)
+    lib/ store/ hooks/          # nav-model · sheet-snap · use-shell-store · use-shell-nav · use-map-left-offset
+    components/                 # app-shell · nav-rail · nav-tree · work-panel · panel-body · mobile-shell · top-search-bar · panels/
+  features/dashboard/          # 당일 국소 작업 가능 여부 요약 + 엑셀/주소 임시 마커 작업 등록 (4파일)
     hooks/use-worksite-board.ts # 저장 국소 동시 4건 날씨 조회, 행 단위 실패 격리
-    components/                 # worksite-board · worksite-row · dashboard-panel(빈 상태 포함)
-  features/map-marker/         # 지도·마커 도메인 (73파일)
-    api.ts                     # Supabase 조회 (fetchAllRows 페이지네이션)
+    components/                 # worksite-board · worksite-row · dashboard-panel(빈 상태·임시 위치 등록 포함)
+  features/map-marker/         # 지도·마커 도메인 (94파일)
+    api.ts                     # Supabase 조회 (fetchAllRows 페이지네이션 + 올해 장비 시설 상태 계산)
     constants/ providers/ store/ hooks/
-    lib/                       # marker-svg · cluster-pie · marker-filters · geocode · address-group
-                               # overlay-content · overlay-drag · location-marker(-groups)
-                               # map-viewport-capture · map-capture-stitch/
+    lib/                       # marker-svg · cluster-pie · marker-filters · facility-status
+                               # geocode · address-group · address-compare · erp-classify · erp-review(-save)
+                               # overlay-content · overlay-drag · location-marker · select-active-markers
+                               # fetch-full-backup-tables · map-viewport-capture · map-capture-stitch/
                                # excel/data-manager/ (엑셀 파싱·내보내기·백업/복원)
     components/                # map/ · sidebar/ · modals/
-  features/worksite-weather/   # 작업 안전 날씨 도메인 (32파일)
+  features/site-lists/         # 위치 메뉴 국소 목록 — 목적별 목록·소속 관리 및 관리자 목록 보호 (Ver_3.0 신설, 8파일)
+  features/worksite-weather/   # 작업 안전 날씨 도메인 (30파일)
     constants/                 # thresholds(판정 임계값) · kma-regions(특보 관서)
     types/weather.ts           # 판정 등급·표기 상수 단일 소스
     lib/                       # grid · kma-base-time · parse-amount · apparent-temp · wind
@@ -50,11 +51,12 @@ src/
                                # site-search · worksite-weather-api · kma-client(서버 전용)
                                # export-tbm
     hooks/ components/         # 타임라인 표 · 위험 요약 · 태풍/위성 모달 (대시보드가 조립)
+  features/route/              # 다중 경유지 최적 경로(TSP) 산출 및 카카오 길찾기 연동 (20파일)
   features/gpsmap/             # 주소·좌표 변환 (VWorld · Leaflet, 14파일)
   features/cctv/               # 도로 CCTV 조회 — ITS를 브라우저에서 직접 호출 (13파일)
-  features/barcode/            # 사진 바코드 인식 · QR 생성 · 엑셀 후보 검색
-docs/                          # Ver_1.0 ~ Ver_2.3 문서 세트 · 검수 보고서 · project_review.md
-supabase/migrations/           # DB 마이그레이션 11개 + README(적용 순서·RLS 정책)
+  features/barcode/            # 사진 바코드 인식 · QR 생성 · 엑셀 후보 검색 (15파일)
+docs/                          # Ver_3.0(현재 계획·구현 문서) · 이전버젼/(Ver_1.0 ~ Ver_2.3 문서 세트)
+supabase/migrations/           # DB 마이그레이션 16개 + README(적용 순서·RLS 정책)
 e2e/                           # Playwright 스모크 테스트
 ```
 
@@ -62,28 +64,48 @@ e2e/                           # Playwright 스모크 테스트
 
 | 기능 | 상태 |
 |------|------|
-| **좌측 메뉴 셸**(대시보드·지도·마커관리·CCTV·백업/복원·설정) + 전역 검색(`Ctrl+K`) | ✅ |
-| **대시보드** — 오늘의 작업 국소 저장 목록의 실시간 작업 가능 여부 요약 | ✅ |
+| **드릴다운 사이드바**(56px 레일 · 256px 트리 · 하위 메뉴 드릴다운) + **모바일 하단 메뉴·3단계 시트** + 전역 검색(`Ctrl+K`) | ✅ |
+| **대시보드** — 오늘의 작업 국소 실시간 작업 가능 여부 요약 + 엑셀/주소 임시 마커 작업 등록 + 최적 경로(길찾기) | ✅ |
+| **장비 시설 상태 판정·표시색·상태 필터** — 올해 장비 기준 `미시설`·`시설`·`개통완료`·`올해 대상 없음` 자동 판정 | ✅ |
+| **위치 메뉴 국소 목록** — 목적별 목록(색상 15종) 생성·검색·복수 등록, 다중 목록 분할 핀 표시, 관리자 목록 보호 | ✅ |
+| **위치등록 업로드(신규 확인 후 건별 저장)** — 공정 시트(`.xlsb`) 신규·좌표누락 건 위치·주소 대조 후 건별 저장 및 임시 저장 | ✅ |
 | **라이트/다크 테마 전환**(설정 메뉴, 기본은 다크) | ✅ |
-| 지도 세그먼트(장비/축전지/위치) · 마커관리 세그먼트(장비/축전지) 전환 | ✅ |
-| Supabase 마커·정보·축전지 로드 (전량 페이지네이션) | ✅ |
-| 연도·사업·색상·태그·용량 필터 | ✅ |
+| 지도 하위 메뉴(장비/축전지/위치/위치·좌표) · 마커관리 하위 메뉴(장비/축전지) 전환 | ✅ |
+| Supabase 마커·정보·축전지·국소목록 로드 (전량 페이지네이션) | ✅ |
+| 연도(기본 올해+미지정, 그룹 연도 합산)·상태·사업·색상(15종)·태그·용량 필터 | ✅ |
 | 지도 마커 렌더·클러스터(파이/도넛) | ✅ |
 | 장소 검색·주소 지오코딩 | ✅ |
-| 로그인/로그아웃 | ✅ |
-| 엑셀 업로드(장비·축전지·ERP) | ✅ |
-| 데이터 백업/복원(엑셀) | ✅ |
-| 마커 CRUD 모달(편집·삭제·시설팀 지정) | ✅ |
+| 앱 전체 로그인 벽 · 서버 API Bearer 토큰 검증 | ✅ |
+| 엑셀 업로드(장비·축전지·공정관리 일정관리 시트) | ✅ |
+| 데이터 백업/복원(엑셀, 국소 목록·소속 시트 포함) | ✅ |
+| 마커 CRUD 모달(편집·삭제·시설팀 지정·소속 목록 표시) | ✅ |
 | 로드뷰 모달(촬영일자 조회) | ✅ |
 | 영역 선택 → 격자 캡처/스티칭(PNG) | ✅ |
 | 정적맵·타일 프록시(SSRF 방지) | ✅ |
-| 동일 번지 대표/SUB/단독 그룹핑 | ✅ |
-| 동/구역 실제 그룹 분리·원복(대표 직접 선택) | ✅ |
-| **국소 작업 안전 날씨 판정 (07~17시)** | ✅ |
-| **TBM 안전 자료 엑셀 저장** | ✅ |
+| 동일 번지 대표/SUB/단독 그룹핑 · 동/구역 실제 그룹 분리·원복(대표 직접 선택) | ✅ |
+| **국소 작업 안전 날씨 판정 (07~17시)** · **TBM 안전 자료 엑셀 저장** | ✅ |
 | **도로 CCTV 조회·영상 재생**(ITS, 브라우저 직접 호출) | ✅ |
 | **주소/좌표 통합 변환기**(단건·일괄·엑셀, GPS 메뉴) | ✅ |
 | **바코드 사진 인식·QR 코드 생성·엑셀 후보 검색** | ✅ |
+
+### Ver 3.0 주요 개편
+
+- **장비 시설 상태 판정·필터·표시색** ([`Ver_3.0_장비상태_구현.md`](./docs/Ver_3.0/Ver_3.0_장비상태_구현.md))
+  - 올해 사업 장비(`facility_year`)를 기준으로 국소별 대표 상태를 자동 판정합니다(대표 마커는 자기 장비 + 숨은 SUB의 올해 장비를 합산).
+  - `미시설`(시설일 없음 → 에메랄드 `#10b981`) · `시설`(미개통 장비 존재 → 회색 `#64748b`) · `개통완료`(전량 시설·개통 완료 → 흰색 `#ffffff`) · `올해 대상 없음`(기존 저장 색상)으로 표시합니다.
+  - 상태 필터 기본값은 `미시설`·`시설`이며, 연도 필터 기본값은 `올해 + 미지정`(그룹 내 장비 연도 합산 판정)입니다. 마커 및 목록 색상 선택지를 15종으로 확대했습니다.
+- **위치 메뉴 국소 목록 & 대시보드 임시 마커 이동** ([`Ver_3.0_위치목록_구현.md`](./docs/Ver_3.0/Ver_3.0_위치목록_구현.md))
+  - `지도 → 위치` 메뉴에서 목적별 국소 목록(`철거대상`, `고속도로` 등)을 만들고 색상을 지정해 기존 장비 국소를 검색·복수 선택으로 등록합니다.
+  - 여러 목록을 동시에 선택할 수 있으며, 복수 목록에 속한 국소는 핀을 세로로 분할 채색(최대 3색 + `+N` 표기)하여 표시합니다.
+  - 관리자가 만든 목록(`is_admin_list`)은 DB RLS 정책(`app_admins`)으로 일반 사용자의 수정·삭제를 차단합니다. 전체 백업/복원 엑셀에 `국소목록`·`국소목록소속` 시트가 포함됩니다.
+  - 기존의 `엑셀로 위치 찍기`·`주소로 위치 찍기`(임시 마커)는 **대시보드** 작업 국소 등록 화면으로 이동했으며, 작업 국소 제거 시 연결된 임시 마커도 함께 정리됩니다.
+- **위치등록 업로드: 신규 확인 후 건별 저장** ([`Ver_3.0_위치등록_신규확인_구현.md`](./docs/Ver_3.0/Ver_3.0_위치등록_신규확인_구현.md))
+  - 공정관리 새 양식(`.xlsb`, `일정관리` 시트, `장비 공사` 시설일 · `시험 완료` 개통일 열)을 지원하며, 날짜 열이 없는 옛 양식은 저장 전에 차단합니다.
+  - 통합시설코드 기준으로 신규·좌표누락 건을 분류해 사용자가 지도에서 위치를 확인하고 엑셀 주소와 도로명·지번 주소를 대조한 뒤 건별로 저장합니다. 미확인 건과 옮긴 좌표는 브라우저에 자동 임시 저장되어 다음 접속 시 이어서 진행할 수 있습니다.
+  - 기존 등록 마커는 재업로드 시 좌표·메모·태그·색상·담당팀·주소를 유지하고 국소명과 공정 정보만 갱신합니다.
+- **드릴다운 사이드바(레일·트리) & 모바일 하단 시트** ([`Ver_3.0_사이드바_구현.md`](./docs/Ver_3.0/Ver_3.0_사이드바_구현.md))
+  - 데스크톱·태블릿(768px 이상): 56px 아이콘 레일 + 2단계 드릴다운 패널 구조와 256px 펼친 트리 모드를 전환할 수 있습니다.
+  - 모바일(768px 미만): 지도를 가리지 않도록 하단 탭 메뉴(대시보드·지도·마커관리·CCTV·더보기)와 3단계 높이(낮음·절반·전체) 하단 시트로 동작합니다.
 
 ### 바코드/QR 도구 (Ver_2.1 신규)
 
@@ -95,16 +117,17 @@ e2e/                           # Playwright 스모크 테스트
 - 엑셀 파일에서 후보 값을 검색해 입력 목록에 추가
 - `@undecaf/zbar-wasm`, `qrcode`, `xlsx` 의존 트리는 메뉴 진입 전까지 지연 로딩
 
-### UI 셸 + 대시보드 + 라이트/다크 테마 (Ver_2.0~2.1 신규)
+### UI 셸 + 대시보드 + 라이트/다크 테마 (Ver_2.0~3.0)
 
 화면의 최상위 전환 축을 **모드(데이터 도메인)** 에서 **메뉴(기능 영역)** 로 옮기고,
 **대시보드**("오늘 이 국소에서 작업해도 되는가")를 기본 진입 화면으로 뒀다.
 
-- **좌측 메뉴 레일 7종** — 대시보드 · 지도 · 마커관리 · 그룹관리(준비 중) · CCTV · 데이터백업/복원 · 설정.
-  비로그인 시 인증 필요 항목은 숨김(비활성이 아니라 목록에서 제외)
-- **대시보드** — 저장해 둔 오늘의 작업 국소를 동시 4건까지 조회해 시간대별 작업 가능 여부를 요약.
+- **좌측 메뉴 8종** — 대시보드 · 지도 · 마커관리 · 그룹관리(준비 중) · CCTV · 바코드/QR · 데이터백업/복원 · 설정.
+  데스크톱은 56px 아이콘 레일(또는 256px 트리) + 드릴다운 패널, 모바일은 하단 메뉴 + 3단계 시트로 렌더
+- **대시보드** — 저장해 둔 오늘의 작업 국소를 동시 4건까지 조회해 시간대별 작업 가능 여부를 요약하고,
+  엑셀·주소로 임시 작업 위치를 바로 등록하거나 다중 경유지 최적 경로(길찾기)를 산출.
   개별 조회 실패는 해당 행만 격리되고 나머지 행은 정상 표시
-- **전역 검색**(`Ctrl+K`) — 사이드바 장소 검색과 동일한 구현을 공유
+- **전역 검색**(`Ctrl+K`) — 상단 검색바로 장소·마커 검색을 일원화
 - **라이트/다크 테마 전환** — 설정 메뉴에서 토글. 기본값은 다크. shadcn 원시 컴포넌트(`Button`·
   `Input`·`Card`·`Dialog`·`Badge` 등)와 커스텀 컴포넌트 전반이 Calendly에서 채택한 반경·섀도
   구조 위에 기존 인디고 브랜드 색으로 재매핑된 라이트 팔레트로 렌더된다. 카카오맵 오버레이
@@ -127,7 +150,7 @@ e2e/                           # Playwright 스모크 테스트
 > ⚠️ 예보 기반 체감온도는 **작업 계획용 참고값**입니다. 법령상 기준은 작업장소에서 실측한
 > 체감온도이며 이를 대체하지 않습니다. 화면과 저장 자료 양쪽에 상시 고지됩니다.
 
-판정 규칙 상세: [`Ver_1.1_BUSINESS_RULE.md`](./docs/Ver_1.1/Ver_1.1_BUSINESS_RULE.md)
+판정 규칙 상세: [`Ver_1.1_BUSINESS_RULE.md`](./docs/이전버젼/Ver_1.1/Ver_1.1_BUSINESS_RULE.md)
 
 ### 동일 번지 그룹핑 · 동/구역 분리
 
@@ -146,7 +169,7 @@ e2e/                           # Playwright 스모크 테스트
 npm install
 npm run dev          # 개발 서버 (Turbopack)
 npm run lint         # eslint .
-npm run test         # vitest 단위 테스트 (330건 / 27파일)
+npm run test         # vitest 단위 테스트 (552건 / 46파일)
 npm run test:e2e     # Playwright 스모크 (dev 서버 재사용)
 npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 ```
@@ -157,18 +180,19 @@ npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 ## DB 마이그레이션
 
 `supabase/migrations/` 파일을 **파일명 순서대로** Supabase SQL Editor에서 실행하세요.
-전부 `IF NOT EXISTS` 기반이라 이미 적용된 것은 안전하게 건너뜁니다.
+전체 스키마 초기화 방법과 파일별 상세 설명은 [`supabase/migrations/README.md`](./supabase/migrations/README.md)를 참고하세요.
 
 | 마이그레이션 | 내용 |
 |------|------|
+| `20260718120000_recreate_full_schema_with_erp.sql` | 전체 정식 스키마(`markers`·`information`·`erp_details`·`battery_markers`·`battery_specs`) 생성 |
 | `20260722000000_add_detached_visible.sql` | `markers.detached_visible` — 같은 번지 SUB를 지도에 개별 핀으로 표시 |
 | `20260723000000_add_group_key.sql` | `markers.group_key` — 번지 하위 동/구역 실제 그룹 분리 키 |
 | `20260727000000_add_worksite_weather_columns.sql` | `markers`·`battery_markers`에 `site_alias`(검색 별칭) · `work_type`(지상/고소) |
+| `20261017000000_require_login_for_marker_read.sql` | 비로그인(anon) 조회·쓰기 정책 제거 — 로그인 사용자만 마커 접근 |
+| `20261107000000_site_lists.sql` | 위치 메뉴 국소 목록(`app_admins`·`site_lists`·`site_list_members`) 및 RLS 정책 |
+| `20261107000100_site_lists_invoker_functions.sql` ~ `000400` | 국소 목록 권한 함수 `SECURITY INVOKER` 전환 및 Advisor·미사용 인덱스/스키마 정리 |
 
-신규 DB는 먼저 `001.MapMarker/sql/` 스크립트를 순서대로 실행한 뒤 위 마이그레이션을 적용하세요.
-
-> 마이그레이션 미적용 상태에서도 조회는 깨지지 않습니다(신규 컬럼을 optional로 읽음).
-> 다만 **별칭 검색이 동작하지 않고 모든 국소가 지상 작업으로 판정**됩니다.
+> 마이그레이션 미적용 상태에서도 기존 지도·마커 조회는 깨지지 않습니다(신규 컬럼을 optional로 읽고, 국소 목록 테이블이 없으면 위치 목록 패널에만 안내를 표시).
 
 ## Cloudflare Workers 배포
 
@@ -279,16 +303,16 @@ npx wrangler secret put ITS_API_KEY
 **`NEXT_PUBLIC_` 접두사를 붙이지 마세요** — 빌드 때 번들에 박혀 비로그인 방문자에게도 노출됩니다.
 
 > CCTV 조회는 **브라우저가 ITS를 직접 호출**합니다(서버 경유 불가, 상세는
-> [`Ver_1.1_CCTV_PLAN.md`](./docs/Ver_1.1/Ver_1.1_CCTV_PLAN.md) 부록 E). `/api/its-key` 라우트가
+> [`Ver_1.1_CCTV_PLAN.md`](./docs/이전버젼/Ver_1.1/Ver_1.1_CCTV_PLAN.md) 부록 E). `/api/its-key` 라우트가
 > 이 키를 **로그인한 사용자에게만** 런타임에 전달합니다(Bearer 토큰 검증). 미설정 시 CCTV 조회가 인증키 오류로 실패합니다.
 
 ### 환경 변수 (선택)
 
-영역 캡처의 **카카오 정적맵(Static Map)** 경로에서만 사용합니다. 없으면 타일 프록시로 폴백합니다.
+영역 캡처의 **카카오 정적맵(Static Map)** 및 대시보드 **길찾기** 경로 등에서 사용합니다. 정적맵 키가 없으면 영역 캡처는 타일 프록시로 폴백합니다.
 
 | 변수 | 설명 |
 |------|------|
-| `KAKAO_REST_API_KEY` | 카카오 **REST API 키**(서버 전용). 정적맵 캡처 품질용 |
+| `KAKAO_REST_API_KEY` | 카카오 **REST API 키**(서버 전용). 정적맵 캡처 품질 및 카카오 모빌리티 길찾기 API 호출용 |
 | `NEXT_PUBLIC_SITE_URL` | 정적맵 요청 `KA` 헤더의 origin 폴백값. 프록시 라우트의 허용 origin 으로도 사용 |
 | `PROXY_ALLOWED_ORIGINS` | 프록시 라우트에서 자기 도메인 외에 추가로 허용할 origin (쉼표 구분) |
 | `NEXT_PUBLIC_VWORLD_API_KEY` | VWorld 인증키(GPSMAP·지적도). 도메인/Referer 제한으로 보호 |
@@ -299,18 +323,22 @@ npx wrangler secret put ITS_API_KEY
 
 | 문서 | 내용 |
 |------|------|
-| [`docs/Ver_2.3/`](./docs/Ver_2.3/Ver_2.3_implementation_plan.md) | 현재 버전 — 구조 정비(미사용 코드·의존성 제거, 엄격 타입 전환, 취약점 패치) |
-| [`docs/Ver_2.2/`](./docs/Ver_2.2/) | 앱 전체 로그인 벽 + 서버 API 토큰 검증 + 길찾기 |
-| [`docs/Ver_2.1/`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) | 디자인 토큰 재매핑 + 라이트/다크 테마 |
-| [`docs/Ver_2.0/`](./docs/Ver_2.0/Ver_2.0_README.md) | UI 셸 개편 + 대시보드 신설 문서 세트 |
-| [`docs/Ver_1.1/`](./docs/Ver_1.1/Ver_1.1_README.md) | 국소 작업 안전 날씨 + CCTV 문서 세트 |
-| [`docs/Ver_1.0/`](./docs/Ver_1.0/) | 최초 버전 + 변경요청(CR-001~004) |
-| [`docs/PROJECT_ANALYSIS_2026-07-18.md`](./docs/PROJECT_ANALYSIS_2026-07-18.md) | 검수 보고서 (1~5차) |
-| [`docs/Ver_2.0/project_review.md`](./docs/Ver_2.0/project_review.md) | 구조 점검 누적 기록 |
-| [`docs/VWORLD_CLOUDFLARE_SETUP.md`](./docs/VWORLD_CLOUDFLARE_SETUP.md) | VWorld 배포 설정 가이드 |
-| [`docs/walkthrough.md`](./docs/walkthrough.md) | 작업 결과 누적 |
+| [`docs/Ver_3.0/Ver_3.0_계획.md`](./docs/Ver_3.0/Ver_3.0_계획.md) | 현재 버전 — 장비 시설 상태 · 위치 메뉴 국소 목록 · 위치등록 신규 확인 · 사이드바/모바일 셸 계획 |
+| [`docs/Ver_3.0/Ver_3.0_장비상태_구현.md`](./docs/Ver_3.0/Ver_3.0_장비상태_구현.md) | 장비 시설 상태 판정·표시색·상태 필터·마커 색상 15종 구현 |
+| [`docs/Ver_3.0/Ver_3.0_위치등록_신규확인_구현.md`](./docs/Ver_3.0/Ver_3.0_위치등록_신규확인_구현.md) | 공정관리 새 양식 및 신규·좌표누락 건 위치 확인 후 건별 저장 구현 |
+| [`docs/Ver_3.0/Ver_3.0_사이드바_구현.md`](./docs/Ver_3.0/Ver_3.0_사이드바_구현.md) | 드릴다운 레일·펼친 트리 및 모바일 하단 메뉴·3단계 시트 구현 |
+| [`docs/Ver_3.0/Ver_3.0_위치목록_구현.md`](./docs/Ver_3.0/Ver_3.0_위치목록_구현.md) | 위치 메뉴 국소 목록(`site_lists`)·관리자 목록 보호·대시보드 임시 마커 이동 구현 |
+| [`docs/이전버젼/Ver_2.3/`](./docs/이전버젼/Ver_2.3/Ver_2.3_implementation_plan.md) | 구조 정비(미사용 코드·의존성 제거, 엄격 타입 전환, 취약점 패치) |
+| [`docs/이전버젼/Ver_2.2/`](./docs/이전버젼/Ver_2.2/Ver_2.2_implementation_plan.md) | 앱 전체 로그인 벽 + 서버 API 토큰 검증 + 길찾기 |
+| [`docs/이전버젼/Ver_2.1/`](./docs/이전버젼/Ver_2.1/Ver_2.1_implementation_plan.md) | 디자인 토큰 재매핑 + 라이트/다크 테마 + 바코드/QR |
+| [`docs/이전버젼/Ver_2.0/`](./docs/이전버젼/Ver_2.0/Ver_2.0_README.md) | UI 셸 개편 + 대시보드 신설 문서 세트 ([구조 점검 기록](./docs/이전버젼/Ver_2.0/project_review.md)) |
+| [`docs/이전버젼/Ver_1.1/`](./docs/이전버젼/Ver_1.1/Ver_1.1_README.md) | 국소 작업 안전 날씨 + CCTV 문서 세트 |
+| [`docs/이전버젼/Ver_1.0/`](./docs/이전버젼/Ver_1.0/) | 최초 버전 + 변경요청(CR-001~004) |
+| [`docs/이전버젼/PROJECT_ANALYSIS_2026-07-18.md`](./docs/이전버젼/PROJECT_ANALYSIS_2026-07-18.md) | 검수 보고서 (1~5차) |
+| [`docs/이전버젼/VWORLD_CLOUDFLARE_SETUP.md`](./docs/이전버젼/VWORLD_CLOUDFLARE_SETUP.md) | VWorld 배포 설정 가이드 |
+| [`docs/이전버젼/walkthrough.md`](./docs/이전버젼/walkthrough.md) | 작업 결과 누적 |
 
-시작점: [`Ver_2.3_implementation_plan`](./docs/Ver_2.3/Ver_2.3_implementation_plan.md) →
-[`Ver_2.1_implementation_plan`](./docs/Ver_2.1/Ver_2.1_implementation_plan.md) →
-[`Ver_2.0_PLAN`](./docs/Ver_2.0/Ver_2.0_implementation_plan.md) →
-[`Ver_2.0_IA`](./docs/Ver_2.0/Ver_2.0_IA.md)
+시작점: [`Ver_3.0_계획`](./docs/Ver_3.0/Ver_3.0_계획.md) →
+[`Ver_2.3_implementation_plan`](./docs/이전버젼/Ver_2.3/Ver_2.3_implementation_plan.md) →
+[`Ver_2.0_PLAN`](./docs/이전버젼/Ver_2.0/Ver_2.0_implementation_plan.md) →
+[`Ver_2.0_IA`](./docs/이전버젼/Ver_2.0/Ver_2.0_IA.md)
