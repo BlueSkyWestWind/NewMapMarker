@@ -40,6 +40,9 @@ yarn-error.log*
 mcp.json
 mcp_config.json
 
+# supabase cli temp
+supabase/.temp/
+
 # wrangler local
 .dev.vars*
 .wrangler/
