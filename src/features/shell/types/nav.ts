@@ -44,12 +44,12 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "markers", label: "마커관리", icon: MapPin, auth: true, enabled: true },
   { key: "schedule", label: "일정관리", icon: CalendarDays, auth: true, enabled: true },
   { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: true, adminOnly: true },
-  { key: "accounts", label: "계정설정", icon: UserCog, auth: true, enabled: true, adminOnly: true },
   // 앱 전체가 로그인 벽(AuthGate) 안에 있어 CCTV도 로그인 후에만 열린다. 이 auth 플래그는 레일 노출 여부용이다.
   { key: "cctv", label: "CCTV", icon: Video, auth: false, enabled: true },
   { key: "barcode", label: "바코드/QR", icon: ScanBarcode, auth: true, enabled: true },
   { key: "backup", label: "데이터백업/복원", icon: Database, auth: true, enabled: true },
   { key: "settings", label: "설정", icon: Settings, auth: true, enabled: true },
+  { key: "accounts", label: "계정설정", icon: UserCog, auth: true, enabled: true, adminOnly: true },
 ];
 
 /** 비로그인 상태에서 볼 수 있는 메뉴인가. */

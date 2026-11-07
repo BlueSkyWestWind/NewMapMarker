@@ -22,9 +22,9 @@ describe("관리자 전용 메뉴", () => {
     expect(isNavAccessible("accounts", false, true)).toBe(false);
   });
 
-  it("계정설정은 그룹관리 바로 다음 위치에 있다", () => {
+  it("계정설정은 설정 바로 다음 위치에 있다", () => {
     const keys = visibleNavItems(true, true).map((item) => item.key);
-    expect(keys.indexOf("accounts")).toBe(keys.indexOf("groups") + 1);
+    expect(keys.indexOf("accounts")).toBe(keys.indexOf("settings") + 1);
   });
 
   it("일반 메뉴는 관리자 여부에 영향받지 않는다", () => {

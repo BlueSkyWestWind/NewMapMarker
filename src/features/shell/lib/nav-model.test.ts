@@ -37,7 +37,7 @@ describe("모바일 메뉴", () => {
     const tabs = mobileTabItems(true, true).map((item) => item.key);
     const more = mobileMoreItems(true, true).map((item) => item.key);
     expect(tabs).toEqual(["dashboard", "map", "markers", "cctv"]);
-    expect(more).toEqual(["schedule", "groups", "accounts", "barcode", "backup", "settings"]);
+    expect(more).toEqual(["schedule", "groups", "barcode", "backup", "settings", "accounts"]);
     expect([...tabs, ...more].sort()).toEqual(NAV_ITEMS.map((item) => item.key).sort());
   });
 
