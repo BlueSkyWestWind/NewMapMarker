@@ -181,6 +181,7 @@ export function useDataBackupActions() {
             ? ` · 축전지 ${result.tables.battery_markers}/${result.tables.battery_specs}`
             : '') +
           (siteLists ? ` · 국소 목록 ${siteLists.lists.length}개` : ''),
+        duration: 10000,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류';
