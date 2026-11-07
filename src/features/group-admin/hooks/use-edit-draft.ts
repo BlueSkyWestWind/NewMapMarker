@@ -92,8 +92,21 @@ export function useEditDraft(markers: EquipmentMarker[]) {
     setLastResult(null);
   }, []);
 
+  // 정보 행이 오기 전(또는 실패)에 저장하면 국소명·통합시설코드가 markers에만 바뀐다.
+  const isInfoLoading = infoQuery.isLoading;
+  const isInfoError = infoQuery.isError;
+
   const save = useCallback(async (): Promise<SaveResult | null> => {
-    if (!supabase || issues.length > 0 || isSaving || changeCount === 0) return null;
+    if (
+      !supabase ||
+      issues.length > 0 ||
+      isSaving ||
+      changeCount === 0 ||
+      isInfoLoading ||
+      isInfoError
+    ) {
+      return null;
+    }
     setIsSaving(true);
     try {
       const result = await saveDraft(supabase, draft, originalInfoRows);
@@ -107,14 +120,25 @@ export function useEditDraft(markers: EquipmentMarker[]) {
     } finally {
       setIsSaving(false);
     }
-  }, [supabase, issues, isSaving, changeCount, draft, originalInfoRows, queryClient]);
+  }, [
+    supabase,
+    issues,
+    isSaving,
+    changeCount,
+    isInfoLoading,
+    isInfoError,
+    draft,
+    originalInfoRows,
+    queryClient,
+  ]);
 
   return {
     draft,
     workingMarkers,
     infoRows,
     originalInfoRows,
-    isInfoLoading: infoQuery.isLoading,
+    isInfoLoading,
+    isInfoError,
     setMarker,
     setInfo,
     queue,

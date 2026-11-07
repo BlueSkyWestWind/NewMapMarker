@@ -38,7 +38,9 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
   const { toast } = useToast();
   const markers = useMemo(() => groups.flatMap((g) => g.markers), [groups]);
   const edit = useEditDraft(markers);
-  const { changeCount, issues, isSaving } = edit;
+  const { changeCount, issues, isSaving, isInfoLoading, isInfoError } = edit;
+  // 정보 행이 오기 전(또는 실패)에는 사업구분이 건너뛰기로 잘못 계산되므로 반영·저장을 막는다.
+  const infoReady = !isInfoLoading && !isInfoError;
 
   const [businessType, setBusinessType] = useState("");
   const [facilityTeam, setFacilityTeam] = useState("");
@@ -68,6 +70,7 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
   );
 
   const apply = () => {
+    if (!infoReady) return;
     edit.update((d) => planBulkEdit(d, markers, edit.originalInfoRows, values).draft);
   };
 
@@ -131,7 +134,7 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
           <Button
             type="button"
             className="h-8 shrink-0 bg-indigo-600 text-xs hover:bg-indigo-500"
-            disabled={changeCount === 0 || issues.length > 0 || isSaving}
+            disabled={changeCount === 0 || issues.length > 0 || isSaving || !infoReady}
             onClick={() => void handleSave()}
           >
             {isSaving ? "저장 중..." : "저장"}
@@ -228,12 +231,17 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
             {summary.length > 0 ? summary.join(" · ") : "입력한 값이 없습니다."}
           </p>
           <p>대상: 마커 {markers.length}건</p>
-          {values.businessType ? (
+          {values.businessType && infoReady ? (
             <p className={preview.skipped > 0 ? "text-amber-200" : undefined}>
               정보 행이 없어 사업구분을 건너뛰는 마커: {preview.skipped}건
             </p>
           ) : null}
-          {edit.isInfoLoading ? <p className="text-slate-400">정보 행을 불러오는 중...</p> : null}
+          {isInfoLoading ? <p className="text-slate-400">정보 행을 불러오는 중...</p> : null}
+          {isInfoError ? (
+            <p role="alert" className="text-rose-300">
+              정보 행을 불러오지 못했습니다. 창을 다시 열어 주세요. 그 전에는 반영·저장할 수 없습니다.
+            </p>
+          ) : null}
           <p className="text-slate-400">
             [변경분에 반영]은 저장하지 않고 변경분에만 쌓습니다. 저장은 [저장]을 눌러야 합니다.
           </p>
@@ -243,7 +251,7 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
           <Button
             type="button"
             className="h-8 bg-indigo-600 text-xs hover:bg-indigo-500"
-            disabled={!hasValues || edit.isInfoLoading || isSaving}
+            disabled={!hasValues || !infoReady || isSaving}
             onClick={apply}
           >
             변경분에 반영

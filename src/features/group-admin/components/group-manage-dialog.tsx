@@ -130,7 +130,7 @@ export function GroupManageDialog() {
 
   const group = groups.find((g) => g.key === groupManageKey) ?? null;
   const edit = useEditDraft(group?.markers ?? NO_MARKERS);
-  const { changeCount, issues, isSaving } = edit;
+  const { changeCount, issues, isSaving, isInfoLoading, isInfoError } = edit;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mergePicks, setMergePicks] = useState<Set<string>>(new Set());
@@ -345,7 +345,20 @@ export function GroupManageDialog() {
           <Button
             type="button"
             className="h-8 shrink-0 bg-indigo-600 text-xs hover:bg-indigo-500"
-            disabled={changeCount === 0 || issues.length > 0 || isSaving}
+            disabled={
+              changeCount === 0 ||
+              issues.length > 0 ||
+              isSaving ||
+              isInfoLoading ||
+              isInfoError
+            }
+            title={
+              isInfoLoading
+                ? "정보 행을 불러온 뒤 저장할 수 있습니다"
+                : isInfoError
+                  ? "정보 행을 불러오지 못해 저장할 수 없습니다"
+                  : undefined
+            }
             onClick={() => void handleSave()}
           >
             {isSaving ? "저장 중..." : "저장"}
@@ -500,8 +513,13 @@ export function GroupManageDialog() {
                 묶음을 찾을 수 없습니다. 왼쪽 목록에서 다시 골라 주세요.
               </p>
             )}
-            {group && edit.isInfoLoading ? (
+            {group && isInfoLoading ? (
               <p className="p-2 text-center text-[11px] text-slate-400">정보 행을 불러오는 중...</p>
+            ) : null}
+            {group && isInfoError ? (
+              <p role="alert" className="p-2 text-center text-[11px] text-rose-300">
+                정보 행을 불러오지 못했습니다. 창을 다시 열어 주세요. 그 전에는 저장할 수 없습니다.
+              </p>
             ) : null}
           </section>
           </div>

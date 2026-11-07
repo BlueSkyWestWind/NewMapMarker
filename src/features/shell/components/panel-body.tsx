@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { match } from "ts-pattern";
+import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
 import { MapPanel } from "@/features/shell/components/panels/map-panel";
 import { MarkersPanel } from "@/features/shell/components/panels/markers-panel";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
@@ -66,6 +67,19 @@ const SettingsPanel = dynamic(
   },
 );
 
+/**
+ * 그룹관리는 관리자 전용이다. 메뉴는 셸이 이미 숨기지만, persist로 복원된 메뉴 값 등으로
+ * 여기까지 와도 관리자 확인 전에는 패널을 그리지 않는다(DB 권한은 RLS가 따로 막는다).
+ */
+function AdminGroupPanel() {
+  const { isAdmin, isLoading } = useIsAdmin();
+  if (isLoading) {
+    return <p className="text-[11px] text-slate-500">불러오는 중...</p>;
+  }
+  if (!isAdmin) return null;
+  return <GroupPanel />;
+}
+
 export interface PanelBodyProps extends PanelDataProps {
   /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
   activeNav: NavKey;
@@ -104,7 +118,7 @@ export function PanelBody({
         filters={filters}
       />
     ))
-    .with("groups", () => <GroupPanel />)
+    .with("groups", () => <AdminGroupPanel />)
     .with("cctv", () => <CctvPanel />)
     .with("barcode", () => <BarcodePanel />)
     .with("backup", () => (
