@@ -44,9 +44,10 @@ import { ScheduleGrid } from "./schedule-grid";
 import { ScheduleImportDialog } from "./schedule-import-dialog";
 import { ScheduleLegend } from "./schedule-legend";
 import { ScheduleMonthGrid } from "./schedule-month-grid";
+import { ScheduleDayView } from "./schedule-day-view";
 import { ScheduleSearch } from "./schedule-search";
+import { ScheduleViewToggle, type ScheduleViewKind } from "./schedule-view-toggle";
 
-type ScheduleView = "week" | "month";
 /** 한 번에 볼 수 있는 주 수(1~4)와 달 수(1~3) */
 const WEEK_COUNTS = [1, 2, 3, 4];
 const MONTH_COUNTS = [1, 2, 3];
@@ -61,7 +62,7 @@ const TABLE_MISSING_MESSAGE =
 export function ScheduleView() {
   const { supabase } = useAuthSession();
   const { toast } = useToast();
-  const [view, setView] = useState<ScheduleView>("week");
+  const [view, setView] = useState<ScheduleViewKind>("week");
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [weekStart, setWeekStart] = useState(() => weekStartOf(todayIso()));
   const [month, setMonth] = useState(() => monthOf(todayIso()));
@@ -258,6 +259,26 @@ export function ScheduleView() {
   const activeCount = view === "week" ? weekCount : monthCount;
   const setActiveCount = view === "week" ? setWeekCount : setMonthCount;
 
+  // 일자별·누적 보기는 주간·월간의 조회·이동 도구가 필요 없다. 훅은 모두 위에서 불렀다.
+  if (view === "day" || view === "archive") {
+    return (
+      <section
+        className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-slate-950 p-4 text-slate-100"
+        aria-label="시설일정"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="shrink-0 whitespace-nowrap text-base font-semibold">시설일정</h1>
+          <ScheduleViewToggle view={view} onChange={setView} />
+        </div>
+        {view === "day" ? (
+          <ScheduleDayView canEdit={isAdmin} />
+        ) : (
+          <p className="p-4 text-sm text-slate-400">누적 보기는 아직 없습니다.</p>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section
       className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-slate-950 p-4 text-slate-100"
@@ -266,22 +287,7 @@ export function ScheduleView() {
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 whitespace-nowrap text-base font-semibold">시설일정</h1>
 
-        <div className="flex overflow-hidden rounded-md border border-slate-700" role="group" aria-label="보기">
-          {(["week", "month"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={view === key}
-              onClick={() => setView(key)}
-              className={cn(
-                "h-8 whitespace-nowrap px-3 text-xs",
-                view === key ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-slate-800",
-              )}
-            >
-              {key === "week" ? "주간" : "월간"}
-            </button>
-          ))}
-        </div>
+        <ScheduleViewToggle view={view} onChange={setView} />
 
         <div
           className="flex overflow-hidden rounded-md border border-slate-700"
