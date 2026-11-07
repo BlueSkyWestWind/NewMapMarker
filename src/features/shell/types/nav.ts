@@ -8,7 +8,6 @@ import {
   ScanBarcode,
   Settings,
   UserCog,
-  Video,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,11 +18,10 @@ export type NavKey =
   | "markers"
   | "schedule"
   | "groups"
-  | "accounts"
-  | "cctv"
   | "barcode"
   | "backup"
-  | "settings";
+  | "settings"
+  | "accounts";
 
 export interface NavItem {
   key: NavKey;
@@ -44,8 +42,6 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "markers", label: "마커관리", icon: MapPin, auth: true, enabled: true },
   { key: "schedule", label: "일정관리", icon: CalendarDays, auth: true, enabled: true },
   { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: true, adminOnly: true },
-  // 앱 전체가 로그인 벽(AuthGate) 안에 있어 CCTV도 로그인 후에만 열린다. 이 auth 플래그는 레일 노출 여부용이다.
-  { key: "cctv", label: "CCTV", icon: Video, auth: false, enabled: true },
   { key: "barcode", label: "바코드/QR", icon: ScanBarcode, auth: true, enabled: true },
   { key: "backup", label: "데이터백업/복원", icon: Database, auth: true, enabled: true },
   { key: "settings", label: "설정", icon: Settings, auth: true, enabled: true },

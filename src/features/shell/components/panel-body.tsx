@@ -31,13 +31,6 @@ const BarcodePanel = dynamic(
 );
 
 // 첫 화면에 필요 없는 패널. 홈 번들 기준(295 kB)을 지키기 위해 진입할 때 받는다.
-const CctvPanel = dynamic(
-  () => import("@/features/cctv/components/cctv-panel").then((m) => m.CctvPanel),
-  {
-    ssr: false,
-    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
-  },
-);
 const GroupPanel = dynamic(
   () =>
     import("@/features/group-admin/components/group-panel").then((m) => m.GroupPanel),
@@ -122,7 +115,6 @@ export function PanelBody({
     .with("schedule", () => null)
     .with("accounts", () => null)
     .with("groups", () => <AdminGroupPanel />)
-    .with("cctv", () => <CctvPanel />)
     .with("barcode", () => <BarcodePanel />)
     .with("backup", () => (
       <BackupPanel

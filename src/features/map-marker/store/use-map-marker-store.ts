@@ -180,8 +180,14 @@ export const STORE_DEFAULT_MODE: MapMode = "equipment";
 export const STORE_DEFAULT_NAV: NavKey = "dashboard";
 export const STORE_DEFAULT_SEGMENT: MapSegment = "equipment";
 
-/** 들어가면 지도의 일반 마커를 숨기고 시작하는 메뉴. CCTV는 조회 결과만, 나머지는 지도와 무관하다 */
-const NAVS_WITHOUT_MARKERS: NavKey[] = ["cctv", "schedule", "barcode", "backup", "settings"];
+/** 들어가면 지도의 일반 마커를 숨기고 시작하는 메뉴. 지도를 직접 쓰지 않는 화면들이다 */
+const NAVS_WITHOUT_MARKERS: NavKey[] = [
+  "schedule",
+  "barcode",
+  "backup",
+  "settings",
+  "accounts",
+];
 
 const emptyFilterState: MarkerFilterState = {
   selectedYears: new Set(),
@@ -219,8 +225,19 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       setMapSegment: (segment) =>
         set((state) => {
           const nextMode = modeOfSegment(segment);
+          const leavingCctv =
+            state.mapSegment === "cctv" && segment !== "cctv"
+              ? {
+                  cctvMarkers: [],
+                  selectedCctv: null,
+                  isCctvVisible: true,
+                }
+              : null;
           if (state.mode === nextMode) {
-            return { mapSegment: segment };
+            return {
+              mapSegment: segment,
+              ...leavingCctv,
+            };
           }
           return {
             mapSegment: segment,
@@ -229,9 +246,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             filters: emptyFilterState,
             selectedMarkerId: null,
             selectedMarkerIds: [],
-            cctvMarkers: [],
-            selectedCctv: null,
-            isCctvVisible: true,
+            ...leavingCctv,
           };
         }),
       /**
@@ -258,17 +273,18 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
 
           /*
            * 지도로 돌아올 때는 마지막에 보던 세그먼트를 그대로 살린다 —
-           * 변환기를 쓰다 대시보드에 다녀오면 변환기로 돌아와야 한다.
+           * 변환기·CCTV를 쓰다 대시보드에 다녀오면 보던 세그먼트로 돌아와야 한다.
            * 다른 메뉴는 도메인만 맞춘다.
            */
           const nextSegment =
-            nav === "map" && state.mapSegment === "converter"
-              ? "converter"
+            nav === "map" &&
+            (state.mapSegment === "converter" || state.mapSegment === "cctv")
+              ? state.mapSegment
               : segmentOfMode(nextMode);
 
-          // CCTV 탭을 벗어나면 조회 결과를 지운다. 다른 메뉴에 남아 있을 이유가 없다.
+          // 지도를 벗어나면 CCTV 조회 결과를 지운다.
           const leavingCctv =
-            state.activeNav === "cctv" && nav !== "cctv"
+            nav !== "map" && state.mapSegment === "cctv"
               ? {
                   cctvMarkers: [],
                   selectedCctv: null,

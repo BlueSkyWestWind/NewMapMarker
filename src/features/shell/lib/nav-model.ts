@@ -3,6 +3,7 @@ import {
   CalendarRange,
   MapPin,
   Server,
+  Video,
   Waypoints,
   type LucideIcon,
 } from "lucide-react";
@@ -17,12 +18,13 @@ export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }
   equipment: { label: "장비", icon: Server },
   battery: { label: "축전지", icon: Battery },
   location: { label: "이벤트관리", icon: MapPin },
+  cctv: { label: "CCTV", icon: Video },
   converter: { label: "위치/좌표", icon: Waypoints },
   facility: { label: "시설일정", icon: CalendarRange },
 };
 
 const NAV_SEGMENTS: Partial<Record<NavKey, NavSubKey[]>> = {
-  map: ["equipment", "battery", "location", "converter"],
+  map: ["equipment", "battery", "location", "cctv", "converter"],
   markers: ["equipment", "battery"],
   schedule: ["facility"],
 };
@@ -38,7 +40,7 @@ export const NAV_DESCRIPTIONS: Partial<Record<NavKey, string>> = {
 /** 비로그인 때 잠그는 하위 메뉴 */
 export const AUTH_ONLY_SEGMENTS: NavSubKey[] = ["location", "converter"];
 
-const MOBILE_TAB_KEYS: NavKey[] = ["dashboard", "map", "markers", "cctv"];
+const MOBILE_TAB_KEYS: NavKey[] = ["dashboard", "map", "markers", "schedule"];
 
 export function segmentsOfNav(nav: NavKey): NavSubKey[] {
   return NAV_SEGMENTS[nav] ?? [];
@@ -100,9 +102,14 @@ export function subLabelOf(nav: NavKey, segment: MapSegment): string {
   return nav === "schedule" ? SEGMENT_META.facility.label : SEGMENT_META[segment].label;
 }
 
-/** 마커 건수 요약(설명 줄)을 보일 화면인가. 지도·마커관리의 변환기가 아닌 세그먼트만. */
+/** 마커 건수 요약(설명 줄)을 보일 화면인가. 지도·마커관리의 변환기·CCTV가 아닌 세그먼트만. */
 export function showsMarkerSummary(nav: NavKey, segment: MapSegment): boolean {
-  return hasNavSegments(nav) && nav !== "schedule" && segment !== "converter";
+  return (
+    hasNavSegments(nav) &&
+    nav !== "schedule" &&
+    segment !== "converter" &&
+    segment !== "cctv"
+  );
 }
 
 export type MobileTabKey = NavKey | "more";

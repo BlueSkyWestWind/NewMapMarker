@@ -146,20 +146,8 @@ describe("메뉴를 옮기면 지도 보기 토글은 되돌아온다", () => {
   });
 });
 
-describe("CCTV 메뉴는 이전 메뉴의 마커를 숨기고 시작한다", () => {
-  it("들어가면 숨기고, 나가면 다시 보인다", () => {
-    useMapMarkerStore.setState({ activeNav: "dashboard", isMarkersVisible: true });
-    useMapMarkerStore.getState().setActiveNav("cctv");
-    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
-    useMapMarkerStore.getState().toggleMarkersVisible();
-    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
-    useMapMarkerStore.getState().setActiveNav("map");
-    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
-  });
-});
-
-describe("지도와 무관한 메뉴도 이전 마커를 숨기고 시작한다", () => {
-  it.each(["schedule", "barcode", "backup", "settings"] as const)("%s", (nav) => {
+describe("지도와 무관한 메뉴는 이전 마커를 숨기고 시작한다", () => {
+  it.each(["schedule", "barcode", "backup", "settings", "accounts"] as const)("%s", (nav) => {
     useMapMarkerStore.setState({ activeNav: "dashboard", isMarkersVisible: true });
     useMapMarkerStore.getState().setActiveNav(nav);
     expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);

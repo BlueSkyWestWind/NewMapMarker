@@ -39,6 +39,15 @@ const SiteListsPanel = dynamic(
   },
 );
 
+// CCTV 메뉴를 고를 때 받는다. 홈 번들 기준을 지키기 위해 첫 로딩에서 뺀다.
+const CctvPanel = dynamic(
+  () => import("@/features/cctv/components/cctv-panel").then((m) => m.CctvPanel),
+  {
+    ssr: false,
+    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
+  },
+);
+
 /**
  * 지도 메뉴 — **무엇을 어떻게 보여줄지**만 담당한다.
  * 데이터를 바꾸는 조작(추가·업로드·내보내기)은 마커관리로 분리했다.
@@ -50,6 +59,11 @@ export function MapPanel({
   mode,
   segment,
 }: MapPanelProps) {
+  // 도로 CCTV 조회는 지도 하위 세그먼트다.
+  if (segment === "cctv") {
+    return <CctvPanel />;
+  }
+
   // 위치/좌표 변환기는 독립 세그먼트다. 모드는 `location`을 그대로 쓴다.
   if (segment === "converter") {
     return (

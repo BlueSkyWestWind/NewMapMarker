@@ -15,8 +15,14 @@ import {
 } from "./nav-model";
 
 describe("segmentsOfNav", () => {
-  it("지도는 네 가지, 마커관리는 장비·축전지다", () => {
-    expect(segmentsOfNav("map")).toEqual(["equipment", "battery", "location", "converter"]);
+  it("지도는 다섯 가지, 마커관리는 장비·축전지다", () => {
+    expect(segmentsOfNav("map")).toEqual([
+      "equipment",
+      "battery",
+      "location",
+      "cctv",
+      "converter",
+    ]);
     expect(segmentsOfNav("markers")).toEqual(["equipment", "battery"]);
   });
 
@@ -26,24 +32,23 @@ describe("segmentsOfNav", () => {
   });
 
   it("다른 메뉴는 하위 메뉴가 없다", () => {
-    expect(segmentsOfNav("cctv")).toEqual([]);
-    expect(hasNavSegments("cctv")).toBe(false);
+    expect(segmentsOfNav("barcode")).toEqual([]);
+    expect(hasNavSegments("barcode")).toBe(false);
     expect(hasNavSegments("map")).toBe(true);
   });
 });
 
 describe("모바일 메뉴", () => {
-  it("로그인하면 탭 네 개와 더보기 항목 여섯 개로 모든 메뉴가 나뉜다", () => {
+  it("로그인하면 탭 네 개와 더보기 항목 다섯 개로 모든 메뉴가 나뉜다", () => {
     const tabs = mobileTabItems(true, true).map((item) => item.key);
     const more = mobileMoreItems(true, true).map((item) => item.key);
-    expect(tabs).toEqual(["dashboard", "map", "markers", "cctv"]);
-    expect(more).toEqual(["schedule", "groups", "barcode", "backup", "settings", "accounts"]);
+    expect(tabs).toEqual(["dashboard", "map", "markers", "schedule"]);
+    expect(more).toEqual(["groups", "barcode", "backup", "settings", "accounts"]);
     expect([...tabs, ...more].sort()).toEqual(NAV_ITEMS.map((item) => item.key).sort());
   });
 
-  it("관리자가 아니면 더보기에 그룹관리·계정설정이 없고 일정관리는 있다", () => {
+  it("관리자가 아니면 더보기에 그룹관리·계정설정이 없다", () => {
     expect(mobileMoreItems(true, false).map((item) => item.key)).toEqual([
-      "schedule",
       "barcode",
       "backup",
       "settings",
@@ -51,7 +56,7 @@ describe("모바일 메뉴", () => {
   });
 
   it("비로그인이면 잠긴 메뉴를 숨긴다", () => {
-    expect(mobileTabItems(false).map((item) => item.key)).toEqual(["dashboard", "map", "cctv"]);
+    expect(mobileTabItems(false).map((item) => item.key)).toEqual(["dashboard", "map"]);
     expect(mobileMoreItems(false)).toEqual([]);
   });
 
@@ -63,10 +68,10 @@ describe("모바일 메뉴", () => {
 });
 
 describe("filterNavTree", () => {
-  const items = NAV_ITEMS.filter((item) => ["map", "markers", "cctv"].includes(item.key));
+  const items = NAV_ITEMS.filter((item) => ["map", "markers", "barcode"].includes(item.key));
 
   it("검색어가 없으면 전체를 돌려준다", () => {
-    expect(filterNavTree(items, "  ").map((n) => n.item.key)).toEqual(["map", "markers", "cctv"]);
+    expect(filterNavTree(items, "  ").map((n) => n.item.key)).toEqual(["map", "markers", "barcode"]);
     expect(filterNavTree(items, "").find((n) => n.item.key === "markers")?.segments).toEqual([
       "equipment",
       "battery",
@@ -75,7 +80,9 @@ describe("filterNavTree", () => {
 
   it("상위 메뉴 이름이 맞으면 하위 메뉴를 모두 남긴다", () => {
     expect(filterNavTree(items, "지도")).toEqual([
-      expect.objectContaining({ segments: ["equipment", "battery", "location", "converter"] }),
+      expect.objectContaining({
+        segments: ["equipment", "battery", "location", "cctv", "converter"],
+      }),
     ]);
   });
 
@@ -87,7 +94,9 @@ describe("filterNavTree", () => {
   });
 
   it("대소문자를 구분하지 않고, 맞는 것이 없으면 비운다", () => {
-    expect(filterNavTree(items, "cctv").map((n) => n.item.key)).toEqual(["cctv"]);
+    expect(filterNavTree(items, "cctv").map((n) => [n.item.key, n.segments])).toEqual([
+      ["map", ["cctv"]],
+    ]);
     expect(filterNavTree(items, "없는메뉴")).toEqual([]);
   });
 });
@@ -130,11 +139,12 @@ describe("showsMarkerSummary", () => {
     expect(showsMarkerSummary("map", "equipment")).toBe(true);
     expect(showsMarkerSummary("markers", "battery")).toBe(true);
     expect(showsMarkerSummary("map", "converter")).toBe(false);
+    expect(showsMarkerSummary("map", "cctv")).toBe(false);
   });
 
   it("하위 메뉴가 없거나 일정관리면 보이지 않는다", () => {
     expect(showsMarkerSummary("schedule", "equipment")).toBe(false);
-    expect(showsMarkerSummary("cctv", "equipment")).toBe(false);
+    expect(showsMarkerSummary("barcode", "equipment")).toBe(false);
   });
 });
 
@@ -149,7 +159,7 @@ describe("initialPanelStep", () => {
   });
 
   it("하위 메뉴가 없는 메뉴는 상세 단계다", () => {
-    expect(initialPanelStep("cctv")).toBe("detail");
+    expect(initialPanelStep("barcode")).toBe("detail");
   });
 });
 
@@ -176,6 +186,6 @@ describe("isPanelVisible", () => {
   });
 
   it("하위 메뉴가 없는 메뉴는 트리 모드에서도 패널이 보인다", () => {
-    expect(isPanelVisible({ ...base, activeNav: "cctv", isTreeOpen: true })).toBe(true);
+    expect(isPanelVisible({ ...base, activeNav: "barcode", isTreeOpen: true })).toBe(true);
   });
 });
