@@ -514,3 +514,15 @@
 
 1. **누적에 쌓는 시점:** 위 제안(`누적 저장` 버튼 + `표 복사`·`엑셀 내려받기`를 누를 때 자동)으로 괜찮은지. 자동이 부담스러우면 버튼으로만 쌓는다.
 2. **누적의 쓰임:** 위 두 가지(이전 입력 불러오기, 공정관리에 없는 국소의 자동 열 채우기)와 누적 보기(검색·복사·내려받기)면 충분한지.
+
+
+## 15. Supabase 일시정지 방지 (Keep-Alive 워크플로, 2026-11-07 결정)
+
+Supabase 무료 플랜은 7일 동안 웹 접속이나 DB 쿼리가 없으면 프로젝트가 자동으로 일시정지(Pausing)된다. 명절이나 장기 미사용 등으로 인한 중단을 방지하기 위해 매주 일요일 00:00(KST)에 자동으로 DB에 가벼운 쿼리(Keep-Alive 핑)를 전달하는 워크플로를 구축한다.
+
+- **접근 방식:** GitHub Actions 스케줄러(Cron) 활용 (Cloudflare 빌드 영향 없음, 무료, GitHub UI에서 동작 확인 가능).
+- **스케줄:** 매주 토요일 15:00 UTC = **매주 일요일 00:00 KST** (`cron: '0 15 * * 6'`).
+- **수동 실행 지원:** `workflow_dispatch`를 포함하여 GitHub Actions 탭에서 언제든 [Run workflow]로 즉시 테스트 실행 가능.
+- **동작 내용:** Supabase REST API(`$NEXT_PUBLIC_SUPABASE_URL/rest/v1/`)로 익명 키(`NEXT_PUBLIC_SUPABASE_ANON_KEY`)를 사용해 가벼운 요청(루트 스펙/헬스체크 쿼리)을 1회 호출하여 서버 활성 상태를 갱신.
+- **파일 위치:** `.github/workflows/supabase-keepalive.yml`
+
