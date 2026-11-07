@@ -14,6 +14,8 @@ export const WORK_PANEL_WIDTH_PX = 380;
 export const GROUP_MANAGE_DIALOG_MAX_WIDTH_PX = 1680;
 /** 관리 창 왼쪽 묶음 목록 폭. */
 export const GROUP_MANAGE_LIST_WIDTH_PX = 260;
+/** 그룹관리 일괄 수정 창 최대 폭. */
+export const GROUP_BULK_DIALOG_MAX_WIDTH_PX = 880;
 
 /**
  * 지도 영역의 좌측 오프셋. **뷰포트 고정(`position: fixed`) 요소만** 이 값이 필요하다.

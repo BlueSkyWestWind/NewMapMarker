@@ -84,6 +84,8 @@ export function useEditDraft(markers: EquipmentMarker[]) {
     },
     [originalInfoRows],
   );
+  /** 계산된 변경분(일괄 수정 등)을 현재 변경분 위에 이어 쌓는다. */
+  const update = useCallback((fn: (d: EditDraft) => EditDraft) => setDraft(fn), []);
   const queue = useCallback((ops: MarkerOp[]) => setDraft((d) => queueOps(d, ops)), []);
   const discard = useCallback(() => {
     setDraft(emptyDraft());
@@ -116,6 +118,7 @@ export function useEditDraft(markers: EquipmentMarker[]) {
     setMarker,
     setInfo,
     queue,
+    update,
     discard,
     save,
     isSaving,

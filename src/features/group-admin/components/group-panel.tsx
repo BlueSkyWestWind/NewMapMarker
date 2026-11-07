@@ -21,6 +21,11 @@ const GroupManageDialog = dynamic(
   { ssr: false },
 );
 
+const GroupBulkDialog = dynamic(
+  () => import("./group-bulk-dialog").then((m) => m.GroupBulkDialog),
+  { ssr: false },
+);
+
 /** 한 번에 그리는 묶음 수. 마커가 수천 개라 전부 그리면 패널이 무거워진다. */
 const PAGE_SIZE = 200;
 const DEFAULT_STATUS = "올해 대상 없음";
@@ -95,6 +100,11 @@ export function GroupPanel() {
   const filtered = useMemo(() => filterGroups(groups, filters), [groups, filters]);
   const shown = filtered.slice(0, visibleCount);
   const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+  // 선택 키에는 사라진 묶음의 키가 남을 수 있어 실제 있는 묶음만 대상으로 센다.
+  const selectedGroups = useMemo(
+    () => groups.filter((g) => selectedSet.has(g.key)),
+    [groups, selectedSet],
+  );
 
   const update = (patch: Partial<GroupFilters>) => {
     setFilters((prev) => ({ ...prev, ...patch }));
@@ -146,15 +156,15 @@ export function GroupPanel() {
           <Maximize2 className="mr-1 h-3.5 w-3.5" aria-hidden />
           전체 화면 관리
         </Button>
-        {selectedKeys.length > 0 ? (
+        {selectedGroups.length > 0 ? (
           <Button
             type="button"
             variant="outline"
             className="h-9 flex-1 border-slate-700 text-xs text-slate-200"
-            onClick={() => setIsBulkOpen((open) => !open)}
+            onClick={() => setIsBulkOpen(true)}
           >
             <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden />
-            일괄 수정 ({selectedKeys.length})
+            일괄 수정 ({selectedGroups.length})
           </Button>
         ) : null}
       </div>
@@ -171,10 +181,8 @@ export function GroupPanel() {
           </span>
         </Button>
       ) : null}
-      {isBulkOpen && selectedKeys.length > 0 ? (
-        <p className="text-xs text-slate-400">
-          선택한 {selectedKeys.length}개 묶음의 일괄 수정은 아직 준비 중입니다.
-        </p>
+      {isBulkOpen && selectedGroups.length > 0 ? (
+        <GroupBulkDialog groups={selectedGroups} onClose={() => setIsBulkOpen(false)} />
       ) : null}
 
       <PanelSection title="검색·필터">
