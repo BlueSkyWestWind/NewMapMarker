@@ -526,3 +526,16 @@ Supabase 무료 플랜은 7일 동안 웹 접속이나 DB 쿼리가 없으면 �
 - **동작 내용:** Supabase REST API(`$NEXT_PUBLIC_SUPABASE_URL/rest/v1/`)로 익명 키(`NEXT_PUBLIC_SUPABASE_ANON_KEY`)를 사용해 가벼운 요청(루트 스펙/헬스체크 쿼리)을 1회 호출하여 서버 활성 상태를 갱신.
 - **파일 위치:** `.github/workflows/supabase-keepalive.yml`
 
+## 16. 계정관리 (관리자 전용 계정 및 권한 관리, 2026-11-08 결정)
+
+사이드바에 관리자 전용 **「계정설정(계정관리)」** 메뉴를 추가하여, 등록된 사용자 계정의 목록 조회, 관리자 권한 부여/회수, 신규 계정 등록, 계정 삭제를 웹 화면에서 처리한다.
+
+- **권한 및 메뉴 노출:** `visibleNavItems`의 `adminOnly: true` 속성을 적용하여 로그인한 **관리자에게만** 사이드바에 메뉴 노출.
+- **아키텍처:** Next.js Route Handler (`/api/admin/users`) + Supabase Admin SDK (`auth.admin`).
+- **보안 파이프라인:** 클라이언트 JWT 토큰 전달 -> 서버에서 토큰 검증 -> `is_app_admin` 확인 -> `SUPABASE_SERVICE_ROLE_KEY`로 Admin API 실행.
+- **안전장치:** 본인 계정의 관리자 권한 해제 및 본인 계정 삭제 방지.
+- **UI 표 규칙:** 셀 줄바꿈 금지(`whitespace-nowrap`), 가로 스크롤 금지, 세로 스크롤 허용.
+
+상세 사양 및 구현 계획은 [`Ver_3.0_계정관리_구현.md`](Ver_3.0_계정관리_구현.md) 및 [`Ver_3.0_계정관리_구현계획.md`](Ver_3.0_계정관리_구현계획.md)를 참조한다.
+
+
