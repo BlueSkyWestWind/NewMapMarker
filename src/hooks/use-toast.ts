@@ -9,7 +9,8 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 5000
+export const DEFAULT_TOAST_DURATION = 10000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -59,6 +60,15 @@ interface State {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+const toastAutoDismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+const clearAutoDismissTimeout = (toastId: string) => {
+  const timeout = toastAutoDismissTimeouts.get(toastId)
+  if (timeout) {
+    clearTimeout(timeout)
+    toastAutoDismissTimeouts.delete(toastId)
+  }
+}
 
 const addToRemoveQueue = (toastId: string) => {
   if (toastTimeouts.has(toastId)) {
@@ -78,11 +88,18 @@ const addToRemoveQueue = (toastId: string) => {
 
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
-    case "ADD_TOAST":
+    case "ADD_TOAST": {
+      const nextToasts = [action.toast, ...state.toasts].slice(0, TOAST_LIMIT)
+      state.toasts.forEach((t) => {
+        if (!nextToasts.some((nt) => nt.id === t.id)) {
+          clearAutoDismissTimeout(t.id)
+        }
+      })
       return {
         ...state,
-        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
+        toasts: nextToasts,
       }
+    }
 
     case "UPDATE_TOAST":
       return {
@@ -98,9 +115,11 @@ export const reducer = (state: State, action: Action): State => {
       // ! Side effects ! - This could be extracted into a dismissToast() action,
       // but I'll keep it here for simplicity
       if (toastId) {
+        clearAutoDismissTimeout(toastId)
         addToRemoveQueue(toastId)
       } else {
         state.toasts.forEach((toast) => {
+          clearAutoDismissTimeout(toast.id)
           addToRemoveQueue(toast.id)
         })
       }
@@ -144,7 +163,7 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+function toast({ duration = DEFAULT_TOAST_DURATION, ...props }: Toast) {
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -158,6 +177,7 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
+      duration,
       id,
       open: true,
       onOpenChange: (open) => {
@@ -165,6 +185,14 @@ function toast({ ...props }: Toast) {
       },
     },
   })
+
+  if (Number.isFinite(duration) && duration > 0) {
+    const autoDismissTimeout = setTimeout(() => {
+      toastAutoDismissTimeouts.delete(id)
+      dismiss()
+    }, duration)
+    toastAutoDismissTimeouts.set(id, autoDismissTimeout)
+  }
 
   return {
     id: id,
