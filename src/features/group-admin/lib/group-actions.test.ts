@@ -437,6 +437,53 @@ describe("planMergeSplitToLot", () => {
   it("분리 멤버가 없으면 연산이 없다", () => {
     expect(planMergeSplitToLot([], [])).toEqual({ ops: [] });
   });
+
+  it("다른 번지에서 합쳐진 멤버는 각자 자기 번지 묶음으로 돌아간다(합치기 → 분리 해제 → 삭제)", () => {
+    const SEJONG = "서울특별시 중구 세종대로 110";
+    const TAEPYEONG = "서울특별시 중구 태평로1가 31";
+    const start = [
+      lotMember("A1", "대표", { addr: SEJONG, createdAt: "1" }),
+      lotMember("A2", "SUB", { parent: "A1", addr: SEJONG, createdAt: "2" }),
+      lotMember("B1", "단독", { addr: TAEPYEONG, createdAt: "3" }),
+      lotMember("B2", "단독", { addr: TAEPYEONG, createdAt: "4" }),
+    ];
+    const merged = applyOpsToMarkers(
+      start,
+      planMergeGroups([[start[0], start[1]], [start[2]], [start[3]]], start).ops,
+    );
+    expect(orphanSubs(merged)).toEqual([]);
+
+    const unsplit = applyOpsToMarkers(
+      merged,
+      planMergeSplitToLot(merged, merged).ops,
+    );
+    expect(orphanSubs(unsplit)).toEqual([]);
+    const by = (id: string) => unsplit.find((m) => m.id === id)!;
+    expect(unsplit.every((m) => m.groupKey === null)).toBe(true);
+    expect(by("A2").parentMarkerId).toBe("A1");
+    expect(by("B1").groupRole).toBe("대표");
+    expect(by("B2").parentMarkerId).toBe("B1");
+
+    const afterDelete = applyOpsToMarkers(
+      unsplit,
+      planDelete([by("A1")], unsplit).ops,
+    );
+    expect(orphanSubs(afterDelete)).toEqual([]);
+  });
+
+  it("주소 없는 멤버는 번지 묶음에 끼지 않고 각자 단독이 된다", () => {
+    const all = [
+      lotMember("r", "대표", { groupKey: "k#합침#r", createdAt: "1" }),
+      marker({ id: "x", groupKey: "k#합침#r", groupRole: "SUB", parentMarkerId: "r", createdAt: "2" }),
+      marker({ id: "y", groupKey: "k#합침#r", groupRole: "SUB", parentMarkerId: "r", createdAt: "3" }),
+    ];
+    const after = applyOpsToMarkers(all, planMergeSplitToLot(all, all).ops);
+    expect(orphanSubs(after)).toEqual([]);
+    const by = (id: string) => after.find((m) => m.id === id)!;
+    expect(by("x")).toMatchObject({ groupRole: "단독", parentMarkerId: null });
+    expect(by("y")).toMatchObject({ groupRole: "단독", parentMarkerId: null });
+    expect(by("r").groupRole).toBe("단독");
+  });
 });
 
 describe("planMergeGroups", () => {
@@ -565,5 +612,52 @@ describe("planDelete", () => {
 
   it("대상이 없으면 연산이 없다", () => {
     expect(planDelete([], group())).toEqual({ ops: [] });
+  });
+
+  it("다른 묶음에서 지워지는 대표를 가리키는 SUB도 자기 묶음으로 다시 정한다", () => {
+    // 옛 분리 해제가 남긴 데이터: B1·B2는 다른 번지인데 A1을 부모로 가리킨다.
+    const SEJONG = "서울특별시 중구 세종대로 110";
+    const TAEPYEONG = "서울특별시 중구 태평로1가 31";
+    const all = [
+      lotMember("A1", "대표", { addr: SEJONG, createdAt: "1" }),
+      lotMember("A2", "SUB", { parent: "A1", addr: SEJONG, createdAt: "2" }),
+      lotMember("B1", "SUB", { parent: "A1", addr: TAEPYEONG, createdAt: "3" }),
+      lotMember("B2", "SUB", { parent: "A1", addr: TAEPYEONG, createdAt: "4" }),
+    ];
+    const after = applyOpsToMarkers(all, planDelete([all[0]], all).ops);
+    expect(orphanSubs(after)).toEqual([]);
+    const by = (id: string) => after.find((m) => m.id === id)!;
+    expect(by("A2").groupRole).toBe("단독");
+    expect(by("B1").groupRole).toBe("대표");
+    expect(by("B2").parentMarkerId).toBe("B1");
+  });
+
+  it("주소 없는 SUB가 지워지는 대표를 가리키면 단독이 된다", () => {
+    const all = [
+      lotMember("A1", "대표", { createdAt: "1" }),
+      marker({ id: "x", groupRole: "SUB", parentMarkerId: "A1" }),
+    ];
+    const after = applyOpsToMarkers(all, planDelete([all[0]], all).ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after).toEqual([
+      expect.objectContaining({ id: "x", groupRole: "단독", parentMarkerId: null }),
+    ]);
+  });
+});
+
+describe("planMergeGroups 남은 자식", () => {
+  it("합쳐져 나가는 대표를 다른 묶음에서 가리키는 SUB도 다시 정한다", () => {
+    const all = [
+      lotMember("r", "대표", { groupKey: "g", createdAt: "1" }),
+      lotMember("q", "SUB", { parent: "r", groupKey: "h", createdAt: "2" }),
+      lotMember("p", "SUB", { parent: "r", groupKey: "h", createdAt: "3" }),
+      lotMember("t", "대표", { groupKey: "t", createdAt: "4" }),
+    ];
+    const after = applyOpsToMarkers(
+      all,
+      planMergeGroups([[all[0]], [all[3]]], all, "t").ops,
+    );
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after.find((m) => m.id === "q")?.groupRole).toBe("대표");
   });
 });

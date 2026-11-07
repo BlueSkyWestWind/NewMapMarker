@@ -80,4 +80,27 @@ describe("planSeparateSelected", () => {
   it("선택이 없으면 빈 계획", () => {
     expect(planSeparateSelected([], group).ops).toEqual([]);
   });
+
+  it("선택이 여러 묶음에 걸치면 묶음마다 남은 마커의 대표를 다시 정한다", () => {
+    // 앞서 쌓인 분리로 s1·s2가 "k" 묶음(s1 대표)이 된 뒤, r과 s1을 함께 분리한다.
+    const working = [
+      m("r", "대표"),
+      { ...m("s1", "대표"), groupKey: "k" },
+      { ...m("s2", "SUB", "s1"), groupKey: "k" },
+      m("s3", "SUB", "r"),
+    ];
+    const plan = planSeparateSelected([working[0], working[1]], working);
+    const after = applyOpsToMarkers(working, plan.ops);
+    const byId = new Map(after.map((x) => [x.id, x]));
+    const orphans = after
+      .filter((x) => storedGroupRoleOf(x) === "SUB")
+      .filter((x) => {
+        const parent = x.parentMarkerId ? byId.get(x.parentMarkerId) : undefined;
+        return !parent || storedGroupRoleOf(parent) !== "대표";
+      })
+      .map((x) => x.id);
+    expect(orphans).toEqual([]);
+    expect(byId.get("s2")?.groupKey).toBe("k");
+    expect(byId.get("s3")?.groupKey).toBe("g");
+  });
 });

@@ -212,9 +212,16 @@ export function planSeparate(
   };
 }
 
+/** 번지 키, 주소가 없으면 마커 자신만의 키(`__solo__<id>`). */
+function lotIdentityOf(marker: EquipmentMarker): string {
+  return lotKeyOf(marker) || `__solo__${marker.id}`;
+}
+
 /**
  * 분리 그룹(group_key)을 번지 그룹으로 되돌리는 계획(상세 화면의 mergeSplitGroupToLot).
- * group_key를 지우고, 번지 전체(되돌린 멤버 + group_key 없는 같은 번지 멤버)를 재정렬한다.
+ * group_key를 지우고, 되돌린 멤버를 각자 자기 번지로 나눠 번지마다
+ * (되돌린 멤버 + group_key 없는 같은 번지 멤버)를 재정렬한다.
+ * 합치기로 다른 번지가 섞인 묶음이어도 SUB가 다른 번지의 대표를 가리키지 않게 한다.
  */
 export function planMergeSplitToLot(
   splitMembers: EquipmentMarker[],
@@ -222,35 +229,56 @@ export function planMergeSplitToLot(
 ): { ops: MarkerOp[] } {
   if (splitMembers.length === 0) return { ops: [] };
 
-  const lotKey = lotKeyOf(splitMembers[0]);
   const revertIds = new Set(splitMembers.map((m) => m.id));
-  const lotMembers = all.filter((m) => {
-    if (revertIds.has(m.id)) return true;
-    if ((m.groupKey ?? "").trim()) return false;
-    return lotKey !== "" && lotKeyOf(m) === lotKey;
+  const byLot = new Map<string, EquipmentMarker[]>();
+  for (const member of splitMembers) {
+    const key = lotIdentityOf(member);
+    byLot.set(key, [...(byLot.get(key) ?? []), member]);
+  }
+
+  const lotOps = [...byLot.values()].flatMap((reverted) => {
+    const lotKey = lotKeyOf(reverted[0]);
+    const sameLot =
+      lotKey === ""
+        ? []
+        : all.filter(
+            (m) =>
+              !revertIds.has(m.id) &&
+              !(m.groupKey ?? "").trim() &&
+              lotKeyOf(m) === lotKey,
+          );
+    return planAssignGroup([...reverted, ...sameLot], null).ops;
   });
 
   return {
     ops: [
       { type: "update", ids: [...revertIds], patch: { group_key: null } },
-      ...planAssignGroup(lotMembers, null).ops,
+      ...lotOps,
     ],
   };
 }
 
 /**
  * 합쳐져 나간 마커들이 떠난 옛 묶음의 나머지(단독 제외)를, 묶음별로 같은 group_key로
- * 대표를 다시 정하는 연산으로 만든다.
+ * 대표를 다시 정하는 연산으로 만든다. 떠난 마커를 부모로 가리키는 SUB가 다른 묶음에
+ * 있어도(옛 분리 해제가 남긴 데이터 등) 그 SUB의 묶음을 함께 다시 정한다.
  */
 function planLeftovers(
   movedIds: Set<string>,
   anchors: EquipmentMarker[],
   all: EquipmentMarker[],
 ): MarkerOp[] {
+  const strandedSubs = all.filter(
+    (m) =>
+      !movedIds.has(m.id) &&
+      !!m.parentMarkerId &&
+      movedIds.has(m.parentMarkerId) &&
+      storedGroupRoleOf(m) === GROUP_ROLE_SUB,
+  );
   const byKey = new Map<string, EquipmentMarker[]>();
-  for (const anchor of anchors) {
-    const key = getMarkerEffectiveKey(anchor);
-    if (!key || byKey.has(key)) continue;
+  for (const anchor of [...anchors, ...strandedSubs]) {
+    const key = getMarkerEffectiveKey(anchor) || `__solo__${anchor.id}`;
+    if (byKey.has(key)) continue;
     byKey.set(
       key,
       getAddressGroupMates(anchor, all).filter(

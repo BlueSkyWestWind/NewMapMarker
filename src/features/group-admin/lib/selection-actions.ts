@@ -1,6 +1,7 @@
 import {
   getAddressGroupMates,
   getMarkerDongLabel,
+  getMarkerEffectiveKey,
   storedGroupRoleOf,
 } from "@/features/map-marker/lib/marker-detail-rows";
 import { GROUP_ROLE_REPRESENTATIVE, GROUP_ROLE_STANDALONE } from "@/features/map-marker/lib/address-group";
@@ -39,7 +40,8 @@ export function planStandaloneSelected(
 
 /**
  * 체크한 마커를 같은 묶음에서 빼내 새 묶음으로 만든다. 라벨은 첫 마커의 동 라벨.
- * 남는 마커는 원래 묶음의 group_key를 유지한 채 대표를 다시 정한다.
+ * 남는 마커는 원래 묶음의 group_key를 유지한 채 대표를 다시 정한다. 선택이 여러 묶음에
+ * 걸치면(앞서 쌓인 분리로 키가 바뀐 마커 등) 묶음마다 따로 다시 정한다.
  */
 export function planSeparateSelected(
   targets: EquipmentMarker[],
@@ -48,13 +50,22 @@ export function planSeparateSelected(
   if (targets.length === 0) return { ops: [], newKey: "", label: "" };
   const label = getMarkerDongLabel(targets[0]);
   const targetIds = new Set(targets.map((m) => m.id));
-  const remaining = getAddressGroupMates(targets[0], working).filter(
-    (m) => !targetIds.has(m.id),
-  );
+  const remainingByKey = new Map<string, EquipmentMarker[]>();
+  for (const target of targets) {
+    const key = getMarkerEffectiveKey(target) || `__solo__${target.id}`;
+    if (remainingByKey.has(key)) continue;
+    remainingByKey.set(
+      key,
+      getAddressGroupMates(target, working).filter((m) => !targetIds.has(m.id)),
+    );
+  }
   const separated = planSeparate(targets, [], label);
-  const remainingKey = remaining[0]?.groupKey?.trim() || null;
+  const remainingOps = [...remainingByKey.values()].flatMap(
+    (remaining) =>
+      planAssignGroup(remaining, remaining[0]?.groupKey?.trim() || null).ops,
+  );
   return {
-    ops: [...planAssignGroup(remaining, remainingKey).ops, ...separated.ops],
+    ops: [...remainingOps, ...separated.ops],
     newKey: separated.newKey,
     label,
   };
