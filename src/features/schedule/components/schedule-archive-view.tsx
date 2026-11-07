@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
+import { DEFAULT_ARCHIVE_LIMIT } from "@/features/schedule/day-api";
 import { useArchive } from "@/features/schedule/hooks/use-archive";
 import { useOptionLists } from "@/features/schedule/hooks/use-option-lists";
 import { buildCopyText } from "@/features/schedule/lib/day-copy";
@@ -22,8 +23,6 @@ const EMPTY_FILTERED_MESSAGE = "조건에 맞는 상세가 없습니다.";
 
 /** 입력을 멈추고 이 시간(ms)이 지나면 조회한다. 글자마다 DB를 부르지 않게 한다. */
 const DEBOUNCE_MS = 300;
-/** 한 번에 보는 최대 건수(`fetchArchive`의 기본 한도와 같다). 이 건수에 닿으면 더 있을 수 있다. */
-const ARCHIVE_LIMIT = 500;
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 /** 누적 행의 식별(작업일 + 국소). 같은 국소가 여러 날 쌓이므로 국소 키만으로는 모자란다. */
@@ -78,8 +77,10 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
 
   const isEmpty = rows.length === 0;
   const isFiltered = Boolean(from || to || debouncedText.trim());
-  // 불러오는 중이거나 실패한 표는 비어 있으므로 복사·내려받기·삭제를 막는다.
-  const canAct = !isEmpty && !archive.isLoading && !archive.error;
+  // 새 조건의 결과가 오는 중(이전 조건의 행이 아직 보임)이거나 입력 뒤 조회 지연(300ms) 중이면 표가 지금 조건의 결과가 아니다.
+  const isStale = archive.isStale || text.trim() !== debouncedText.trim();
+  // 불러오는 중이거나 실패한 표는 비어 있고, 오래된 표는 다른 조건의 행이라 복사·내려받기·삭제를 막는다.
+  const canAct = !isEmpty && !archive.isLoading && !archive.error && !isStale;
 
   const changeDate = (set: (value: string) => void) => (next: string) => {
     if (next !== "" && !isValidIso(next)) return;
@@ -87,12 +88,14 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
   };
 
   const toggleRow = (id: string) => {
+    if (isStale) return;
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelection({ filterKey, ids: next });
   };
-  const toggleAll = () =>
+  const toggleAll = () => {
+    if (isStale) return;
     setSelection({
       filterKey,
       ids:
@@ -100,6 +103,7 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
           ? new Set()
           : new Set(rows.map((row) => rowId(row.workDate, row.stationKey))),
     });
+  };
 
   /** 복사·내려받기·삭제를 하나씩만 돌린다. 끝나기 전의 두 번째 클릭은 무시한다. */
   const runExclusive = async (action: () => Promise<void>) => {
@@ -220,20 +224,21 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
         </div>
       </div>
 
+      {isStale && !isEmpty ? <p className="text-xs text-slate-400">불러오는 중…</p> : null}
       {archive.isTableMissing ? <p className="text-sm text-amber-400">{TABLE_MISSING_MESSAGE}</p> : null}
       {archive.error ? (
         <p className="text-sm text-rose-400">누적을 불러오지 못했습니다. {errorMessage(archive.error)}</p>
       ) : null}
-      {rows.length >= ARCHIVE_LIMIT ? (
+      {rows.length >= DEFAULT_ARCHIVE_LIMIT ? (
         <p className="text-xs text-amber-400">
-          최근 {ARCHIVE_LIMIT}건까지만 보입니다. 기간이나 검색어로 좁혀 보세요.
+          최근 {DEFAULT_ARCHIVE_LIMIT}건까지만 보입니다. 기간이나 검색어로 좁혀 보세요.
         </p>
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {isEmpty ? (
           <p className="p-4 text-sm text-slate-400">
-            {archive.isLoading
+            {archive.isLoading || isStale
               ? "불러오는 중..."
               : archive.error || archive.isTableMissing
                 ? ""
@@ -257,6 +262,7 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
                       type="checkbox"
                       aria-label="전체 선택"
                       checked={selectedCount === rows.length}
+                      disabled={isStale}
                       ref={(element) => {
                         if (element) element.indeterminate = selectedCount > 0 && selectedCount < rows.length;
                       }}
@@ -290,6 +296,7 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
                           type="checkbox"
                           aria-label={`${row.workDate} ${row.site} 선택`}
                           checked={selectedIds.has(id)}
+                          disabled={isStale}
                           onChange={() => toggleRow(id)}
                           className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
                         />

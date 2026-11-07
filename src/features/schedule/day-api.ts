@@ -25,7 +25,7 @@ type Row = Record<string, unknown>;
 /** 목록 값의 최대 길이(`schedule_option_lists.value`의 CHECK와 같다). */
 const OPTION_VALUE_MAX_LENGTH = 100;
 /** 누적 조회의 기본 최대 건수. */
-const DEFAULT_ARCHIVE_LIMIT = 500;
+export const DEFAULT_ARCHIVE_LIMIT = 500;
 
 /** 문자열이 아니면 `null`. 빈 글은 "지정 안 함"이 아니라 "빈칸"이라 그대로 둔다. */
 function textOrNull(value: unknown): string | null {

@@ -71,6 +71,8 @@ export function useArchive(filter: { from?: string; to?: string; text?: string }
   return {
     rows: query.data?.rows ?? NO_ROWS,
     isLoading: query.isLoading,
+    /** 새 조건의 결과가 오는 중이라 `rows`가 이전 조건의 값이다(`keepPreviousData`). */
+    isStale: query.isPlaceholderData,
     error: query.error,
     isTableMissing: query.data?.tableMissing ?? false,
     remove,
