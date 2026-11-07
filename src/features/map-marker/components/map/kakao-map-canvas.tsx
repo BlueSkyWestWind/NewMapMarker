@@ -481,6 +481,27 @@ export function KakaoMapCanvas({
     );
   }, [isReady, clearSelectedMarkers]);
 
+  /*
+   * 컨테이너 크기가 바뀌면 카카오맵에 알린다. 계정설정·일정관리·바코드/QR로 갔다 오면
+   * 지도 래퍼가 display:none → 복귀를 거치는데, 카카오맵은 컨테이너 크기 변화를 스스로
+   * 감지하지 못해 타일이 작은 조각만 그려진다(window resize만 감지). relayout()으로 해결한다.
+   * 숨겨진 동안(크기 0)에는 건드리지 않고, 다시 보일 때 중심을 유지한 채 재계산한다.
+   */
+  useEffect(() => {
+    const container = mapRef.current;
+    if (!mapInstance || !container || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect || rect.width === 0 || rect.height === 0) return;
+      const center = mapInstance.getCenter();
+      mapInstance.relayout();
+      mapInstance.setCenter(center);
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [mapInstance]);
+
   useEffect(() => {
     const map = mapInstanceRef.current;
     const clusterer = clustererRef.current;
