@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { selectActiveMarkers } from "@/features/map-marker/lib/select-active-markers";
+import { useMarkerGroups } from "@/features/group-admin/hooks/use-marker-groups";
 import { useSiteLists } from "@/features/site-lists/hooks/use-site-lists";
 import { buildSiteListBadges } from "@/features/site-lists/lib/site-list-view";
 import type { MarkerRecord } from "@/features/map-marker/types/marker";
@@ -50,6 +51,19 @@ export function useMarkerList(): MarkerRecord[] {
     [lists, members, mapSegment, selectedSiteListIds],
   );
 
+  const activeNav = useMapMarkerStore((state) => state.activeNav);
+  const selectedGroupKeys = useMapMarkerStore((state) => state.selectedGroupKeys);
+  const isGroupNav = activeNav === "groups";
+  const groups = useMarkerGroups(isGroupNav);
+  // 그룹관리 메뉴에서만 체크한 묶음의 마커 ID를 넘긴다. 그 밖에는 null이라 위치 목록 동작 그대로다.
+  const groupAdminMarkerIds = useMemo(() => {
+    if (!isGroupNav) return null;
+    const keys = new Set(selectedGroupKeys);
+    return groups
+      .filter((group) => keys.has(group.key))
+      .flatMap((group) => group.markers.map((marker) => marker.id));
+  }, [isGroupNav, groups, selectedGroupKeys]);
+
   return useMemo(
     () =>
       selectActiveMarkers(mode, {
@@ -60,6 +74,7 @@ export function useMarkerList(): MarkerRecord[] {
         pendingLocationMarkers,
         savedWeatherSiteIds,
         siteListBadges,
+        groupAdminMarkerIds,
       }),
     [
       savedWeatherSiteIds,
@@ -69,6 +84,7 @@ export function useMarkerList(): MarkerRecord[] {
       pendingBatteryMarkers,
       pendingLocationMarkers,
       siteListBadges,
+      groupAdminMarkerIds,
     ],
   );
 }

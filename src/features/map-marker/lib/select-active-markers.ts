@@ -19,6 +19,11 @@ export interface ActiveMarkerSources {
   savedWeatherSiteIds: string[];
   /** 위치 메뉴에서 선택한 목록에 속한 국소와 그 색상 */
   siteListBadges: Map<string, SiteListBadge>;
+  /**
+   * 그룹관리에서 체크한 묶음의 마커 id. 값이 있고 모드가 위치이면 **그 ID의 장비 마커만**
+   * (숨은 SUB 포함) 돌려주고 목록 색상 표시는 쓰지 않는다. 그룹관리 메뉴가 아니면 null.
+   */
+  groupAdminMarkerIds: string[] | null;
 }
 
 /**
@@ -54,6 +59,10 @@ export function selectActiveMarkers(
 
   // 위치 모드는 선택한 목록의 장비 국소만 올린다. 임시 마커는 대시보드에서 다룬다.
   if (mode === "location") {
+    if (sources.groupAdminMarkerIds) {
+      const ids = new Set(sources.groupAdminMarkerIds);
+      return (sources.equipmentMarkers ?? []).filter((marker) => ids.has(marker.id));
+    }
     return (sources.equipmentMarkers ?? []).flatMap((marker) => {
       const badge = sources.siteListBadges.get(marker.id);
       return badge

@@ -38,6 +38,16 @@ interface MapMarkerUiState {
   /** 위치 메뉴에서 표시 중인 목록. persist 하지 않는다 */
   selectedSiteListIds: string[];
   toggleSiteList: (id: string) => void;
+  /** 그룹관리 메뉴에서 체크한 묶음 키. persist 하지 않는다 */
+  selectedGroupKeys: string[];
+  toggleGroupKey: (key: string) => void;
+  setGroupKeys: (keys: string[]) => void;
+  /** 전체 화면 관리가 열려 있는 묶음 키. null이면 닫힘. persist 하지 않는다 */
+  groupManageKey: string | null;
+  setGroupManageKey: (key: string | null) => void;
+  /** 전체 화면 관리에서 마지막으로 열었던 묶음 키(다시 열 때 이어 본다). persist 하지 않는다 */
+  lastGroupManageKey: string | null;
+  setLastGroupManageKey: (key: string | null) => void;
   /** 지도 패널의 세그먼트. `converter`는 모드가 아니라 화면이라 별도로 든다. */
   mapSegment: MapSegment;
   setMapSegment: (segment: MapSegment) => void;
@@ -221,6 +231,8 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
                 ? ("equipment" as MapMode)
                 : (state.lastDomainMode as MapMode),
             )
+            // 그룹관리는 위치 모드의 지도를 빌려 체크한 묶음의 마커만 올린다.
+            .with("groups", () => "location" as MapMode)
             .otherwise(() => state.mode);
 
           /*
@@ -296,6 +308,18 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             ? state.selectedSiteListIds.filter((value) => value !== id)
             : [...state.selectedSiteListIds, id],
         })),
+      selectedGroupKeys: [],
+      toggleGroupKey: (key) =>
+        set((state) => ({
+          selectedGroupKeys: state.selectedGroupKeys.includes(key)
+            ? state.selectedGroupKeys.filter((value) => value !== key)
+            : [...state.selectedGroupKeys, key],
+        })),
+      setGroupKeys: (keys) => set({ selectedGroupKeys: keys }),
+      groupManageKey: null,
+      setGroupManageKey: (key) => set({ groupManageKey: key }),
+      lastGroupManageKey: null,
+      setLastGroupManageKey: (key) => set({ lastGroupManageKey: key }),
       savedWeatherSites: [],
       saveWeatherSites: (sites) => set({ savedWeatherSites: sites }),
       addWeatherSites: (sites) =>

@@ -22,6 +22,7 @@ function sources(overrides: Partial<ActiveMarkerSources> = {}): ActiveMarkerSour
     pendingLocationMarkers: [],
     savedWeatherSiteIds: [],
     siteListBadges: new Map(),
+    groupAdminMarkerIds: null,
     ...overrides,
   };
 }
@@ -144,6 +145,59 @@ describe("selectActiveMarkers", () => {
       expect(
         selectActiveMarkers("location", sources({ equipmentMarkers: [marker("e1")] })),
       ).toEqual([]);
+    });
+  });
+
+  describe("그룹관리 표시", () => {
+    it("지정한 ID의 장비 마커만 돌려준다(SUB 포함)", () => {
+      const result = selectActiveMarkers(
+        "location",
+        sources({
+          equipmentMarkers: [
+            marker("e1"),
+            { ...marker("e2"), parentMarkerId: "e1" } as MarkerRecord,
+            marker("e3"),
+          ],
+          pendingLocationMarkers: [marker("l1")],
+          groupAdminMarkerIds: ["e1", "e2", "l1"],
+        }),
+      );
+      expect(ids(result)).toEqual(["e1", "e2"]);
+    });
+
+    it("목록 색상 표시는 쓰지 않는다", () => {
+      const [site] = selectActiveMarkers(
+        "location",
+        sources({
+          equipmentMarkers: [marker("e1")],
+          siteListBadges: new Map([["e1", { colors: ["#111111"], extraCount: 0 }]]),
+          groupAdminMarkerIds: ["e1"],
+        }),
+      );
+      expect(site.siteListColors).toBeUndefined();
+    });
+
+    it("좌표가 없어도 목록에서는 돌려준다", () => {
+      const result = selectActiveMarkers(
+        "location",
+        sources({
+          equipmentMarkers: [{ ...marker("e1"), lat: null, lng: null } as unknown as MarkerRecord],
+          groupAdminMarkerIds: ["e1"],
+        }),
+      );
+      expect(ids(result)).toEqual(["e1"]);
+    });
+
+    it("null이면 기존 위치 목록 동작 그대로다", () => {
+      const result = selectActiveMarkers(
+        "location",
+        sources({
+          equipmentMarkers: [marker("e1"), marker("e2")],
+          siteListBadges: new Map([["e2", { colors: ["#111111"], extraCount: 0 }]]),
+          groupAdminMarkerIds: null,
+        }),
+      );
+      expect(ids(result)).toEqual(["e2"]);
     });
   });
 

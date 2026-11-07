@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { match } from "ts-pattern";
-import { ComingSoon } from "@/features/shell/components/coming-soon";
 import { MapPanel } from "@/features/shell/components/panels/map-panel";
 import { MarkersPanel } from "@/features/shell/components/panels/markers-panel";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
@@ -33,6 +32,14 @@ const BarcodePanel = dynamic(
 // 첫 화면에 필요 없는 패널. 홈 번들 기준(295 kB)을 지키기 위해 진입할 때 받는다.
 const CctvPanel = dynamic(
   () => import("@/features/cctv/components/cctv-panel").then((m) => m.CctvPanel),
+  {
+    ssr: false,
+    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
+  },
+);
+const GroupPanel = dynamic(
+  () =>
+    import("@/features/group-admin/components/group-panel").then((m) => m.GroupPanel),
   {
     ssr: false,
     loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
@@ -97,12 +104,7 @@ export function PanelBody({
         filters={filters}
       />
     ))
-    .with("groups", () => (
-      <ComingSoon
-        title="그룹관리"
-        description="마커를 그룹으로 묶어 관리하는 기능은 아직 없습니다."
-      />
-    ))
+    .with("groups", () => <GroupPanel />)
     .with("cctv", () => <CctvPanel />)
     .with("barcode", () => <BarcodePanel />)
     .with("backup", () => (

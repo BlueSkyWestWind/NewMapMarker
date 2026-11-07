@@ -56,3 +56,30 @@ describe("국소 목록 선택", () => {
     expect(useMapMarkerStore.getState().selectedSiteListIds).toEqual(["b"]);
   });
 });
+
+describe("그룹관리 메뉴 상태", () => {
+  it("그룹관리 메뉴는 위치 모드를 쓴다", () => {
+    useMapMarkerStore.setState({ mode: "equipment", activeNav: "map" });
+    useMapMarkerStore.getState().setActiveNav("groups");
+    expect(useMapMarkerStore.getState().mode).toBe("location");
+  });
+
+  it("묶음 키를 켜고 끈다", () => {
+    useMapMarkerStore.setState({ selectedGroupKeys: [] });
+    useMapMarkerStore.getState().toggleGroupKey("a");
+    useMapMarkerStore.getState().toggleGroupKey("b");
+    useMapMarkerStore.getState().toggleGroupKey("a");
+    expect(useMapMarkerStore.getState().selectedGroupKeys).toEqual(["b"]);
+    useMapMarkerStore.getState().setGroupKeys(["x", "y"]);
+    expect(useMapMarkerStore.getState().selectedGroupKeys).toEqual(["x", "y"]);
+  });
+
+  it("전체 화면 관리 키와 마지막 키를 둔다", () => {
+    useMapMarkerStore.getState().setGroupManageKey("k1");
+    useMapMarkerStore.getState().setLastGroupManageKey("k1");
+    useMapMarkerStore.getState().setGroupManageKey(null);
+    const state = useMapMarkerStore.getState();
+    expect(state.groupManageKey).toBeNull();
+    expect(state.lastGroupManageKey).toBe("k1");
+  });
+});
