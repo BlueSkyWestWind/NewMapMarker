@@ -27,8 +27,8 @@ describe("segmentsOfNav", () => {
     expect(segmentsOfNav("markers", true)).toEqual(["equipment", "battery", "groups"]);
   });
 
-  it("일정관리는 시설일정 하나를 가진다", () => {
-    expect(segmentsOfNav("schedule")).toEqual(["facility"]);
+  it("일정관리는 시설일정과 일일일정을 가진다", () => {
+    expect(segmentsOfNav("schedule")).toEqual(["facility", "daily"]);
     expect(hasNavSegments("schedule")).toBe(true);
   });
 
@@ -117,16 +117,25 @@ describe("일정관리 하위 메뉴", () => {
     ]);
   });
 
-  it("일정으로 검색하면 일정관리 노드가 시설일정을 모두 가진다", () => {
+  it("일일로 검색하면 일정관리와 일일일정만 남는다", () => {
+    expect(filterNavTree(NAV_ITEMS, "일일").map((n) => [n.item.key, n.segments])).toEqual([
+      ["schedule", ["daily"]],
+    ]);
+  });
+
+  it("일정으로 검색하면 일정관리 노드가 하위 메뉴를 모두 가진다", () => {
     const node = filterNavTree(NAV_ITEMS, "일정").find((n) => n.item.key === "schedule");
-    expect(node?.segments).toEqual(["facility"]);
+    expect(node?.segments).toEqual(["facility", "daily"]);
   });
 });
 
 describe("isSubActive", () => {
-  it("일정관리는 지도 세그먼트와 무관하게 시설일정이 활성이다", () => {
+  it("일정관리는 지도 세그먼트와 무관하게 고른 일정 화면만 활성이다", () => {
     expect(isSubActive("schedule", "facility", "equipment")).toBe(true);
     expect(isSubActive("schedule", "facility", "battery")).toBe(true);
+    expect(isSubActive("schedule", "daily", "battery")).toBe(false);
+    expect(isSubActive("schedule", "daily", "battery", "daily")).toBe(true);
+    expect(isSubActive("schedule", "facility", "battery", "daily")).toBe(false);
   });
 
   it("지도·마커관리는 현재 세그먼트와 같은 항목만 활성이다", () => {
@@ -138,6 +147,7 @@ describe("isSubActive", () => {
 describe("subLabelOf", () => {
   it("일정관리는 시설일정, 그 밖은 현재 세그먼트 이름이다", () => {
     expect(subLabelOf("schedule", "equipment")).toBe("시설일정");
+    expect(subLabelOf("schedule", "equipment", "daily")).toBe("일일일정");
     expect(subLabelOf("map", "battery")).toBe("축전지");
     expect(subLabelOf("map", "location")).toBe("이벤트관리");
   });

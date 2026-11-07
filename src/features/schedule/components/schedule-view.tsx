@@ -53,6 +53,9 @@ import { ScheduleViewToggle, type ScheduleViewKind } from "./schedule-view-toggl
 const WEEK_COUNTS = [1, 2, 3, 4];
 const MONTH_COUNTS = [1, 2, 3];
 
+const FACILITY_VIEW_KINDS: readonly ScheduleViewKind[] = ["week", "month"];
+const DAILY_VIEW_KINDS: readonly ScheduleViewKind[] = ["day", "archive"];
+
 const TABLE_MISSING_MESSAGE =
   "DB에 시설일정 테이블이 없습니다. 마이그레이션(20261108000000_facility_schedule.sql)을 Supabase에 적용해 주세요.";
 
@@ -60,10 +63,18 @@ const TABLE_MISSING_MESSAGE =
  * 시설일정 화면. 지도 자리(오른쪽 전체)를 차지한다. 주간(관리자 수정)과 월간(월 달력, 조회 전용)을 전환한다.
  * 부모(`main`)가 `relative`이므로 `absolute inset-0`으로 영역을 채운다.
  */
-export function ScheduleView() {
+export function ScheduleView({ section = "facility" }: { section?: "facility" | "daily" }) {
   const { supabase } = useAuthSession();
   const { toast } = useToast();
-  const [view, setView] = useState<ScheduleViewKind>("week");
+  // 시설일정은 주간·월간, 일일일정은 일자별·누적을 보인다. 두 메뉴가 각자 마지막 보기를 기억한다.
+  const [facilityView, setFacilityView] = useState<"week" | "month">("week");
+  const [dailyView, setDailyView] = useState<"day" | "archive">("day");
+  const isDaily = section === "daily";
+  const view: ScheduleViewKind = isDaily ? dailyView : facilityView;
+  const setView = (next: ScheduleViewKind) => {
+    if (next === "day" || next === "archive") setDailyView(next);
+    else setFacilityView(next);
+  };
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [weekStart, setWeekStart] = useState(() => weekStartOf(todayIso()));
   const [month, setMonth] = useState(() => monthOf(todayIso()));
@@ -265,11 +276,11 @@ export function ScheduleView() {
     return (
       <section
         className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-slate-950 p-4 text-slate-100"
-        aria-label="시설일정"
+        aria-label="일일일정"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="shrink-0 whitespace-nowrap text-base font-semibold">시설일정</h1>
-          <ScheduleViewToggle view={view} onChange={setView} />
+          <h1 className="shrink-0 whitespace-nowrap text-base font-semibold">일일일정</h1>
+          <ScheduleViewToggle view={view} onChange={setView} kinds={DAILY_VIEW_KINDS} />
         </div>
         {view === "day" ? (
           <ScheduleDayView canEdit={isAdmin} />
@@ -288,7 +299,7 @@ export function ScheduleView() {
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 whitespace-nowrap text-base font-semibold">시설일정</h1>
 
-        <ScheduleViewToggle view={view} onChange={setView} />
+        <ScheduleViewToggle view={view} onChange={setView} kinds={FACILITY_VIEW_KINDS} />
 
         <div
           className="flex overflow-hidden rounded-md border border-slate-700"

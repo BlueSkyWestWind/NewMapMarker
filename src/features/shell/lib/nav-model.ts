@@ -1,6 +1,7 @@
 import {
   Battery,
   CalendarRange,
+  ClipboardList,
   Layers,
   MapPin,
   Server,
@@ -13,7 +14,7 @@ import {
   type NavItem,
   type NavKey,
 } from "@/features/shell/types/nav";
-import type { MapSegment, NavSubKey } from "@/features/shell/types/segment";
+import type { MapSegment, NavSubKey, ScheduleSegment } from "@/features/shell/types/segment";
 
 export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }> = {
   equipment: { label: "장비", icon: Server },
@@ -23,19 +24,20 @@ export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }
   cctv: { label: "CCTV", icon: Video },
   converter: { label: "위치/좌표", icon: Waypoints },
   facility: { label: "시설일정", icon: CalendarRange },
+  daily: { label: "일일일정", icon: ClipboardList },
 };
 
 const NAV_SEGMENTS: Partial<Record<NavKey, NavSubKey[]>> = {
   map: ["equipment", "battery", "location", "cctv", "converter"],
   markers: ["equipment", "battery", "groups"],
-  schedule: ["facility"],
+  schedule: ["facility", "daily"],
 };
 
 /** 패널 첫 단계의 설명 문구 */
 export const NAV_DESCRIPTIONS: Partial<Record<NavKey, string>> = {
   map: "표시할 데이터를 고르고 위치를 찾습니다",
   markers: "마커를 등록하고 목록을 관리합니다",
-  schedule: "시설팀 일정표를 보고 관리합니다",
+  schedule: "시설팀 일정표와 일일 작업 상세를 보고 관리합니다",
   accounts: "사용자 계정과 관리자 권한을 관리합니다",
 };
 
@@ -95,17 +97,26 @@ export function mobileMoreItems(isAuthenticated: boolean, isAdmin = false): NavI
 }
 
 /**
- * 하위 메뉴가 지금 활성인가. 일정관리는 하위 화면이 하나뿐이고 지도 세그먼트와 무관하며,
- * 지도·마커관리는 현재 세그먼트와 같은 항목만 활성이다.
+ * 하위 메뉴가 지금 활성인가. 일정관리는 지도 세그먼트와 무관하게 고른 일정 화면(`scheduleSegment`)이,
+ * 지도·마커관리는 현재 세그먼트와 같은 항목이 활성이다.
  */
-export function isSubActive(nav: NavKey, key: NavSubKey, segment: MapSegment): boolean {
-  if (nav === "schedule") return key === "facility";
+export function isSubActive(
+  nav: NavKey,
+  key: NavSubKey,
+  segment: MapSegment,
+  scheduleSegment: ScheduleSegment = "facility",
+): boolean {
+  if (nav === "schedule") return key === scheduleSegment;
   return key === segment;
 }
 
-/** 패널·시트 제목에 쓰는 하위 메뉴 이름. 일정관리는 시설일정, 그 밖은 현재 세그먼트 이름. */
-export function subLabelOf(nav: NavKey, segment: MapSegment): string {
-  return nav === "schedule" ? SEGMENT_META.facility.label : SEGMENT_META[segment].label;
+/** 패널·시트 제목에 쓰는 하위 메뉴 이름. 일정관리는 고른 일정 화면 이름, 그 밖은 현재 세그먼트 이름. */
+export function subLabelOf(
+  nav: NavKey,
+  segment: MapSegment,
+  scheduleSegment: ScheduleSegment = "facility",
+): string {
+  return nav === "schedule" ? SEGMENT_META[scheduleSegment].label : SEGMENT_META[segment].label;
 }
 
 /** 마커 건수 요약(설명 줄)을 보일 화면인가. 지도·마커관리의 변환기·CCTV·그룹관리가 아닌 세그먼트만. */

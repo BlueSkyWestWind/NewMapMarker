@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { SheetSnap } from "@/features/shell/lib/sheet-snap";
+import type { ScheduleSegment } from "@/features/shell/types/segment";
 
 /** 패널 드릴다운 단계 */
 export type PanelStep = "root" | "detail";
@@ -14,6 +15,9 @@ interface ShellState {
   /** 모바일 더보기 목록을 보고 있는지 */
   isMoreOpen: boolean;
   setMoreOpen: (open: boolean) => void;
+  /** 일정관리에서 보고 있는 화면(시설일정 | 일일일정). 지도 세그먼트와 무관하다. */
+  scheduleSegment: ScheduleSegment;
+  setScheduleSegment: (segment: ScheduleSegment) => void;
 }
 
 /**
@@ -29,4 +33,6 @@ export const useShellStore = create<ShellState>((set) => ({
   setSheetSnap: (sheetSnap) => set({ sheetSnap }),
   isMoreOpen: false,
   setMoreOpen: (isMoreOpen) => set({ isMoreOpen }),
+  scheduleSegment: "facility",
+  setScheduleSegment: (scheduleSegment) => set({ scheduleSegment }),
 }));

@@ -15,13 +15,13 @@ export type MapSegment =
   | "groups";
 
 /** 일정관리의 하위 화면. 지도 모드와 무관하다(`MapMode`·스토어에 얽히지 않는다). */
-export type ScheduleSegment = "facility";
+export type ScheduleSegment = "facility" | "daily";
 
 /** 사이드바 하위 메뉴 키: 지도 세그먼트 또는 일정관리 하위 화면. */
 export type NavSubKey = MapSegment | ScheduleSegment;
 
 export function isMapSegment(key: NavSubKey): key is MapSegment {
-  return key !== "facility";
+  return key !== "facility" && key !== "daily";
 }
 
 /** 세그먼트가 쓰는 지도 모드. */

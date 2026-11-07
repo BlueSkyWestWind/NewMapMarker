@@ -26,6 +26,7 @@ export function NavTree({ activeNav, segment, segmentCounts }: NavTreeProps) {
   const { authed, isAdmin, pickNav, pickSegment, isSegmentLocked } = useShellNav();
   const setTreeOpen = useShellStore((state) => state.setTreeOpen);
   const panelStep = useShellStore((state) => state.panelStep);
+  const scheduleSegment = useShellStore((state) => state.scheduleSegment);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<NavKey, boolean>>>({});
 
@@ -107,7 +108,7 @@ export function NavTree({ activeNav, segment, segmentCounts }: NavTreeProps) {
                     const locked = isSegmentLocked(key);
                     const isChildActive =
                       isActive &&
-                      isSubActive(item.key, key, segment) &&
+                      isSubActive(item.key, key, segment, scheduleSegment) &&
                       (item.key === "schedule" || panelStep === "detail");
                     const count = segmentCounts[key];
                     return (

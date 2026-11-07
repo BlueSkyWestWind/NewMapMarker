@@ -34,11 +34,13 @@ export function WorkPanel({ countSummary, segmentCounts, ...bodyProps }: WorkPan
   const isTreeOpen = useShellStore((state) => state.isTreeOpen);
   const panelStep = useShellStore((state) => state.panelStep);
   const setPanelStep = useShellStore((state) => state.setPanelStep);
+  const scheduleSegment = useShellStore((state) => state.scheduleSegment);
 
   const hasSegments = hasNavSegments(activeNav);
   const isRoot = hasSegments && panelStep === "root";
   const navLabel = NAV_ITEMS.find((item) => item.key === activeNav)?.label ?? "";
-  const title = hasSegments && !isRoot ? subLabelOf(activeNav, segment) : navLabel;
+  const title =
+    hasSegments && !isRoot ? subLabelOf(activeNav, segment, scheduleSegment) : navLabel;
   const description = isRoot
     ? NAV_DESCRIPTIONS[activeNav]
     : showsMarkerSummary(activeNav, segment)

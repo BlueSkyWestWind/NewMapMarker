@@ -14,13 +14,16 @@ const VIEW_OPTIONS: readonly { key: ScheduleViewKind; label: string }[] = [
 interface ScheduleViewToggleProps {
   view: ScheduleViewKind;
   onChange: (view: ScheduleViewKind) => void;
+  /** 보여 줄 보기. 생략하면 전부. 시설일정은 주간·월간, 일일일정은 일자별·누적만 보인다. */
+  kinds?: readonly ScheduleViewKind[];
 }
 
-/** 시설일정 보기 전환: 주간 | 월간 | 일자별 | 누적. */
-export function ScheduleViewToggle({ view, onChange }: ScheduleViewToggleProps) {
+/** 일정 보기 전환: 주간 | 월간 | 일자별 | 누적. */
+export function ScheduleViewToggle({ view, onChange, kinds }: ScheduleViewToggleProps) {
+  const options = kinds ? VIEW_OPTIONS.filter(({ key }) => kinds.includes(key)) : VIEW_OPTIONS;
   return (
     <div className="flex overflow-hidden rounded-md border border-slate-700" role="group" aria-label="보기">
-      {VIEW_OPTIONS.map(({ key, label }) => (
+      {options.map(({ key, label }) => (
         <button
           key={key}
           type="button"

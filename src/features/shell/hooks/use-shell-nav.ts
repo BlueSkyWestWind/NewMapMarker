@@ -29,6 +29,7 @@ export function useShellNav() {
   const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
   const toggleSidebar = useMapMarkerStore((state) => state.toggleSidebar);
   const setPanelStep = useShellStore((state) => state.setPanelStep);
+  const setScheduleSegment = useShellStore((state) => state.setScheduleSegment);
 
   const openPanel = useCallback(() => {
     if (!isSidebarOpen) toggleSidebar();
@@ -51,8 +52,10 @@ export function useShellNav() {
   const pickSegment = useCallback(
     (nav: NavKey, segment: NavSubKey) => {
       setActiveNav(nav);
-      // 일정관리의 하위 화면은 지도 모드·세그먼트를 바꾸지 않는다.
-      if (nav !== "schedule" && isMapSegment(segment)) {
+      // 일정관리의 하위 화면은 지도 모드·세그먼트를 바꾸지 않고 일정 화면만 고른다.
+      if (nav === "schedule") {
+        if (!isMapSegment(segment)) setScheduleSegment(segment);
+      } else if (isMapSegment(segment)) {
         if (nav === "markers") {
           if (segment === "groups") {
             setMapSegment("groups");
@@ -66,7 +69,7 @@ export function useShellNav() {
       setPanelStep("detail");
       openPanel();
     },
-    [setActiveNav, setMode, setMapSegment, setPanelStep, openPanel],
+    [setActiveNav, setMode, setMapSegment, setScheduleSegment, setPanelStep, openPanel],
   );
 
   // 위치·변환기는 비로그인 잠금, 그룹관리는 비관리자 잠금.

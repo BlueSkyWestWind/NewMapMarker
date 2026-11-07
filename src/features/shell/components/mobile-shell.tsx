@@ -61,6 +61,7 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
   const setSnap = useShellStore((state) => state.setSheetSnap);
   const panelStep = useShellStore((state) => state.panelStep);
   const setPanelStep = useShellStore((state) => state.setPanelStep);
+  const scheduleSegment = useShellStore((state) => state.scheduleSegment);
   const isMoreOpen = useShellStore((state) => state.isMoreOpen);
   const setMoreOpen = useShellStore((state) => state.setMoreOpen);
   const [dragHeight, setDragHeight] = useState<number | null>(null);
@@ -121,7 +122,7 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
   const title = isMoreOpen
     ? "더보기"
     : hasSegments && !isRoot
-      ? subLabelOf(activeNav, segment)
+      ? subLabelOf(activeNav, segment, scheduleSegment)
       : navLabel;
   const isMoreItem = mobileMoreItems(true, isAdmin).some((item) => item.key === activeNav);
   const hasBack = !isMoreOpen && ((hasSegments && !isRoot) || isMoreItem);

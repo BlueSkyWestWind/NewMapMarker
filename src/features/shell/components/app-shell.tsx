@@ -102,6 +102,7 @@ export function AppShell({
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
   const isTreeOpen = useShellStore((state) => state.isTreeOpen);
   const panelStep = useShellStore((state) => state.panelStep);
+  const scheduleSegment = useShellStore((state) => state.scheduleSegment);
   const isMoreOpen = useShellStore((state) => state.isMoreOpen);
   const isMobile = useIsMobile();
   const { isAuthenticated } = useAuthSession();
@@ -215,7 +216,7 @@ export function AppShell({
            */}
           <div className={isMapHidden ? "hidden" : "contents"}>{children}</div>
           {activeNav === "barcode" ? <BarcodeResultsMain /> : null}
-          {activeNav === "schedule" ? <ScheduleMain /> : null}
+          {activeNav === "schedule" ? <ScheduleMain section={scheduleSegment} /> : null}
           {activeNav === "accounts" ? <AccountsMain /> : null}
 
           {showMobileSheet ? (
