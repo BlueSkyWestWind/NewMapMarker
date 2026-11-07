@@ -361,6 +361,11 @@ export function GroupManageDialog() {
           </Button>
         </div>
 
+        <p className="text-[11px] text-amber-200/90">
+          위치등록의 [기존 N건 갱신]은 국소명과 상세 정보를 파일 값으로 다시 씁니다. 여기서 고친
+          값이 다음 업로드 때 되돌아갈 수 있습니다.
+        </p>
+
         {edit.lastResult?.error ? <SaveFailureNotice result={edit.lastResult} /> : null}
 
         <div className="flex min-h-0 flex-1 gap-3">

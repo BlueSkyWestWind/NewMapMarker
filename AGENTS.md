@@ -24,7 +24,8 @@
 - 디렉터리: `src/features/{feature}/{components,hooks,lib,constants,types}` · `src/components/ui`(shadcn) ·
   `src/lib` · `src/hooks`.
   features: `map-marker`(지도/마커) · `worksite-weather`(작업 안전 날씨) · `dashboard`(당일 국소 요약) ·
-  `gpsmap`(주소/좌표 변환기) · `cctv`(도로 CCTV) · `shell`(레이아웃/네비) · `site-lists`(위치 메뉴 국소 목록).
+  `gpsmap`(주소/좌표 변환기) · `cctv`(도로 CCTV) · `shell`(레이아웃/네비) · `site-lists`(위치 메뉴 국소 목록) ·
+  `group-admin`(그룹관리: 관리자 전용 국소 자료 수정).
 - **shadcn 컴포넌트 추가는 설치 명령만 알려 준다.** 실행은 사용자가 한다 — `npx shadcn@latest add <name>`.
 - **Supabase는 로컬 실행 금지.** 테이블 변경은 `supabase/migrations/*.sql`로 만들어 두면 사용자가 적용한다.
 - 패키지 매니저는 **npm**.
