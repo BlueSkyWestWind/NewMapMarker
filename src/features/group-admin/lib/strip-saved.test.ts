@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EditDraft } from "../types";
+import type { EditDraft, InfoRecord } from "../types";
 import type { SaveResult } from "./save-draft";
 import { stripSaved } from "./strip-saved";
 
@@ -33,5 +33,31 @@ describe("stripSaved", () => {
     stripSaved(draft, result({ savedMarkerIds: ["a", "b"], completedOps: 2 }));
     expect(Object.keys(draft.markerEdits)).toEqual(["a", "b"]);
     expect(draft.ops).toHaveLength(2);
+  });
+
+  it("완료된 삭제 연산의 마커 수정·정보 수정도 함께 뺀다", () => {
+    const d: EditDraft = {
+      markerEdits: { x: { name: "지울 것" }, b: { memo: "m" } },
+      infoEdits: { 1: { openDate: "2026-01-01" }, 2: { facilityYear: "2025" } },
+      ops: [{ type: "delete", ids: ["x"] }],
+    };
+    const rows = [
+      { id: 1, markerId: "x" },
+      { id: 2, markerId: "b" },
+    ] as InfoRecord[];
+    const next = stripSaved(d, result({ completedOps: 1 }), rows);
+    expect(Object.keys(next.markerEdits)).toEqual(["b"]);
+    expect(Object.keys(next.infoEdits)).toEqual(["2"]);
+    expect(next.ops).toEqual([]);
+  });
+
+  it("삭제가 끝나지 않았으면 그 마커의 수정은 남긴다", () => {
+    const d: EditDraft = {
+      markerEdits: { x: { name: "지울 것" } },
+      infoEdits: {},
+      ops: [{ type: "delete", ids: ["x"] }],
+    };
+    const next = stripSaved(d, result({ completedOps: 0, error: { message: "x", step: "ops" } }), []);
+    expect(Object.keys(next.markerEdits)).toEqual(["x"]);
   });
 });

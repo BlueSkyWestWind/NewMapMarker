@@ -95,7 +95,7 @@ export function useEditDraft(markers: EquipmentMarker[]) {
     setIsSaving(true);
     try {
       const result = await saveDraft(supabase, draft, originalInfoRows);
-      setDraft((d) => stripSaved(d, result));
+      setDraft((d) => stripSaved(d, result, originalInfoRows));
       setLastResult(result);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY }),
