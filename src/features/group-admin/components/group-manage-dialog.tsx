@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +9,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { GROUP_ROLE_REPRESENTATIVE } from "@/features/map-marker/lib/address-group";
 import { storedGroupRoleOf } from "@/features/map-marker/lib/marker-detail-rows";
+import type { EquipmentMarker } from "@/features/map-marker/types/marker";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import {
   GROUP_MANAGE_DIALOG_MAX_WIDTH_PX,
@@ -18,9 +20,18 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useEditDraft } from "../hooks/use-edit-draft";
 import { useMarkerGroups } from "../hooks/use-marker-groups";
+import { applyDraftToMarkers } from "../lib/edit-draft";
+import { planMergeGroups, planMergeSplitToLot, planRoleChange } from "../lib/group-actions";
 import { filterGroups } from "../lib/group-filters";
+import {
+  planDeleteSelected,
+  planSeparateSelected,
+  planStandaloneSelected,
+} from "../lib/selection-actions";
 import type { SaveResult } from "../lib/save-draft";
-import type { GroupFilters, MarkerGroup } from "../types";
+import type { GroupFilters, MarkerGroup, MarkerOp } from "../types";
+import { ConfirmDialog } from "./confirm-dialog";
+import { GroupActionsBar } from "./group-actions-bar";
 import { GroupTable } from "./group-table";
 
 const PAGE_SIZE = 200;
@@ -33,6 +44,27 @@ const EMPTY_FILTERS: GroupFilters = {
   onlyNoCoord: false,
   onlySuspect: false,
 };
+
+const MAX_NAMES = 10;
+
+type PendingConfirm =
+  | { kind: "delete"; ops: MarkerOp[]; targets: EquipmentMarker[]; newReps: EquipmentMarker[] }
+  | { kind: "merge"; ops: MarkerOp[]; groupCount: number; markerCount: number }
+  | { kind: "unsplit"; ops: MarkerOp[]; markerCount: number };
+
+function markerLabel(marker: EquipmentMarker): string {
+  return marker.finalStationName || marker.name || "이름 없음";
+}
+
+function pendingMessage(p: PendingConfirm): string {
+  if (p.kind === "delete") {
+    return `${p.targets.length}건을 삭제 대상으로 표시했습니다. 저장하면 지워집니다.`;
+  }
+  if (p.kind === "merge") {
+    return `묶음 ${p.groupCount}개(마커 ${p.markerCount}건)를 합쳤습니다. 저장하면 반영됩니다.`;
+  }
+  return `분리를 해제해 번지 묶음으로 되돌렸습니다(마커 ${p.markerCount}건). 저장하면 반영됩니다.`;
+}
 
 const STEP_LABEL: Record<NonNullable<SaveResult["error"]>["step"], string> = {
   marker: "마커 수정",
@@ -97,12 +129,127 @@ export function GroupManageDialog() {
   const edit = useEditDraft(group?.markers ?? NO_MARKERS);
   const { changeCount, issues, isSaving } = edit;
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mergePicks, setMergePicks] = useState<Set<string>>(new Set());
+  const [notice, setNotice] = useState("");
+  const [pending, setPending] = useState<PendingConfirm | null>(null);
+  // 확인 창을 닫는 클릭이 바깥 클릭으로 전달돼 이 창까지 닫히는 것을 잠깐 막는다.
+  const ignoreCloseRef = useRef(false);
+  const closePending = () => {
+    ignoreCloseRef.current = true;
+    window.setTimeout(() => {
+      ignoreCloseRef.current = false;
+    }, 400);
+    setPending(null);
+  };
+
+  // 묶음을 바꾸면 선택·안내를 비운다.
+  useEffect(() => {
+    setSelected(new Set());
+    setMergePicks(new Set());
+    setNotice("");
+    setPending(null);
+  }, [groupManageKey]);
+
+  // 다른 묶음의 마커까지 포함한 전체 목록에 변경분을 반영한다(계획은 이 위에 이어 쌓는다).
+  const allWorking = useMemo(
+    () => applyDraftToMarkers(groups.flatMap((g) => g.markers), edit.draft),
+    [groups, edit.draft],
+  );
+  // 지워지거나 사라진 행은 선택에서 자동으로 빠진다.
+  const selectedMarkers = edit.workingMarkers.filter((m) => selected.has(m.id));
+  const queueWithNotice = (ops: MarkerOp[], message: string) => {
+    if (ops.length === 0) {
+      setNotice("바꿀 내용이 없습니다.");
+      return;
+    }
+    edit.queue(ops);
+    setNotice(message);
+    setSelected(new Set());
+    setMergePicks(new Set());
+  };
+  const idsOf = (list: EquipmentMarker[]) => new Set(list.map((m) => m.id));
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const toggleAll = (checked: boolean) =>
+    setSelected(checked ? idsOf(edit.workingMarkers) : new Set());
+  const toggleMergePick = (key: string) =>
+    setMergePicks((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  const doRepresentative = () => {
+    const target = allWorking.find((m) => m.id === selectedMarkers[0]?.id);
+    if (!target) return;
+    if (storedGroupRoleOf(target) === GROUP_ROLE_REPRESENTATIVE) {
+      setNotice("이미 대표입니다.");
+      return;
+    }
+    const plan = planRoleChange(target, GROUP_ROLE_REPRESENTATIVE, allWorking);
+    queueWithNotice(plan.ops, plan.notice);
+  };
+  const doStandalone = () => {
+    const plan = planStandaloneSelected(selectedMarkers, allWorking);
+    queueWithNotice(plan.ops, plan.notice);
+  };
+  const doSeparate = () => {
+    const plan = planSeparateSelected(selectedMarkers, allWorking);
+    queueWithNotice(
+      plan.ops,
+      `'${plan.label}' ${selectedMarkers.length}건을 새 묶음으로 분리했습니다. 저장하면 반영됩니다.`,
+    );
+  };
+  const askDelete = () => {
+    const plan = planDeleteSelected(selectedMarkers, allWorking);
+    if (plan.ops.length === 0) return;
+    setPending({
+      kind: "delete",
+      ops: plan.ops,
+      targets: selectedMarkers,
+      newReps: plan.newRepresentatives,
+    });
+  };
+  const askMerge = () => {
+    if (!group) return;
+    const ids = (g: MarkerGroup) => new Set(g.markers.map((m) => m.id));
+    const picked = groups.filter((g) => mergePicks.has(g.key));
+    const sets = [group, ...picked].map(ids);
+    const lists = sets.map((set) => allWorking.filter((m) => set.has(m.id)));
+    const plan = planMergeGroups(lists, allWorking);
+    if (plan.ops.length === 0) return;
+    setPending({
+      kind: "merge",
+      ops: plan.ops,
+      groupCount: lists.length,
+      markerCount: lists.reduce((sum, list) => sum + list.length, 0),
+    });
+  };
+  const askUnsplit = () => {
+    const members = allWorking.filter((m) => edit.workingMarkers.some((w) => w.id === m.id));
+    const plan = planMergeSplitToLot(members, allWorking);
+    if (plan.ops.length === 0) return;
+    setPending({ kind: "unsplit", ops: plan.ops, markerCount: members.length });
+  };
+  const confirmPending = () => {
+    if (!pending) return;
+    const message = pendingMessage(pending);
+    closePending();
+    queueWithNotice(pending.ops, message);
+  };
+  const canUnsplit = edit.workingMarkers.some((m) => (m.groupKey ?? "").trim() !== "");
+
   const confirmDiscard = (): boolean =>
     changeCount === 0 ||
     window.confirm(`저장하지 않은 변경 ${changeCount}건이 있습니다. 버리고 계속할까요?`);
 
   const close = () => {
-    if (isSaving || !confirmDiscard()) return;
+    if (isSaving || pending || ignoreCloseRef.current || !confirmDiscard()) return;
     edit.discard();
     if (groupManageKey) setLastGroupManageKey(groupManageKey);
     setGroupManageKey(null);
@@ -118,6 +265,13 @@ export function GroupManageDialog() {
   const updateFilters = (patch: Partial<GroupFilters>) => {
     setFilters((prev) => ({ ...prev, ...patch }));
     setVisibleCount(PAGE_SIZE);
+  };
+
+  const handleDiscard = () => {
+    edit.discard();
+    setSelected(new Set());
+    setMergePicks(new Set());
+    setNotice("");
   };
 
   const handleSave = async () => {
@@ -167,7 +321,7 @@ export function GroupManageDialog() {
             variant="outline"
             className="h-8 shrink-0 border-slate-700 text-xs text-slate-200"
             disabled={changeCount === 0 || isSaving}
-            onClick={edit.discard}
+            onClick={handleDiscard}
           >
             변경 취소
           </Button>
@@ -208,12 +362,25 @@ export function GroupManageDialog() {
                 const hasStoredRepresentative = storedGroupRoleOf(itemHead) === "대표";
                 const active = item.key === groupManageKey;
                 return (
-                  <li key={item.key}>
+                  <li key={item.key} className="flex items-center">
+                    {active ? (
+                      <span className="w-5 shrink-0" />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        aria-label={`${itemHead.name || "이름 없음"} 묶음 합치기 선택`}
+                        title="현재 묶음과 합칠 묶음으로 고릅니다"
+                        className="mx-1 shrink-0"
+                        checked={mergePicks.has(item.key)}
+                        disabled={isSaving}
+                        onChange={() => toggleMergePick(item.key)}
+                      />
+                    )}
                     <button
                       type="button"
                       aria-current={active}
                       onClick={() => selectGroup(item.key)}
-                      className={`flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs ${
+                      className={`flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left text-xs ${
                         active ? "bg-indigo-500/20 text-indigo-50" : "hover:bg-slate-800/50"
                       }`}
                     >
@@ -245,7 +412,30 @@ export function GroupManageDialog() {
             ) : null}
           </aside>
 
-          <section className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden rounded-lg border border-slate-800">
+          <div className="flex min-w-0 flex-1 flex-col">
+            {group ? (
+              <GroupActionsBar
+                selectedCount={selectedMarkers.length}
+                canUnsplit={canUnsplit}
+                mergePickCount={mergePicks.size}
+                disabled={isSaving}
+                onRepresentative={doRepresentative}
+                onStandalone={doStandalone}
+                onSeparate={doSeparate}
+                onDelete={askDelete}
+                onMerge={askMerge}
+                onUnsplit={askUnsplit}
+              />
+            ) : null}
+            {notice ? (
+              <p
+                role="status"
+                className="mb-2 rounded-md border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-xs text-indigo-100"
+              >
+                {notice}
+              </p>
+            ) : null}
+          <section className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden rounded-lg border border-slate-800">
             {group ? (
               <GroupTable
                 markers={group.markers}
@@ -254,6 +444,9 @@ export function GroupManageDialog() {
                 draft={edit.draft}
                 issues={issues}
                 disabled={isSaving}
+                selectedIds={selected}
+                onToggleSelect={toggleSelect}
+                onToggleAll={toggleAll}
                 onMarker={edit.setMarker}
                 onInfo={edit.setInfo}
               />
@@ -266,8 +459,53 @@ export function GroupManageDialog() {
               <p className="p-2 text-center text-[11px] text-slate-400">정보 행을 불러오는 중...</p>
             ) : null}
           </section>
+          </div>
         </div>
       </DialogContent>
+      {pending ? (
+        <ConfirmDialog
+          title={pending.kind === "delete" ? "마커 삭제" : pending.kind === "merge" ? "묶음 합치기" : "분리 해제"}
+          confirmLabel={pending.kind === "delete" ? "삭제" : "확인"}
+          destructive={pending.kind === "delete"}
+          onConfirm={confirmPending}
+          onCancel={closePending}
+        >
+          {pending.kind === "delete" ? (
+            <>
+              <p>마커 {pending.targets.length}건을 삭제합니다.</p>
+              <ul className="list-disc pl-5 text-xs text-slate-300">
+                {pending.targets.slice(0, MAX_NAMES).map((m) => (
+                  <li key={m.id}>{markerLabel(m)}</li>
+                ))}
+              </ul>
+              {pending.targets.length > MAX_NAMES ? (
+                <p className="text-xs text-slate-300">외 {pending.targets.length - MAX_NAMES}건</p>
+              ) : null}
+              {pending.newReps.length > 0 ? (
+                <p className="text-xs text-amber-200">
+                  대표를 지우므로 새 대표: {pending.newReps.map(markerLabel).join(", ")}
+                </p>
+              ) : null}
+              <p className="font-medium text-rose-300">
+                되돌릴 수 없습니다. 삭제 전에 백업을 받아 두세요
+              </p>
+              <p className="text-xs text-slate-400">
+                저장 전까지는 DB에 쓰지 않으며 [변경 취소]로 되돌릴 수 있습니다.
+              </p>
+            </>
+          ) : pending.kind === "merge" ? (
+            <p>
+              묶음 {pending.groupCount}개(마커 {pending.markerCount}건)를 하나로 합칩니다. 대표는
+              기존 대표(없으면 먼저 등록된 마커)로 정해지고 나머지는 SUB가 됩니다.
+            </p>
+          ) : (
+            <p>
+              분리된 묶음({pending.markerCount}건)을 번지 묶음으로 되돌립니다. 같은 번지의 다른
+              마커와 합쳐 대표를 다시 정합니다.
+            </p>
+          )}
+        </ConfirmDialog>
+      ) : null}
     </Dialog>
   );
 }

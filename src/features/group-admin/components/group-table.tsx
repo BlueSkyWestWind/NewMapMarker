@@ -75,6 +75,9 @@ interface GroupTableProps {
   draft: EditDraft;
   issues: DraftIssue[];
   disabled: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleAll: (checked: boolean) => void;
   onMarker: (id: string, patch: Partial<MarkerFields>) => void;
   onInfo: (id: number, patch: Partial<InfoFields>) => void;
 }
@@ -105,15 +108,20 @@ export function GroupTable({
   draft,
   issues,
   disabled,
+  selectedIds,
+  onToggleSelect,
+  onToggleAll,
   onMarker,
   onInfo,
 }: GroupTableProps) {
   const issueOf = (key: string) => issues.find((issue) => issue.key === key);
   const working = new Map(workingMarkers.map((m) => [m.id, m]));
+  const allChecked = workingMarkers.length > 0 && workingMarkers.every((m) => selectedIds.has(m.id));
 
   return (
     <table className="w-full table-fixed border-collapse">
       <colgroup>
+        <col style={{ width: 32 }} />
         <col style={{ width: 64 }} />
         <col style={{ width: 170 }} />
         <col style={{ width: 120 }} />
@@ -126,6 +134,15 @@ export function GroupTable({
       </colgroup>
       <thead>
         <tr>
+          <th className={HEAD_CELL}>
+            <input
+              type="checkbox"
+              aria-label="전체 선택"
+              checked={allChecked}
+              disabled={disabled || workingMarkers.length === 0}
+              onChange={(event) => onToggleAll(event.target.checked)}
+            />
+          </th>
           {HEADS.map((title) => (
             <th key={title} className={HEAD_CELL}>
               {title}
@@ -136,8 +153,25 @@ export function GroupTable({
       <tbody>
         {markers.map((original) => {
           const marker = working.get(original.id);
-          // 삭제 등으로 합친 목록에서 빠진 마커는 표에 그리지 않는다.
-          if (!marker) return null;
+          // 삭제 예정 마커는 저장 전까지 흐리게·취소선으로 남겨 둔다(변경 취소로 되돌린다).
+          if (!marker) {
+            return (
+              <tr
+                key={`${original.id}:deleted`}
+                className="border-b border-slate-800/80 text-slate-500 line-through"
+              >
+                <td className={CELL} />
+                <td className={CELL}>
+                  <span className="rounded bg-rose-500/20 px-1 text-[10px] text-rose-200 no-underline">
+                    삭제 예정
+                  </span>
+                </td>
+                <td className={CELL}>{original.name}</td>
+                <td className={CELL}>{original.facilityCode}</td>
+                <td className={CELL} colSpan={6} />
+              </tr>
+            );
+          }
           const rows = infoRows.filter((row) => row.markerId === marker.id);
           const slots: (InfoRecord | null)[] = rows.length > 0 ? rows : [null];
           const edit = draft.markerEdits[marker.id] ?? {};
@@ -189,6 +223,17 @@ export function GroupTable({
                 key={`${marker.id}:${row?.id ?? "none"}`}
                 className="border-b border-slate-800/80 hover:bg-slate-800/30"
               >
+                <td className={CELL}>
+                  {first ? (
+                    <input
+                      type="checkbox"
+                      aria-label={`${original.name} 선택`}
+                      checked={selectedIds.has(marker.id)}
+                      disabled={disabled}
+                      onChange={() => onToggleSelect(marker.id)}
+                    />
+                  ) : null}
+                </td>
                 <td className={CELL}>
                   {first ? (
                     <span
