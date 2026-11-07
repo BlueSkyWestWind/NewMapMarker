@@ -138,6 +138,15 @@ describe("buildDayRows", () => {
     expect(rows[1].values.worker).toBe("박경훈");
   });
 
+  it("상세에서 빈 문자열로 지운 작업구분·Level·작업시간은 기본값으로 돌아가지 않는다(null만 기본값)", () => {
+    const rows = build({
+      details: new Map([[stationKey("가국소"), detail("가국소", { workCategory: "", levelLabel: "", workTime: "" })]]),
+    });
+    expect(rows[0].values.workCategory).toBe("");
+    expect(rows[0].values.levelLabel).toBe("");
+    expect(rows[0].values.workTime).toBe("");
+  });
+
   it("상세에서 빈 문자열로 지운 작업자는 빈칸으로 둔다(null만 자동값)", () => {
     const rows = build({ details: new Map([[stationKey("가국소"), detail("가국소", { worker: "" })]]) });
     expect(rows[0].values.worker).toBe("");
@@ -214,6 +223,7 @@ describe("buildDayRows", () => {
 
 describe("defaultDayDate", () => {
   it("기본 날짜는 내일이다", () => {
-    expect(defaultDayDate(new Date("2026-11-07T12:00:00+09:00"))).toBe("2026-11-08");
+    // todayIso가 로컬 날짜를 읽으므로 입력도 로컬 시각으로 만든다(어느 시간대에서도 같은 결과).
+    expect(defaultDayDate(new Date(2026, 10, 7, 12))).toBe("2026-11-08");
   });
 });

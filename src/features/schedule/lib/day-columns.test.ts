@@ -42,14 +42,34 @@ describe("DAY_COLUMNS", () => {
     expect(DAY_COLUMNS.map((column) => column.letter).join("")).toBe("ABCDEFGHIJKLMNOPQRSTUVWX");
   });
 
-  it("스펙에 있는 열 폭을 쓴다", () => {
-    const width = (letter: string) => DAY_COLUMNS.find((column) => column.letter === letter)?.widthChars;
-    expect(width("B")).toBe(17);
-    expect(width("I")).toBe(45.875);
-    expect(width("J")).toBe(33.875);
-    expect(width("L")).toBe(45.625);
-    expect(width("X")).toBe(25.125);
-    expect(DAY_COLUMNS.every((column) => column.widthChars > 0)).toBe(true);
+  it("24열 폭이 원본 상세 시트와 같다(A는 Excel 기본 8.43)", () => {
+    const ORIGINAL_WIDTHS: Record<string, number> = {
+      A: 8.43,
+      B: 17,
+      C: 13.125,
+      D: 13.125,
+      E: 13.125,
+      F: 11.125,
+      G: 9.375,
+      H: 9.125,
+      I: 45.875,
+      J: 33.875,
+      K: 10.125,
+      L: 45.625,
+      M: 15.125,
+      N: 13.625,
+      O: 12.125,
+      P: 13.5,
+      Q: 12.375,
+      R: 11.125,
+      S: 11.875,
+      T: 14.625,
+      U: 19.875,
+      V: 19,
+      W: 19.25,
+      X: 25.125,
+    };
+    expect(Object.fromEntries(DAY_COLUMNS.map((column) => [column.letter, column.widthChars]))).toEqual(ORIGINAL_WIDTHS);
   });
 
   it("목록 열이 D·E·F·G·T·U·V·W이다", () => {
