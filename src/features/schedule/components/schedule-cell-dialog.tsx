@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,10 @@ import {
   planCompanionOps,
   type CompanionKind,
 } from "@/features/schedule/lib/companions";
+import { useStationOptions } from "@/features/schedule/hooks/use-station-options";
 import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
+import { pickStation, startPickSession, type PickSession } from "@/features/schedule/lib/station-pick";
+import { searchStations } from "@/features/schedule/lib/station-search";
 import { isValidIso, weekdayLabel } from "@/features/schedule/lib/week";
 import {
   MARK_COLORS,
@@ -41,6 +44,7 @@ import {
 } from "@/features/schedule/types";
 import { useToast } from "@/hooks/use-toast";
 import { StationSearchAdd } from "./station-search-add";
+import { StationSuggestionList } from "./station-suggestion-list";
 
 const MARK_CHOICES: (MarkColor | null)[] = [null, ...MARK_COLORS];
 const FIELD_CLASS = "h-8 border-slate-700 bg-slate-900 text-xs";
@@ -160,6 +164,12 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   const [notice, setNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const newKeyCounter = useRef(0);
+  // 줄 입력에 글을 쓰는 동안 그 줄 아래에 등록된 국소 검색 결과를 보여 준다(한 번에 한 줄).
+  const stationOptions = useStationOptions();
+  const [suggestKey, setSuggestKey] = useState<string | null>(null);
+  const [suggestQuery, setSuggestQuery] = useState("");
+  const [suggestIndex, setSuggestIndex] = useState(-1);
+  const [pickSession, setPickSession] = useState<PickSession | null>(null);
 
   const sortedColumns = [...columns].sort((a, b) => a.sortOrder - b.sortOrder);
   const teamName =
@@ -169,6 +179,50 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
 
   const updateDraft = (key: string, patch: Partial<EntryDraft>) =>
     setDrafts((prev) => prev.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft)));
+  // 검색 결과는 줄의 현재 글이 아니라 **검색어**로 만든다. 고르면 줄 글이 바뀌지만 같은 결과 목록이
+  // 그대로 열려 있어 이어서 여러 개 고를 수 있다.
+  const rowResults = (() => {
+    if (suggestKey === null) return [];
+    const found = searchStations(stationOptions, suggestQuery);
+    // 아무것도 고르지 않았고 이미 정확히 입력한 이름 하나만 남으면 목록을 접는다.
+    return pickSession === null && found.length === 1 && found[0].label === suggestQuery.trim()
+      ? []
+      : found;
+  })();
+  const listedSet = new Set(listedNames);
+  const closeSuggestions = (key: string) => {
+    setSuggestKey((prev) => (prev === key ? null : prev));
+    setPickSession(null);
+  };
+  /** 검색 결과에서 국소를 고르거나(없으면 이 줄과 아래 줄에 추가) 푼다(이미 고른 것이면 선택 해제). */
+  const pickRowStation = (label: string) => {
+    if (suggestKey === null) return;
+    const result = pickStation({
+      drafts,
+      session: pickSession ?? startPickSession(suggestKey, suggestQuery),
+      label,
+      newKey: () => {
+        newKeyCounter.current += 1;
+        return `new-${newKeyCounter.current}`;
+      },
+    });
+    setDrafts(result.drafts);
+    setPickSession(result.session);
+  };
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLInputElement>, key: string) => {
+    if (suggestKey !== key || rowResults.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSuggestIndex((index) => Math.min(index + 1, rowResults.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSuggestIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Enter" && suggestIndex >= 0 && rowResults[suggestIndex]) {
+      // 고르는 Enter는 폼 저장으로 넘어가지 않게 막고, 목록은 열어 둔다.
+      event.preventDefault();
+      pickRowStation(rowResults[suggestIndex].label);
+    }
+  };
   const removeDraft = (key: string) =>
     setDrafts((prev) => prev.filter((draft) => draft.key !== key));
   const addDraft = (mainText: string) => {
@@ -319,7 +373,8 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
           ) : (
             <ul className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1">
               {drafts.map((draft) => (
-                <li key={draft.key} className="flex items-center gap-1.5">
+                <li key={draft.key} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5">
                   <span
                     className="w-6 shrink-0 text-center text-[11px] text-slate-500"
                     title={draft.rowNo !== null ? `${draft.rowNo + 1}행` : "새 항목"}
@@ -331,9 +386,18 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                     maxLength={500}
                     disabled={disabled}
                     aria-label="국소·작업"
-                    placeholder="국소·작업"
+                    placeholder="국소·작업 (이름·통합시설코드·프로젝트코드로 검색)"
                     autoFocus={draft.key === clickedKey}
-                    onChange={(event) => updateDraft(draft.key, { mainText: event.target.value })}
+                    onChange={(event) => {
+                      updateDraft(draft.key, { mainText: event.target.value });
+                      setSuggestKey(draft.key);
+                      setSuggestQuery(event.target.value);
+                      setSuggestIndex(-1);
+                      setPickSession(null);
+                    }}
+                    onBlur={() => closeSuggestions(draft.key)}
+                    onKeyDown={(event) => handleRowKeyDown(event, draft.key)}
+                    autoComplete="off"
                     className={cn(FIELD_CLASS, "min-w-0 flex-1")}
                     style={
                       draft.textColor ? { color: TEXT_COLOR_DISPLAY[draft.textColor] } : undefined
@@ -377,6 +441,22 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                     >
                       <X className="h-3.5 w-3.5" aria-hidden />
                     </button>
+                  ) : null}
+                  </div>
+                  {suggestKey === draft.key && rowResults.length > 0 ? (
+                    <StationSuggestionList
+                      results={rowResults}
+                      activeIndex={suggestIndex}
+                      addedLabels={listedSet}
+                      onPick={pickRowStation}
+                      className="ml-7"
+                    />
+                  ) : null}
+                  {suggestKey === draft.key && rowResults.length > 0 ? (
+                    <p className="ml-7 text-[11px] text-slate-400">
+                      여러 개를 이어서 고를 수 있습니다. 고른 국소는 이 줄과 아래 줄에 차례로 들어갑니다(다시
+                      누르면 선택이 풀립니다).
+                    </p>
                   ) : null}
                 </li>
               ))}

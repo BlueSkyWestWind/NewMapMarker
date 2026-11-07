@@ -80,3 +80,55 @@ describe("searchStations", () => {
     expect(searchStations(options, "없는이름")).toEqual([]);
   });
 });
+
+describe("통합시설코드·프로젝트코드 검색", () => {
+  const coded = buildStationOptions([
+    marker("1", "코드국소A", { facilityCode: "2026Y2670", projectCode: "L.C26A.55.0201" }),
+    marker("2", "코드국소B", { facilityCode: "E.C26M.55.0087", projectCode: "" }),
+    marker("3", "코드없음"),
+  ]);
+
+  it("후보에 통합시설코드와 프로젝트코드를 담는다(앞뒤 공백은 자른다)", () => {
+    const [a, , c] = buildStationOptions([
+      marker("1", "코드국소A", { facilityCode: " 2026Y2670 ", projectCode: "L.C26A.55.0201" }),
+      marker("2", "x"),
+      marker("3", "코드없음"),
+    ]);
+    expect(a.facilityCode).toBe("2026Y2670");
+    expect(a.projectCode).toBe("L.C26A.55.0201");
+    expect(c.facilityCode).toBe("");
+    expect(c.projectCode).toBe("");
+  });
+
+  it("통합시설코드로 찾는다(대소문자·일부만 입력해도)", () => {
+    expect(searchStations(coded, "2026Y2670").map((o) => o.label)).toEqual(["코드국소A"]);
+    expect(searchStations(coded, "2026y26").map((o) => o.label)).toEqual(["코드국소A"]);
+  });
+
+  it("프로젝트코드로 찾는다(점·일부만 입력해도)", () => {
+    expect(searchStations(coded, "L.C26A.55.0201").map((o) => o.label)).toEqual(["코드국소A"]);
+    expect(searchStations(coded, "c26a.55").map((o) => o.label)).toEqual(["코드국소A"]);
+    expect(searchStations(coded, "E.C26M").map((o) => o.label)).toEqual(["코드국소B"]);
+  });
+
+  it("공백이 섞여도 찾는다", () => {
+    expect(searchStations(coded, " 2026 Y2670 ").map((o) => o.label)).toEqual(["코드국소A"]);
+  });
+
+  it("국소명 일치가 코드 일치보다, 코드 일치가 주소·별칭 일치보다 먼저 나온다", () => {
+    const options = buildStationOptions([
+      marker("a", "주소로만 맞음", { roadAddress: "광주 도로 2026" }),
+      marker("b", "코드로 맞음", { facilityCode: "2026Y1" }),
+      marker("c", "2026년 국소"),
+    ]);
+    expect(searchStations(options, "2026").map((o) => o.label)).toEqual([
+      "2026년 국소",
+      "코드로 맞음",
+      "주소로만 맞음",
+    ]);
+  });
+
+  it("코드가 없는 후보는 코드 검색에 걸리지 않는다", () => {
+    expect(searchStations(coded, "없는코드")).toEqual([]);
+  });
+});

@@ -51,6 +51,8 @@ export function useScheduleRange(from: string, to: string, enabled = true) {
     marks: query.data?.marks ?? NO_MARKS,
     isAdmin,
     isLoading: query.isLoading,
+    /** 이 기간의 조회가 성공했다(이전 기간의 자리표시 데이터가 아니다) */
+    isLoaded: query.isSuccess && !query.isPlaceholderData,
     isTableMissing: isScheduleTableMissing(query.error),
     error: query.error,
     refresh,
