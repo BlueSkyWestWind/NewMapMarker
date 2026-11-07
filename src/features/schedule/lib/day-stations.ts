@@ -30,7 +30,7 @@ interface StationDraft {
   /** 처음 나온 위치(열 순서, 행 번호) */
   columnIndex: number;
   rowNo: number;
-  /** 이 국소를 맡은 열 번호(중복 없음) */
+  /** 이 국소를 맡은 열 번호(중복 없음, 발견 순서) */
   columnIndexes: Set<number>;
 }
 
@@ -60,24 +60,19 @@ export function buildDayStations(input: {
   const columnIndexById = new Map(teamColumns.map((column, index) => [column.id, index]));
 
   const dayCells = input.cells
-    .filter(
-      (cell) =>
-        cell.workDate === workDate &&
-        columnIndexById.has(cell.columnId) &&
-        cell.mainText.trim() !== "",
-    )
-    .sort(
-      (a, b) =>
-        a.rowNo - b.rowNo ||
-        (columnIndexById.get(a.columnId) ?? 0) - (columnIndexById.get(b.columnId) ?? 0),
-    );
+    .flatMap((cell) => {
+      const columnIndex = columnIndexById.get(cell.columnId);
+      if (cell.workDate !== workDate || columnIndex === undefined || cell.mainText.trim() === "") return [];
+      return [{ cell, columnIndex }];
+    })
+    .sort((a, b) => a.cell.rowNo - b.cell.rowNo || a.columnIndex - b.columnIndex);
 
   // 행 순서 → 열 순서로 훑어 처음 나온 위치를 기록한다.
+  // `columnIndexes`는 이 발견 순서를 그대로 지닌다(작업자·입회·신호수도 이 순서로 모은다).
   const drafts = new Map<string, StationDraft>();
-  for (const cell of dayCells) {
+  for (const { cell, columnIndex } of dayCells) {
     const site = cell.mainText.trim();
     const key = stationKey(site);
-    const columnIndex = columnIndexById.get(cell.columnId) ?? 0;
     const draft = drafts.get(key);
     if (draft) {
       draft.columnIndexes.add(columnIndex);
@@ -98,7 +93,7 @@ export function buildDayStations(input: {
       const leaders: string[] = [];
       const witnesses: string[] = [];
       const signalers: string[] = [];
-      for (const columnIndex of [...draft.columnIndexes].sort((a, b) => a - b)) {
+      for (const columnIndex of draft.columnIndexes) {
         pushUnique(leaders, [teamColumns[columnIndex].leaderLabel.trim()].filter((name) => name !== ""));
         pushUnique(witnesses, companionNames(columnIndex, "입회"));
         pushUnique(signalers, companionNames(columnIndex, "신호수"));

@@ -81,11 +81,46 @@ describe("buildDayStations", () => {
       cells: [
         cell(DATE, "c3", 0, "X국소"),
         cell(DATE, "c1", 4, "X국소"),
-        cell(DATE, "c1", 1, "Y국소"),
+        cell(DATE, "c1", 5, "Y국소"),
       ],
     });
-    // Y국소는 1팀(열 순서 1), X국소는 3팀(열 순서 3).
+    // X국소는 3팀 0행이 처음 나온 위치(열 순서 3)라 1팀 5행의 Y국소 뒤에 온다.
+    // 가장 앞 열(1팀 4행)로 세면 X국소가 Y국소 앞에 와서 이 순서가 깨진다.
     expect(stations.map((s) => s.site)).toEqual(["Y국소", "X국소"]);
+    // 작업자는 발견 순서(행 → 열)라 3팀장이 먼저다.
+    expect(stations[1].leaders).toEqual(["김삼", "박경훈"]);
+  });
+
+  it("입회자·신호수도 발견 순서(행 → 열)로 모은다", () => {
+    const stations = buildDayStations({
+      workDate: DATE,
+      columns: COLUMNS,
+      cells: [
+        cell(DATE, "c3", 0, "X국소"),
+        cell(DATE, "c1", 4, "X국소"),
+        cell(DATE, "c1", 6, "", "입회 : 가1"),
+        cell(DATE, "c1", 7, "", "신호수 : 나1"),
+        cell(DATE, "c3", 6, "", "입회 : 가3"),
+        cell(DATE, "c3", 7, "", "신호수 : 나3"),
+        cell(DATE, "c4", 1, "X국소"),
+        cell(DATE, "c4", 6, "", "입회 : 가4"),
+        cell(DATE, "c4", 7, "", "신호수 : 나4"),
+      ],
+    });
+    expect(stations).toHaveLength(1);
+    expect(stations[0].leaders).toEqual(["김삼", "이동화", "박경훈"]);
+    expect(stations[0].witnesses).toEqual(["가3", "가4", "가1"]);
+    expect(stations[0].signalers).toEqual(["나3", "나4", "나1"]);
+  });
+
+  it("국소 칸이 공백뿐이면 빈 칸으로 보고 행을 만들지 않는다", () => {
+    expect(
+      buildDayStations({
+        workDate: DATE,
+        columns: COLUMNS,
+        cells: [cell(DATE, "c1", 0, "   "), cell(DATE, "c3", 0, "\t")],
+      }),
+    ).toEqual([]);
   });
 
   it("비고 열은 제외하고 시험팀·실사&재하도급 열은 포함한다", () => {
