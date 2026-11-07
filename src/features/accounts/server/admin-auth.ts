@@ -40,13 +40,14 @@ export function preventSelfAction(
 }
 
 /**
- * 토큰으로 사용자 신원을 조회하고 관리자(app_admins) 테이블 등록 여부를 검증한다.
+ * 토큰으로 사용자 신원을 확인하고, 관리자 클라이언트로 app_admins 등록 여부를 검증한다.
  */
 export async function validateAdminUser(
   token: string,
-  supabase: SupabaseClient,
+  anonClient: SupabaseClient,
+  adminClient: SupabaseClient,
 ): Promise<{ ok: true; user: User } | { ok: false; status: number; error: string }> {
-  const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  const { data: authData, error: authError } = await anonClient.auth.getUser(token);
   if (authError || !authData.user) {
     return {
       ok: false,
@@ -55,7 +56,8 @@ export async function validateAdminUser(
     };
   }
 
-  const { data: adminRow, error: adminError } = await supabase
+  // app_admins는 RLS가 걸려있으므로 adminClient로 조회해야 안정적으로 판별된다.
+  const { data: adminRow, error: adminError } = await adminClient
     .from("app_admins")
     .select("user_id")
     .eq("user_id", authData.user.id)
@@ -90,13 +92,13 @@ export async function authenticateAdminRequest(req: Request): Promise<AdminAuthR
 
   try {
     const anonClient = getSupabaseServerAnonClient();
-    const userCheck = await validateAdminUser(token, anonClient);
+    const adminClient = getSupabaseAdminClient();
 
+    const userCheck = await validateAdminUser(token, anonClient, adminClient);
     if (!userCheck.ok) {
       return userCheck;
     }
 
-    const adminClient = getSupabaseAdminClient();
     return {
       ok: true,
       user: userCheck.user,

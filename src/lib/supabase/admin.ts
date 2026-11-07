@@ -15,8 +15,8 @@ export function getSupabaseAdminClient(): SupabaseClient {
     process.env.SUPABASE_URL ||
     "";
   const serviceRoleKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
     "";
 
   if (!url || !serviceRoleKey) {

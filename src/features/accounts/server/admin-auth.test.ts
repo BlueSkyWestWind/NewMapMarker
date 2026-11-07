@@ -57,13 +57,14 @@ describe("admin-auth 유틸리티", () => {
 
   describe("validateAdminUser", () => {
     it("getUser가 실패하면 401을 반환한다", async () => {
-      const mockSupabase = {
+      const mockAnon = {
         auth: {
           getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error("invalid") }),
         },
       } as unknown as Parameters<typeof validateAdminUser>[1];
+      const mockAdmin = {} as Parameters<typeof validateAdminUser>[2];
 
-      const result = await validateAdminUser("invalid-token", mockSupabase);
+      const result = await validateAdminUser("invalid-token", mockAnon, mockAdmin);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.status).toBe(401);
@@ -71,13 +72,16 @@ describe("admin-auth 유틸리티", () => {
     });
 
     it("관리자 테이블에 없으면 403을 반환한다", async () => {
-      const mockSupabase = {
+      const mockAnon = {
         auth: {
           getUser: vi.fn().mockResolvedValue({
             data: { user: { id: "user-normal", email: "user@test.com" } },
             error: null,
           }),
         },
+      } as unknown as Parameters<typeof validateAdminUser>[1];
+
+      const mockAdmin = {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
@@ -85,9 +89,9 @@ describe("admin-auth 유틸리티", () => {
             }),
           }),
         }),
-      } as unknown as Parameters<typeof validateAdminUser>[1];
+      } as unknown as Parameters<typeof validateAdminUser>[2];
 
-      const result = await validateAdminUser("valid-token", mockSupabase);
+      const result = await validateAdminUser("valid-token", mockAnon, mockAdmin);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.status).toBe(403);
@@ -95,13 +99,16 @@ describe("admin-auth 유틸리티", () => {
     });
 
     it("관리자 테이블에 있으면 ok와 사용자 정보를 반환한다", async () => {
-      const mockSupabase = {
+      const mockAnon = {
         auth: {
           getUser: vi.fn().mockResolvedValue({
             data: { user: { id: "user-admin", email: "admin@test.com" } },
             error: null,
           }),
         },
+      } as unknown as Parameters<typeof validateAdminUser>[1];
+
+      const mockAdmin = {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
@@ -109,9 +116,9 @@ describe("admin-auth 유틸리티", () => {
             }),
           }),
         }),
-      } as unknown as Parameters<typeof validateAdminUser>[1];
+      } as unknown as Parameters<typeof validateAdminUser>[2];
 
-      const result = await validateAdminUser("valid-token", mockSupabase);
+      const result = await validateAdminUser("valid-token", mockAnon, mockAdmin);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.user.id).toBe("user-admin");
