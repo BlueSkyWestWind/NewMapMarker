@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type { MapMode } from "@/features/map-marker/types/marker";
@@ -19,6 +20,7 @@ export function useShellNav() {
   const { isAuthenticated } = useAuthSession();
   // 인증 분기는 마운트 이후에만 한다. SSR 결과와 어긋나면 하이드레이션이 깨진다.
   const authed = hasMounted && isAuthenticated;
+  const { isAdmin } = useIsAdmin();
 
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
   const setMapSegment = useMapMarkerStore((state) => state.setMapSegment);
@@ -66,5 +68,5 @@ export function useShellNav() {
     [hasMounted, authed],
   );
 
-  return { authed, hasMounted, pickNav, pickSegment, isSegmentLocked };
+  return { authed, isAdmin, hasMounted, pickNav, pickSegment, isSegmentLocked };
 }

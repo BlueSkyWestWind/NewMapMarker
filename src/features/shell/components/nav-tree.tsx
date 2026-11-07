@@ -22,13 +22,13 @@ interface NavTreeProps {
 
 /** 펼친 메뉴 트리. 하위 메뉴를 누르면 옆에 상세 패널이 열린다. */
 export function NavTree({ activeNav, segment, segmentCounts }: NavTreeProps) {
-  const { authed, pickNav, pickSegment, isSegmentLocked } = useShellNav();
+  const { authed, isAdmin, pickNav, pickSegment, isSegmentLocked } = useShellNav();
   const setTreeOpen = useShellStore((state) => state.setTreeOpen);
   const panelStep = useShellStore((state) => state.panelStep);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<NavKey, boolean>>>({});
 
-  const nodes = filterNavTree(visibleNavItems(authed), query);
+  const nodes = filterNavTree(visibleNavItems(authed, isAdmin), query);
   const isSearching = query.trim().length > 0;
 
   return (

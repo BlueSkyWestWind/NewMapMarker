@@ -37,14 +37,14 @@ export function hasNavSegments(nav: NavKey): boolean {
   return segmentsOfNav(nav).length > 0;
 }
 
-export function mobileTabItems(isAuthenticated: boolean): NavItem[] {
-  return visibleNavItems(isAuthenticated).filter((item) =>
+export function mobileTabItems(isAuthenticated: boolean, isAdmin = false): NavItem[] {
+  return visibleNavItems(isAuthenticated, isAdmin).filter((item) =>
     MOBILE_TAB_KEYS.includes(item.key),
   );
 }
 
-export function mobileMoreItems(isAuthenticated: boolean): NavItem[] {
-  return visibleNavItems(isAuthenticated).filter(
+export function mobileMoreItems(isAuthenticated: boolean, isAdmin = false): NavItem[] {
+  return visibleNavItems(isAuthenticated, isAdmin).filter(
     (item) => !MOBILE_TAB_KEYS.includes(item.key),
   );
 }

@@ -30,13 +30,15 @@ export interface NavItem {
   auth: boolean;
   /** false면 「준비 중」 — 보이되 눌리지 않는다. */
   enabled: boolean;
+  /** true면 관리자에게만 보인다. */
+  adminOnly?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "대시보드", icon: LayoutDashboard, auth: false, enabled: true },
   { key: "map", label: "지도", icon: Map, auth: false, enabled: true },
   { key: "markers", label: "마커관리", icon: MapPin, auth: true, enabled: true },
-  { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: false },
+  { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: true, adminOnly: true },
   // 앱 전체가 로그인 벽(AuthGate) 안에 있어 CCTV도 로그인 후에만 열린다. 이 auth 플래그는 레일 노출 여부용이다.
   { key: "cctv", label: "CCTV", icon: Video, auth: false, enabled: true },
   { key: "barcode", label: "바코드/QR", icon: ScanBarcode, auth: true, enabled: true },
@@ -45,13 +47,18 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /** 비로그인 상태에서 볼 수 있는 메뉴인가. */
-export function isNavAccessible(key: NavKey, isAuthenticated: boolean): boolean {
+export function isNavAccessible(
+  key: NavKey,
+  isAuthenticated: boolean,
+  isAdmin = false,
+): boolean {
   const item = NAV_ITEMS.find((candidate) => candidate.key === key);
   if (!item) return false;
+  if (item.adminOnly && !(isAuthenticated && isAdmin)) return false;
   return isAuthenticated || !item.auth;
 }
 
 /** 로그인 상태에 맞는 메뉴 목록. 잠긴 항목은 렌더하지 않는다. */
-export function visibleNavItems(isAuthenticated: boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) => isAuthenticated || !item.auth);
+export function visibleNavItems(isAuthenticated: boolean, isAdmin = false): NavItem[] {
+  return NAV_ITEMS.filter((item) => isNavAccessible(item.key, isAuthenticated, isAdmin));
 }

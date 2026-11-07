@@ -1,4 +1,5 @@
 import { fetchAllRows } from "@/features/map-marker/api";
+import { fetchIsAppAdmin } from "@/features/map-marker/lib/admin";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 import { planSiteListRestore } from "@/features/site-lists/lib/site-list-view";
 import type {
@@ -20,18 +21,7 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-export async function fetchIsAppAdmin(
-  supabase: SupabaseBrowserClient,
-  userId: string,
-): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("app_admins")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw error;
-  return data !== null;
-}
+export { fetchIsAppAdmin };
 
 export async function fetchSiteListData(
   supabase: SupabaseBrowserClient,

@@ -54,7 +54,7 @@ interface MobileSheetProps extends PanelBodyProps {
  */
 export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: MobileSheetProps) {
   const { activeNav, segment } = bodyProps;
-  const { authed, pickNav, pickSegment, isSegmentLocked } = useShellNav();
+  const { authed, isAdmin, pickNav, pickSegment, isSegmentLocked } = useShellNav();
   const snap = useShellStore((state) => state.sheetSnap);
   const setSnap = useShellStore((state) => state.setSheetSnap);
   const panelStep = useShellStore((state) => state.panelStep);
@@ -121,7 +121,7 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
     : hasSegments && !isRoot
       ? SEGMENT_META[segment].label
       : navLabel;
-  const isMoreItem = mobileMoreItems(true).some((item) => item.key === activeNav);
+  const isMoreItem = mobileMoreItems(true, isAdmin).some((item) => item.key === activeNav);
   const hasBack = !isMoreOpen && ((hasSegments && !isRoot) || isMoreItem);
   const description =
     snap !== "peek" && isDetail && hasSegments && segment !== "converter" ? countSummary : "";
@@ -194,7 +194,7 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
       >
         {isMoreOpen ? (
           <div className="flex flex-col gap-0.5 p-2">
-            {mobileMoreItems(authed).map((item) => {
+            {mobileMoreItems(authed, isAdmin).map((item) => {
               const Icon = item.icon;
               return (
                 <button
@@ -268,7 +268,7 @@ interface MobileBottomNavProps {
 
 /** 모바일 하단 메뉴. 활성 탭을 다시 누르면 시트가 내려간다. */
 export function MobileBottomNav({ activeNav }: MobileBottomNavProps) {
-  const { authed, pickNav } = useShellNav();
+  const { authed, isAdmin, pickNav } = useShellNav();
   const snap = useShellStore((state) => state.sheetSnap);
   const setSnap = useShellStore((state) => state.setSheetSnap);
   const isMoreOpen = useShellStore((state) => state.isMoreOpen);
@@ -297,7 +297,7 @@ export function MobileBottomNav({ activeNav }: MobileBottomNavProps) {
   };
 
   const tabs: Array<{ key: MobileTabKey; label: string; icon: typeof Ellipsis }> = [
-    ...mobileTabItems(authed).map(({ key, label, icon }) => ({ key, label, icon })),
+    ...mobileTabItems(authed, isAdmin).map(({ key, label, icon }) => ({ key, label, icon })),
     { key: "more", label: "더보기", icon: Ellipsis },
   ];
 

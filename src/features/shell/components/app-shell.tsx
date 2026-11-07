@@ -7,6 +7,7 @@ import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-st
 import { useHasMounted } from "@/hooks/use-has-mounted";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
 import { NavRail } from "@/features/shell/components/nav-rail";
 import { TopSearchBar } from "@/features/shell/components/top-search-bar";
 import { WorkPanel } from "@/features/shell/components/work-panel";
@@ -91,15 +92,17 @@ export function AppShell({
   const isMobile = useIsMobile();
   const { isAuthenticated } = useAuthSession();
   const authed = hasMounted && isAuthenticated;
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
 
   // 로그아웃했는데 보고 있던 메뉴가 숨김 대상이면 빈 화면이 남는다.
   // persist로 복원된 값도 여기서 함께 걸러진다.
   useEffect(() => {
-    if (!hasMounted) return;
-    if (!isNavAccessible(activeNav, authed)) {
+    // 관리자 판별 중에는 미룬다. 저장된 activeNav가 groups여도 판별 전에 쫓아내지 않는다.
+    if (!hasMounted || isAdminLoading) return;
+    if (!isNavAccessible(activeNav, authed, isAdmin)) {
       setActiveNav("dashboard");
     }
-  }, [hasMounted, authed, activeNav, setActiveNav]);
+  }, [hasMounted, isAdminLoading, authed, isAdmin, activeNav, setActiveNav]);
 
   const countLabel = match(mode)
     .with("equipment", () => `장비 ${equipmentCount}건`)

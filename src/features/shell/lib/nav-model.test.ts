@@ -24,11 +24,19 @@ describe("segmentsOfNav", () => {
 
 describe("모바일 메뉴", () => {
   it("로그인하면 탭 네 개와 더보기 항목 네 개로 모든 메뉴가 나뉜다", () => {
-    const tabs = mobileTabItems(true).map((item) => item.key);
-    const more = mobileMoreItems(true).map((item) => item.key);
+    const tabs = mobileTabItems(true, true).map((item) => item.key);
+    const more = mobileMoreItems(true, true).map((item) => item.key);
     expect(tabs).toEqual(["dashboard", "map", "markers", "cctv"]);
     expect(more).toEqual(["groups", "barcode", "backup", "settings"]);
     expect([...tabs, ...more].sort()).toEqual(NAV_ITEMS.map((item) => item.key).sort());
+  });
+
+  it("관리자가 아니면 더보기에 그룹관리가 없다", () => {
+    expect(mobileMoreItems(true, false).map((item) => item.key)).toEqual([
+      "barcode",
+      "backup",
+      "settings",
+    ]);
   });
 
   it("비로그인이면 잠긴 메뉴를 숨긴다", () => {

@@ -16,7 +16,7 @@ interface NavRailProps {
 
 /** 아이콘 레일. 메뉴 이름은 툴팁과 패널 제목으로 보여 준다. */
 export function NavRail({ activeNav }: NavRailProps) {
-  const { authed, pickNav } = useShellNav();
+  const { authed, isAdmin, pickNav } = useShellNav();
   const isSidebarOpen = useMapMarkerStore((state) => state.isSidebarOpen);
   const setTreeOpen = useShellStore((state) => state.setTreeOpen);
 
@@ -39,7 +39,7 @@ export function NavRail({ activeNav }: NavRailProps) {
       </button>
 
       <ul className="min-h-0 flex-1 overflow-y-auto">
-        {visibleNavItems(authed).map((item) => {
+        {visibleNavItems(authed, isAdmin).map((item) => {
           const Icon = item.icon;
           const isActive = activeNav === item.key && isSidebarOpen;
           return (
