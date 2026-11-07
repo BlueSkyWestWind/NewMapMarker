@@ -116,4 +116,25 @@ describe("planBulkEdit", () => {
     expect(draft.markerEdits.a).toEqual({ memo: "m", color: "#f43f5e" });
     expect(base.markerEdits.a).toEqual({ memo: "m" });
   });
+
+  it("태그 추가를 두 번 반영하면 쌓인다", () => {
+    const m = marker({ id: "a", tags: ["x"] });
+    const first = planBulkEdit(emptyDraft(), [m], [], { addTags: ["a"] }).draft;
+    const second = planBulkEdit(first, [m], [], { addTags: ["b"] }).draft;
+    expect(second.markerEdits.a).toEqual({ tags: ["x", "a", "b"] });
+  });
+
+  it("태그 추가 뒤 제거도 쌓인다", () => {
+    const m = marker({ id: "a", tags: ["x"] });
+    const first = planBulkEdit(emptyDraft(), [m], [], { addTags: ["a"] }).draft;
+    const second = planBulkEdit(first, [m], [], { removeTags: ["x"] }).draft;
+    expect(second.markerEdits.a).toEqual({ tags: ["a"] });
+  });
+
+  it("태그가 원래 목록으로 돌아오면 변경분에서 빠진다", () => {
+    const m = marker({ id: "a", tags: ["x"] });
+    const first = planBulkEdit(emptyDraft(), [m], [], { addTags: ["a"] }).draft;
+    const second = planBulkEdit(first, [m], [], { removeTags: ["a"] }).draft;
+    expect(second.markerEdits).toEqual({});
+  });
 });

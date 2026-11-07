@@ -48,7 +48,9 @@ export function planBulkEdit(
     if (values.facilityTeam !== undefined) patch.facilityTeam = values.facilityTeam;
     if (values.color !== undefined) patch.color = values.color;
     if (add.length > 0 || remove.length > 0) {
-      patch.tags = nextTags(marker.tags ?? [], add, remove);
+      // 이미 쌓인 태그 변경분 위에 이어 쌓는다. 원본과의 비교는 setMarkerEdit이 한다.
+      const base = next.markerEdits[marker.id]?.tags ?? marker.tags ?? [];
+      patch.tags = nextTags(base, add, remove);
     }
     if (Object.keys(patch).length > 0) next = setMarkerEdit(next, marker, patch);
 
