@@ -2,10 +2,13 @@ import {
   GROUP_ROLE_REPRESENTATIVE,
   GROUP_ROLE_STANDALONE,
   GROUP_ROLE_SUB,
+  buildSplitGroupKey,
+  getLotAddressKey,
 } from "@/features/map-marker/lib/address-group";
 import type { GroupRole } from "@/features/map-marker/lib/address-group";
 import {
   getAddressGroupMates,
+  getMarkerEffectiveKey,
   pickNextAddressRepresentative,
   storedGroupRoleOf,
 } from "@/features/map-marker/lib/marker-detail-rows";
@@ -175,4 +178,137 @@ export function planAssignGroup(
     });
   }
   return { ops, rep };
+}
+
+/** 마커의 번지 키(도로명 → 지번 순). 주소가 없으면 빈 문자열. */
+function lotKeyOf(marker: EquipmentMarker): string {
+  return getLotAddressKey(marker.roadAddress || marker.jibunAddress || "");
+}
+
+/**
+ * 라벨(동/지하/기타) 국소들을 번지 그룹에서 빼내 독립 그룹으로 분리하는 계획.
+ * 상세 화면의 separateLabelGroup과 같은 순서다: 남은 번지 그룹 재승격을 먼저,
+ * 분리 그룹을 나중에(뒤 단계가 실패해도 남은 SUB가 옛 대표를 가리키는 채로 남지 않게).
+ * targets가 비어 있으면 아무것도 하지 않는다(newKey는 빈 문자열).
+ */
+export function planSeparate(
+  targets: EquipmentMarker[],
+  remaining: EquipmentMarker[],
+  label: string,
+  repId?: string,
+): { ops: MarkerOp[]; newKey: string } {
+  if (targets.length === 0) return { ops: [], newKey: "" };
+  const newKey = buildSplitGroupKey(
+    lotKeyOf(targets[0]) || "lot",
+    label,
+    targets[0].id,
+  );
+  return {
+    ops: [
+      ...planAssignGroup(remaining, null).ops,
+      ...planAssignGroup(targets, newKey, repId).ops,
+    ],
+    newKey,
+  };
+}
+
+/**
+ * 분리 그룹(group_key)을 번지 그룹으로 되돌리는 계획(상세 화면의 mergeSplitGroupToLot).
+ * group_key를 지우고, 번지 전체(되돌린 멤버 + group_key 없는 같은 번지 멤버)를 재정렬한다.
+ */
+export function planMergeSplitToLot(
+  splitMembers: EquipmentMarker[],
+  all: EquipmentMarker[],
+): { ops: MarkerOp[] } {
+  if (splitMembers.length === 0) return { ops: [] };
+
+  const lotKey = lotKeyOf(splitMembers[0]);
+  const revertIds = new Set(splitMembers.map((m) => m.id));
+  const lotMembers = all.filter((m) => {
+    if (revertIds.has(m.id)) return true;
+    if ((m.groupKey ?? "").trim()) return false;
+    return lotKey !== "" && lotKeyOf(m) === lotKey;
+  });
+
+  return {
+    ops: [
+      { type: "update", ids: [...revertIds], patch: { group_key: null } },
+      ...planAssignGroup(lotMembers, null).ops,
+    ],
+  };
+}
+
+/**
+ * 합쳐져 나간 마커들이 떠난 옛 묶음의 나머지(단독 제외)를, 묶음별로 같은 group_key로
+ * 대표를 다시 정하는 연산으로 만든다.
+ */
+function planLeftovers(
+  movedIds: Set<string>,
+  anchors: EquipmentMarker[],
+  all: EquipmentMarker[],
+): MarkerOp[] {
+  const byKey = new Map<string, EquipmentMarker[]>();
+  for (const anchor of anchors) {
+    const key = getMarkerEffectiveKey(anchor);
+    if (!key || byKey.has(key)) continue;
+    byKey.set(
+      key,
+      getAddressGroupMates(anchor, all).filter(
+        (m) =>
+          !movedIds.has(m.id) && storedGroupRoleOf(m) !== GROUP_ROLE_STANDALONE,
+      ),
+    );
+  }
+  return [...byKey.values()].flatMap(
+    (left) =>
+      planAssignGroup(left, left[0]?.groupKey?.trim() || null).ops,
+  );
+}
+
+/**
+ * 여러 묶음을 하나로 합치는 계획. 대표 1명(지정 → 기존 대표 → 최초 등록), 나머지는 SUB.
+ * 새 group_key는 `번지#합침#대표id`. 합쳐져 나가고 남은 옛 묶음은 같은 group_key로
+ * 대표를 다시 정한다(먼저 수행해 남은 SUB가 옛 대표를 가리키는 채로 남지 않게).
+ */
+export function planMergeGroups(
+  groups: EquipmentMarker[][],
+  all: EquipmentMarker[],
+  preferredRepId?: string,
+): { ops: MarkerOp[]; groupKey: string } {
+  const members = [...new Map(groups.flat().map((m) => [m.id, m])).values()];
+  const rep = planAssignGroup(members, null, preferredRepId).rep;
+  if (!rep) return { ops: [], groupKey: "" };
+
+  const groupKey = buildSplitGroupKey(lotKeyOf(rep) || "lot", "합침", rep.id);
+  const movedIds = new Set(members.map((m) => m.id));
+  return {
+    ops: [
+      ...planLeftovers(movedIds, members, all),
+      ...planAssignGroup(members, groupKey, preferredRepId).ops,
+    ],
+    groupKey,
+  };
+}
+
+/**
+ * 마커 삭제 계획. 대표가 지워지는 묶음은 남은 마커(단독 제외)로 대표를 다시 정하고
+ * (1개면 단독), 그 연산을 삭제보다 먼저 둔다. DB는 parent_marker_id가
+ * ON DELETE SET NULL이라 재지정 없이 지우면 남은 SUB가 대표 없이 남는다.
+ */
+export function planDelete(
+  targets: EquipmentMarker[],
+  all: EquipmentMarker[],
+): { ops: MarkerOp[] } {
+  if (targets.length === 0) return { ops: [] };
+
+  const deleteIds = new Set(targets.map((m) => m.id));
+  const deletedReps = targets.filter(
+    (m) => storedGroupRoleOf(m) === GROUP_ROLE_REPRESENTATIVE,
+  );
+  return {
+    ops: [
+      ...planLeftovers(deleteIds, deletedReps, all),
+      { type: "delete", ids: [...deleteIds] },
+    ],
+  };
 }

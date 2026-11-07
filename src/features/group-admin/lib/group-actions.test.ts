@@ -3,7 +3,14 @@ import type { EquipmentMarker } from "@/features/map-marker/types/marker";
 import type { GroupRole } from "@/features/map-marker/lib/address-group";
 import { storedGroupRoleOf } from "@/features/map-marker/lib/marker-detail-rows";
 import { applyOpsToMarkers } from "./group-ops";
-import { planAssignGroup, planRoleChange } from "./group-actions";
+import {
+  planAssignGroup,
+  planDelete,
+  planMergeGroups,
+  planMergeSplitToLot,
+  planRoleChange,
+  planSeparate,
+} from "./group-actions";
 
 function marker(
   overrides: Partial<EquipmentMarker> & { id: string },
@@ -310,5 +317,253 @@ describe("planAssignGroup", () => {
 
   it("빈 배열이면 연산이 없다", () => {
     expect(planAssignGroup([], "g1")).toEqual({ ops: [], rep: null });
+  });
+});
+
+/** 번지·그룹키·역할·생성일을 명시한 마커. 역할은 항상 명시한다. */
+function lotMember(
+  id: string,
+  groupRole: "대표" | "단독" | "SUB",
+  opts: {
+    parent?: string;
+    groupKey?: string;
+    addr?: string;
+    createdAt?: string;
+  } = {},
+): EquipmentMarker {
+  return marker({
+    id,
+    name: id,
+    groupRole,
+    parentMarkerId: opts.parent,
+    groupKey: opts.groupKey,
+    roadAddress: opts.addr ?? "서울특별시 강남구 역삼동 100-1",
+    createdAt: opts.createdAt ?? id,
+  });
+}
+
+describe("planSeparate", () => {
+  const lot = [
+    lotMember("r", "대표"),
+    lotMember("a", "SUB", { parent: "r" }),
+    lotMember("b", "SUB", { parent: "r" }),
+    lotMember("c", "SUB", { parent: "r" }),
+  ];
+
+  it("새 키는 lot#라벨#시드 형식이고, 남은 묶음 연산이 분리 묶음 연산보다 앞선다", () => {
+    const targets = [lot[0], lot[1]];
+    const remaining = [lot[2], lot[3]];
+    const { ops, newKey } = planSeparate(targets, remaining, "지하", "a");
+    expect(newKey).toMatch(/^.+#지하#r$/);
+    expect(ops).toEqual([
+      ...planAssignGroup(remaining, null).ops,
+      ...planAssignGroup(targets, newKey, "a").ops,
+    ]);
+    expect(ops[0]).toMatchObject({ ids: ["b"], patch: { group_key: null } });
+    const after = applyOpsToMarkers(lot, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after.find((m) => m.id === "a")?.groupRole).toBe("대표");
+    expect(after.find((m) => m.id === "r")?.parentMarkerId).toBe("a");
+    expect(after.find((m) => m.id === "r")?.groupKey).toBe(newKey);
+    expect(after.find((m) => m.id === "c")?.parentMarkerId).toBe("b");
+  });
+
+  it("남은 것이 1개면 단독", () => {
+    const { ops, newKey } = planSeparate(
+      [lot[0], lot[1], lot[2]],
+      [lot[3]],
+      "지하",
+    );
+    const after = applyOpsToMarkers(lot, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after.find((m) => m.id === "c")?.groupRole).toBe("단독");
+    expect(newKey).toContain("#지하#");
+  });
+
+  it("남은 마커가 없으면 분리 묶음 연산만", () => {
+    const { ops, newKey } = planSeparate(lot, [], "동");
+    expect(ops).toEqual(planAssignGroup(lot, newKey).ops);
+    expect(orphanSubs(applyOpsToMarkers(lot, ops))).toEqual([]);
+  });
+
+  it("주소가 없으면 lot 키를 쓴다", () => {
+    const noAddr = [marker({ id: "x", groupRole: "대표" })];
+    expect(planSeparate(noAddr, [], "동").newKey).toBe("lot#동#x");
+  });
+});
+
+describe("planMergeSplitToLot", () => {
+  it("group_key를 null로 되돌리고 번지 전체를 한 묶음으로 만든다", () => {
+    const all = [
+      lotMember("s1", "대표", { groupKey: "k#지하#s1" }),
+      lotMember("s2", "SUB", { parent: "s1", groupKey: "k#지하#s1" }),
+      lotMember("r", "대표", { createdAt: "0" }),
+      lotMember("a", "SUB", { parent: "r", createdAt: "1" }),
+      lotMember("o", "대표", { groupKey: "다른#분리#o" }),
+      lotMember("z", "대표", { addr: "부산광역시 해운대구 우동 9-9" }),
+    ];
+    const { ops } = planMergeSplitToLot([all[0], all[1]], all);
+    expect(ops[0]).toEqual({
+      type: "update",
+      ids: ["s1", "s2"],
+      patch: { group_key: null },
+    });
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    const by = (id: string) => after.find((m) => m.id === id)!;
+    expect(by("s1").groupKey).toBeNull();
+    expect(by("r").groupRole).toBe("대표");
+    expect(by("s1").parentMarkerId).toBe("r");
+    expect(by("s2").parentMarkerId).toBe("r");
+    expect(by("a").parentMarkerId).toBe("r");
+    // 다른 분리 묶음·다른 번지는 건드리지 않는다.
+    expect(by("o").groupKey).toBe("다른#분리#o");
+    expect(by("z").groupRole).toBe("대표");
+    expect(by("z").parentMarkerId).toBeUndefined();
+  });
+
+  it("번지를 알 수 없으면 되돌린 멤버만 정리한다", () => {
+    const all = [
+      marker({ id: "a", groupKey: "k", groupRole: "대표" }),
+      marker({ id: "b", groupKey: "k", groupRole: "SUB", parentMarkerId: "a" }),
+      marker({ id: "c", groupRole: "대표" }),
+    ];
+    const { ops } = planMergeSplitToLot([all[0], all[1]], all);
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after.find((m) => m.id === "c")?.parentMarkerId).toBeUndefined();
+  });
+
+  it("분리 멤버가 없으면 연산이 없다", () => {
+    expect(planMergeSplitToLot([], [])).toEqual({ ops: [] });
+  });
+});
+
+describe("planMergeGroups", () => {
+  const all = [
+    lotMember("r1", "대표", { groupKey: "g1", createdAt: "1" }),
+    lotMember("a1", "SUB", { parent: "r1", groupKey: "g1", createdAt: "2" }),
+    lotMember("r2", "대표", { groupKey: "g2", createdAt: "3" }),
+    lotMember("a2", "SUB", { parent: "r2", groupKey: "g2", createdAt: "4" }),
+  ];
+
+  it("서로 다른 두 묶음 → 한 대표 + 나머지 SUB, 같은 새 키", () => {
+    const { ops, groupKey } = planMergeGroups(
+      [
+        [all[0], all[1]],
+        [all[2], all[3]],
+      ],
+      all,
+    );
+    expect(groupKey).toMatch(/#합침#r1$/);
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(
+      after.filter((m) => m.groupRole === "대표").map((m) => m.id),
+    ).toEqual(["r1"]);
+    expect(after.every((m) => m.groupKey === groupKey)).toBe(true);
+    expect(
+      after
+        .filter((m) => m.id !== "r1")
+        .every((m) => m.parentMarkerId === "r1"),
+    ).toBe(true);
+  });
+
+  it("preferredRepId가 대표가 되고 키도 그 마커로 만든다", () => {
+    const { ops, groupKey } = planMergeGroups(
+      [
+        [all[0], all[1]],
+        [all[2], all[3]],
+      ],
+      all,
+      "a2",
+    );
+    expect(groupKey).toMatch(/#합침#a2$/);
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after.find((m) => m.id === "a2")?.groupRole).toBe("대표");
+    expect(after.find((m) => m.id === "r1")?.parentMarkerId).toBe("a2");
+  });
+
+  it("묶음 일부만 합치면 남은 옛 묶음은 같은 키로 대표를 다시 정한다", () => {
+    const { ops } = planMergeGroups([[all[0]], [all[2]]], all);
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    // r2가 합쳐져 나갔으므로 a2가 g2의 새 대표(단독)가 된다.
+    const a2 = after.find((m) => m.id === "a2")!;
+    expect(a2.groupKey).toBe("g2");
+    expect(a2.groupRole).toBe("단독");
+    expect(a2.parentMarkerId).toBeNull();
+  });
+
+  it("빈 입력이면 연산이 없다", () => {
+    expect(planMergeGroups([], all).ops).toEqual([]);
+  });
+});
+
+describe("planDelete", () => {
+  const group = () => [
+    lotMember("r", "대표", { groupKey: "g", createdAt: "1" }),
+    lotMember("a", "SUB", { parent: "r", groupKey: "g", createdAt: "2" }),
+    lotMember("b", "SUB", { parent: "r", groupKey: "g", createdAt: "3" }),
+  ];
+
+  it("① SUB 삭제 → 연산은 삭제만", () => {
+    const all = group();
+    const { ops } = planDelete([all[1]], all);
+    expect(ops).toEqual([{ type: "delete", ids: ["a"] }]);
+    expect(orphanSubs(applyOpsToMarkers(all, ops))).toEqual([]);
+  });
+
+  it("② 대표 삭제, 남은 2개 이상 → 새 대표", () => {
+    const all = group();
+    const { ops } = planDelete([all[0]], all);
+    expect(ops[ops.length - 1]).toEqual({ type: "delete", ids: ["r"] });
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after.map((m) => m.id)).toEqual(["a", "b"]);
+    expect(after.find((m) => m.id === "a")?.groupRole).toBe("대표");
+    expect(after.find((m) => m.id === "b")?.parentMarkerId).toBe("a");
+  });
+
+  it("③ 대표 삭제, 남은 1개 → 단독", () => {
+    const all = group().slice(0, 2);
+    const { ops } = planDelete([all[0]], all);
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ groupRole: "단독", parentMarkerId: null });
+  });
+
+  it("④ 묶음 전체 삭제 → 삭제만", () => {
+    const all = group();
+    const { ops } = planDelete(all, all);
+    expect(ops).toEqual([{ type: "delete", ids: ["r", "a", "b"] }]);
+    expect(applyOpsToMarkers(all, ops)).toEqual([]);
+  });
+
+  it("⑤ 서로 다른 묶음의 마커를 함께 삭제", () => {
+    const other = [
+      lotMember("R", "대표", { groupKey: "h", createdAt: "1" }),
+      lotMember("A", "SUB", { parent: "R", groupKey: "h", createdAt: "2" }),
+      lotMember("B", "SUB", { parent: "R", groupKey: "h", createdAt: "3" }),
+    ];
+    const all = [...group(), ...other];
+    const { ops } = planDelete([all[0], other[0]], all);
+    const after = applyOpsToMarkers(all, ops);
+    expect(orphanSubs(after)).toEqual([]);
+    expect(
+      after.filter((m) => m.groupRole === "대표").map((m) => m.id),
+    ).toEqual(["a", "A"]);
+  });
+
+  it("단독 마커 삭제는 다른 마커를 건드리지 않는다", () => {
+    const all = [...group(), lotMember("s", "단독", { groupKey: "g" })];
+    const { ops } = planDelete([all[3]], all);
+    expect(ops).toEqual([{ type: "delete", ids: ["s"] }]);
+  });
+
+  it("대상이 없으면 연산이 없다", () => {
+    expect(planDelete([], group())).toEqual({ ops: [] });
   });
 });
