@@ -100,7 +100,20 @@ export function AppShell({
   const authed = hasMounted && isAuthenticated;
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
 
-  // 로그아웃했는데 보고 있던 메뉴가 숨김 대상이면 빈 화면이 남는다.
+  // 첫 화면 마운트 후 유휴 시간에 주요 메뉴 청크를 미리 받아 두어 첫 메뉴 전환 지연을 줄인다.
+  useEffect(() => {
+    if (!hasMounted) return;
+    const timer = window.setTimeout(() => {
+      void import("@/features/dashboard/components/dashboard-panel");
+      void import("@/features/schedule/components/schedule-view");
+      void import("@/features/site-lists/components/site-lists-panel");
+      void import("@/features/group-admin/components/group-panel");
+      void import("@/features/cctv/components/cctv-panel");
+      void import("@/features/shell/components/panels/backup-panel");
+      void import("@/features/shell/components/panels/settings-panel");
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [hasMounted]);
   // persist로 복원된 값도 여기서 함께 걸러진다.
   useEffect(() => {
     // 관리자 판별 중에는 미룬다. 저장된 activeNav가 groups여도 판별 전에 쫓아내지 않는다.

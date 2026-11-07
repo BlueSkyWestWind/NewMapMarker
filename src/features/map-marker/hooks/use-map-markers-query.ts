@@ -38,6 +38,7 @@ export function useMapMarkersQuery() {
       return fetchMapMarkers(supabase);
     },
     enabled: !!supabase && !!userId,
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }

@@ -48,12 +48,16 @@ export function MarkersListPanel({
   const isLocationMode = mode === "location";
 
   const filteredMarkers = useMemo(() => {
+    const text = markerListFilter.trim().toLowerCase();
+    if (!text && !isLocationMode) {
+      return [];
+    }
+
     const byDropdown = markers.filter((marker) =>
       markerPassesFilters(marker, mode, filters),
     );
-    const text = markerListFilter.trim().toLowerCase();
     if (!text) {
-      return isLocationMode ? byDropdown : [];
+      return byDropdown;
     }
 
     return byDropdown.filter((marker) => {
@@ -69,11 +73,13 @@ export function MarkersListPanel({
     });
   }, [markers, mode, filters, markerListFilter, isLocationMode]);
 
-  const stats = getMarkerVisibilityStats(markers, mode, filters);
-  const countLabel =
-    stats.visible === stats.total
+  const countLabel = useMemo(() => {
+    if (!isLocationMode) return "";
+    const stats = getMarkerVisibilityStats(markers, mode, filters);
+    return stats.visible === stats.total
       ? String(stats.total)
       : `${stats.visible} / ${stats.total}`;
+  }, [isLocationMode, markers, mode, filters]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">

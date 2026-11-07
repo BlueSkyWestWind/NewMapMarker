@@ -231,7 +231,15 @@ export function mergeFilterState(
   options: ReturnType<typeof collectFilterOptions>,
   previousOptions?: ReturnType<typeof collectFilterOptions>,
 ): MarkerFilterState {
-  if (!hasAnyFilterSelection(current)) {
+  const isInitialSync =
+    !previousOptions ||
+    (previousOptions.years.length === 0 &&
+      previousOptions.businesses.length === 0 &&
+      previousOptions.statuses.length === 0 &&
+      previousOptions.colors.length === 0 &&
+      previousOptions.tags.length === 0);
+
+  if (isInitialSync && !hasAnyFilterSelection(current)) {
     return createDefaultFilterState(options);
   }
 
@@ -240,13 +248,18 @@ export function mergeFilterState(
     allValues: string[],
     prevValues?: string[],
   ) => {
+    // 사용자가 '전체 해제'로 비운 차원은 다시 전체 선택으로 덮어쓰지 않는다.
+    if (selected.size === 0) {
+      return new Set<string>();
+    }
+
     const retained = allValues.filter((value) => selected.has(value));
     if (retained.length === 0) {
       return new Set(allValues);
     }
 
     const merged = new Set(retained);
-    if (prevValues) {
+    if (prevValues && prevValues.length > 0) {
       for (const value of allValues) {
         if (!prevValues.includes(value)) {
           merged.add(value);

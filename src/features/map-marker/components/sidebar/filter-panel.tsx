@@ -76,10 +76,10 @@ function FilterGroup({
             </button>
             <button
               type="button"
-              className="flex-1 rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-400 hover:bg-slate-700"
+              className="flex-1 rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-700"
               onClick={() => onSetAll([])}
             >
-              해제
+              전체 해제
             </button>
           </div>
           <DropdownMenuSeparator className="bg-slate-700" />
@@ -123,7 +123,7 @@ export function FilterPanel({ mode, filterOptions }: FilterPanelProps) {
             onSetAll={(values) => selectAllFilterValues('year', values)}
           />
           <FilterGroup
-            title="상태"
+            title="미시설/시설/개통"
             values={filterOptions.statuses}
             selected={filters.selectedStatuses}
             onToggle={(value) => toggleFilterValue('status', value)}

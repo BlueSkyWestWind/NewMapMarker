@@ -25,6 +25,8 @@ export function useSiteLists() {
     queryKey: [...SITE_LISTS_QUERY_KEY, userId],
     queryFn: () => fetchSiteListData(supabase!, userId!),
     enabled: Boolean(supabase && userId),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
     retry: false,
   });
 

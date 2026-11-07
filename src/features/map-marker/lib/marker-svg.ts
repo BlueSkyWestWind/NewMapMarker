@@ -152,10 +152,16 @@ export function getMarkerColorLabel(colorHex: string, mode: MapMode) {
   return LEGACY_COLOR_NAMES[normalized] ?? colorHex;
 }
 
+const markerSvgCache = new Map<string, string>();
+
 export function getMarkerSvg(
   colorHex: string,
   innerShape: "star" | "square" | "circle" = "circle",
 ) {
+  const cacheKey = `${colorHex}|${innerShape}`;
+  const cached = markerSvgCache.get(cacheKey);
+  if (cached) return cached;
+
   const theme = getMarkerGradientTheme(colorHex);
   const gradId = `grad-${colorHex.replace("#", "")}`;
   const isWhitePin = colorHex.toLowerCase() === "#ffffff";
@@ -172,7 +178,9 @@ export function getMarkerSvg(
   <path d="${MARKER_PIN_OUTER_PATH}" fill="url(#${gradId})" stroke="${outline}" stroke-width="1.5"/>
   ${getMarkerInnerShape(innerShape, innerFill)}
 </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+  const encoded = `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+  markerSvgCache.set(cacheKey, encoded);
+  return encoded;
 }
 
 /**
@@ -180,6 +188,10 @@ export function getMarkerSvg(
  * 그라디언트 ID가 겹치면 다른 핀의 색이 보이므로 색 조합으로 만든다.
  */
 export function getSiteListMarkerSvg(colors: string[], extraCount: number) {
+  const cacheKey = `sitelist|${colors.join(",")}|${extraCount}`;
+  const cached = markerSvgCache.get(cacheKey);
+  if (cached) return cached;
+
   const gradId = `list-${colors.map((color) => color.replace("#", "")).join("-")}`;
   const stops = colors
     .flatMap((color, index) => [
@@ -199,7 +211,9 @@ export function getSiteListMarkerSvg(colors: string[], extraCount: number) {
   <path d="${MARKER_PIN_OUTER_PATH}" fill="url(#${gradId})" stroke="#ffffff" stroke-width="1.5"/>
   ${center}
 </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+  const encoded = `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+  markerSvgCache.set(cacheKey, encoded);
+  return encoded;
 }
 
 /** 캡처용 작은 원형 포인트 (핀 마커 대신 사용) */
@@ -208,6 +222,10 @@ export const CAPTURE_DOT_SIZE = 12;
 export const CAPTURE_DOT_COLOR = "#ef4444";
 
 export function getCaptureDotSvg(colorHex: string = CAPTURE_DOT_COLOR) {
+  const cacheKey = `capturedot|${colorHex}`;
+  const cached = markerSvgCache.get(cacheKey);
+  if (cached) return cached;
+
   const size = CAPTURE_DOT_SIZE;
   const center = size / 2;
   const radius = center - 1.5;
@@ -215,7 +233,9 @@ export function getCaptureDotSvg(colorHex: string = CAPTURE_DOT_COLOR) {
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
   <circle cx="${center}" cy="${center}" r="${radius}" fill="${colorHex}" stroke="#ffffff" stroke-width="1.5"/>
 </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+  const encoded = `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+  markerSvgCache.set(cacheKey, encoded);
+  return encoded;
 }
 
 export function getMarkerImageUri(

@@ -206,6 +206,32 @@ describe("연도 필터 기본값 (올해 + 미지정)", () => {
     const merged = mergeFilterState(current, options(["2026", "2025"]));
     expect([...merged.selectedYears]).toEqual(["2025"]);
   });
+
+  it("사용자가 특정 필터를 전체 해제(빈 집합)하면 병합 후에도 다시 전체 선택으로 덮어쓰지 않는다", () => {
+    const current: MarkerFilterState = {
+      ...emptyFilters(),
+      selectedYears: new Set(["2026"]),
+      selectedBusinesses: new Set(), // 전체 해제 상태
+      selectedStatuses: new Set(["미시설"]),
+      selectedColors: new Set(["#10b981"]),
+      selectedTags: new Set(), // 전체 해제 상태
+    };
+    const opts = options(["2026", "2025"]);
+    const merged = mergeFilterState(current, opts, opts);
+    expect(merged.selectedBusinesses.size).toBe(0);
+    expect(merged.selectedTags.size).toBe(0);
+    expect([...merged.selectedYears]).toEqual(["2026"]);
+  });
+
+  it("초기화 이후 모든 필터를 전체 해제해도 기본값으로 되돌리지 않는다", () => {
+    const opts = options(["2026", "2025"]);
+    const merged = mergeFilterState(emptyFilters(), opts, opts);
+    expect(merged.selectedYears.size).toBe(0);
+    expect(merged.selectedBusinesses.size).toBe(0);
+    expect(merged.selectedStatuses.size).toBe(0);
+    expect(merged.selectedColors.size).toBe(0);
+    expect(merged.selectedTags.size).toBe(0);
+  });
 });
 
 describe("summarizeFilterSelection", () => {

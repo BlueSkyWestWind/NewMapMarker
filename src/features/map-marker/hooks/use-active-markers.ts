@@ -55,6 +55,7 @@ export function useActiveMarkers() {
     colors: [],
     tags: [],
   });
+  const hasInitializedFiltersRef = useRef(false);
   const previousModeRef = useRef(mode);
 
   // 목록 파생은 `useMarkerList`가 단독으로 맡는다. 여기서는 그 결과에 필터 부수효과를 얹는다.
@@ -63,6 +64,11 @@ export function useActiveMarkers() {
   const filterOptions = useMemo(
     () => collectFilterOptions(markers, mode),
     [markers, mode],
+  );
+
+  const defaultFilters = useMemo(
+    () => createDefaultFilterState(filterOptions),
+    [filterOptions],
   );
 
   const invalidCoordinateCount = useMemo(
@@ -93,12 +99,20 @@ export function useActiveMarkers() {
     };
 
     if (markers.length === 0) {
-      setFilters(emptyFilterState);
+      hasInitializedFiltersRef.current = false;
+      if (shouldUpdateFilters(filters, emptyFilterState)) {
+        setFilters(emptyFilterState);
+      }
       return;
     }
 
-    setFilters(createDefaultFilterState(filterOptions));
-  }, [mode, markers.length, filterOptions, setFilters]);
+    hasInitializedFiltersRef.current = true;
+    prevFilterOptionsRef.current = filterOptions;
+    if (shouldUpdateFilters(filters, defaultFilters)) {
+      setFilters(defaultFilters);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, markers.length, filterOptions, defaultFilters, setFilters]);
 
   // 복잡 표현식을 의존성 배열에서 정적으로 검사 가능하도록 key 변수로 추출한다.
   const filterOptionsKey = [
@@ -117,6 +131,7 @@ export function useActiveMarkers() {
       filterOptions,
       prevFilterOptionsRef.current,
     );
+    hasInitializedFiltersRef.current = true;
     prevFilterOptionsRef.current = filterOptions;
 
     if (!shouldUpdateFilters(filters, nextFilters)) {
@@ -124,16 +139,23 @@ export function useActiveMarkers() {
     }
 
     setFilters(nextFilters);
-    // filterOptions는 filterOptionsKey(내용 해시)로 변화를 감지하므로 객체 자체는 제외한다.
+    // filterOptions는 filterOptionsKey(내용 해시)로 변화를 감지하며,
+    // 사용자 필터 조작(전체 해제 등) 시에는 재병합하지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markers.length, mode, filterOptionsKey, filters, setFilters]);
+  }, [markers.length, mode, filterOptionsKey, setFilters]);
+
+  const isModeChanging = previousModeRef.current !== mode;
 
   const effectiveFilters = useMemo(() => {
-    if (!markers.length || !hasAnyFilterSelection(filters)) {
-      return createDefaultFilterState(filterOptions);
+    if (
+      isModeChanging ||
+      !markers.length ||
+      (!hasInitializedFiltersRef.current && !hasAnyFilterSelection(filters))
+    ) {
+      return defaultFilters;
     }
     return filters;
-  }, [filters, filterOptions, markers.length]);
+  }, [isModeChanging, filters, defaultFilters, markers.length]);
 
   return {
     markers,

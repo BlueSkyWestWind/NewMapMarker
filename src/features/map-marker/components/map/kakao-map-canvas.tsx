@@ -168,6 +168,17 @@ export function KakaoMapCanvas({
   const routePointBadgesRef = useRef<KakaoCustomOverlay[]>([]);
   const clustererRef = useRef<KakaoMarkerClusterer | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
+  const builtMarkersCacheRef = useRef<{
+    markers: MarkerRecord[];
+    mode: MapMode;
+    filters: MarkerFilterState;
+    isInfoWindowCaptureMode: boolean;
+    isAuthenticated: boolean;
+    supabase: unknown;
+    kakaoMarkers: KakaoMarker[];
+    plottedMarkers: MarkerRecord[];
+    markerDataById: Map<string, MarkerRecord>;
+  } | null>(null);
   const overlaysRef = useRef<Map<string, KakaoCustomOverlay>>(new Map());
   const overlayOffsetsRef = useRef<Map<string, OverlayPanelOffset>>(new Map());
   const rightClickOverlayRef = useRef<KakaoCustomOverlay | null>(null);
@@ -482,195 +493,234 @@ export function KakaoMapCanvas({
     markerDataByIdRef.current = new Map();
     clusterer?.clear();
 
-    const visibleMarkers = !isMarkersVisible
-      ? []
-      : markers.filter((marker) => {
-          // 같은 번지 SUB는 기본 숨김. 단 "개별 표시 해제(detachedVisible)"된 것만 노출.
-          if (
-            mode === "equipment" &&
-            isEquipmentSubMarker(marker as EquipmentMarker) &&
-            !(marker as EquipmentMarker).detachedVisible
-          ) {
-            return false;
-          }
-          return markerPassesFilters(marker, mode, filters);
+    if (!isMarkersVisible) {
+      prevLocationPlottedRef.current = 0;
+      prevModeRef.current = mode;
+      return;
+    }
+
+    const cached = builtMarkersCacheRef.current;
+    const canReuseCachedMarkers =
+      cached !== null &&
+      cached.markers === markers &&
+      cached.mode === mode &&
+      cached.filters === filters &&
+      cached.isInfoWindowCaptureMode === isInfoWindowCaptureMode &&
+      cached.isAuthenticated === isAuthenticated &&
+      cached.supabase === supabase;
+
+    let plottedMarkers: MarkerRecord[] = [];
+
+    if (canReuseCachedMarkers && cached) {
+      plottedMarkers = cached.plottedMarkers;
+      markersRef.current = [...cached.kakaoMarkers];
+      markerDataByIdRef.current = new Map(cached.markerDataById);
+
+      if (clusterer && mode === "equipment" && isClusteringEnabled) {
+        clusterer.addMarkers(cached.kakaoMarkers);
+      } else {
+        cached.kakaoMarkers.forEach((marker) => marker.setMap(map));
+      }
+    } else {
+      const visibleMarkers = markers.filter((marker) => {
+        // 같은 번지 SUB는 기본 숨김. 단 "개별 표시 해제(detachedVisible)"된 것만 노출.
+        if (
+          mode === "equipment" &&
+          isEquipmentSubMarker(marker as EquipmentMarker) &&
+          !(marker as EquipmentMarker).detachedVisible
+        ) {
+          return false;
+        }
+        return markerPassesFilters(marker, mode, filters);
+      });
+
+      const markersToCluster: KakaoMarker[] = [];
+
+      visibleMarkers.forEach((data) => {
+        if (!isPlottableCoordinate(data.lat, data.lng)) {
+          return;
+        }
+
+        plottedMarkers.push(data);
+        markerDataByIdRef.current.set(data.id, data);
+
+        const position = new window.kakao.maps.LatLng(data.lat, data.lng);
+        // 캡처 모드: 핀 대신 작은 동그라미만 표시
+        const useCaptureDot = isInfoWindowCaptureMode;
+        const markerWidth = useCaptureDot ? CAPTURE_DOT_SIZE : 30;
+        const markerHeight = useCaptureDot ? CAPTURE_DOT_SIZE : 45;
+        const markerImage = new window.kakao.maps.MarkerImage(
+          getMarkerImageUri(data, mode, { captureDot: useCaptureDot }),
+          new window.kakao.maps.Size(markerWidth, markerHeight),
+          {
+            offset: new window.kakao.maps.Point(
+              markerWidth / 2,
+              useCaptureDot ? markerHeight / 2 : markerHeight,
+            ),
+          },
+        );
+
+        const marker = new window.kakao.maps.Marker({
+          position,
+          title: data.name,
+          image: markerImage,
+          zIndex: 3,
+          draggable: !useCaptureDot,
+        });
+        marker.markerId = data.id;
+        marker.markerColor = getEffectiveMarkerColor(data, mode);
+
+        window.kakao.maps.event.addListener(marker, "dragstart", () => {
+          closeAllOverlays(overlaysRef.current);
         });
 
-    const markersToCluster: KakaoMarker[] = [];
-    const plottedMarkers: MarkerRecord[] = [];
+        window.kakao.maps.event.addListener(marker, "dragend", async () => {
+          const newPos = marker.getPosition();
+          const newLat = newPos.getLat();
+          const newLng = newPos.getLng();
 
-    visibleMarkers.forEach((data) => {
-      if (!isPlottableCoordinate(data.lat, data.lng)) {
-        return;
-      }
+          // 임시 위치 마커: 로그인/DB 없이 브라우저 메모리만 갱신
+          const isTempLocation = useMapMarkerStore
+            .getState()
+            .pendingLocationMarkers.some((item) => item.id === data.id);
+          if (isTempLocation) {
+            const confirmMove = window.confirm(
+              `"${data.name}" 마커의 위치를 여기로 변경하시겠습니까?\n(위도: ${newLat.toFixed(6)}, 경도: ${newLng.toFixed(6)})`,
+            );
+            if (!confirmMove) {
+              marker.setPosition(position);
+              return;
+            }
 
-      plottedMarkers.push(data);
-      markerDataByIdRef.current.set(data.id, data);
+            updatePendingMarker("location", data.id, {
+              lat: newLat,
+              lng: newLng,
+              address: "",
+            });
 
-      const position = new window.kakao.maps.LatLng(data.lat, data.lng);
-      // 캡처 모드: 핀 대신 작은 동그라미만 표시
-      const useCaptureDot = isInfoWindowCaptureMode;
-      const markerWidth = useCaptureDot ? CAPTURE_DOT_SIZE : 30;
-      const markerHeight = useCaptureDot ? CAPTURE_DOT_SIZE : 45;
-      const markerImage = new window.kakao.maps.MarkerImage(
-        getMarkerImageUri(data, mode, { captureDot: useCaptureDot }),
-        new window.kakao.maps.Size(markerWidth, markerHeight),
-        {
-          offset: new window.kakao.maps.Point(
-            markerWidth / 2,
-            useCaptureDot ? markerHeight / 2 : markerHeight,
-          ),
-        },
-      );
+            const { reverseGeocode } =
+              await import("@/features/map-marker/lib/geocode");
+            const geocoded = await reverseGeocode(newLat, newLng);
+            updatePendingMarker("location", data.id, {
+              lat: newLat,
+              lng: newLng,
+              address: geocoded?.address ?? "",
+            });
+            toast({
+              description: `"${data.name}" 위치가 변경되었습니다.`,
+            });
+            return;
+          }
 
-      const marker = new window.kakao.maps.Marker({
-        position,
-        title: data.name,
-        image: markerImage,
-        zIndex: 3,
-        draggable: !useCaptureDot,
-      });
-      marker.markerId = data.id;
-      marker.markerColor = getEffectiveMarkerColor(data, mode);
-
-      window.kakao.maps.event.addListener(marker, "dragstart", () => {
-        closeAllOverlays(overlaysRef.current);
-      });
-
-      window.kakao.maps.event.addListener(marker, "dragend", async () => {
-        const newPos = marker.getPosition();
-        const newLat = newPos.getLat();
-        const newLng = newPos.getLng();
-
-        // 임시 위치 마커: 로그인/DB 없이 브라우저 메모리만 갱신
-        const isTempLocation = useMapMarkerStore
-          .getState()
-          .pendingLocationMarkers.some((item) => item.id === data.id);
-        if (isTempLocation) {
-          const confirmMove = window.confirm(
-            `"${data.name}" 마커의 위치를 여기로 변경하시겠습니까?\n(위도: ${newLat.toFixed(6)}, 경도: ${newLng.toFixed(6)})`,
-          );
-          if (!confirmMove) {
+          if (!isAuthenticated) {
+            alert("마커의 위치를 변경하려면 로그인이 필요합니다.");
             marker.setPosition(position);
             return;
           }
 
-          updatePendingMarker("location", data.id, {
-            lat: newLat,
-            lng: newLng,
-            address: "",
-          });
+          const confirmMove = window.confirm(
+            `"${data.name}" 마커의 위치를 여기로 변경하시겠습니까?\n(위도: ${newLat.toFixed(6)}, 경도: ${newLng.toFixed(6)})`,
+          );
 
-          const { reverseGeocode } =
-            await import("@/features/map-marker/lib/geocode");
-          const geocoded = await reverseGeocode(newLat, newLng);
-          updatePendingMarker("location", data.id, {
-            lat: newLat,
-            lng: newLng,
-            address: geocoded?.address ?? "",
-          });
-          toast({
-            description: `"${data.name}" 위치가 변경되었습니다.`,
-          });
-          return;
-        }
+          if (confirmMove) {
+            if (data.isPending) {
+              updatePendingMarker(mode, data.id, { lat: newLat, lng: newLng });
+              toast({
+                description: `"${data.name}" 대기 마커의 임시 위치가 변경되었습니다.`,
+              });
+            } else {
+              try {
+                if (!supabase) {
+                  throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
+                }
+                const tableName =
+                  mode === "battery" ? "battery_markers" : "markers";
+                const { error } = await supabase
+                  .from(tableName)
+                  .update({ lat: newLat, lng: newLng })
+                  .eq("id", data.id);
 
-        if (!isAuthenticated) {
-          alert("마커의 위치를 변경하려면 로그인이 필요합니다.");
-          marker.setPosition(position);
-          return;
-        }
+                if (error) throw error;
+                await queryClient.invalidateQueries({
+                  queryKey: MAP_MARKER_QUERY_KEY,
+                });
+              } catch (err: unknown) {
+                const message =
+                  err instanceof Error ? err.message : "알 수 없는 오류";
+                console.error("마커 위치 이동 실패:", err);
+                alert(`마커 위치 저장 중 오류가 발생했습니다: ${message}`);
+                marker.setPosition(position);
+              }
+            }
+          } else {
+            marker.setPosition(position);
+          }
+        });
 
-        const confirmMove = window.confirm(
-          `"${data.name}" 마커의 위치를 여기로 변경하시겠습니까?\n(위도: ${newLat.toFixed(6)}, 경도: ${newLng.toFixed(6)})`,
+        window.kakao.maps.event.addListener(
+          marker,
+          "click",
+          (...args: unknown[]) => {
+            // 경로 패널이 지도 클릭 픽업 모드 중이면 일반 마커 선택 대신 출발지/방문지점으로 넘긴다(§8).
+            const routeState = useRouteStore.getState();
+            if (routeState.pickTarget === "origin" || routeState.pickTarget === "stop") {
+              const routePoint = {
+                routePointId: data.id,
+                markerIds: [data.id],
+                name: data.name,
+                lat: data.lat,
+                lng: data.lng,
+              };
+              if (routeState.pickTarget === "origin") {
+                routeState.setOrigin(routePoint);
+                routeState.setPickTarget(null);
+              } else {
+                routeState.addStop(routePoint);
+              }
+              return;
+            }
+
+            const mouseEvent = args[0] as MouseEvent | undefined;
+            const isMultiSelect = isMultiSelectGesture(
+              mouseEvent,
+              modifierKeysRef.current,
+            );
+
+            skipNextFocusRef.current = true;
+
+            if (isMultiSelect) {
+              toggleSelectedMarkerId(data.id);
+              return;
+            }
+
+            setSelectedMarkerId(data.id);
+          },
         );
 
-        if (confirmMove) {
-          if (data.isPending) {
-            updatePendingMarker(mode, data.id, { lat: newLat, lng: newLng });
-            toast({
-              description: `"${data.name}" 대기 마커의 임시 위치가 변경되었습니다.`,
-            });
-          } else {
-            try {
-              if (!supabase) {
-                throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
-              }
-              const tableName =
-                mode === "battery" ? "battery_markers" : "markers";
-              const { error } = await supabase
-                .from(tableName)
-                .update({ lat: newLat, lng: newLng })
-                .eq("id", data.id);
+        markersRef.current.push(marker);
 
-              if (error) throw error;
-              await queryClient.invalidateQueries({
-                queryKey: MAP_MARKER_QUERY_KEY,
-              });
-            } catch (err: unknown) {
-              const message =
-                err instanceof Error ? err.message : "알 수 없는 오류";
-              console.error("마커 위치 이동 실패:", err);
-              alert(`마커 위치 저장 중 오류가 발생했습니다: ${message}`);
-              marker.setPosition(position);
-            }
-          }
+        if (mode === "equipment" && isClusteringEnabled) {
+          markersToCluster.push(marker);
         } else {
-          marker.setPosition(position);
+          marker.setMap(map);
         }
       });
 
-      window.kakao.maps.event.addListener(
-        marker,
-        "click",
-        (...args: unknown[]) => {
-          // 경로 패널이 지도 클릭 픽업 모드 중이면 일반 마커 선택 대신 출발지/방문지점으로 넘긴다(§8).
-          const routeState = useRouteStore.getState();
-          if (routeState.pickTarget === "origin" || routeState.pickTarget === "stop") {
-            const routePoint = {
-              routePointId: data.id,
-              markerIds: [data.id],
-              name: data.name,
-              lat: data.lat,
-              lng: data.lng,
-            };
-            if (routeState.pickTarget === "origin") {
-              routeState.setOrigin(routePoint);
-              routeState.setPickTarget(null);
-            } else {
-              routeState.addStop(routePoint);
-            }
-            return;
-          }
-
-          const mouseEvent = args[0] as MouseEvent | undefined;
-          const isMultiSelect = isMultiSelectGesture(
-            mouseEvent,
-            modifierKeysRef.current,
-          );
-
-          skipNextFocusRef.current = true;
-
-          if (isMultiSelect) {
-            toggleSelectedMarkerId(data.id);
-            return;
-          }
-
-          setSelectedMarkerId(data.id);
-        },
-      );
-
-      markersRef.current.push(marker);
-
-      if (mode === "equipment" && isClusteringEnabled) {
-        markersToCluster.push(marker);
-      } else {
-        marker.setMap(map);
+      if (clusterer && mode === "equipment" && isClusteringEnabled) {
+        clusterer.addMarkers(markersToCluster);
       }
-    });
 
-    if (clusterer && mode === "equipment" && isClusteringEnabled) {
-      clusterer.addMarkers(markersToCluster);
+      builtMarkersCacheRef.current = {
+        markers,
+        mode,
+        filters,
+        isInfoWindowCaptureMode,
+        isAuthenticated,
+        supabase,
+        kakaoMarkers: [...markersRef.current],
+        plottedMarkers: [...plottedMarkers],
+        markerDataById: new Map(markerDataByIdRef.current),
+      };
     }
 
     const shouldFitBatteryBounds =
