@@ -12,6 +12,7 @@ import { useDaySheet } from "@/features/schedule/hooks/use-day-sheet";
 import { buildCopyText } from "@/features/schedule/lib/day-copy";
 import { DAY_COLUMNS } from "@/features/schedule/lib/day-columns";
 import { defaultDayDate, type DayRow } from "@/features/schedule/lib/day-rows";
+import { CHECK_WIDTH_WEIGHT, widthPercent } from "@/features/schedule/lib/day-table-widths";
 import type { DayDetailPatch } from "@/features/schedule/lib/day-types";
 import { downloadDayWorkbook } from "@/features/schedule/lib/write-day-workbook";
 import { addDays, isValidIso } from "@/features/schedule/lib/week";
@@ -21,11 +22,6 @@ const TABLE_MISSING_MESSAGE =
   "DB에 일자별 상세 테이블이 없습니다. 마이그레이션(20261111000000_schedule_day_details.sql)을 Supabase에 적용해 주세요.";
 const EMPTY_MESSAGE =
   "이 날짜의 일정에 국소가 없습니다. 먼저 주간 보기에서 일정을 입력하거나 일정표를 가져오세요.";
-
-/** 체크 칸의 열 폭 비중(엑셀 열 폭의 문자 수 단위) */
-const CHECK_WIDTH_WEIGHT = 4;
-const TOTAL_WEIGHT = DAY_COLUMNS.reduce((sum, column) => sum + column.widthChars, CHECK_WIDTH_WEIGHT);
-const widthPercent = (weight: number) => `${(weight / TOTAL_WEIGHT) * 100}%`;
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

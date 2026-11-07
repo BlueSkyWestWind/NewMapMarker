@@ -44,6 +44,7 @@ import { ScheduleGrid } from "./schedule-grid";
 import { ScheduleImportDialog } from "./schedule-import-dialog";
 import { ScheduleLegend } from "./schedule-legend";
 import { ScheduleMonthGrid } from "./schedule-month-grid";
+import { ScheduleArchiveView } from "./schedule-archive-view";
 import { ScheduleDayView } from "./schedule-day-view";
 import { ScheduleSearch } from "./schedule-search";
 import { ScheduleViewToggle, type ScheduleViewKind } from "./schedule-view-toggle";
@@ -273,7 +274,7 @@ export function ScheduleView() {
         {view === "day" ? (
           <ScheduleDayView canEdit={isAdmin} />
         ) : (
-          <p className="p-4 text-sm text-slate-400">누적 보기는 아직 없습니다.</p>
+          <ScheduleArchiveView canEdit={isAdmin} />
         )}
       </section>
     );
