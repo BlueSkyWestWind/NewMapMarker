@@ -35,6 +35,11 @@ yarn-error.log*
 .env*
 !.env.example
 
+# mcp config (local only)
+.mcp.json
+mcp.json
+mcp_config.json
+
 # wrangler local
 .dev.vars*
 .wrangler/
