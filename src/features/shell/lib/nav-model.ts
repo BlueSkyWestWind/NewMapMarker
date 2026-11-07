@@ -32,6 +32,7 @@ export const NAV_DESCRIPTIONS: Partial<Record<NavKey, string>> = {
   map: "표시할 데이터를 고르고 위치를 찾습니다",
   markers: "마커를 등록하고 목록을 관리합니다",
   schedule: "시설팀 일정표를 보고 관리합니다",
+  accounts: "사용자 계정과 관리자 권한을 관리합니다",
 };
 
 /** 비로그인 때 잠그는 하위 메뉴 */

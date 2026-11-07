@@ -2,16 +2,29 @@ import { describe, expect, it } from "vitest";
 import { isNavAccessible, visibleNavItems } from "./nav";
 
 describe("관리자 전용 메뉴", () => {
-  it("그룹관리는 관리자에게만 보인다", () => {
+  it("그룹관리와 계정설정은 관리자에게만 보인다", () => {
     expect(visibleNavItems(true, false).some((item) => item.key === "groups")).toBe(false);
     expect(visibleNavItems(true, true).some((item) => item.key === "groups")).toBe(true);
     expect(visibleNavItems(true).some((item) => item.key === "groups")).toBe(false);
+
+    expect(visibleNavItems(true, false).some((item) => item.key === "accounts")).toBe(false);
+    expect(visibleNavItems(true, true).some((item) => item.key === "accounts")).toBe(true);
+    expect(visibleNavItems(true).some((item) => item.key === "accounts")).toBe(false);
   });
 
   it("비로그인이면 관리자 여부와 관계없이 접근할 수 없다", () => {
     expect(isNavAccessible("groups", true, false)).toBe(false);
     expect(isNavAccessible("groups", true, true)).toBe(true);
     expect(isNavAccessible("groups", false, true)).toBe(false);
+
+    expect(isNavAccessible("accounts", true, false)).toBe(false);
+    expect(isNavAccessible("accounts", true, true)).toBe(true);
+    expect(isNavAccessible("accounts", false, true)).toBe(false);
+  });
+
+  it("계정설정은 그룹관리 바로 다음 위치에 있다", () => {
+    const keys = visibleNavItems(true, true).map((item) => item.key);
+    expect(keys.indexOf("accounts")).toBe(keys.indexOf("groups") + 1);
   });
 
   it("일반 메뉴는 관리자 여부에 영향받지 않는다", () => {

@@ -33,15 +33,15 @@ describe("segmentsOfNav", () => {
 });
 
 describe("모바일 메뉴", () => {
-  it("로그인하면 탭 네 개와 더보기 항목 다섯 개로 모든 메뉴가 나뉜다", () => {
+  it("로그인하면 탭 네 개와 더보기 항목 여섯 개로 모든 메뉴가 나뉜다", () => {
     const tabs = mobileTabItems(true, true).map((item) => item.key);
     const more = mobileMoreItems(true, true).map((item) => item.key);
     expect(tabs).toEqual(["dashboard", "map", "markers", "cctv"]);
-    expect(more).toEqual(["schedule", "groups", "barcode", "backup", "settings"]);
+    expect(more).toEqual(["schedule", "groups", "accounts", "barcode", "backup", "settings"]);
     expect([...tabs, ...more].sort()).toEqual(NAV_ITEMS.map((item) => item.key).sort());
   });
 
-  it("관리자가 아니면 더보기에 그룹관리가 없고 일정관리는 있다", () => {
+  it("관리자가 아니면 더보기에 그룹관리·계정설정이 없고 일정관리는 있다", () => {
     expect(mobileMoreItems(true, false).map((item) => item.key)).toEqual([
       "schedule",
       "barcode",
