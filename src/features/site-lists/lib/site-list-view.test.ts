@@ -4,6 +4,7 @@ import type { SiteList, SiteListMember } from "@/features/site-lists/types";
 import {
   buildSiteListBadges,
   canEditSiteList,
+  findMissingCodes,
   isSiteListsTableMissing,
   listsOfMarker,
   planSiteListRestore,
@@ -103,6 +104,58 @@ describe("searchEquipmentSites", () => {
     expect(ids("광주 북구 운암동")).toEqual(["1"]);
     expect(ids("광주북구운암동")).toEqual(["1"]);
     expect(ids("  ")).toEqual([]);
+  });
+});
+
+describe("여러 코드를 붙여 넣어 한 번에 찾기", () => {
+  const sites = [
+    equipment({ id: "1", name: "가국소", facilityCode: "2026Y2589", projectCode: "E.M267.55.0037" }),
+    equipment({ id: "2", name: "나국소", facilityCode: "2026Y2771", projectCode: "E.M267.55.0038" }),
+    equipment({ id: "3", name: "다국소", facilityCode: "2026Y25890", projectCode: "AR.261.55.YRDQ" }),
+    equipment({ id: "4", name: "라국소", facilityCode: "2026Y2500", jibunAddress: "광주 북구 운암동 123" }),
+  ];
+  const ids = (query: string) => searchEquipmentSites(sites, query).map((s) => s.id);
+
+  it("공백으로 구분한 통합시설코드를 각각 찾는다", () => {
+    expect(ids("2026Y2589 2026Y2771")).toEqual(["1", "2"]);
+  });
+
+  it("쉼표, 줄바꿈, 탭으로 구분해도 같다", () => {
+    expect(ids("2026Y2589,2026Y2771")).toEqual(["1", "2"]);
+    expect(ids("2026Y2589\n2026Y2771\n")).toEqual(["1", "2"]);
+    expect(ids("2026Y2589\t2026Y2771")).toEqual(["1", "2"]);
+  });
+
+  it("여러 코드를 찾을 때는 일부만 같은 코드를 건너뛴다", () => {
+    // 2026Y25890은 2026Y2589로 시작하지만 다른 코드다
+    expect(ids("2026Y2589 2026Y2500")).toEqual(["1", "4"]);
+  });
+
+  it("프로젝트 코드와 대소문자 구분 없이도 찾고, 같은 국소는 한 번만 나온다", () => {
+    expect(ids("e.m267.55.0038 2026y2771")).toEqual(["2"]);
+  });
+
+  it("코드 하나만 넣으면 지금처럼 일부만 같아도 찾는다", () => {
+    expect(ids("2026Y2589")).toEqual(["1", "3"]);
+  });
+
+  it("공백이 들어간 주소나 이름 검색은 그대로 동작한다", () => {
+    expect(ids("광주 북구 운암동 123")).toEqual(["4"]);
+    expect(ids("광주 북구 운암동")).toEqual(["4"]);
+  });
+
+  it("찾지 못한 코드를 알려 준다", () => {
+    expect(findMissingCodes(sites, "2026Y2589 2026Y2704 2026Y2771 2026Y9999")).toEqual([
+      "2026Y2704",
+      "2026Y9999",
+    ]);
+  });
+
+  it("같은 코드를 여러 번 넣어도 한 번만 알려 주고, 코드 목록이 아니면 비어 있다", () => {
+    expect(findMissingCodes(sites, "2026Y2704 2026y2704")).toEqual(["2026Y2704"]);
+    expect(findMissingCodes(sites, "광주 북구 운암동")).toEqual([]);
+    expect(findMissingCodes(sites, "2026Y2704")).toEqual([]);
+    expect(findMissingCodes(sites, "")).toEqual([]);
   });
 });
 

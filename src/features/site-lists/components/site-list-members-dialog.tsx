@@ -14,7 +14,10 @@ import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-
 import type { EquipmentMarker } from "@/features/map-marker/types/marker";
 import { addSiteListMembers, removeSiteListMembers } from "@/features/site-lists/api";
 import { useSiteLists } from "@/features/site-lists/hooks/use-site-lists";
-import { searchEquipmentSites } from "@/features/site-lists/lib/site-list-view";
+import {
+  findMissingCodes,
+  searchEquipmentSites,
+} from "@/features/site-lists/lib/site-list-view";
 import type { SiteList } from "@/features/site-lists/types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -98,6 +101,21 @@ export function SiteListMembersDialog({
     () => searchEquipmentSites(allSites ?? [], query),
     [allSites, query],
   );
+  const missingCodes = useMemo(
+    () => findMissingCodes(allSites ?? [], query),
+    [allSites, query],
+  );
+  // 화면에 그리는 범위 안에서, 아직 등록하지 않은 결과만 한 번에 고를 수 있다.
+  const selectableResults = useMemo(
+    () =>
+      results
+        .slice(0, RESULT_LIMIT)
+        .filter((marker) => !memberIds.has(marker.id)),
+    [results, memberIds],
+  );
+  const allResultsSelected =
+    selectableResults.length > 0 &&
+    selectableResults.every((marker) => toAdd.has(marker.id));
 
   const toggle = (set: Set<string>, id: string) => {
     const next = new Set(set);
@@ -144,10 +162,40 @@ export function SiteListMembersDialog({
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="국소명, 통합시설코드, 프로젝트코드, 사업구분, 주소..."
+                placeholder="국소명, 코드, 사업구분, 주소... (코드 여러 개를 붙여 넣어도 됩니다)"
                 className="h-9 border-slate-700 bg-slate-900 pl-8 text-xs"
               />
             </label>
+            {missingCodes.length > 0 ? (
+              <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-amber-200">
+                찾지 못한 코드 {missingCodes.length}개: {missingCodes.join(", ")}
+              </p>
+            ) : null}
+            {selectableResults.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 shrink-0 border-slate-700 text-xs text-slate-200"
+                disabled={isBusy}
+                onClick={() =>
+                  setToAdd((prev) => {
+                    const everySelected = selectableResults.every((marker) =>
+                      prev.has(marker.id),
+                    );
+                    const next = new Set(prev);
+                    for (const marker of selectableResults) {
+                      if (everySelected) next.delete(marker.id);
+                      else next.add(marker.id);
+                    }
+                    return next;
+                  })
+                }
+              >
+                {allResultsSelected
+                  ? "검색 결과 선택 해제"
+                  : `검색 결과 ${selectableResults.length}건 모두 선택`}
+              </Button>
+            ) : null}
             {query.trim() ? (
               <div className="max-h-56 min-h-16 overflow-y-auto rounded-lg border border-slate-800">
                 {results.length === 0 ? (
