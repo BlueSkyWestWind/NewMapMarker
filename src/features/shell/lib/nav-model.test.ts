@@ -156,10 +156,13 @@ describe("initialPanelStep", () => {
 describe("isPanelVisible", () => {
   const base = { isSidebarOpen: true, isTreeOpen: false, panelStep: "root" as const };
 
-  it("일정관리는 지도·패널 없이 오른쪽 전체를 쓰므로 패널이 없다", () => {
+  it("일정관리와 계정설정은 지도·패널 없이 화면 전체를 쓰므로 패널이 없다", () => {
     expect(isPanelVisible({ ...base, activeNav: "schedule" })).toBe(false);
     expect(isPanelVisible({ ...base, activeNav: "schedule", panelStep: "detail" })).toBe(false);
     expect(isPanelVisible({ ...base, activeNav: "schedule", isTreeOpen: true, panelStep: "detail" })).toBe(false);
+    expect(isPanelVisible({ ...base, activeNav: "accounts" })).toBe(false);
+    expect(isPanelVisible({ ...base, activeNav: "accounts", panelStep: "detail" })).toBe(false);
+    expect(isPanelVisible({ ...base, activeNav: "accounts", isTreeOpen: true, panelStep: "detail" })).toBe(false);
   });
 
   it("레일 모드에서 사이드바가 열려 있으면 패널이 보인다", () => {

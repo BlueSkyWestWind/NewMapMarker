@@ -118,8 +118,9 @@ export function PanelBody({
         filters={filters}
       />
     ))
-    // 일정관리는 패널 없이 지도 자리에 일정표를 직접 그린다(app-shell). 패널 내용은 없다.
+    // 일정관리와 계정설정은 패널 없이 메인 화면을 직접 그린다. 패널 내용은 없다.
     .with("schedule", () => null)
+    .with("accounts", () => null)
     .with("groups", () => <AdminGroupPanel />)
     .with("cctv", () => <CctvPanel />)
     .with("barcode", () => <BarcodePanel />)

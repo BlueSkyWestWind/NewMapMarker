@@ -43,6 +43,14 @@ const ScheduleMain = dynamic(
   () => import("@/features/schedule/components/schedule-view").then((m) => m.ScheduleView),
   { ssr: false },
 );
+// 계정설정 탭에서만 필요하다. 관리자 화면을 홈 첫 로딩 번들에서 분리한다.
+const AccountsMain = dynamic(
+  () =>
+    import("@/features/accounts/components/accounts-main").then(
+      (m) => m.AccountsMain,
+    ),
+  { ssr: false },
+);
 import {
   NAV_RAIL_WIDTH_PX,
   NAV_TREE_WIDTH_PX,
@@ -157,10 +165,12 @@ export function AppShell({
     batteryCount,
   };
   const isPanelOpen = isPanelVisible({ activeNav, isSidebarOpen, isTreeOpen, panelStep });
-  // 바코드/QR과 일정관리는 지도를 쓰지 않는다. 지도는 언마운트하지 않고 숨기기만 한다.
-  const isMapHidden = activeNav === "barcode" || activeNav === "schedule";
-  // 일정관리는 모바일에서도 시트 없이 화면 전체를 쓴다. 더보기 목록을 열었을 때만 시트가 뜬다.
-  const showMobileSheet = isMobile && (activeNav !== "schedule" || isMoreOpen);
+  // 바코드/QR·일정관리·계정설정은 지도를 쓰지 않는다. 지도는 언마운트하지 않고 숨기기만 한다.
+  const isMapHidden =
+    activeNav === "barcode" || activeNav === "schedule" || activeNav === "accounts";
+  // 일정관리·계정설정은 모바일에서도 시트 없이 화면 전체를 쓴다. 더보기 목록을 열었을 때만 시트가 뜬다.
+  const showMobileSheet =
+    isMobile && ((activeNav !== "schedule" && activeNav !== "accounts") || isMoreOpen);
 
   return (
     <div
@@ -206,6 +216,7 @@ export function AppShell({
           <div className={isMapHidden ? "hidden" : "contents"}>{children}</div>
           {activeNav === "barcode" ? <BarcodeResultsMain /> : null}
           {activeNav === "schedule" ? <ScheduleMain /> : null}
+          {activeNav === "accounts" ? <AccountsMain /> : null}
 
           {showMobileSheet ? (
             <MobileSheet

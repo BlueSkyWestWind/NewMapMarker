@@ -1,0 +1,146 @@
+import { NextResponse } from "next/server";
+import { authenticateAdminRequest } from "@/features/accounts/server/admin-auth";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/admin/users: 전체 계정 목록과 관리자 권한 여부를 반환한다.
+ */
+export async function GET(req: Request) {
+  const auth = await authenticateAdminRequest(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const { adminClient } = auth;
+
+  try {
+    const [{ data: userData, error: usersError }, { data: adminRows, error: adminsError }] =
+      await Promise.all([
+        adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+        adminClient.from("app_admins").select("user_id"),
+      ]);
+
+    if (usersError) {
+      return NextResponse.json({ error: usersError.message }, { status: 500 });
+    }
+    if (adminsError) {
+      return NextResponse.json({ error: adminsError.message }, { status: 500 });
+    }
+
+    const adminIds = new Set((adminRows ?? []).map((row) => row.user_id));
+
+    const users = (userData?.users ?? []).map((user) => ({
+      id: user.id,
+      email: user.email ?? "",
+      createdAt: user.created_at,
+      lastSignInAt: user.last_sign_in_at ?? null,
+      isAdmin: adminIds.has(user.id),
+    }));
+
+    // 가입일 내림차순 정렬 (최신 계정 먼저)
+    users.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return NextResponse.json({ users });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "계정 목록 조회 실패" },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * POST /api/admin/users: 신규 계정을 생성하고 옵션에 따라 관리자 권한을 부여한다.
+ */
+export async function POST(req: Request) {
+  const auth = await authenticateAdminRequest(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const { adminClient } = auth;
+
+  try {
+    const body = (await req.json().catch(() => null)) as {
+      email?: string;
+      password?: string;
+      isAdmin?: boolean;
+    } | null;
+
+    if (!body || !body.email || !body.password) {
+      return NextResponse.json(
+        { error: "이메일과 비밀번호를 모두 입력해야 합니다." },
+        { status: 400 },
+      );
+    }
+
+    const trimmedEmail = body.email.trim();
+    if (!trimmedEmail.includes("@")) {
+      return NextResponse.json(
+        { error: "올바른 이메일 형식이 아닙니다." },
+        { status: 400 },
+      );
+    }
+
+    if (body.password.length < 6) {
+      return NextResponse.json(
+        { error: "비밀번호는 최소 6자리 이상이어야 합니다." },
+        { status: 400 },
+      );
+    }
+
+    const { data: created, error: createError } =
+      await adminClient.auth.admin.createUser({
+        email: trimmedEmail,
+        password: body.password,
+        email_confirm: true,
+      });
+
+    if (createError) {
+      return NextResponse.json({ error: createError.message }, { status: 400 });
+    }
+
+    if (!created.user) {
+      return NextResponse.json(
+        { error: "계정 생성 결과가 없습니다." },
+        { status: 500 },
+      );
+    }
+
+    if (body.isAdmin === true) {
+      const { error: insertAdminError } = await adminClient
+        .from("app_admins")
+        .insert({ user_id: created.user.id });
+
+      if (insertAdminError) {
+        return NextResponse.json(
+          {
+            warning: "계정은 생성되었으나 관리자 권한 부여에 실패했습니다.",
+            error: insertAdminError.message,
+            user: created.user,
+          },
+          { status: 207 },
+        );
+      }
+    }
+
+    return NextResponse.json(
+      {
+        user: {
+          id: created.user.id,
+          email: created.user.email ?? trimmedEmail,
+          createdAt: created.user.created_at,
+          lastSignInAt: null,
+          isAdmin: body.isAdmin === true,
+        },
+      },
+      { status: 201 },
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "계정 생성 실패" },
+      { status: 500 },
+    );
+  }
+}

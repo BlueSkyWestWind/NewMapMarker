@@ -67,7 +67,7 @@ export function isPanelVisible(input: {
   isTreeOpen: boolean;
   panelStep: "root" | "detail";
 }): boolean {
-  if (input.activeNav === "schedule") return false;
+  if (input.activeNav === "schedule" || input.activeNav === "accounts") return false;
   return (
     input.isSidebarOpen &&
     (!input.isTreeOpen || !hasNavSegments(input.activeNav) || input.panelStep === "detail")
