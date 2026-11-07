@@ -52,11 +52,20 @@ describe("planAssignGroup", () => {
 
   it("대표가 없으면 createdAt이 가장 빠른 것, 동률이면 id 순", () => {
     const members = [
-      marker({ id: "z", createdAt: "2024-01-01" }),
-      marker({ id: "m", createdAt: "2024-01-01" }),
-      marker({ id: "a", createdAt: "2024-02-01" }),
+      marker({ id: "z", createdAt: "2024-01-01", groupRole: "SUB" }),
+      marker({ id: "m", createdAt: "2024-01-01", groupRole: "SUB" }),
+      marker({ id: "a", createdAt: "2024-02-01", groupRole: "SUB" }),
     ];
     expect(planAssignGroup(members, null).rep?.id).toBe("m");
+  });
+
+  it("대표가 여러 명이면 그중 가장 빠른 것이 대표가 된다", () => {
+    const members = [
+      marker({ id: "a", createdAt: "2024-01-01", groupRole: "SUB" }),
+      marker({ id: "c", createdAt: "2024-03-01", groupRole: "대표" }),
+      marker({ id: "b", createdAt: "2024-02-01", groupRole: "대표" }),
+    ];
+    expect(planAssignGroup(members, null).rep?.id).toBe("b");
   });
 
   it("1개면 단독이고 SUB 연산이 없다", () => {
