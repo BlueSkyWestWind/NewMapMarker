@@ -13,7 +13,7 @@ import type { CreateAccountInput } from "../types";
 const ADMIN_USERS_QUERY_KEY = ["admin-users"] as const;
 
 export function useAdminUsers() {
-  const { session, user } = useAuthSession();
+  const { session, user, isLoading: isAuthLoading } = useAuthSession();
   const token = session?.access_token;
   const queryClient = useQueryClient();
 
@@ -21,6 +21,7 @@ export function useAdminUsers() {
     queryKey: ADMIN_USERS_QUERY_KEY,
     queryFn: () => fetchAdminUsers(token!),
     enabled: !!token,
+    retry: false, // 오류 발생 시 지수 백오프로 뺑뺑이 돌지 않고 즉시 에러 표시
     staleTime: 30 * 1000,
   });
 
@@ -57,7 +58,7 @@ export function useAdminUsers() {
   return {
     currentUserId: user?.id ?? null,
     users: query.data ?? [],
-    isLoading: query.isLoading,
+    isLoading: isAuthLoading || (!!token && query.isLoading),
     isRefetching: query.isRefetching,
     error: query.error ? (query.error as Error).message : null,
     refetch: query.refetch,

@@ -18,7 +18,7 @@ export function getSupabaseAdminClient(): SupabaseClient {
 
   if (!url || !serviceRoleKey) {
     throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY 또는 SUPABASE_URL 환경 변수가 설정되지 않았습니다. .env.local 및 배포 환경 변수를 확인하세요.",
+      "SUPABASE_SERVICE_ROLE_KEY 환경 변수가 설정되지 않았습니다. Supabase 대시보드(Project Settings > API > service_role)에서 시크릿 키를 복사하여 .env.local에 추가해 주세요.",
     );
   }
 
