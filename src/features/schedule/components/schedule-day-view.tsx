@@ -1,15 +1,18 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ClipboardCopy, Download, Save } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardCopy, Download, ListChecks, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import { ScheduleDayDetailDialog } from "@/features/schedule/components/schedule-day-detail-dialog";
+import { ScheduleOptionListsDialog } from "@/features/schedule/components/schedule-option-lists-dialog";
 import { useOptionLists } from "@/features/schedule/hooks/use-option-lists";
 import { useDaySheet } from "@/features/schedule/hooks/use-day-sheet";
 import { buildCopyText } from "@/features/schedule/lib/day-copy";
 import { DAY_COLUMNS } from "@/features/schedule/lib/day-columns";
-import { defaultDayDate } from "@/features/schedule/lib/day-rows";
+import { defaultDayDate, type DayRow } from "@/features/schedule/lib/day-rows";
+import type { DayDetailPatch } from "@/features/schedule/lib/day-types";
 import { downloadDayWorkbook } from "@/features/schedule/lib/write-day-workbook";
 import { addDays, isValidIso } from "@/features/schedule/lib/week";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +51,9 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   const canAct = !isEmpty && !sheet.isLoading && !sheet.error;
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  /** 상세 창에 보여 줄 행(하나면 상세, 둘 이상이면 일괄 적용). `null`이면 창이 닫혀 있다. */
+  const [detailRows, setDetailRows] = useState<DayRow[] | null>(null);
+  const [isListsOpen, setListsOpen] = useState(false);
   const selectedCount = useMemo(
     () => rows.filter((row) => selected.has(row.stationKey)).length,
     [rows, selected],
@@ -123,6 +129,28 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
       await archiveAfterExport();
     });
 
+  /** 상세 창의 저장. 성공하면 창을 닫고, 실패하면 창을 열어 둔 채 오류를 알린다. */
+  const handleSaveDetails = (patches: { station: DayRow; patch: DayDetailPatch }[]) =>
+    runExclusive(async () => {
+      try {
+        await sheet.saveDetails(patches);
+        toast({ title: "상세를 저장했습니다", description: `${patches.length}건` });
+        setDetailRows(null);
+      } catch (error) {
+        toast({ title: "저장하지 못했습니다", description: errorMessage(error), variant: "destructive" });
+      }
+    });
+
+  /** 행 클릭: 상세 창. 불러오는 중이거나 실패한 표는 값이 비어 있어 열지 않는다. */
+  const openRow = (row: DayRow) => {
+    if (canAct) setDetailRows([row]);
+  };
+
+  const openBulk = () => {
+    const picked = rows.filter((row) => selected.has(row.stationKey));
+    if (picked.length > 0) setDetailRows(picked);
+  };
+
   const handleArchive = () =>
     runExclusive(async () => {
       try {
@@ -174,6 +202,28 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {canEdit ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 border-slate-700 px-3 text-xs"
+                disabled={!canAct || busy || selectedCount === 0}
+                onClick={openBulk}
+              >
+                선택한 {selectedCount}건 일괄 적용
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
+                onClick={() => setListsOpen(true)}
+              >
+                <ListChecks className="h-3.5 w-3.5" aria-hidden />
+                목록 관리
+              </Button>
+            </>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -261,9 +311,15 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
               {rows.map((row) => (
                 <tr
                   key={row.stationKey}
-                  className={cn(selected.has(row.stationKey) && "bg-indigo-950/40")}
+                  tabIndex={0}
+                  onClick={() => openRow(row)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && event.target === event.currentTarget) openRow(row);
+                  }}
+                  className={cn("cursor-pointer hover:bg-slate-800/60", selected.has(row.stationKey) && "bg-indigo-950/40")}
                 >
-                  <td className="border border-slate-700 px-1 py-1 text-center">
+                  {/* 체크 칸의 클릭은 행 클릭(상세 창 열기)으로 번지지 않게 한다. */}
+                  <td className="border border-slate-700 px-1 py-1 text-center" onClick={(event) => event.stopPropagation()}>
                     <input
                       type="checkbox"
                       aria-label={`${row.site} 선택`}
@@ -293,6 +349,17 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
           </table>
         )}
       </div>
+
+      {detailRows ? (
+        <ScheduleDayDetailDialog
+          rows={detailRows}
+          canEdit={canEdit}
+          latestArchive={sheet.latestArchive}
+          onClose={() => setDetailRows(null)}
+          onSave={handleSaveDetails}
+        />
+      ) : null}
+      {canEdit ? <ScheduleOptionListsDialog open={isListsOpen} onOpenChange={setListsOpen} canEdit={canEdit} /> : null}
     </div>
   );
 }
