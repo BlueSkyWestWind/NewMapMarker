@@ -185,4 +185,12 @@ export interface SiteMatch {
   matchedBy: SiteMatchKind;
   /** 임시 마커가 장비 마커로 연결된 경우 원래 임시 마커 ID. 국소를 제거할 때 함께 지운다 */
   tempMarkerId?: string;
+  /** 시설일정에서 자동으로 담은 국소의 등록 날짜(yyyy-mm-dd). 없으면 사용자가 직접 담은 국소다 */
+  scheduleDate?: string;
+}
+
+/** 시설일정 자동 등록 기록: 그 날짜에 이미 넣어 본 국소 id. 직접 뺀 국소를 같은 날 다시 넣지 않으려고 기억한다. */
+export interface ScheduleSyncRecord {
+  date: string;
+  ids: string[];
 }

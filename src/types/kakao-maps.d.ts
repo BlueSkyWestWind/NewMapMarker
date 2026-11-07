@@ -118,7 +118,13 @@ declare global {
     ) => void;
     getLevel: () => number;
     panTo: (latlng: KakaoLatLng) => void;
-    setBounds: (bounds: KakaoLatLngBounds) => void;
+    setBounds: (
+      bounds: KakaoLatLngBounds,
+      paddingTop?: number,
+      paddingRight?: number,
+      paddingBottom?: number,
+      paddingLeft?: number,
+    ) => void;
     getBounds: () => KakaoLatLngBounds;
     setDraggable: (flag: boolean) => void;
     setZoomable: (zoomable: boolean) => void;

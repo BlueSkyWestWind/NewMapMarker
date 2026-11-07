@@ -13,7 +13,7 @@ import type {
   MarkerRecord,
   StagedErpUpload,
 } from "@/features/map-marker/types/marker";
-import type { SiteMatch } from "@/features/worksite-weather/types/weather";
+import type { ScheduleSyncRecord, SiteMatch } from "@/features/worksite-weather/types/weather";
 import type { CctvItem } from "@/features/cctv/types/cctv";
 import type { NavKey } from "@/features/shell/types/nav";
 import {
@@ -118,6 +118,17 @@ interface MapMarkerUiState {
   addWeatherSites: (sites: SiteMatch[]) => void;
   clearSavedWeatherSites: () => void;
   removeSavedWeatherSite: (id: string) => void;
+  /** 지도를 이 국소들이 모두 보이게 맞춰 달라는 요청. nonce가 바뀔 때마다 한 번 처리한다(저장하지 않는다) */
+  mapFitRequest: { ids: string[]; nonce: number; arrange: boolean } | null;
+  /** `arrange`가 true면 지도를 맞춘 뒤 열린 정보창들이 서로 겹치지 않게 배치한다 */
+  requestMapFit: (ids: string[], options?: { arrange?: boolean }) => void;
+  /** 대시보드가 열려 있는 동안 true: 지도를 확대·축소·이동할 때마다 열린 정보창을 가장자리 열에 다시 배치한다(저장 안 함) */
+  overlayBoardActive: boolean;
+  setOverlayBoardActive: (active: boolean) => void;
+  /** 시설일정 자동 등록 기록(날짜별로 넣어 본 국소 id) */
+  scheduleSync: ScheduleSyncRecord | null;
+  /** 시설일정에서 합친 작업 국소 목록과 기록을 한 번에 반영한다 */
+  applyScheduleSync: (sites: SiteMatch[], sync: ScheduleSyncRecord) => void;
   setMode: (mode: MapMode) => void;
   toggleSidebar: () => void;
   setClusteringEnabled: (enabled: boolean) => void;
@@ -321,6 +332,19 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       lastGroupManageKey: null,
       setLastGroupManageKey: (key) => set({ lastGroupManageKey: key }),
       savedWeatherSites: [],
+      scheduleSync: null,
+      mapFitRequest: null,
+      overlayBoardActive: false,
+      setOverlayBoardActive: (active) => set({ overlayBoardActive: active }),
+      requestMapFit: (ids, options) =>
+        set((state) => ({
+          mapFitRequest: {
+            ids,
+            nonce: (state.mapFitRequest?.nonce ?? 0) + 1,
+            arrange: options?.arrange ?? false,
+          },
+        })),
+      applyScheduleSync: (sites, sync) => set({ savedWeatherSites: sites, scheduleSync: sync }),
       saveWeatherSites: (sites) => set({ savedWeatherSites: sites }),
       addWeatherSites: (sites) =>
         set((state) => {
@@ -519,6 +543,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
         isCadastralMode: state.isCadastralMode,
         isVworldParcelVisible: state.isVworldParcelVisible,
         savedWeatherSites: state.savedWeatherSites,
+        scheduleSync: state.scheduleSync,
       }),
     },
   ),

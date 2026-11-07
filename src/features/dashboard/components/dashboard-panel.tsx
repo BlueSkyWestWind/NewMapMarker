@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { BookmarkPlus, FileSpreadsheet, MapPin, Satellite, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,9 @@ import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-st
 import { PanelSection } from "@/features/shell/components/panels/panel-section";
 import { RoutePanel } from "@/features/route/components/route-panel";
 import { WorksiteBoard } from "@/features/dashboard/components/worksite-board";
+import { ScheduleWorksiteNotice } from "@/features/dashboard/components/schedule-worksite-notice";
+import { useAutoOpenWorksites } from "@/features/dashboard/hooks/use-auto-open-worksites";
+import { useScheduleWorksites } from "@/features/dashboard/hooks/use-schedule-worksites";
 import { useWorksiteBoard } from "@/features/dashboard/hooks/use-worksite-board";
 import { HazardSummaryList } from "@/features/worksite-weather/components/hazard-summary-list";
 import { TyphoonBanner } from "@/features/worksite-weather/components/typhoon-banner";
@@ -32,6 +35,8 @@ import {
  */
 export function DashboardPanel() {
   const { rows, retry } = useWorksiteBoard();
+  // 시설일정의 오늘 국소를 작업 국소에 자동으로 담는다(목록은 위 useWorksiteBoard가 저장소에서 읽는다).
+  const scheduleSummary = useScheduleWorksites();
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
   const setSelectedMarkerId = useMapMarkerStore((state) => state.setSelectedMarkerId);
   const selectedMarkerIds = useMapMarkerStore(
@@ -40,6 +45,7 @@ export function DashboardPanel() {
   const setSelectedMarkerIds = useMapMarkerStore(
     (state) => state.setSelectedMarkerIds,
   );
+  const requestMapFit = useMapMarkerStore((state) => state.requestMapFit);
   const clearSelectedMarkers = useMapMarkerStore(
     (state) => state.clearSelectedMarkers,
   );
@@ -65,19 +71,18 @@ export function DashboardPanel() {
       clearSelectedMarkers();
     } else {
       setSelectedMarkerIds(allSiteIds);
+      // 다시 펼칠 때도 마커창이 겹치지 않게 배치한다
+      requestMapFit(allSiteIds, { arrange: true });
     }
   };
 
   const selectedRow =
     rows.find((row) => row.site.id === selectedId) ?? rows[0] ?? null;
-  const selectedSiteId = selectedRow?.site.id;
   const data = selectedRow?.status === "ok" ? selectedRow.data : undefined;
 
-  useEffect(() => {
-    if (selectedSiteId) {
-      setSelectedMarkerId(selectedSiteId);
-    }
-  }, [selectedSiteId, setSelectedMarkerId]);
+  // 마커창 선택은 이 훅이 맡는다: 열면 작업 국소 전체를 펼친다(국소가 하나면 그 하나).
+  // 예전에는 여기서 첫 행만 선택했는데, 그러면 전체 펼침과 충돌해 선택이 한 국소로 줄었다.
+  useAutoOpenWorksites(allSiteIds);
 
   const handleSelect = (siteId: string) => {
     setSelectedId(siteId);
@@ -185,6 +190,7 @@ export function DashboardPanel() {
       <div className="space-y-3">
         {tabBar}
         {weatherButtons}
+        <ScheduleWorksiteNotice summary={scheduleSummary} />
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center">
           <BookmarkPlus className="h-6 w-6 text-sky-400" aria-hidden />
           <p className="text-xs font-semibold text-slate-200">
@@ -217,6 +223,7 @@ export function DashboardPanel() {
     <div className="space-y-3">
       {tabBar}
       {weatherButtons}
+      <ScheduleWorksiteNotice summary={scheduleSummary} />
 
       <WorksiteBoard
         rows={rows}

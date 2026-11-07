@@ -20,6 +20,8 @@ import {
   applyOverlayOffset,
   DEFAULT_OVERLAY_OFFSET,
   enableOverlayDrag,
+  readPointXY,
+  setOverlayPanelLayout,
   type OverlayPanelOffset,
 } from "@/features/map-marker/lib/overlay-drag";
 import {
@@ -56,11 +58,19 @@ import {
   type MapBoundsLiteral,
 } from "@/features/map-marker/lib/map-capture-stitch";
 import {
+  arrangeOverlayPanels,
+  boardFitPadding,
+  OVERLAY_ARRANGE_MIN_HEIGHT,
+  OVERLAY_ARRANGE_MIN_WIDTH,
+  type ArrangeItem,
+} from "@/features/map-marker/lib/overlay-arrange";
+import {
   closeAllOverlays,
   fitMapToMarkers,
   isEquipmentSubMarker,
   isMultiSelectGesture,
   isPlottableCoordinate,
+  MAP_FIT_PADDING_PX,
   type ModifierKeysState,
 } from "@/features/map-marker/components/map/kakao-map-helpers";
 import { MapFloatingControls } from "@/features/map-marker/components/map/map-floating-controls";
@@ -79,6 +89,9 @@ interface KakaoMapCanvasProps {
 }
 
 /** CCTV 마커 아이콘. 국소 핀과 구분되도록 청록 원형 카메라로 그린다. */
+/** 지도 맞춤 뒤 idle 이벤트가 오지 않을 때 정보창 배치를 시작하는 대기 시간(ms) */
+const OVERLAY_ARRANGE_FALLBACK_MS = 700;
+
 const CCTV_MARKER_IMAGE =
   "data:image/svg+xml;charset=utf-8," +
   encodeURIComponent(
@@ -214,6 +227,13 @@ export function KakaoMapCanvas({
     (state) => state.clearSelectedMarkers,
   );
   const selectedMarkerId = useMapMarkerStore((state) => state.selectedMarkerId);
+  const mapFitRequest = useMapMarkerStore((state) => state.mapFitRequest);
+  const handledFitNonceRef = useRef(0);
+  // 정보창 자동 배치 결과를 반영하려고 정보창을 다시 그리게 하는 버전, 사용자가 직접 끌어 옮긴 정보창 id
+  const [overlayLayoutVersion, setOverlayLayoutVersion] = useState(0);
+  const manualOverlayIdsRef = useRef(new Set<string>());
+  // 자동 배치한 정보창의 배율(1이면 줄이지 않음). 항목이 있으면 간격을 고정하는 배치 표시로 그린다.
+  const overlayScalesRef = useRef<Map<string, number>>(new Map());
   const selectedMarkerIds = useMapMarkerStore(
     (state) => state.selectedMarkerIds,
   );
@@ -341,6 +361,7 @@ export function KakaoMapCanvas({
 
       closeAllOverlays(overlaysRef.current);
       overlayOffsetsRef.current.clear();
+      overlayScalesRef.current.clear();
       clearSelectedMarkers();
       clearRightClickOverlay();
     });
@@ -702,7 +723,11 @@ export function KakaoMapCanvas({
     Array.from(overlayOffsetsRef.current.keys()).forEach((markerId) => {
       if (!selectedIdSet.has(markerId)) {
         overlayOffsetsRef.current.delete(markerId);
+        manualOverlayIdsRef.current.delete(markerId);
       }
+    });
+    Array.from(overlayScalesRef.current.keys()).forEach((markerId) => {
+      if (!selectedIdSet.has(markerId)) overlayScalesRef.current.delete(markerId);
     });
 
     const disableDetailEdit = selectedMarkerIds.length > 1;
@@ -823,6 +848,11 @@ export function KakaoMapCanvas({
       const panelOffset =
         overlayOffsetsRef.current.get(markerId) ?? DEFAULT_OVERLAY_OFFSET;
 
+      const arrangedScale = overlayScalesRef.current.get(markerId);
+      if (content instanceof HTMLElement && arrangedScale !== undefined) {
+        setOverlayPanelLayout(content, { scale: arrangedScale });
+      }
+
       enableOverlayDrag({
         map,
         overlay,
@@ -830,6 +860,7 @@ export function KakaoMapCanvas({
         onOffsetChange: (offset) => {
           // 드래그한 위치를 저장한다 (캡처 시에도 이 위치를 그대로 사용)
           overlayOffsetsRef.current.set(markerId, offset);
+          manualOverlayIdsRef.current.add(markerId);
         },
       });
     });
@@ -838,6 +869,11 @@ export function KakaoMapCanvas({
     isInfoWindowCaptureMode,
     markers,
     mode,
+    // 마커를 다시 그리는 효과(위)가 이 값들이 바뀔 때 열린 마커창을 모두 닫는다. 같이 감시해야 다시 열린다.
+    filters,
+    isMarkersVisible,
+    isClusteringEnabled,
+    overlayLayoutVersion,
     isAuthenticated,
     openDetailModal,
     openEditModal,
@@ -912,6 +948,111 @@ export function KakaoMapCanvas({
     }
     mapInstanceRef.current.panTo(targetPosition);
   }, [selectedMarkerId, selectedMarkerIds, isDetailOpen, isEditOpen, markers]);
+
+  // 열린 정보창을 지도 양쪽 가장자리의 세로 열로 배치한다(핀과는 연결선으로 이어진다).
+  // 사용자가 직접 끌어 옮긴 정보창은 건드리지 않는다. 결과가 그대로면 정보창을 다시 그리지 않는다.
+  const arrangeSelectedOverlays = useCallback(() => {
+    const map = mapInstanceRef.current;
+    const container = mapRef.current;
+    const projection = map?.getProjection();
+    if (!map || !container || !projection || !window.kakao?.maps) return;
+    const bounds = container.getBoundingClientRect();
+    const items: ArrangeItem[] = [];
+
+    for (const id of useMapMarkerStore.getState().selectedMarkerIds) {
+      if (manualOverlayIdsRef.current.has(id)) continue;
+      const data = markerDataByIdRef.current.get(id);
+      if (!data || !isPlottableCoordinate(data.lat, data.lng)) continue;
+      const point = readPointXY(
+        projection.containerPointFromCoords(new window.kakao.maps.LatLng(data.lat, data.lng)),
+      );
+      const content = overlaysRef.current.get(id)?.getContent();
+      const panel =
+        content instanceof HTMLElement ? content.querySelector(".custom-overlay") : null;
+      const panelEl = panel instanceof HTMLElement ? panel : null;
+      items.push({
+        id,
+        x: point.x,
+        y: point.y,
+        width: Math.max(panelEl?.offsetWidth ?? 0, OVERLAY_ARRANGE_MIN_WIDTH),
+        height: Math.max(panelEl?.offsetHeight ?? 0, OVERLAY_ARRANGE_MIN_HEIGHT),
+      });
+    }
+    if (items.length === 0) return;
+
+    const { offsets, scale, placedIds } = arrangeOverlayPanels({
+      viewportWidth: bounds.width,
+      viewportHeight: bounds.height,
+      items,
+    });
+    let changed = false;
+    offsets.forEach((offset, id) => {
+      const before = overlayOffsetsRef.current.get(id);
+      const nextScale = placedIds.has(id) ? scale : undefined;
+      if (
+        !before ||
+        Math.abs(before.x - offset.x) > 0.5 ||
+        Math.abs(before.y - offset.y) > 0.5 ||
+        overlayScalesRef.current.get(id) !== nextScale
+      ) {
+        changed = true;
+      }
+      overlayOffsetsRef.current.set(id, offset);
+      if (nextScale === undefined) overlayScalesRef.current.delete(id);
+      else overlayScalesRef.current.set(id, nextScale);
+    });
+    if (changed) setOverlayLayoutVersion((version) => version + 1);
+  }, []);
+
+  // 대시보드가 떠 있는 동안 지도를 확대·축소·이동하면(idle) 정보창을 가장자리 열에 다시 배치한다.
+  // 정보창은 핀에 붙어 있어서, 다시 배치하지 않으면 핀을 따라 흩어진다.
+  const overlayBoardActive = useMapMarkerStore((state) => state.overlayBoardActive);
+  useEffect(() => {
+    if (!mapInstance || !overlayBoardActive || !window.kakao?.maps) return;
+    const kakao = window.kakao;
+    kakao.maps.event.addListener(mapInstance, "idle", arrangeSelectedOverlays);
+    return () => kakao.maps.event.removeListener(mapInstance, "idle", arrangeSelectedOverlays);
+  }, [mapInstance, overlayBoardActive, arrangeSelectedOverlays]);
+
+  // 맞춤 요청(대시보드가 작업 국소를 펼칠 때): 요청한 국소가 모두 보이게 지도를 옮긴다.
+  // 마커가 아직 올라오지 않았으면 처리하지 않고 두었다가 `markers`가 바뀌면 다시 시도한다.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!mapFitRequest || !map || !isReady || !window.kakao?.maps) return;
+    if (handledFitNonceRef.current === mapFitRequest.nonce) return;
+
+    const ids = new Set(mapFitRequest.ids);
+    const targets = markers.filter(
+      (marker) => ids.has(marker.id) && isPlottableCoordinate(marker.lat, marker.lng),
+    );
+    if (targets.length === 0) return;
+    handledFitNonceRef.current = mapFitRequest.nonce;
+
+    if (targets.length === 1) {
+      if (map.getLevel() > 3) map.setLevel(3);
+      map.panTo(new window.kakao.maps.LatLng(targets[0].lat, targets[0].lng));
+    } else {
+      fitMapToMarkers(
+        map,
+        targets,
+        mapFitRequest.arrange ? boardFitPadding() : MAP_FIT_PADDING_PX,
+      );
+    }
+
+    if (!mapFitRequest.arrange) return;
+
+    // 같은 자리에 핀이 겹친 국소들은 정보창이 한 자리에 쌓이므로, 지도가 자리 잡은 뒤(idle) 열린 정보창을 배치한다.
+    let arranged = false;
+    const arrangeOnce = () => {
+      if (arranged) return;
+      arranged = true;
+      window.kakao.maps.event.removeListener(map, "idle", arrangeOnce);
+      arrangeSelectedOverlays();
+    };
+    window.kakao.maps.event.addListener(map, "idle", arrangeOnce);
+    // 지도가 이미 그 자리라 idle이 오지 않는 경우를 위한 안전장치
+    window.setTimeout(arrangeOnce, OVERLAY_ARRANGE_FALLBACK_MS);
+  }, [mapFitRequest, markers, isReady, arrangeSelectedOverlays]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;

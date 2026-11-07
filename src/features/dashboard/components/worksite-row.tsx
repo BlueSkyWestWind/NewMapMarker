@@ -59,6 +59,14 @@ export function WorksiteRow({
             <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-100">
               {site.name}
             </span>
+            {site.scheduleDate ? (
+              <span
+                className="shrink-0 rounded border border-indigo-500/40 bg-indigo-950/50 px-1 text-[10px] leading-4 text-indigo-200"
+                title="시설일정에서 자동으로 담은 국소"
+              >
+                일정
+              </span>
+            ) : null}
             {status === "ok" && data ? (
               <span
                 className={cn(

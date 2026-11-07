@@ -25,7 +25,7 @@ interface ScreenRect {
   bottom: number;
 }
 
-function readPointXY(point: {
+export function readPointXY(point: {
   x: number;
   y: number;
   getX?: () => number;
@@ -35,6 +35,29 @@ function readPointXY(point: {
     x: typeof point.x === "number" ? point.x : (point.getX?.() ?? 0),
     y: typeof point.y === "number" ? point.y : (point.getY?.() ?? 0),
   };
+}
+
+/**
+ * 자동 배치가 놓은 정보창의 표시 방식을 `data-*`에 담는다. 배치한 정보창은 오프셋과 위치가 어긋나지 않도록
+ * 간격을 항상 `CAPTURE_PANEL_GAP`으로 고정하고, 카드를 줄였다면 그 배율(`scale`)을 따른다. `null`이면 기본 표시로 돌린다.
+ */
+export function setOverlayPanelLayout(
+  root: HTMLElement,
+  layout: { scale: number } | null,
+): void {
+  if (!layout) {
+    delete root.dataset.panelArranged;
+    delete root.dataset.panelScale;
+    return;
+  }
+  root.dataset.panelArranged = "true";
+  if (layout.scale >= 1) delete root.dataset.panelScale;
+  else root.dataset.panelScale = String(layout.scale);
+}
+
+function readPanelScale(root: HTMLElement): number {
+  const scale = Number(root.dataset.panelScale);
+  return Number.isFinite(scale) && scale > 0 && scale < 1 ? scale : 1;
 }
 
 function screenPanelToOffset(
@@ -272,26 +295,35 @@ export function syncOverlayLeader(
   }
 
   const isCaptureLayout = root.dataset.captureLayout === "true";
+  const scale = isCaptureLayout ? 1 : readPanelScale(root);
   // 캡처 배치는 슬롯 계산(computeCaptureOverlayOffsets)과 동일한 상수 크기를 써야
   // 패널이 계산한 위치에 정확히 놓여 마커 핀을 가리지 않는다.
   // (실제 offsetHeight는 내용에 따라 달라지므로 캡처 시에는 사용하지 않는다)
   const panelWidth = isCaptureLayout
     ? CAPTURE_PANEL_WIDTH
-    : panel.offsetWidth || 280;
+    : (panel.offsetWidth || 280) * scale;
   const panelHeight = isCaptureLayout
     ? CAPTURE_PANEL_HEIGHT
-    : panel.offsetHeight || 120;
+    : (panel.offsetHeight || 120) * scale;
   // 캡처 배치는 계산 시와 동일한 gap을 써야 창이 화면 밖으로 밀려나지 않는다
-  const gap = isCaptureLayout
-    ? CAPTURE_PANEL_GAP
-    : Math.abs(offset.y) >= 60 || Math.abs(offset.x) >= 100
+  // 자동 배치한 정보창은 간격이 고정이다(규칙 경계에서 위치가 20px 튀어 카드끼리 겹치는 것을 막는다)
+  const isArranged = root.dataset.panelArranged === "true";
+  const gap =
+    isCaptureLayout || isArranged
       ? CAPTURE_PANEL_GAP
-      : 16;
+      : Math.abs(offset.y) >= 60 || Math.abs(offset.x) >= 100
+        ? CAPTURE_PANEL_GAP
+        : 16;
 
   const panelLeft = -panelWidth / 2 + offset.x;
   const panelTop = -panelHeight - gap + offset.y;
 
-  panel.style.transform = `translate(${panelLeft}px, ${panelTop}px)`;
+  // 줄여 보일 때는 왼쪽 위 모서리를 기준으로 줄여서 위치 계산이 단순하다
+  panel.style.transformOrigin = scale < 1 ? "0 0" : "";
+  panel.style.transform =
+    scale < 1
+      ? `translate(${panelLeft}px, ${panelTop}px) scale(${scale})`
+      : `translate(${panelLeft}px, ${panelTop}px)`;
 
   const closest = closestPointOnRect(
     0,
@@ -311,8 +343,9 @@ export function syncOverlayLeader(
   stem.style.opacity = length < 8 ? "0" : "1";
 
   // 패널 로컬 좌표에 삼각형 배치, 뾰족한 쪽이 마커(0,0)를 향하도록 회전
-  const localX = closest.x - panelLeft;
-  const localY = closest.y - panelTop;
+  // (패널과 같이 줄어드는 자식이라 로컬 좌표는 줄이기 전 크기로 환산한다)
+  const localX = (closest.x - panelLeft) / scale;
+  const localY = (closest.y - panelTop) / scale;
   const pointAngleDeg = (Math.atan2(-closest.y, -closest.x) * 180) / Math.PI;
 
   pointer.style.left = `${localX}px`;

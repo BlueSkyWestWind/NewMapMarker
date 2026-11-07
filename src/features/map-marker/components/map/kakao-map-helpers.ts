@@ -19,15 +19,35 @@ export function isPlottableCoordinate(lat: number, lng: number) {
   );
 }
 
-/** 마커 전체가 보이도록 지도 범위를 맞춘다. */
-export function fitMapToMarkers(map: KakaoMap, plottedMarkers: MarkerRecord[]) {
+/** 여러 국소가 한 화면에 들어오게 맞출 때 가장자리에 두는 여백(px). 마커창 카드가 가장자리로 펼쳐지므로 넉넉히 둔다. */
+export const MAP_FIT_PADDING_PX = 120;
+
+export interface MapFitPadding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/** 마커 전체가 보이도록 지도 범위를 맞춘다. `padding`을 주면 가장자리에 그만큼 여백을 둔다(숫자면 네 변 모두). */
+export function fitMapToMarkers(
+  map: KakaoMap,
+  plottedMarkers: MarkerRecord[],
+  padding?: number | MapFitPadding,
+) {
   if (!window.kakao?.maps || plottedMarkers.length === 0) return;
 
   const bounds = new window.kakao.maps.LatLngBounds();
   plottedMarkers.forEach((marker) => {
     bounds.extend(new window.kakao.maps.LatLng(marker.lat, marker.lng));
   });
-  map.setBounds(bounds);
+  if (padding === undefined) {
+    map.setBounds(bounds);
+  } else if (typeof padding === "number") {
+    map.setBounds(bounds, padding, padding, padding, padding);
+  } else {
+    map.setBounds(bounds, padding.top, padding.right, padding.bottom, padding.left);
+  }
 }
 
 /** 열려 있는 커스텀 오버레이를 모두 닫고 맵을 비운다. */
