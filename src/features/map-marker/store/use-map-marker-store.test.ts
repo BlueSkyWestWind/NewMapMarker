@@ -83,3 +83,91 @@ describe("그룹관리 메뉴 상태", () => {
     expect(state.lastGroupManageKey).toBe("k1");
   });
 });
+
+describe("로드뷰를 닫아도 열어 둔 마커창은 남는다", () => {
+  beforeEach(() => {
+    useMapMarkerStore.setState({
+      selectedMarkerId: "a",
+      selectedMarkerIds: ["a", "b", "c"],
+    });
+    useMapMarkerStore.getState().openRoadview(35, 127, "국소");
+  });
+
+  it("closeRoadview는 로드뷰만 닫고 마커 선택은 그대로 둔다", () => {
+    useMapMarkerStore.getState().closeRoadview();
+    const state = useMapMarkerStore.getState();
+    expect(state.isRoadviewOpen).toBe(false);
+    expect(state.roadviewPosition).toBeNull();
+    expect(state.selectedMarkerIds).toEqual(["a", "b", "c"]);
+    expect(state.selectedMarkerId).toBe("a");
+  });
+});
+
+describe("마커창 선택은 메뉴마다 독립이다", () => {
+  beforeEach(() => {
+    useMapMarkerStore.setState({
+      activeNav: "dashboard",
+      mode: "weather",
+      selectedMarkerId: "c",
+      selectedMarkerIds: ["a", "b", "c"],
+      selectionByNav: {},
+    });
+  });
+
+  it("대시보드가 펼친 마커창은 지도 메뉴로 따라가지 않는다", () => {
+    useMapMarkerStore.getState().setActiveNav("map");
+    const state = useMapMarkerStore.getState();
+    expect(state.selectedMarkerIds).toEqual([]);
+    expect(state.selectedMarkerId).toBeNull();
+  });
+
+  it("대시보드로 돌아오면 대시보드의 선택이 복원된다", () => {
+    useMapMarkerStore.getState().setActiveNav("map");
+    useMapMarkerStore.getState().setSelectedMarkerIds(["x"]);
+    useMapMarkerStore.getState().setActiveNav("dashboard");
+    expect(useMapMarkerStore.getState().selectedMarkerIds).toEqual(["a", "b", "c"]);
+    useMapMarkerStore.getState().setActiveNav("map");
+    expect(useMapMarkerStore.getState().selectedMarkerIds).toEqual(["x"]);
+  });
+
+  it("같은 메뉴를 다시 눌러도 선택은 그대로다", () => {
+    useMapMarkerStore.getState().setActiveNav("dashboard");
+    expect(useMapMarkerStore.getState().selectedMarkerIds).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("메뉴를 옮기면 지도 보기 토글은 되돌아온다", () => {
+  it("마커 숨김은 다른 메뉴에 가면 다시 보이고, 같은 메뉴 재클릭은 유지한다", () => {
+    useMapMarkerStore.setState({ activeNav: "map", isMarkersVisible: false });
+    useMapMarkerStore.getState().setActiveNav("map");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
+    useMapMarkerStore.getState().setActiveNav("dashboard");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
+  });
+});
+
+describe("CCTV 메뉴는 이전 메뉴의 마커를 숨기고 시작한다", () => {
+  it("들어가면 숨기고, 나가면 다시 보인다", () => {
+    useMapMarkerStore.setState({ activeNav: "dashboard", isMarkersVisible: true });
+    useMapMarkerStore.getState().setActiveNav("cctv");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
+    useMapMarkerStore.getState().toggleMarkersVisible();
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
+    useMapMarkerStore.getState().setActiveNav("map");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
+  });
+});
+
+describe("지도와 무관한 메뉴도 이전 마커를 숨기고 시작한다", () => {
+  it.each(["schedule", "barcode", "backup", "settings"] as const)("%s", (nav) => {
+    useMapMarkerStore.setState({ activeNav: "dashboard", isMarkersVisible: true });
+    useMapMarkerStore.getState().setActiveNav(nav);
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
+  });
+
+  it.each(["map", "markers", "groups", "dashboard"] as const)("%s는 마커를 보인다", (nav) => {
+    useMapMarkerStore.setState({ activeNav: "settings", isMarkersVisible: false });
+    useMapMarkerStore.getState().setActiveNav(nav);
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
+  });
+});

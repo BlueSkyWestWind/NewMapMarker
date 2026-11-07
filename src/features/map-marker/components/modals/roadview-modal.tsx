@@ -19,7 +19,7 @@ interface RoadviewDateItem {
 export function RoadviewModal() {
   const isRoadviewOpen = useMapMarkerStore((state) => state.isRoadviewOpen);
   const roadviewPosition = useMapMarkerStore((state) => state.roadviewPosition);
-  const closeAllModals = useMapMarkerStore((state) => state.closeAllModals);
+  const closeRoadview = useMapMarkerStore((state) => state.closeRoadview);
 
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const containerRef = useCallback((node: HTMLDivElement | null) => {
@@ -219,7 +219,7 @@ export function RoadviewModal() {
   };
 
   return (
-    <Dialog open={isRoadviewOpen} onOpenChange={(open) => !open && closeAllModals()}>
+    <Dialog open={isRoadviewOpen} onOpenChange={(open) => !open && closeRoadview()}>
       <DialogContent className="max-w-[95vw] md:max-w-[1400px] w-full bg-slate-900 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl rounded-2xl">
         <DialogHeader className="p-4 border-b border-slate-800 flex flex-row items-center justify-between">
           <DialogTitle className="text-base font-bold bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">

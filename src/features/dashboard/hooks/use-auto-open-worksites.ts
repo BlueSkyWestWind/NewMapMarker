@@ -42,6 +42,8 @@ export function useAutoOpenWorksites(siteIds: string[]) {
     const fresh = siteIds.filter((id) => !openedBefore.includes(id));
     window.setTimeout(() => {
       const current = useMapMarkerStore.getState();
+      // 그 사이 다른 메뉴로 옮겼다면 그 메뉴의 선택을 건드리지 않는다.
+      if (current.activeNav !== "dashboard") return;
       if (fresh.some((id) => current.selectedMarkerIds.includes(id))) return;
       current.setSelectedMarkerIds([...current.selectedMarkerIds, ...fresh]);
     }, REASSERT_DELAY_MS);

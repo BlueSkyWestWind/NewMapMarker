@@ -85,6 +85,11 @@ interface MapMarkerUiState {
   stagedErpUpload: StagedErpUpload | null;
   selectedMarkerId: string | null;
   selectedMarkerIds: string[];
+  /**
+   * 메뉴를 떠날 때 그 메뉴의 마커창 선택을 맡겨 두는 곳. 메뉴 간 마커창이 섞이지 않게 한다
+   * (대시보드가 펼친 마커창이 지도에 남던 문제). persist 하지 않는다
+   */
+  selectionByNav: Partial<Record<NavKey, string[]>>;
   /** 캡처 중 정보창을 마커에서 떨어뜨려 배치 */
   isInfoWindowCaptureMode: boolean;
   isDetailOpen: boolean;
@@ -161,6 +166,8 @@ interface MapMarkerUiState {
   openDetailModal: (id: string) => void;
   openEditModal: (id: string | null) => void;
   openRoadview: (lat: number, lng: number, name: string) => void;
+  /** 로드뷰만 닫는다. 열어 둔 마커창(선택)은 그대로 둔다 */
+  closeRoadview: () => void;
   setPlaceSearch: (result: PlaceSearchResult | null) => void;
   closeAllModals: () => void;
 }
@@ -172,6 +179,9 @@ interface MapMarkerUiState {
 export const STORE_DEFAULT_MODE: MapMode = "equipment";
 export const STORE_DEFAULT_NAV: NavKey = "dashboard";
 export const STORE_DEFAULT_SEGMENT: MapSegment = "equipment";
+
+/** 들어가면 지도의 일반 마커를 숨기고 시작하는 메뉴. CCTV는 조회 결과만, 나머지는 지도와 무관하다 */
+const NAVS_WITHOUT_MARKERS: NavKey[] = ["cctv", "schedule", "barcode", "backup", "settings"];
 
 const emptyFilterState: MarkerFilterState = {
   selectedYears: new Set(),
@@ -225,7 +235,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
           };
         }),
       /**
-       * 메뉴 전환. **필터·선택·CCTV 조회 결과를 보존한다** (계획서 §3.9).
+       * 메뉴 전환. **필터·CCTV 조회 결과를 보존한다** (계획서 §3.9). 마커창 선택은 메뉴별로 따로 둔다.
        *
        * `setMode`는 도메인이 바뀌면 필터를 비우는데, 그건 세그먼트를 직접 눌렀을 때의 규칙이다.
        * 대시보드가 weather 모드를 쓰므로 메뉴가 `setMode`를 그대로 호출하면
@@ -266,10 +276,33 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
                 }
               : null;
 
+          /*
+           * 마커창 선택은 메뉴마다 독립이다. 떠나는 메뉴의 선택을 맡겨 두고, 들어가는 메뉴가
+           * 마지막에 열어 둔 선택을 돌려준다(처음이면 빈 선택). 같은 메뉴를 다시 누르면 그대로 둔다.
+           */
+          const switching = nav !== state.activeNav;
+          const nextSelection = switching
+            ? (state.selectionByNav[nav] ?? [])
+            : state.selectedMarkerIds;
+          const selection = switching
+            ? {
+                selectionByNav: {
+                  ...state.selectionByNav,
+                  [state.activeNav]: state.selectedMarkerIds,
+                },
+                selectedMarkerIds: nextSelection,
+                selectedMarkerId: nextSelection[nextSelection.length - 1] ?? null,
+              }
+            : null;
+
           return {
             activeNav: nav,
             mode: nextMode,
             mapSegment: nextSegment,
+            // 마커 숨김 토글은 그 메뉴에서만 유효하다. 다른 메뉴로 가면 다시 보인다.
+            // 마커가 주인공이 아닌 메뉴는 이전 메뉴의 마커를 숨기고 시작한다(우하단 토글로 켤 수 있다).
+            ...(switching ? { isMarkersVisible: !NAVS_WITHOUT_MARKERS.includes(nav) } : null),
+            ...selection,
             ...leavingCctv,
           };
         }),
@@ -294,6 +327,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
       stagedErpUpload: null,
       selectedMarkerId: null,
       selectedMarkerIds: [],
+      selectionByNav: {},
       isInfoWindowCaptureMode: false,
       isDetailOpen: false,
       isEditOpen: false,
@@ -520,6 +554,7 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
           roadviewPosition: { lat, lng, name },
           isRoadviewOpen: true,
         }),
+      closeRoadview: () => set({ isRoadviewOpen: false, roadviewPosition: null }),
       setPlaceSearch: (result) => set({ placeSearch: result }),
       closeAllModals: () =>
         set({
