@@ -1,0 +1,31 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # 매주 토요일 15:00 UTC = 매주 일요일 00:00 KST
+    - cron: '0 15 * * 6'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping Supabase Database
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: https://bgdqjtmkdprqencgnrbx.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_apsLHlcVZy1F32x7-NrB0g_LNe-X__S' }}
+        run: |
+          echo "Sending keep-alive ping to Supabase..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/schedule_columns?select=id&limit=1")
+          
+          echo "Supabase response HTTP status: ${HTTP_STATUS}"
+          if [ "${HTTP_STATUS}" -eq 200 ]; then
+            echo "Successfully pinged Supabase database. Server is active."
+          else
+            echo "Unexpected status code: ${HTTP_STATUS}"
+            exit 1
+          fi
