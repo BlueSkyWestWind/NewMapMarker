@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardCopy, Download, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,10 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   const { rows } = sheet;
 
   const isEmpty = rows.length === 0;
+  // 상세·참조 값이 아직 오는 중이거나 불러오기에 실패하면 행이 비어 있으므로 복사·내려받기·누적 저장을 막는다.
+  const canAct = !isEmpty && !sheet.isLoading && !sheet.error;
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const selectedCount = useMemo(
     () => rows.filter((row) => selected.has(row.stationKey)).length,
     [rows, selected],
@@ -66,8 +70,22 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   const toggleAll = () =>
     setSelected(selectedCount === rows.length ? new Set() : new Set(rows.map((row) => row.stationKey)));
 
-  /** 복사·내려받기 전에 누적에 저장한다(관리자만). 저장이 실패해도 복사·내려받기는 막지 않는다. */
-  const archiveBeforeExport = async () => {
+  /** 저장·복사·내려받기를 하나씩만 돌린다. 끝나기 전의 두 번째 클릭은 무시한다. */
+  const runExclusive = async (action: () => Promise<void>) => {
+    // 불러오는 중이거나 실패한 표는 상세·참조 값이 비어 있어 누적을 빈 값으로 덮을 수 있다.
+    if (!canAct || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  /** 복사·내려받기 뒤에 누적에 저장한다(관리자만). 저장이 실패해도 이미 한 복사·내려받기는 그대로다. */
+  const archiveAfterExport = async () => {
     if (!canEdit) return;
     try {
       await sheet.saveArchive();
@@ -80,39 +98,44 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
     }
   };
 
-  const handleCopy = async () => {
-    const text = buildCopyText(rows.map((row) => row.values));
-    await archiveBeforeExport();
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({ title: "표를 복사했습니다", description: `${rows.length}건을 엑셀에 붙여 넣을 수 있습니다.` });
-    } catch (error) {
-      toast({ title: "복사하지 못했습니다", description: errorMessage(error), variant: "destructive" });
-    }
-  };
+  const handleCopy = () =>
+    runExclusive(async () => {
+      const text = buildCopyText(rows.map((row) => row.values));
+      const count = rows.length;
+      // 브라우저의 사용자 동작 인정(Safari 클립보드)이 끊기지 않도록 복사를 먼저 한다.
+      try {
+        await navigator.clipboard.writeText(text);
+        toast({ title: "표를 복사했습니다", description: `${count}건을 엑셀에 붙여 넣을 수 있습니다.` });
+      } catch (error) {
+        toast({ title: "복사하지 못했습니다", description: errorMessage(error), variant: "destructive" });
+      }
+      await archiveAfterExport();
+    });
 
-  const handleDownload = async () => {
-    const values = rows.map((row) => row.values);
-    await archiveBeforeExport();
-    try {
-      await downloadDayWorkbook(workDate, values, lists);
-    } catch (error) {
-      toast({ title: "내려받지 못했습니다", description: errorMessage(error), variant: "destructive" });
-    }
-  };
+  const handleDownload = () =>
+    runExclusive(async () => {
+      const values = rows.map((row) => row.values);
+      try {
+        await downloadDayWorkbook(workDate, values, lists);
+      } catch (error) {
+        toast({ title: "내려받지 못했습니다", description: errorMessage(error), variant: "destructive" });
+      }
+      await archiveAfterExport();
+    });
 
-  const handleArchive = async () => {
-    try {
-      await sheet.saveArchive();
-      toast({ title: "누적에 저장했습니다", description: `${workDate} ${rows.length}건` });
-    } catch (error) {
-      toast({
-        title: "누적 저장에 실패했습니다",
-        description: errorMessage(error),
-        variant: "destructive",
-      });
-    }
-  };
+  const handleArchive = () =>
+    runExclusive(async () => {
+      try {
+        await sheet.saveArchive();
+        toast({ title: "누적에 저장했습니다", description: `${workDate} ${rows.length}건` });
+      } catch (error) {
+        toast({
+          title: "누적 저장에 실패했습니다",
+          description: errorMessage(error),
+          variant: "destructive",
+        });
+      }
+    });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -155,7 +178,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
             type="button"
             variant="outline"
             className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-            disabled={isEmpty}
+            disabled={!canAct || busy}
             onClick={() => void handleCopy()}
           >
             <ClipboardCopy className="h-3.5 w-3.5" aria-hidden />
@@ -165,7 +188,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
             type="button"
             variant="outline"
             className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-            disabled={isEmpty}
+            disabled={!canAct || busy}
             onClick={() => void handleDownload()}
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
@@ -176,7 +199,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
               type="button"
               variant="outline"
               className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-              disabled={isEmpty}
+              disabled={!canAct || busy}
               onClick={() => void handleArchive()}
             >
               <Save className="h-3.5 w-3.5" aria-hidden />
