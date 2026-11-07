@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -117,6 +118,8 @@ export function GroupManageDialog() {
   const groupManageKey = useMapMarkerStore((state) => state.groupManageKey);
   const setGroupManageKey = useMapMarkerStore((state) => state.setGroupManageKey);
   const setLastGroupManageKey = useMapMarkerStore((state) => state.setLastGroupManageKey);
+  const selectedGroupKeys = useMapMarkerStore((state) => state.selectedGroupKeys);
+  const setGroupKeys = useMapMarkerStore((state) => state.setGroupKeys);
   const { toast } = useToast();
 
   const groups = useMarkerGroups();
@@ -255,6 +258,26 @@ export function GroupManageDialog() {
     setGroupManageKey(null);
   };
 
+  // 지도 드래그는 변경분을 거치지 않고 DB에 바로 저장되고, 다시 여는 창은 새 데이터로 시작한다.
+  // 그래서 저장하지 않은 변경은 이동 전에 버릴지 먼저 묻는다.
+  const goToMap = () => {
+    if (!groupManageKey || isSaving || pending) return;
+    if (
+      changeCount > 0 &&
+      !window.confirm(
+        `저장하지 않은 변경 ${changeCount}건이 있습니다. 지도에서 옮긴 위치는 바로 저장되고 이 창은 새로 열리므로, 지금 변경은 버려집니다. 버리고 지도로 이동할까요?`,
+      )
+    ) {
+      return;
+    }
+    edit.discard();
+    if (!selectedGroupKeys.includes(groupManageKey)) {
+      setGroupKeys([...selectedGroupKeys, groupManageKey]);
+    }
+    setLastGroupManageKey(groupManageKey);
+    setGroupManageKey(null);
+  };
+
   const selectGroup = (key: string) => {
     if (key === groupManageKey || isSaving || !confirmDiscard()) return;
     edit.discard();
@@ -308,6 +331,17 @@ export function GroupManageDialog() {
             변경 {changeCount}건
             {issues.length > 0 ? ` · 입력 오류 ${issues.length}건` : ""}
           </span>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 shrink-0 whitespace-nowrap border-slate-700 text-xs text-slate-200"
+            disabled={!group || isSaving}
+            title="창을 닫고 지도에서 마커를 끌어 위치를 바꿉니다"
+            onClick={goToMap}
+          >
+            <MapPin className="mr-1 h-3.5 w-3.5" aria-hidden />
+            지도에서 위치 잡기
+          </Button>
           <Button
             type="button"
             className="h-8 shrink-0 bg-indigo-600 text-xs hover:bg-indigo-500"
@@ -426,6 +460,12 @@ export function GroupManageDialog() {
                 onMerge={askMerge}
                 onUnsplit={askUnsplit}
               />
+            ) : null}
+            {group?.hasNoCoord ? (
+              <p className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100">
+                좌표가 없는 마커는 지도에 나오지 않아 끌어 옮길 수 없습니다. 표의 위도·경도 칸에
+                직접 입력해 주세요.
+              </p>
             ) : null}
             {notice ? (
               <p

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Maximize2, Pencil } from "lucide-react";
+import { Maximize2, Pencil, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMarkerGroups } from "@/features/group-admin/hooks/use-marker-groups";
@@ -110,9 +110,10 @@ export function GroupPanel() {
     });
   };
 
+  const lastGroup = groups.find((g) => g.key === lastGroupManageKey) ?? null;
+  const lastHead = lastGroup ? (lastGroup.representative ?? lastGroup.markers[0]) : null;
   const openManage = () => {
-    const last = groups.find((g) => g.key === lastGroupManageKey);
-    const target = last ?? filtered[0] ?? groups[0];
+    const target = lastGroup ?? filtered[0] ?? groups[0];
     if (target) setGroupManageKey(target.key);
   };
 
@@ -157,6 +158,19 @@ export function GroupPanel() {
           </Button>
         ) : null}
       </div>
+      {lastGroup && !groupManageKey ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 w-full justify-start border-slate-700 text-xs text-slate-200"
+          onClick={() => setGroupManageKey(lastGroup.key)}
+        >
+          <Undo2 className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="min-w-0 truncate">
+            방금 보던 묶음 다시 열기 ({lastHead?.name || "이름 없음"})
+          </span>
+        </Button>
+      ) : null}
       {isBulkOpen && selectedKeys.length > 0 ? (
         <p className="text-xs text-slate-400">
           선택한 {selectedKeys.length}개 묶음의 일괄 수정은 아직 준비 중입니다.
