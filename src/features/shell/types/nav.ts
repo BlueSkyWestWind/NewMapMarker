@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   Database,
   Layers,
   LayoutDashboard,
@@ -15,6 +16,7 @@ export type NavKey =
   | "dashboard"
   | "map"
   | "markers"
+  | "schedule"
   | "groups"
   | "cctv"
   | "barcode"
@@ -38,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "대시보드", icon: LayoutDashboard, auth: false, enabled: true },
   { key: "map", label: "지도", icon: Map, auth: false, enabled: true },
   { key: "markers", label: "마커관리", icon: MapPin, auth: true, enabled: true },
+  { key: "schedule", label: "일정관리", icon: CalendarDays, auth: true, enabled: true },
   { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: true, adminOnly: true },
   // 앱 전체가 로그인 벽(AuthGate) 안에 있어 CCTV도 로그인 후에만 열린다. 이 auth 플래그는 레일 노출 여부용이다.
   { key: "cctv", label: "CCTV", icon: Video, auth: false, enabled: true },

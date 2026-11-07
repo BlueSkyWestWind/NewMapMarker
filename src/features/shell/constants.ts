@@ -16,6 +16,8 @@ export const GROUP_MANAGE_DIALOG_MAX_WIDTH_PX = 1680;
 export const GROUP_MANAGE_LIST_WIDTH_PX = 260;
 /** 그룹관리 일괄 수정 창 최대 폭. */
 export const GROUP_BULK_DIALOG_MAX_WIDTH_PX = 880;
+/** 일정표의 날짜 열 폭. */
+export const SCHEDULE_DATE_COLUMN_WIDTH_PX = 96;
 
 /**
  * 지도 영역의 좌측 오프셋. **뷰포트 고정(`position: fixed`) 요소만** 이 값이 필요하다.

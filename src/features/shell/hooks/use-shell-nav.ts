@@ -8,11 +8,11 @@ import type { MapMode } from "@/features/map-marker/types/marker";
 import { useHasMounted } from "@/hooks/use-has-mounted";
 import {
   AUTH_ONLY_SEGMENTS,
-  hasNavSegments,
+  initialPanelStep,
 } from "@/features/shell/lib/nav-model";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
 import type { NavKey } from "@/features/shell/types/nav";
-import type { MapSegment } from "@/features/shell/types/segment";
+import { isMapSegment, type NavSubKey } from "@/features/shell/types/segment";
 
 /** 레일·트리·패널·모바일 메뉴가 함께 쓰는 메뉴 이동 동작 */
 export function useShellNav() {
@@ -37,7 +37,7 @@ export function useShellNav() {
   const pickNav = useCallback(
     (nav: NavKey) => {
       setActiveNav(nav);
-      setPanelStep(hasNavSegments(nav) ? "root" : "detail");
+      setPanelStep(initialPanelStep(nav));
       openPanel();
     },
     [setActiveNav, setPanelStep, openPanel],
@@ -48,12 +48,15 @@ export function useShellNav() {
    * 마커관리는 도메인만 바꾸면 되므로 `setMode`를 쓴다.
    */
   const pickSegment = useCallback(
-    (nav: NavKey, segment: MapSegment) => {
+    (nav: NavKey, segment: NavSubKey) => {
       setActiveNav(nav);
-      if (nav === "markers") {
-        setMode(segment as MapMode);
-      } else {
-        setMapSegment(segment);
+      // 일정관리의 하위 화면은 지도 모드·세그먼트를 바꾸지 않는다.
+      if (nav !== "schedule" && isMapSegment(segment)) {
+        if (nav === "markers") {
+          setMode(segment as MapMode);
+        } else {
+          setMapSegment(segment);
+        }
       }
       setPanelStep("detail");
       openPanel();
@@ -63,7 +66,7 @@ export function useShellNav() {
 
   // 위치·변환기만 잠근다. 장비·축전지 조회는 비로그인도 가능하다.
   const isSegmentLocked = useCallback(
-    (segment: MapSegment) =>
+    (segment: NavSubKey) =>
       hasMounted && !authed && AUTH_ONLY_SEGMENTS.includes(segment),
     [hasMounted, authed],
   );

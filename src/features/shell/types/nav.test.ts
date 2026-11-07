@@ -19,3 +19,19 @@ describe("관리자 전용 메뉴", () => {
     expect(isNavAccessible("dashboard", false, false)).toBe(true);
   });
 });
+
+describe("일정관리 메뉴", () => {
+  it("로그인한 사용자에게는 관리자 여부와 상관없이 보이고 비로그인에게는 숨는다", () => {
+    expect(visibleNavItems(true, false).some((item) => item.key === "schedule")).toBe(true);
+    expect(visibleNavItems(true, true).some((item) => item.key === "schedule")).toBe(true);
+    expect(visibleNavItems(false).some((item) => item.key === "schedule")).toBe(false);
+    expect(isNavAccessible("schedule", true, false)).toBe(true);
+    expect(isNavAccessible("schedule", false, false)).toBe(false);
+  });
+
+  it("마커관리 바로 다음, 그룹관리 바로 앞에 있다", () => {
+    const keys = visibleNavItems(true, true).map((item) => item.key);
+    expect(keys.indexOf("schedule")).toBe(keys.indexOf("markers") + 1);
+    expect(keys.indexOf("groups")).toBe(keys.indexOf("schedule") + 1);
+  });
+});

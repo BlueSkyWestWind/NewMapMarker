@@ -9,15 +9,17 @@ import {
   NAV_DESCRIPTIONS,
   SEGMENT_META,
   segmentsOfNav,
+  showsMarkerSummary,
+  subLabelOf,
 } from "@/features/shell/lib/nav-model";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
 import { NAV_ITEMS } from "@/features/shell/types/nav";
-import type { MapSegment } from "@/features/shell/types/segment";
+import type { NavSubKey } from "@/features/shell/types/segment";
 
 interface WorkPanelProps extends PanelBodyProps {
   /** 건수와 좌표 없음 안내. 상세 단계의 설명으로 쓴다. */
   countSummary: string;
-  segmentCounts: Partial<Record<MapSegment, number>>;
+  segmentCounts: Partial<Record<NavSubKey, number>>;
 }
 
 /** 드릴다운 패널. 첫 단계는 하위 메뉴 목록, 상세 단계는 기존 패널 내용이다. */
@@ -36,10 +38,10 @@ export function WorkPanel({ countSummary, segmentCounts, ...bodyProps }: WorkPan
   const hasSegments = hasNavSegments(activeNav);
   const isRoot = hasSegments && panelStep === "root";
   const navLabel = NAV_ITEMS.find((item) => item.key === activeNav)?.label ?? "";
-  const title = hasSegments && !isRoot ? SEGMENT_META[segment].label : navLabel;
+  const title = hasSegments && !isRoot ? subLabelOf(activeNav, segment) : navLabel;
   const description = isRoot
     ? NAV_DESCRIPTIONS[activeNav]
-    : hasSegments && segment !== "converter"
+    : showsMarkerSummary(activeNav, segment)
       ? countSummary
       : "";
 

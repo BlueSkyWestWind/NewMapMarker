@@ -38,12 +38,17 @@ const BarcodeResultsMain = dynamic(
     ),
   { ssr: false },
 );
+// 일정관리 탭에서만 필요하다. 표·엑셀 변환 코드를 홈 첫 로딩 번들에서 뺀다.
+const ScheduleMain = dynamic(
+  () => import("@/features/schedule/components/schedule-view").then((m) => m.ScheduleView),
+  { ssr: false },
+);
 import {
   NAV_RAIL_WIDTH_PX,
   NAV_TREE_WIDTH_PX,
   WORK_PANEL_WIDTH_PX,
 } from "@/features/shell/constants";
-import { hasNavSegments } from "@/features/shell/lib/nav-model";
+import { isPanelVisible } from "@/features/shell/lib/nav-model";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
 import { isNavAccessible } from "@/features/shell/types/nav";
 import type { NavKey } from "@/features/shell/types/nav";
@@ -89,6 +94,7 @@ export function AppShell({
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
   const isTreeOpen = useShellStore((state) => state.isTreeOpen);
   const panelStep = useShellStore((state) => state.panelStep);
+  const isMoreOpen = useShellStore((state) => state.isMoreOpen);
   const isMobile = useIsMobile();
   const { isAuthenticated } = useAuthSession();
   const authed = hasMounted && isAuthenticated;
@@ -137,10 +143,11 @@ export function AppShell({
     equipmentCount,
     batteryCount,
   };
-  // 트리에서는 하위 메뉴 첫 단계를 트리가 대신하므로 패널이 열리지 않는다.
-  const isPanelOpen =
-    isSidebarOpen &&
-    (!isTreeOpen || !hasNavSegments(activeNav) || panelStep === "detail");
+  const isPanelOpen = isPanelVisible({ activeNav, isSidebarOpen, isTreeOpen, panelStep });
+  // 바코드/QR과 일정관리는 지도를 쓰지 않는다. 지도는 언마운트하지 않고 숨기기만 한다.
+  const isMapHidden = activeNav === "barcode" || activeNav === "schedule";
+  // 일정관리는 모바일에서도 시트 없이 화면 전체를 쓴다. 더보기 목록을 열었을 때만 시트가 뜬다.
+  const showMobileSheet = isMobile && (activeNav !== "schedule" || isMoreOpen);
 
   return (
     <div
@@ -171,8 +178,8 @@ export function AppShell({
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* 장소 검색은 지도 전용이다 — 바코드/QR에는 지도가 없으니 검색바도 필요 없다. */}
-        {activeNav === "barcode" ? null : (
+        {/* 장소 검색은 지도 전용이다 — 바코드/QR·일정관리에는 지도가 없으니 검색바도 필요 없다. */}
+        {isMapHidden ? null : (
           <TopSearchBar
             showMapPickControls={activeNav === "map" && segment === "converter"}
           />
@@ -183,10 +190,11 @@ export function AppShell({
            * 언마운트하지 않고 숨기기만 한다 — 다시 돌아왔을 때 카카오맵 SDK를
            * 재초기화하지 않고 마커·카메라 위치가 그대로 남는다.
            */}
-          <div className={activeNav === "barcode" ? "hidden" : "contents"}>{children}</div>
+          <div className={isMapHidden ? "hidden" : "contents"}>{children}</div>
           {activeNav === "barcode" ? <BarcodeResultsMain /> : null}
+          {activeNav === "schedule" ? <ScheduleMain /> : null}
 
-          {isMobile ? (
+          {showMobileSheet ? (
             <MobileSheet
               {...bodyProps}
               countSummary={countSummary}

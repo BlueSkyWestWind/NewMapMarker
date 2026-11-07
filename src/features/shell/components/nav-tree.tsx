@@ -7,17 +7,18 @@ import { AuthHeader } from "@/features/map-marker/components/sidebar/auth-header
 import { useShellNav } from "@/features/shell/hooks/use-shell-nav";
 import {
   filterNavTree,
+  isSubActive,
   SEGMENT_META,
 } from "@/features/shell/lib/nav-model";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
 import { visibleNavItems, type NavKey } from "@/features/shell/types/nav";
-import type { MapSegment } from "@/features/shell/types/segment";
+import type { MapSegment, NavSubKey } from "@/features/shell/types/segment";
 
 interface NavTreeProps {
   /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
   activeNav: NavKey;
   segment: MapSegment;
-  segmentCounts: Partial<Record<MapSegment, number>>;
+  segmentCounts: Partial<Record<NavSubKey, number>>;
 }
 
 /** 펼친 메뉴 트리. 하위 메뉴를 누르면 옆에 상세 패널이 열린다. */
@@ -105,7 +106,9 @@ export function NavTree({ activeNav, segment, segmentCounts }: NavTreeProps) {
                     const { label, icon: ChildIcon } = SEGMENT_META[key];
                     const locked = isSegmentLocked(key);
                     const isChildActive =
-                      isActive && segment === key && panelStep === "detail";
+                      isActive &&
+                      isSubActive(item.key, key, segment) &&
+                      (item.key === "schedule" || panelStep === "detail");
                     const count = segmentCounts[key];
                     return (
                       <li key={key}>

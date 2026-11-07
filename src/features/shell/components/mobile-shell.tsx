@@ -14,6 +14,8 @@ import {
   mobileTabItems,
   SEGMENT_META,
   segmentsOfNav,
+  showsMarkerSummary,
+  subLabelOf,
   type MobileTabKey,
 } from "@/features/shell/lib/nav-model";
 import {
@@ -26,7 +28,7 @@ import {
 } from "@/features/shell/lib/sheet-snap";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
 import { NAV_ITEMS, type NavKey } from "@/features/shell/types/nav";
-import type { MapSegment } from "@/features/shell/types/segment";
+import type { NavSubKey } from "@/features/shell/types/segment";
 
 const SNAP_HEIGHT: Record<SheetSnap, string> = {
   peek: `${SHEET_PEEK_PX}px`,
@@ -45,7 +47,7 @@ const DRAG_THRESHOLD_PX = 4;
 
 interface MobileSheetProps extends PanelBodyProps {
   countSummary: string;
-  segmentCounts: Partial<Record<MapSegment, number>>;
+  segmentCounts: Partial<Record<NavSubKey, number>>;
 }
 
 /**
@@ -119,12 +121,12 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
   const title = isMoreOpen
     ? "더보기"
     : hasSegments && !isRoot
-      ? SEGMENT_META[segment].label
+      ? subLabelOf(activeNav, segment)
       : navLabel;
   const isMoreItem = mobileMoreItems(true, isAdmin).some((item) => item.key === activeNav);
   const hasBack = !isMoreOpen && ((hasSegments && !isRoot) || isMoreItem);
   const description =
-    snap !== "peek" && isDetail && hasSegments && segment !== "converter" ? countSummary : "";
+    snap !== "peek" && isDetail && showsMarkerSummary(activeNav, segment) ? countSummary : "";
 
   const raiseIfPeek = () => {
     if (snap === "peek") setSnap("half");
