@@ -404,6 +404,16 @@ describe("fetchLatestArchive / deleteArchiveRows", () => {
     expect(latest.get("b")?.workDate).toBe("2026-10-01");
   });
 
+  it("beforeDate를 주면 그 날짜보다 앞선 행만 묻고, 주지 않으면 날짜로 거르지 않는다", async () => {
+    const bounded = stubClient(() => ({ data: [], count: 0 }));
+    await fetchLatestArchive(bounded.client, ["a"], "2026-11-09");
+    expect(stepArgs(bounded.calls[0], "lt")).toEqual(["work_date", "2026-11-09"]);
+
+    const unbounded = stubClient(() => ({ data: [], count: 0 }));
+    await fetchLatestArchive(unbounded.client, ["a"]);
+    expect(stepNames(unbounded.calls[0])).not.toContain("lt");
+  });
+
   it("국소 키가 없으면 DB를 부르지 않는다", async () => {
     const { client, calls } = stubClient();
     expect((await fetchLatestArchive(client, [])).size).toBe(0);

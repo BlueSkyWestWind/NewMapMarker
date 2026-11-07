@@ -323,23 +323,29 @@ export async function fetchArchive(
   return ((data ?? []) as unknown as Row[]).map(toArchiveRow);
 }
 
-/** 국소(`stationKey`)마다 작업일이 가장 최근인 누적 행. */
+/**
+ * 국소(`stationKey`)마다 작업일이 가장 최근인 누적 행.
+ * `beforeDate`를 주면 그 날짜보다 **앞선**(같은 날 제외) 행만 본다 — 보고 있는 날 자신의 저장본이
+ * 참조가 되지 않게 하려고 일자별 보기가 고른 날짜를 넘긴다.
+ */
 export async function fetchLatestArchive(
   supabase: SupabaseBrowserClient,
   stationKeys: string[],
+  beforeDate?: string,
 ): Promise<Map<string, ArchiveRow>> {
   const keys = [...new Set(stationKeys)];
   if (keys.length === 0) return new Map();
-  const rows = await fetchAllRows<Row>(
-    (from, to) =>
-      supabase
-        .from("schedule_archive_rows")
-        .select(ARCHIVE_COLUMNS, { count: "exact" })
-        .in("station_key", keys)
-        .order("work_date", { ascending: false })
-        .order("station_key")
-        .range(from, to) as unknown as PromiseLike<FetchPageResult<Row>>,
-  );
+  const rows = await fetchAllRows<Row>((from, to) => {
+    let query = supabase
+      .from("schedule_archive_rows")
+      .select(ARCHIVE_COLUMNS, { count: "exact" })
+      .in("station_key", keys);
+    if (beforeDate) query = query.lt("work_date", beforeDate);
+    return query
+      .order("work_date", { ascending: false })
+      .order("station_key")
+      .range(from, to) as unknown as PromiseLike<FetchPageResult<Row>>;
+  });
   return latestPerStation(rows.map(toArchiveRow));
 }
 

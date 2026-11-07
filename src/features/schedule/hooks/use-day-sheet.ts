@@ -16,6 +16,7 @@ import { LATEST_ARCHIVE_QUERY_KEY } from "@/features/schedule/hooks/use-archive"
 import { useScheduleRange } from "@/features/schedule/hooks/use-schedule-range";
 import { archiveValuesToRef, markerToRef } from "@/features/schedule/lib/day-reference";
 import { rowsToArchive } from "@/features/schedule/lib/day-archive";
+import { mergeDetailPatch } from "@/features/schedule/lib/day-details";
 import { buildDayRows, type DayRow } from "@/features/schedule/lib/day-rows";
 import { buildDayStations, stationKey } from "@/features/schedule/lib/day-stations";
 import type {
@@ -42,25 +43,6 @@ interface DetailsResult {
 interface ArchiveResult {
   latest: Map<string, ArchiveRow>;
   tableMissing: boolean;
-}
-
-function blankDetail(station: DayRow, workDate: string): DayDetail {
-  return {
-    workDate,
-    stationKey: station.stationKey,
-    site: station.site,
-    workCategory: null,
-    levelLabel: null,
-    workTime: null,
-    workType: null,
-    equipment: null,
-    workContent: null,
-    workDetail: null,
-    worker: null,
-    witness: null,
-    signaler: null,
-    overrides: {},
-  };
 }
 
 /**
@@ -111,10 +93,11 @@ export function useDaySheet(workDate: string) {
   });
 
   const archiveQuery = useQuery<ArchiveResult>({
-    queryKey: [...LATEST_ARCHIVE_QUERY_KEY, userId, stationKeys],
+    queryKey: [...LATEST_ARCHIVE_QUERY_KEY, userId, workDate, stationKeys],
     queryFn: async () => {
       try {
-        return { latest: await fetchLatestArchive(supabase!, stationKeys), tableMissing: false };
+        // 보고 있는 날보다 앞선 행만 참조한다(그날 자신의 저장본은 제외).
+        return { latest: await fetchLatestArchive(supabase!, stationKeys, workDate), tableMissing: false };
       } catch (error) {
         if (isScheduleTableMissing(error)) return { latest: NO_ARCHIVE, tableMissing: true };
         throw error;
@@ -168,18 +151,22 @@ export function useDaySheet(workDate: string) {
     async (patches: { station: DayRow; patch: DayDetailPatch }[]) => {
       if (!supabase) throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
       if (patches.length === 0) return;
-      // 같은 국소의 패치는 차례로 합치고, 값이 없는(undefined) 칸은 덮어쓰지 않는다.
+      // 캐시된 값이 아니라 저장 시점의 DB 행에 합친다(다른 관리자의 수정·연달아 한 저장을 덮지 않도록).
+      const fresh = new Map(
+        (await fetchDayDetails(supabase, workDate)).map((detail) => [detail.stationKey, detail]),
+      );
       const next = new Map<string, DayDetail>();
       for (const { station, patch } of patches) {
-        const base =
-          next.get(station.stationKey) ?? details.get(station.stationKey) ?? blankDetail(station, workDate);
-        const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
-        next.set(station.stationKey, { ...base, ...defined });
+        const key = { workDate, stationKey: station.stationKey, site: station.site };
+        next.set(
+          station.stationKey,
+          mergeDetailPatch(next.get(station.stationKey) ?? fresh.get(station.stationKey), key, patch),
+        );
       }
       await upsertDayDetails(supabase, [...next.values()]);
       await queryClient.invalidateQueries({ queryKey: DETAILS_QUERY_KEY });
     },
-    [supabase, details, workDate, queryClient],
+    [supabase, workDate, queryClient],
   );
 
   const saveArchive = useCallback(async () => {
