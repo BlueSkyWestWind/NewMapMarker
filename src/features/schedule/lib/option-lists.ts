@@ -1,4 +1,4 @@
-import type { OptionListKey, OptionLists } from "./day-types";
+import { OPTION_LIST_KEYS, type OptionListKey, type OptionLists } from "./day-types";
 
 /**
  * 드롭다운 목록의 처음 값. 출처: 통합 문서1.xlsx `List` 시트(사업분류 D · 사업유형 E ·
@@ -79,6 +79,13 @@ export const OPTION_LIST_SEEDS: OptionLists = {
     "기타",
   ],
 };
+
+/** 목록 8개를 새 객체·새 배열로 복사한다. 돌려받은 쪽이 바꿔도 원본(처음 값 상수)이 오염되지 않는다. */
+export function cloneOptionLists(lists: OptionLists): OptionLists {
+  return Object.fromEntries(
+    OPTION_LIST_KEYS.map((key) => [key, [...lists[key]]]),
+  ) as unknown as OptionLists;
+}
 
 export const OPTION_LIST_LABELS: Record<OptionListKey, string> = {
   bizClass: "사업분류",

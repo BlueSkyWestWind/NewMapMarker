@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { addOption, DAY_QUERY_KEY, deleteOption, fetchOptionLists } from "@/features/schedule/day-api";
 import type { OptionListKey, OptionLists } from "@/features/schedule/lib/day-types";
-import { OPTION_LIST_SEEDS } from "@/features/schedule/lib/option-lists";
+import { cloneOptionLists, OPTION_LIST_SEEDS } from "@/features/schedule/lib/option-lists";
 import { isScheduleTableMissing } from "@/features/schedule/lib/table-missing";
 
 export const OPTION_LISTS_QUERY_KEY = [...DAY_QUERY_KEY, "option-lists"] as const;
@@ -14,6 +14,16 @@ interface OptionListsResult {
   lists: OptionLists;
   /** 마이그레이션 전이라 테이블이 없다 */
   tableMissing: boolean;
+}
+
+/**
+ * 불러오기 전에 쓰는 처음 값 복사본. 렌더마다 새로 만들지 않도록 한 번만 만든다.
+ * 상수(`OPTION_LIST_SEEDS`) 자체가 아니라서 받는 쪽이 바꿔도 상수는 안전하다.
+ */
+let fallbackLists: OptionLists | null = null;
+function getFallbackLists(): OptionLists {
+  fallbackLists ??= cloneOptionLists(OPTION_LIST_SEEDS);
+  return fallbackLists;
 }
 
 /**
@@ -31,7 +41,7 @@ export function useOptionLists() {
       try {
         return { lists: await fetchOptionLists(supabase!), tableMissing: false };
       } catch (error) {
-        if (isScheduleTableMissing(error)) return { lists: OPTION_LIST_SEEDS, tableMissing: true };
+        if (isScheduleTableMissing(error)) return { lists: cloneOptionLists(OPTION_LIST_SEEDS), tableMissing: true };
         throw error;
       }
     },
@@ -61,7 +71,7 @@ export function useOptionLists() {
   );
 
   return {
-    lists: query.data?.lists ?? OPTION_LIST_SEEDS,
+    lists: query.data?.lists ?? getFallbackLists(),
     isTableMissing: query.data?.tableMissing ?? false,
     add,
     remove,

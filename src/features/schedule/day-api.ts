@@ -13,7 +13,7 @@ import {
   type OptionLists,
   type RefValues,
 } from "@/features/schedule/lib/day-types";
-import { OPTION_LIST_SEEDS } from "@/features/schedule/lib/option-lists";
+import { cloneOptionLists, OPTION_LIST_SEEDS } from "@/features/schedule/lib/option-lists";
 import { likePattern } from "@/features/schedule/lib/search-cells";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -25,7 +25,7 @@ type Row = Record<string, unknown>;
 /** 목록 값의 최대 길이(`schedule_option_lists.value`의 CHECK와 같다). */
 const OPTION_VALUE_MAX_LENGTH = 100;
 /** 누적 조회의 기본 최대 건수. */
-const DEFAULT_ARCHIVE_LIMIT = 500;
+export const DEFAULT_ARCHIVE_LIMIT = 500;
 
 /** 문자열이 아니면 `null`. 빈 글은 "지정 안 함"이 아니라 "빈칸"이라 그대로 둔다. */
 function textOrNull(value: unknown): string | null {
@@ -178,9 +178,7 @@ export async function fetchOptionLists(supabase: SupabaseBrowserClient): Promise
     (row) => isOptionListKey(row.list_key) && typeof row.value === "string",
   );
   if (rows.length === 0) {
-    return Object.fromEntries(
-      OPTION_LIST_KEYS.map((key) => [key, [...OPTION_LIST_SEEDS[key]]]),
-    ) as unknown as OptionLists;
+    return cloneOptionLists(OPTION_LIST_SEEDS);
   }
 
   const lists = emptyLists();
@@ -289,7 +287,7 @@ export async function saveArchiveRows(
       site: row.site,
       row_values: row.values,
       search_text: archiveSearchText(row.values),
-      saved_at: row.savedAt,
+      // saved_at·saved_by는 보내지 않는다: INSERT는 기본값이, 다시 저장(UPDATE)은 DB 트리거가 채운다.
     })),
     { onConflict: "work_date,station_key" },
   );

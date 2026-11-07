@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { archiveSearchText, latestPerStation, pickPreviousInput, rowsToArchive } from "./day-archive";
+import {
+  archiveSearchText,
+  buildPreviousInputPatches,
+  latestPerStation,
+  pickPreviousInput,
+  rowsToArchive,
+  shouldAutoArchive,
+} from "./day-archive";
 import type { DayRow } from "./day-rows";
 import { DAY_COLUMN_KEYS, type ArchiveRow, type DayValues } from "./day-types";
 
@@ -104,5 +111,54 @@ describe("pickPreviousInput", () => {
 
   it("undefined면 빈 객체다", () => {
     expect(pickPreviousInput(undefined)).toEqual({});
+  });
+});
+
+describe("shouldAutoArchive", () => {
+  it("오늘과 앞으로의 날짜는 자동 저장한다", () => {
+    expect(shouldAutoArchive("2026-11-08", "2026-11-08")).toBe(true);
+    expect(shouldAutoArchive("2026-11-09", "2026-11-08")).toBe(true);
+  });
+
+  it("지난 날짜는 자동 저장하지 않는다", () => {
+    expect(shouldAutoArchive("2026-11-07", "2026-11-08")).toBe(false);
+    expect(shouldAutoArchive("2025-12-31", "2026-01-01")).toBe(false);
+  });
+});
+
+describe("buildPreviousInputPatches", () => {
+  const dayRow = (stationKey: string): DayRow => ({
+    stationKey,
+    site: `${stationKey}국소`,
+    values: makeValues({ site: `${stationKey}국소` }),
+    refSource: "erp",
+  });
+
+  it("이전 누적이 있는 행은 입력 열 패치를, 없는 행은 건너뜀으로 센다", () => {
+    const rows = [dayRow("a"), dayRow("b"), dayRow("c")];
+    const latest = new Map<string, ArchiveRow>([
+      ["a", makeArchive("2026-11-02", "a", { workTime: "야간", workDetail: "상세" })],
+      ["c", makeArchive("2026-11-03", "c", { equipment: "굴착기" })],
+    ]);
+
+    const result = buildPreviousInputPatches(rows, latest);
+
+    expect(result.loaded).toBe(2);
+    expect(result.skipped).toBe(1);
+    expect(result.patches).toEqual([
+      { station: rows[0], patch: { workTime: "야간", workDetail: "상세" } },
+      { station: rows[2], patch: { equipment: "굴착기" } },
+    ]);
+  });
+
+  it("누적 행이 있어도 입력 열이 모두 비어 있으면 건너뜀이다", () => {
+    const rows = [dayRow("a")];
+    const latest = new Map<string, ArchiveRow>([["a", makeArchive("2026-11-02", "a", { project: "5G" })]]);
+
+    expect(buildPreviousInputPatches(rows, latest)).toEqual({ patches: [], loaded: 0, skipped: 1 });
+  });
+
+  it("행이 없으면 모두 0이다", () => {
+    expect(buildPreviousInputPatches([], new Map())).toEqual({ patches: [], loaded: 0, skipped: 0 });
   });
 });

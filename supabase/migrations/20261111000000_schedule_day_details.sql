@@ -149,6 +149,24 @@ CREATE TRIGGER schedule_day_details_touch_updated_at
   BEFORE UPDATE ON public.schedule_day_details
   FOR EACH ROW EXECUTE FUNCTION public.touch_schedule_updated_at();
 
+-- 누적을 다시 저장(UPDATE)하면 저장자·저장 시각을 새로 고친다. 앱은 saved_at·saved_by를 보내지 않는다.
+CREATE OR REPLACE FUNCTION public.touch_schedule_archive_saved()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  NEW.saved_by = auth.uid();
+  NEW.saved_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS schedule_archive_rows_touch_saved ON public.schedule_archive_rows;
+CREATE TRIGGER schedule_archive_rows_touch_saved
+  BEFORE UPDATE ON public.schedule_archive_rows
+  FOR EACH ROW EXECUTE FUNCTION public.touch_schedule_archive_saved();
+
 -- ---------------------------------------------------------------------
 -- RLS: 조회는 로그인 사용자 전체, 쓰기는 관리자만
 -- ---------------------------------------------------------------------
