@@ -12,10 +12,9 @@ const E2E_PASSWORD = process.env.E2E_PASSWORD;
 
 async function login(page: Page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.getByRole("button", { name: "로그인" }).click();
   await page.getByLabel("이메일").fill(E2E_EMAIL ?? "");
   await page.getByLabel("비밀번호").fill(E2E_PASSWORD ?? "");
-  await page.getByRole("dialog").getByRole("button", { name: "로그인" }).click();
+  await page.getByRole("button", { name: "로그인" }).click();
 }
 
 test.describe("로그인 벽", () => {
@@ -30,7 +29,9 @@ test.describe("로그인 벽", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
     await expect(page).toHaveTitle(/MapMarker Pro/i);
-    await expect(page.getByRole("heading", { name: "로그인이 필요합니다" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "MapMarker" })).toBeVisible();
+    await expect(page.getByLabel("이메일")).toBeVisible();
+    await expect(page.getByLabel("비밀번호")).toBeVisible();
     await expect(page.getByRole("button", { name: "장비" })).toHaveCount(0);
 
     expect(kakaoRequests, "비로그인에서 카카오 SDK를 불러오면 안 된다").toHaveLength(0);
@@ -54,20 +55,20 @@ test.describe("앱 스모크 (로그인 필요)", () => {
 
     await expect(page.getByRole("button", { name: "장비" })).toBeVisible();
     await expect(page.getByRole("button", { name: "축전지" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "위치" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "이벤트관리" })).toBeVisible();
 
     // 치명적 런타임 예외(무한 렌더 등)가 없어야 한다
     expect(errors, `page errors:\n${errors.join("\n")}`).toHaveLength(0);
   });
 
-  test("하위 메뉴 이동이 동작한다(축전지 → 뒤로 → 위치)", async ({ page }) => {
+  test("하위 메뉴 이동이 동작한다(축전지 → 뒤로 → 이벤트관리)", async ({ page }) => {
     await login(page);
 
     await page.getByRole("button", { name: "축전지" }).click();
     await expect(page.getByRole("heading", { name: "축전지" })).toBeVisible();
 
     await page.getByRole("button", { name: "뒤로" }).click();
-    await page.getByRole("button", { name: "위치", exact: true }).click();
+    await page.getByRole("button", { name: "이벤트관리", exact: true }).click();
     await expect(
       page.getByText(/지도를 클릭하면 위치가 바로 등록됩니다/),
     ).toBeVisible();

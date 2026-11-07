@@ -121,6 +121,7 @@ describe("subLabelOf", () => {
   it("일정관리는 시설일정, 그 밖은 현재 세그먼트 이름이다", () => {
     expect(subLabelOf("schedule", "equipment")).toBe("시설일정");
     expect(subLabelOf("map", "battery")).toBe("축전지");
+    expect(subLabelOf("map", "location")).toBe("이벤트관리");
   });
 });
 

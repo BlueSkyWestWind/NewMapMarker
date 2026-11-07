@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Lock, LogIn } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { AuthModal } from "@/features/map-marker/components/modals/auth-modal";
+import type { ReactNode } from "react";
+import { AuthFormCard } from "@/features/map-marker/components/modals/auth-modal";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useHasMounted } from "@/hooks/use-has-mounted";
 
@@ -19,7 +17,6 @@ import { useHasMounted } from "@/hooks/use-has-mounted";
 export function AuthGate({ children }: { children: ReactNode }) {
   const hasMounted = useHasMounted();
   const { isAuthenticated, isLoading } = useAuthSession();
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   if (!hasMounted || isLoading) {
     return (
@@ -32,24 +29,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (!isAuthenticated) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center bg-slate-950 p-6 text-slate-100">
-        <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800">
-            <Lock className="h-6 w-6 text-slate-400" />
-          </div>
-          <h1 className="text-base font-bold">로그인이 필요합니다</h1>
-          <p className="text-[13px] leading-relaxed text-slate-400">
-            지도와 CCTV는 로그인한 사용자만 이용할 수 있습니다.
-          </p>
-          <Button
-            type="button"
-            className="mt-1 h-9 gap-1.5 bg-indigo-600 px-4 text-[13px] text-white hover:bg-indigo-500"
-            onClick={() => setIsAuthModalOpen(true)}
-          >
-            <LogIn className="h-4 w-4" />
-            로그인
-          </Button>
-        </div>
-        <AuthModal open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen} />
+        <AuthFormCard />
       </div>
     );
   }

@@ -16,7 +16,7 @@ import type { MapSegment, NavSubKey } from "@/features/shell/types/segment";
 export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }> = {
   equipment: { label: "장비", icon: Server },
   battery: { label: "축전지", icon: Battery },
-  location: { label: "위치", icon: MapPin },
+  location: { label: "이벤트관리", icon: MapPin },
   converter: { label: "위치/좌표", icon: Waypoints },
   facility: { label: "시설일정", icon: CalendarRange },
 };
