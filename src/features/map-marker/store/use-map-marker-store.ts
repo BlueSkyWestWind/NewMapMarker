@@ -189,6 +189,15 @@ const NAVS_WITHOUT_MARKERS: NavKey[] = [
   "accounts",
 ];
 
+/**
+ * 메뉴·세그먼트에 들어갈 때 지도의 일반 마커를 보이고 시작할지.
+ * CCTV 세그먼트는 도로 CCTV가 주인공이라 국소 마커를 숨기고 시작한다(우하단 토글로 켤 수 있다).
+ */
+function startsWithMarkersVisible(nav: NavKey, segment: MapSegment): boolean {
+  if (NAVS_WITHOUT_MARKERS.includes(nav)) return false;
+  return !(nav === "map" && segment === "cctv");
+}
+
 const emptyFilterState: MarkerFilterState = {
   selectedYears: new Set(),
   selectedBusinesses: new Set(),
@@ -233,14 +242,21 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
                   isCctvVisible: true,
                 }
               : null;
+          // CCTV 세그먼트를 드나들 때만 마커 표시를 맞춘다. 같은 세그먼트를 다시 눌러도 토글 상태를 유지한다.
+          const markerVisibility =
+            (segment === "cctv") !== (state.mapSegment === "cctv")
+              ? { isMarkersVisible: startsWithMarkersVisible(state.activeNav, segment) }
+              : null;
           if (state.mode === nextMode) {
             return {
               mapSegment: segment,
+              ...markerVisibility,
               ...leavingCctv,
             };
           }
           return {
             mapSegment: segment,
+            ...markerVisibility,
             mode: nextMode,
             lastDomainMode: nextMode as DomainMode,
             filters: emptyFilterState,
@@ -320,7 +336,9 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             mapSegment: nextSegment,
             // 마커 숨김 토글은 그 메뉴에서만 유효하다. 다른 메뉴로 가면 다시 보인다.
             // 마커가 주인공이 아닌 메뉴는 이전 메뉴의 마커를 숨기고 시작한다(우하단 토글로 켤 수 있다).
-            ...(switching ? { isMarkersVisible: !NAVS_WITHOUT_MARKERS.includes(nav) } : null),
+            ...(switching
+              ? { isMarkersVisible: startsWithMarkersVisible(nav, nextSegment) }
+              : null),
             ...selection,
             ...leavingCctv,
           };

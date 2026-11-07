@@ -159,3 +159,31 @@ describe("지도와 무관한 메뉴는 이전 마커를 숨기고 시작한다"
     expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
   });
 });
+
+describe("CCTV 세그먼트는 국소 마커를 숨기고 시작한다", () => {
+  it("CCTV로 들어가면 숨기고, 나오면 다시 보인다", () => {
+    useMapMarkerStore.setState({ activeNav: "map", mapSegment: "equipment", isMarkersVisible: true });
+    useMapMarkerStore.getState().setMapSegment("cctv");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
+    useMapMarkerStore.getState().setMapSegment("equipment");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
+  });
+
+  it("CCTV에서 사용자가 켠 마커는 같은 세그먼트를 다시 눌러도 유지한다", () => {
+    useMapMarkerStore.setState({ activeNav: "map", mapSegment: "cctv", isMarkersVisible: true });
+    useMapMarkerStore.getState().setMapSegment("cctv");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);
+  });
+
+  it("CCTV와 무관한 세그먼트 전환은 마커 토글을 건드리지 않는다", () => {
+    useMapMarkerStore.setState({ activeNav: "map", mapSegment: "equipment", isMarkersVisible: false });
+    useMapMarkerStore.getState().setMapSegment("battery");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
+  });
+
+  it("다른 메뉴에서 CCTV 세그먼트가 남은 지도로 돌아오면 숨긴다", () => {
+    useMapMarkerStore.setState({ activeNav: "dashboard", mapSegment: "cctv", isMarkersVisible: true });
+    useMapMarkerStore.getState().setActiveNav("map");
+    expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
+  });
+});
