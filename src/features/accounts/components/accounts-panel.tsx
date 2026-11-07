@@ -168,6 +168,10 @@ export function AccountsPanel() {
                 SUPABASE_SECRET_KEY=&lt;복사한_sb_secret_키&gt;
               </div>
               <p className="text-slate-400">4. 추가 후 개발 서버(npm run dev)를 재시작하고 상단의 [새로고침]을 누르세요.</p>
+              <p className="text-slate-400">
+                ※ 배포본(웹)은 .env.local을 읽지 않습니다. Cloudflare에 <span className="text-amber-400">Secret</span> 타입으로 등록하세요:{" "}
+                <span className="text-indigo-300 select-all">npx wrangler secret put SUPABASE_SECRET_KEY</span>
+              </p>
             </div>
             <p className="mt-2 text-[11px] text-slate-400">
               상세 오류: {error}

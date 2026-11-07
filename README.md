@@ -282,6 +282,14 @@ Cloudflare **Workers & Pages → newmarker → Settings → Variables and Secret
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable 키 |
 | `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` | 카카오 JavaScript 키 |
 
+**계정설정 메뉴**(사용자 목록·생성·삭제)는 서버 전용 키 `SUPABASE_SECRET_KEY`가 필요합니다.
+`.env.local`에만 있으면 로컬에서만 동작하고 배포본은 "데이터베이스 연결 설정 필요"가 뜹니다.
+**반드시 Secret 타입**으로 등록하고(위 `NEXT_PUBLIC_` 변수와 달리 `wrangler.jsonc`에 넣지 말 것) **재배포**하세요.
+
+```bash
+npx wrangler secret put SUPABASE_SECRET_KEY
+```
+
 등록 후 **재배포**하세요. 앱은 서버에서 Worker 변수를 읽어 브라우저에 주입합니다.
 카카오 JavaScript 키에 **Workers 배포 URL** 도메인도 등록하세요.
 

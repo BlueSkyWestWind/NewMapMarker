@@ -21,7 +21,7 @@ export function getSupabaseAdminClient(): SupabaseClient {
 
   if (!url || !serviceRoleKey) {
     throw new Error(
-      "SUPABASE_SECRET_KEY 또는 SUPABASE_SERVICE_ROLE_KEY 환경 변수가 설정되지 않았습니다. .env.local에 추가해 주세요.",
+      "SUPABASE_SECRET_KEY 또는 SUPABASE_SERVICE_ROLE_KEY 환경 변수가 설정되지 않았습니다. 로컬은 .env.local, 배포(Cloudflare)는 Secret으로 추가해 주세요.",
     );
   }
 
