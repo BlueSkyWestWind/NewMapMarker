@@ -208,6 +208,24 @@ describe("saveDraft", () => {
     expect(result.savedMarkerIds).toEqual([]);
   });
 
+  it("마커 단계가 일부만 성공하면 파생 정보 쓰기가 남은 마커는 저장됨에서 뺀다", async () => {
+    const { calls, client } = fake((c) => c.table === "markers" && c.ids === "b");
+    const result = await saveDraft(
+      client,
+      draftOf({
+        markerEdits: {
+          a: { name: "새이름" },
+          b: { memo: "x" },
+          c: { memo: "y" },
+        },
+      }),
+      [info(1, "a")],
+    );
+    expect(result.error?.step).toBe("marker");
+    expect(result.savedMarkerIds).toEqual(["c"]);
+    expect(calls.some((c) => c.table === "information")).toBe(false);
+  });
+
   it("ops 실패는 completedOps와 step ops로 돌려준다", async () => {
     const { client } = fake((c) => c.op === "delete");
     const result = await saveDraft(

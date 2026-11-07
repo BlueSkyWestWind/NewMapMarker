@@ -123,20 +123,7 @@ export async function saveDraft(
   const markerEntries = Object.entries(draft.markerEdits).filter(
     ([id, edit]) => !deleted.has(id) && Object.keys(edit).length > 0,
   );
-  const markerStep = await runJobs(
-    markerEntries.map(([id, edit]) => ({
-      key: id,
-      run: () =>
-        supabase.from("markers").update(toMarkerPatch(edit)).eq("id", id),
-    })),
-  );
-  if (markerStep.error) {
-    result.savedMarkerIds = markerStep.done;
-    result.error = { message: messageOf(markerStep.error), step: "marker" };
-    return result;
-  }
-
-  // 2) 정보 행 수정. 국소명·통합시설코드는 마커 수정에서 파생돼 함께 쓴다.
+  // 정보 행 준비. 국소명·통합시설코드는 마커 수정에서 파생돼 정보 행에도 쓴다.
   const infoPatches = new Map<number, Patch>();
   const rowsByMarker = new Map<string, number[]>();
   const deletedRowIds = new Set<number>();
@@ -156,9 +143,24 @@ export async function saveDraft(
     if (edit.facilityCode !== undefined) derived.facility_code = edit.facilityCode;
     if (Object.keys(derived).length === 0) continue;
     const rowIds = rowsByMarker.get(id) ?? [];
-    derivedRows.set(id, rowIds);
+    if (rowIds.length > 0) derivedRows.set(id, rowIds);
     for (const rowId of rowIds) addInfoPatch(rowId, derived);
   }
+  const markerStep = await runJobs(
+    markerEntries.map(([id, edit]) => ({
+      key: id,
+      run: () =>
+        supabase.from("markers").update(toMarkerPatch(edit)).eq("id", id),
+    })),
+  );
+  if (markerStep.error) {
+    // 파생 정보 쓰기가 남은 마커는 저장됨에서 뺀다(재시도 때 다시 보내며 멱등).
+    result.savedMarkerIds = markerStep.done.filter((id) => !derivedRows.has(id));
+    result.error = { message: messageOf(markerStep.error), step: "marker" };
+    return result;
+  }
+
+  // 2) 정보 행 수정
   for (const [rowIdText, edit] of Object.entries(draft.infoEdits)) {
     const rowId = Number(rowIdText);
     if (deletedRowIds.has(rowId) || Object.keys(edit).length === 0) continue;
@@ -173,7 +175,8 @@ export async function saveDraft(
   );
   result.savedInfoIds = infoStep.done;
 
-  // 마커는 파생 정보 쓰기까지 끝나야 저장됨으로 센다. 재시도 때 정보가 빠지지 않게.
+  // 마커는 파생 정보 쓰기까지 끝나야 저장됨으로 센다. 정보 행이 일부만 저장되면
+  // 마커 update가 재시도 때 반복되지만 무해하다.
   const doneRows = new Set(infoStep.done);
   const markerFullySaved = ([id]: [string, unknown]) =>
     (derivedRows.get(id) ?? []).every((rowId) => doneRows.has(rowId));
