@@ -3,6 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 
 /* 마커 편집 모달의 상세 사양 리스트(장비/축전지) 편집 UI.
@@ -168,20 +169,24 @@ export function EquipmentSpecList({
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400">시설일</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={item.installDate}
-                  onChange={(e) => onChange(item.id, "installDate", e.target.value)}
+                  onChange={(val) => onChange(item.id, "installDate", val)}
+                  allowClear
+                  placeholder="날짜 선택"
+                  ariaLabel="시설일"
                   className="bg-slate-950 border-slate-800 h-8 text-xs"
                   disabled={!isAuthenticated}
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-slate-400">개통일</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={item.openDate}
-                  onChange={(e) => onChange(item.id, "openDate", e.target.value)}
+                  onChange={(val) => onChange(item.id, "openDate", val)}
+                  allowClear
+                  placeholder="날짜 선택"
+                  ariaLabel="개통일"
                   className="bg-slate-950 border-slate-800 h-8 text-xs"
                   disabled={!isAuthenticated}
                 />

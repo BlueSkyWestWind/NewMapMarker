@@ -47,6 +47,7 @@
   예외: `.overlay-*`(카카오맵 말풍선, `globals.css`)는 위성 이미지 위에 얹혀 항상 다크 고정.
 - **`ThemeProvider`(`src/app/providers.tsx`)는 `defaultTheme="dark"` 고정, `enableSystem` 없음.**
   라이트/다크 토글은 `설정` 메뉴(`settings-panel.tsx`)의 `useTheme()`.
+- **날짜·월 선택 UI는 브라우저 기본 `<Input type="date" | "month" />` 대신 공통 [`DatePicker`](src/components/ui/date-picker.tsx)(`@/components/ui/date-picker`)를 사용한다** (`mode="date"` 기본, 월 선택은 `mode="month"`).
 - **`Input`/`Textarea`의 `text-slate-100` 하드코딩은 의도적이라 그대로 둔다** — 모든 호출부가
   배경을 `bg-slate-900` 등으로 하드코딩해서, `text-foreground`로 바꾸면 라이트 모드에서
   대비가 깨진다(직접 확인함).
