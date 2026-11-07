@@ -10,6 +10,10 @@ export const NAV_RAIL_WIDTH_PX = 56;
 export const NAV_TREE_WIDTH_PX = 256;
 /** 변환 결과·건축물대장 표가 340에서는 답답해 380으로 넓혔다. */
 export const WORK_PANEL_WIDTH_PX = 380;
+/** 그룹관리 관리 창 최대 폭. 표 열이 다 보이도록 넓게 잡는다(가로 스크롤 금지). */
+export const GROUP_MANAGE_DIALOG_MAX_WIDTH_PX = 1680;
+/** 관리 창 왼쪽 묶음 목록 폭. */
+export const GROUP_MANAGE_LIST_WIDTH_PX = 260;
 
 /**
  * 지도 영역의 좌측 오프셋. **뷰포트 고정(`position: fixed`) 요소만** 이 값이 필요하다.

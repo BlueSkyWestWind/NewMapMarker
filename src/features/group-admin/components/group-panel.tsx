@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Maximize2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,11 @@ import {
 import { storedGroupRoleOf } from "@/features/map-marker/lib/marker-detail-rows";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { PanelSection } from "@/features/shell/components/panels/panel-section";
+
+const GroupManageDialog = dynamic(
+  () => import("./group-manage-dialog").then((m) => m.GroupManageDialog),
+  { ssr: false },
+);
 
 /** 한 번에 그리는 묶음 수. 마커가 수천 개라 전부 그리면 패널이 무거워진다. */
 const PAGE_SIZE = 200;
@@ -66,6 +72,7 @@ export function GroupPanel() {
   const toggleGroupKey = useMapMarkerStore((state) => state.toggleGroupKey);
   const setGroupKeys = useMapMarkerStore((state) => state.setGroupKeys);
   const lastGroupManageKey = useMapMarkerStore((state) => state.lastGroupManageKey);
+  const groupManageKey = useMapMarkerStore((state) => state.groupManageKey);
   const setGroupManageKey = useMapMarkerStore((state) => state.setGroupManageKey);
 
   const [filters, setFilters] = useState<GroupFilters>(EMPTY_FILTERS);
@@ -127,6 +134,7 @@ export function GroupPanel() {
 
   return (
     <div className="space-y-3">
+      {groupManageKey ? <GroupManageDialog /> : null}
       <div className="flex gap-2">
         <Button
           type="button"

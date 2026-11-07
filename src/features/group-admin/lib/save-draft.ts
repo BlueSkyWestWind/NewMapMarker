@@ -71,7 +71,7 @@ function toInfoPatch(edit: Partial<InfoFields>): Patch {
 }
 
 /** 삭제는 뒤로 보내는 안정 정렬. */
-function sortOps(ops: MarkerOp[]): MarkerOp[] {
+export function sortOps(ops: MarkerOp[]): MarkerOp[] {
   return [
     ...ops.filter((op) => op.type !== "delete"),
     ...ops.filter((op) => op.type === "delete"),
