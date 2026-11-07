@@ -35,6 +35,8 @@ Supabase 대시보드 → **SQL Editor** 에 아래 한 파일만 붙여넣고 *
 
 | 파일 | 역할 |
 | --- | --- |
+| `20261110000000_schedule_freezes.sql` | **시설일정 작업금지(프리징) 기간.** `schedule_freezes`(시작·종료 시각 + 사유) 테이블. 조회는 로그인 사용자, 추가·삭제는 관리자(`is_app_admin()`). 일정표에 표시만 한다. `20261107000000_site_lists.sql`(`is_app_admin`) **다음에** 실행 |
+| `20261109000000_schedule_result.sql` | **시설일정 시행 결과.** `schedule_cells`에 `result_status`(완료/일부완료/미시설)·`result_reason`(일부완료·미시설은 필수)·`rescheduled_to` 컬럼 추가. 권한은 기존 RLS 그대로. 엑셀 가져오기는 그 기간의 결과를 지운다. `20261108000000_facility_schedule.sql` **다음에** 실행 |
 | `20261108000000_facility_schedule.sql` | **시설일정.** `schedule_columns`·`schedule_cells`·`schedule_days`·`schedule_marks` 4개 테이블, 조회는 로그인 사용자·쓰기는 관리자(`is_app_admin()`)만 허용하는 RLS, 칸 이동(맞바꾸기)·날짜 범위 교체 함수(`move_schedule_cell`·`replace_schedule_cells`). 팀장 이름은 넣지 않는다. `20261107000000_site_lists.sql`(`is_app_admin`) **다음에** 실행 |
 | `20261107000400_drop_erp_schema.sql` | **정리.** 삭제된 앱의 `erp` 스키마 제거. 되돌릴 수 없음 |
 | `20261107000300_drop_unused_public_indexes.sql` | **Advisor 정리.** 쓰지 않는 public 인덱스 4개 삭제 |

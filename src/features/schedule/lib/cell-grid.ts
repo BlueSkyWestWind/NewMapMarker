@@ -1,9 +1,27 @@
-import type { CellPosition, ScheduleCell } from "@/features/schedule/types";
+import type { CellPosition, ScheduleCell, ScheduleColumn } from "@/features/schedule/types";
 
-/** 칸이 없는 날도 이만큼의 행은 보여 준다. 엑셀 일정표의 날짜 블록(10행)과 같다. */
-export const MIN_VISIBLE_ROWS = 10;
+/** 칸이 없는 날도 이만큼의 행은 보여 준다. 화면 전용이다(엑셀 내보내기는 `EXPORT_MIN_ROWS` 10행). */
+export const MIN_VISIBLE_ROWS = 4;
 /** DB의 `row_no` 0..29와 같다. */
 export const MAX_ROWS = 30;
+
+/** 기본 숨김(체크 시 표시) 대상인 선택 열 이름. */
+export const OPTIONAL_COLUMN_LABELS = ["시험팀", "실사&재하도급"] as const;
+
+export function isOptionalScheduleColumn(column: ScheduleColumn): boolean {
+  const label = column.teamLabel.trim();
+  return (OPTIONAL_COLUMN_LABELS as readonly string[]).includes(label);
+}
+
+/** 기본 열은 항상 남기고, 선택 열(시험팀·실사&재하도급)은 체크된 ID만 남긴다. */
+export function filterVisibleScheduleColumns(
+  columns: ScheduleColumn[],
+  visibleOptionalIds: ReadonlySet<string>,
+): ScheduleColumn[] {
+  return columns.filter(
+    (column) => !isOptionalScheduleColumn(column) || visibleOptionalIds.has(column.id),
+  );
+}
 
 export function positionKey(position: CellPosition): string {
   return `${position.workDate}|${position.columnId}|${position.rowNo}`;
@@ -49,6 +67,38 @@ export type DropPlan =
   | { kind: "none" }
   | { kind: "move" }
   | { kind: "swap"; with: ScheduleCell };
+
+/** 같은 날짜·같은 팀(열)에 있는 칸들. 한꺼번에 등록한 국소들이 한 묶음이다. 행 순서로 정렬한다. */
+export function groupOfCell(cells: ScheduleCell[], cell: CellPosition): ScheduleCell[] {
+  return cells
+    .filter((other) => other.workDate === cell.workDate && other.columnId === cell.columnId)
+    .sort((a, b) => a.rowNo - b.rowNo);
+}
+
+export type GroupDropPlan =
+  | { kind: "none" }
+  | { kind: "full" }
+  /** `ids`를 이 순서대로 도착 날짜·팀의 빈 행에 하나씩 옮긴다 */
+  | { kind: "move"; ids: string[] };
+
+/**
+ * 묶음(끈 칸과 같은 날짜·팀의 모든 칸)을 `target`의 날짜·팀으로 옮기는 계획.
+ * 같은 날짜·팀이면 없음, 도착 팀의 빈 행이 모자라면 full, 아니면 행 순서대로 옮긴다.
+ * 도착 팀에 이미 있는 칸은 건드리지 않고 그 아래 빈 행에 이어 붙는다.
+ */
+export function planGroupDrop(
+  cells: ScheduleCell[],
+  dragged: CellPosition,
+  target: CellPosition,
+): GroupDropPlan {
+  if (dragged.workDate === target.workDate && dragged.columnId === target.columnId) {
+    return { kind: "none" };
+  }
+  const group = groupOfCell(cells, dragged);
+  const occupied = groupOfCell(cells, target).length;
+  if (occupied + group.length > MAX_ROWS) return { kind: "full" };
+  return { kind: "move", ids: group.map((cell) => cell.id) };
+}
 
 /** 칸을 끌어 `target`에 놓았을 때 할 일. 같은 자리면 없음, 빈 칸이면 이동, 찬 칸이면 맞바꿈. */
 export function planDrop(

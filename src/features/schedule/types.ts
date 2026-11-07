@@ -18,6 +18,18 @@ export interface ScheduleColumn {
   leaderLabel: string;
 }
 
+/** 당일 시행 결과: 완료 / 일부완료 / 미시설. 기록하지 않은 칸은 결과가 없다. */
+export const RESULT_STATUSES = ["done", "partial", "undone"] as const;
+export type ResultStatus = (typeof RESULT_STATUSES)[number];
+
+export interface CellResult {
+  status: ResultStatus;
+  /** 일부완료·미시설이면 필수. 완료는 빈 문자열 */
+  reason: string;
+  /** 다시 잡은 날짜(yyyy-mm-dd). 정보를 그 날짜에 복사한 뒤 남긴다 */
+  rescheduledTo: string | null;
+}
+
 export interface ScheduleCell {
   id: string;
   workDate: string;
@@ -26,6 +38,8 @@ export interface ScheduleCell {
   mainText: string;
   subText: string;
   textColor: TextColor | null;
+  /** 시행 결과. 없으면 아직 기록하지 않았다 */
+  result?: CellResult | null;
 }
 
 export interface CellPosition {
@@ -55,6 +69,10 @@ export function isMarkColor(value: unknown): value is MarkColor {
   return typeof value === "string" && (MARK_COLORS as readonly string[]).includes(value);
 }
 
+export function isResultStatus(value: unknown): value is ResultStatus {
+  return typeof value === "string" && (RESULT_STATUSES as readonly string[]).includes(value);
+}
+
 export function isTextColor(value: unknown): value is TextColor {
   return typeof value === "string" && (TEXT_COLORS as readonly string[]).includes(value);
 }
@@ -79,6 +97,16 @@ export function markLabel(color: MarkColor): string {
 
 export function textColorLabel(color: TextColor): string {
   return TEXT_COLOR_LABELS[color];
+}
+
+const RESULT_LABELS: Record<ResultStatus, string> = {
+  done: "완료",
+  partial: "일부완료",
+  undone: "미시설",
+};
+
+export function resultLabel(status: ResultStatus): string {
+  return RESULT_LABELS[status];
 }
 
 /** 화면용 글자색. 어두운 배경에서도 읽히게 밝게 잡았다. 엑셀 파일에는 원래 색을 쓴다. */

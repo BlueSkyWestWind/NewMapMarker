@@ -34,6 +34,8 @@ export function useScheduleRange(from: string, to: string, enabled = true) {
     queryKey: [...SCHEDULE_QUERY_KEY, userId, from, to],
     queryFn: () => fetchScheduleRange(supabase!, from, to),
     enabled: enabled && Boolean(supabase && userId),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
     retry: false,
     // 주·달을 넘길 때 표가 깜박이며 비지 않게 이전 데이터를 유지한다.
     placeholderData: keepPreviousData,

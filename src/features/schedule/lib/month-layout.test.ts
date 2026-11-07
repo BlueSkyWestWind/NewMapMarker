@@ -87,9 +87,9 @@ describe("buildMonthModel", () => {
 
 describe("monthEntryText / monthTeamLineText", () => {
   it("모국이 있으면 괄호로 붙인다", () => {
-    expect(monthEntryText({ mainText: "국소1", subText: "모국1", textColor: null })).toBe("국소1 (모국1)");
-    expect(monthEntryText({ mainText: "국소2", subText: "", textColor: null })).toBe("국소2");
-    expect(monthEntryText({ mainText: "", subText: "스카이", textColor: null })).toBe("스카이");
+    expect(monthEntryText({ id: "e", mainText: "국소1", subText: "모국1", textColor: null })).toBe("국소1 (모국1)");
+    expect(monthEntryText({ id: "e", mainText: "국소2", subText: "", textColor: null })).toBe("국소2");
+    expect(monthEntryText({ id: "e", mainText: "", subText: "스카이", textColor: null })).toBe("스카이");
   });
 
   it("팀 줄은 `팀 · 항목, 항목`이다", () => {
@@ -98,8 +98,8 @@ describe("monthEntryText / monthTeamLineText", () => {
       label: "1팀",
       markColor: null,
       entries: [
-        { mainText: "국소1", subText: "모국1", textColor: null },
-        { mainText: "국소2", subText: "", textColor: null },
+        { id: "e1", mainText: "국소1", subText: "모국1", textColor: null },
+        { id: "e2", mainText: "국소2", subText: "", textColor: null },
       ],
     };
     expect(monthTeamLineText(team)).toBe("1팀 · 국소1 (모국1), 국소2");
@@ -124,7 +124,7 @@ function dayWithShortTeams(count: number): MonthDay {
       columnId: `c${i}`,
       label: `${i}팀`,
       markColor: null,
-      entries: [{ mainText: "국소", subText: "", textColor: null }],
+      entries: [{ id: `e${i}`, mainText: "국소", subText: "", textColor: null }],
     })),
   };
 }

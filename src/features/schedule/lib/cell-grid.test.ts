@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { ScheduleCell } from "@/features/schedule/types";
+import type { ScheduleCell, ScheduleColumn } from "@/features/schedule/types";
 import {
+  filterVisibleScheduleColumns,
   firstFreeRow,
   indexCells,
+  isOptionalScheduleColumn,
   MAX_ROWS,
   MIN_VISIBLE_ROWS,
   planDrop,
+  planGroupDrop,
   positionKey,
   visibleRowCount,
 } from "./cell-grid";
@@ -30,18 +33,18 @@ function cell(
 describe("visibleRowCount", () => {
   const D = "2026-11-09";
 
-  it("칸이 없어도 엑셀 일정표와 같은 10행을 보여 준다", () => {
-    expect(MIN_VISIBLE_ROWS).toBe(10);
-    expect(visibleRowCount([], D)).toBe(10);
+  it("칸이 없어도 기본 4행을 보여 준다", () => {
+    expect(MIN_VISIBLE_ROWS).toBe(4);
+    expect(visibleRowCount([], D)).toBe(4);
   });
 
-  it("10행 안에서는 행 수가 늘지 않는다", () => {
-    expect(visibleRowCount([cell(D, "a", 2)], D)).toBe(10);
-    expect(visibleRowCount([cell(D, "a", 8)], D)).toBe(10);
+  it("4행 안에서는 행 수가 늘지 않는다", () => {
+    expect(visibleRowCount([cell(D, "a", 1)], D)).toBe(4);
+    expect(visibleRowCount([cell(D, "a", 2)], D)).toBe(4);
   });
 
-  it("마지막 행(10번째)까지 쓰면 새 칸을 넣을 빈 행 하나를 더 보여 준다", () => {
-    expect(visibleRowCount([cell(D, "a", 9)], D)).toBe(11);
+  it("마지막 행(4번째)까지 쓰면 새 칸을 넣을 빈 행 하나를 더 보여 준다", () => {
+    expect(visibleRowCount([cell(D, "a", 3)], D)).toBe(5);
     expect(visibleRowCount([cell(D, "a", 12)], D)).toBe(14);
   });
 
@@ -51,7 +54,7 @@ describe("visibleRowCount", () => {
   });
 
   it("다른 날짜의 칸은 세지 않는다", () => {
-    expect(visibleRowCount([cell("2026-11-10", "a", 15)], D)).toBe(10);
+    expect(visibleRowCount([cell("2026-11-10", "a", 15)], D)).toBe(4);
   });
 });
 
@@ -111,6 +114,42 @@ describe("planDrop", () => {
   });
 });
 
+describe("planGroupDrop (같은 날짜·팀의 국소를 한 묶음으로 옮긴다)", () => {
+  const D = "2026-11-09";
+  const E = "2026-11-10";
+  const g0 = cell(D, "a", 0, "국소1");
+  const g1 = cell(D, "a", 1, "국소2");
+  const g2 = cell(D, "a", 2, "국소3");
+  const otherTeam = cell(D, "b", 0, "다른 팀");
+
+  it("같은 날짜·팀에 놓으면 아무 일도 없다", () => {
+    expect(planGroupDrop([g0, g1], g1, { workDate: D, columnId: "a", rowNo: 5 })).toEqual({
+      kind: "none",
+    });
+  });
+
+  it("묶음 전체를 행 순서대로 옮긴다(끈 칸이 가운데여도)", () => {
+    expect(
+      planGroupDrop([g2, otherTeam, g0, g1], g1, { workDate: E, columnId: "a", rowNo: 0 }),
+    ).toEqual({ kind: "move", ids: [g0.id, g1.id, g2.id] });
+  });
+
+  it("다른 팀의 칸은 묶음에 넣지 않는다", () => {
+    const plan = planGroupDrop([g0, g1, otherTeam], g0, { workDate: E, columnId: "a", rowNo: 0 });
+    expect(plan).toEqual({ kind: "move", ids: [g0.id, g1.id] });
+  });
+
+  it("도착 자리에 행이 모자라면 full이다", () => {
+    const crowded = Array.from({ length: MAX_ROWS - 1 }, (_, row) => cell(E, "b", row, `x${row}`));
+    expect(planGroupDrop([g0, g1, ...crowded], g0, { workDate: E, columnId: "b", rowNo: 0 })).toEqual({
+      kind: "full",
+    });
+    expect(
+      planGroupDrop([g0, ...crowded], g0, { workDate: E, columnId: "b", rowNo: 0 }),
+    ).toEqual({ kind: "move", ids: [g0.id] });
+  });
+});
+
 describe("positionKey / indexCells", () => {
   it("자리를 키로 찾는다", () => {
     const target = cell("2026-11-09", "a", 3);
@@ -121,5 +160,37 @@ describe("positionKey / indexCells", () => {
     expect(index.get(positionKey({ workDate: "2026-11-09", columnId: "a", rowNo: 4 }))).toBe(
       undefined,
     );
+  });
+});
+
+describe("선택 열(시험팀·실사&재하도급) 표시 필터", () => {
+  const columns: ScheduleColumn[] = [
+    { id: "c1", sortOrder: 0, teamLabel: "1팀", leaderLabel: "" },
+    { id: "c8", sortOrder: 7, teamLabel: "시험팀", leaderLabel: "" },
+    { id: "c9", sortOrder: 8, teamLabel: "실사&재하도급", leaderLabel: "" },
+    { id: "c10", sortOrder: 9, teamLabel: "비고", leaderLabel: "" },
+  ];
+
+  it("시험팀과 실사&재하도급만 선택 열로 판정한다", () => {
+    expect(columns.filter(isOptionalScheduleColumn).map((c) => c.teamLabel)).toEqual([
+      "시험팀",
+      "실사&재하도급",
+    ]);
+  });
+
+  it("기본값(빈 집합)에서는 시험팀과 실사&재하도급을 숨긴다", () => {
+    expect(filterVisibleScheduleColumns(columns, new Set()).map((c) => c.teamLabel)).toEqual([
+      "1팀",
+      "비고",
+    ]);
+  });
+
+  it("체크한 선택 열만 함께 표시한다", () => {
+    expect(
+      filterVisibleScheduleColumns(columns, new Set(["c8"])).map((c) => c.teamLabel),
+    ).toEqual(["1팀", "시험팀", "비고"]);
+    expect(
+      filterVisibleScheduleColumns(columns, new Set(["c8", "c9"])).map((c) => c.teamLabel),
+    ).toEqual(["1팀", "시험팀", "실사&재하도급", "비고"]);
   });
 });

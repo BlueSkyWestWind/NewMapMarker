@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isScheduleTableMissing } from "./table-missing";
+import { isResultColumnMissing, isScheduleTableMissing } from "./table-missing";
 
 describe("isScheduleTableMissing", () => {
   it("테이블이 없다는 코드를 알아본다", () => {
@@ -29,5 +29,20 @@ describe("isScheduleTableMissing", () => {
     expect(isScheduleTableMissing(null)).toBe(false);
     expect(isScheduleTableMissing("42P01")).toBe(false);
     expect(isScheduleTableMissing(undefined)).toBe(false);
+  });
+});
+
+describe("isResultColumnMissing", () => {
+  it("컬럼이 없다는 코드·메시지를 알아본다", () => {
+    expect(isResultColumnMissing({ code: "42703" })).toBe(true);
+    expect(
+      isResultColumnMissing({ message: "column schedule_cells.result_status does not exist" }),
+    ).toBe(true);
+  });
+
+  it("다른 오류는 아니다", () => {
+    expect(isResultColumnMissing({ code: "42501" })).toBe(false);
+    expect(isResultColumnMissing({ message: "column markers.foo does not exist" })).toBe(false);
+    expect(isResultColumnMissing(null)).toBe(false);
   });
 });

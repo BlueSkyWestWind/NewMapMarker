@@ -2,13 +2,13 @@
 
 import { useMemo, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { applyScheduleImport } from "@/features/schedule/api";
 import { readScheduleWorkbook, type ReadScheduleResult } from "@/features/schedule/lib/read-schedule";
@@ -118,6 +118,9 @@ function ImportBody({
       <DialogDescription className="sr-only">
         엑셀 일정표를 읽어 날짜 범위의 일정을 덮어씁니다.
       </DialogDescription>
+      <p className="rounded-md border border-amber-700/50 bg-amber-500/10 p-2 text-[11px] text-amber-300">
+        가져오면 그 기간에 기록한 시행 결과(완료 / 일부완료 / 미시설, 사유, 재일정)가 함께 사라집니다.
+      </p>
 
       <label className="flex flex-col gap-1 text-xs">
         <span className="text-slate-300">엑셀 파일(.xlsx, 시트 이름 일정표_New)</span>
@@ -154,18 +157,18 @@ function ImportBody({
             ) : null}
           </ul>
 
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="text-slate-300">가져오기 시작일(이 날짜부터만 덮어씁니다)</span>
-            <Input
-              type="date"
+            <DatePicker
               value={fromDate}
-              onChange={(event) => {
-                setFromDate(event.target.value);
+              ariaLabel="가져오기 시작일(이 날짜부터만 덮어씁니다)"
+              onChange={(next) => {
+                setFromDate(next);
                 setConfirming(false);
               }}
               className="h-8 border-slate-700 bg-slate-900 text-xs"
             />
-          </label>
+          </div>
 
           {plan ? (
             <p className="rounded-md border border-rose-900 bg-rose-950/40 p-2.5 text-[11px] text-rose-200">

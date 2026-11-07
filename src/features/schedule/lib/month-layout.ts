@@ -24,8 +24,6 @@ export const MONTH_HEADER_HEIGHT_PT = 20;
 export const MONTH_LINE_HEIGHT_PT = 12;
 export const MONTH_MIN_WEEK_HEIGHT_PT = 60;
 export const MONTH_CHARS_PER_LINE = 24;
-/** 앱 달력 칸에 보이는 팀 줄 수. 넘으면 `외 N팀`으로 줄인다. */
-export const MONTH_VISIBLE_LINES = 6;
 
 const PX_TO_PT = 0.75;
 const MIN_SCALE = 10;
@@ -33,6 +31,8 @@ const MAX_SCALE = 100;
 const WEEK_PADDING_PT = 6;
 
 export interface MonthEntry {
+  /** 일정 칸 id. 월간 보기에서 끌어 옮길 때 쓴다 */
+  id: string;
   mainText: string;
   subText: string;
   textColor: TextColor | null;
@@ -87,6 +87,7 @@ export function buildMonthModel(input: {
       const entries = [...(cellsByKey.get(key) ?? [])]
         .sort((a, b) => a.rowNo - b.rowNo)
         .map((cell) => ({
+          id: cell.id,
           mainText: cell.mainText,
           subText: cell.subText,
           textColor: cell.textColor,

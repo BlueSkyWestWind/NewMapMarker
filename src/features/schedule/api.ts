@@ -1,9 +1,16 @@
-import { fetchAllRows } from "@/features/map-marker/api";
+import { fetchAllRows, type FetchPageResult } from "@/features/map-marker/api";
+import { planReschedule } from "@/features/schedule/lib/cell-result";
+import { toDbTimestamp, toKstLocal, type Freeze, type FreezeInput } from "@/features/schedule/lib/freeze";
+import { addDays } from "@/features/schedule/lib/week";
 import type { ImportPlan } from "@/features/schedule/lib/schedule-excel";
+import { likePattern } from "@/features/schedule/lib/search-cells";
+import { isResultColumnMissing } from "@/features/schedule/lib/table-missing";
 import {
   isMarkColor,
+  isResultStatus,
   isTextColor,
   type CellPosition,
+  type CellResult,
   type MarkColor,
   type ScheduleCell,
   type ScheduleColumn,
@@ -31,6 +38,15 @@ function toColumn(row: Row): ScheduleColumn {
   };
 }
 
+function toResult(row: Row): CellResult | null {
+  if (!isResultStatus(row.result_status)) return null;
+  return {
+    status: row.result_status,
+    reason: String(row.result_reason ?? ""),
+    rescheduledTo: row.rescheduled_to ? String(row.rescheduled_to) : null,
+  };
+}
+
 function toCell(row: Row): ScheduleCell {
   return {
     id: String(row.id),
@@ -40,8 +56,12 @@ function toCell(row: Row): ScheduleCell {
     mainText: String(row.main_text ?? ""),
     subText: String(row.sub_text ?? ""),
     textColor: isTextColor(row.text_color) ? row.text_color : null,
+    result: toResult(row),
   };
 }
+
+const CELL_COLUMNS = "id, work_date, column_id, row_no, main_text, sub_text, text_color";
+const RESULT_COLUMNS = "result_status, result_reason, rescheduled_to";
 
 export async function fetchScheduleColumns(
   supabase: SupabaseBrowserClient,
@@ -59,20 +79,56 @@ export async function fetchScheduleCells(
   fromIso: string,
   toIso: string,
 ): Promise<ScheduleCell[]> {
-  const rows = await fetchAllRows<Row>((from, to) =>
-    supabase
+  const fetchRows = (columns: string) =>
+    fetchAllRows<Row>((from, to) =>
+      supabase
+        .from("schedule_cells")
+        .select(columns, { count: "exact" })
+        .gte("work_date", fromIso)
+        .lte("work_date", toIso)
+        .order("work_date")
+        .order("column_id")
+        .order("row_no")
+        .range(from, to) as unknown as PromiseLike<FetchPageResult<Row>>,
+    );
+  try {
+    return (await fetchRows(`${CELL_COLUMNS}, ${RESULT_COLUMNS}`)).map(toCell);
+  } catch (error) {
+    // 시행 결과 마이그레이션 전이면 결과 없이 일정표를 그대로 보여 준다.
+    if (!isResultColumnMissing(error)) throw error;
+    return (await fetchRows(CELL_COLUMNS)).map(toCell);
+  }
+}
+
+/** 검색 결과의 최대 건수. 넘으면 오래된 쪽이 잘린다. */
+export const SEARCH_RESULT_LIMIT = 200;
+
+/**
+ * 모든 날짜(과거 포함)에서 국소·작업 글에 `query`가 들어간 칸을 최근 날짜부터 찾는다.
+ * 언제 시설했는지 찾을 때 쓴다. 입회·신호수 칸은 국소 글이 비어 있어 걸리지 않는다.
+ */
+export async function searchScheduleCells(
+  supabase: SupabaseBrowserClient,
+  query: string,
+): Promise<ScheduleCell[]> {
+  const run = async (columns: string) => {
+    const { data, error } = await supabase
       .from("schedule_cells")
-      .select("id, work_date, column_id, row_no, main_text, sub_text, text_color", {
-        count: "exact",
-      })
-      .gte("work_date", fromIso)
-      .lte("work_date", toIso)
-      .order("work_date")
-      .order("column_id")
+      .select(columns)
+      .ilike("main_text", likePattern(query))
+      .order("work_date", { ascending: false })
       .order("row_no")
-      .range(from, to),
-  );
-  return rows.map(toCell);
+      .limit(SEARCH_RESULT_LIMIT);
+    if (error) throw error;
+    return ((data ?? []) as unknown as Row[]).map(toCell);
+  };
+  try {
+    return await run(`${CELL_COLUMNS}, ${RESULT_COLUMNS}`);
+  } catch (error) {
+    // 시행 결과 마이그레이션 전이면 결과 없이 찾는다.
+    if (!isResultColumnMissing(error)) throw error;
+    return run(CELL_COLUMNS);
+  }
 }
 
 async function fetchScheduleDayNotes(
@@ -166,6 +222,40 @@ export async function updateScheduleCellText(
     })
     .eq("id", id);
   if (error) throw error;
+}
+
+/** 시행 결과를 저장한다. `null`이면 기록을 지운다(재일정 날짜도 함께 지워진다). */
+export async function updateScheduleCellResult(
+  supabase: SupabaseBrowserClient,
+  id: string,
+  result: CellResult | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("schedule_cells")
+    .update({
+      result_status: result?.status ?? null,
+      result_reason: result?.reason ?? "",
+      rescheduled_to: result?.rescheduledTo ?? null,
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * 칸의 정보(국소·모국·장비·글자색)를 `targetDate`의 같은 팀 첫 빈 행에 복사한다.
+ * 그 날짜의 칸은 보고 있는 기간 밖일 수 있어 여기서 따로 불러온다. 행이 가득 차면 던진다.
+ */
+export async function copyCellToDate(
+  supabase: SupabaseBrowserClient,
+  source: ScheduleCell,
+  targetDate: string,
+): Promise<void> {
+  const targetCells = await fetchScheduleCells(supabase, targetDate, targetDate);
+  const plan = planReschedule(targetCells, source, targetDate);
+  if ("error" in plan) {
+    throw new Error(`${targetDate}의 같은 팀 행이 가득 차서 복사할 수 없습니다.`);
+  }
+  await createScheduleCell(supabase, plan.position, plan.text);
 }
 
 /** 도착 자리가 차 있으면 맞바꾼다. `rowNo`가 null이면 그 날짜·열의 빈 행으로 보낸다. */
@@ -297,4 +387,48 @@ export async function applyScheduleImport(
         ? `팀장 이름 ${failures.length}건을 저장하지 못했습니다(${failures[0]}). 일정은 가져왔습니다.`
         : null,
   };
+}
+
+/**
+ * 작업금지 기간 조회. `from`~`to`(`yyyy-mm-dd`, 한국 날짜)와 하루라도 겹치는 기간을 시작 순으로 돌려준다.
+ * 둘 다 생략하면 전부다. 일정표 본 조회(`fetchScheduleRange`)와 따로 불러, 이 테이블이 아직 없어도 일정표는 열린다.
+ */
+export async function fetchScheduleFreezes(
+  supabase: SupabaseBrowserClient,
+  range: { from?: string; to?: string } = {},
+): Promise<Freeze[]> {
+  let query = supabase
+    .from("schedule_freezes")
+    .select("id, starts_at, ends_at, reason")
+    .order("starts_at");
+  if (range.from) query = query.gte("ends_at", `${range.from}T00:00:00+09:00`);
+  if (range.to) query = query.lt("starts_at", `${addDays(range.to, 1)}T00:00:00+09:00`);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    start: toKstLocal(String(row.starts_at)),
+    end: toKstLocal(String(row.ends_at)),
+    reason: String(row.reason),
+  }));
+}
+
+export async function createScheduleFreeze(
+  supabase: SupabaseBrowserClient,
+  input: FreezeInput,
+): Promise<void> {
+  const { error } = await supabase.from("schedule_freezes").insert({
+    starts_at: toDbTimestamp(input.start),
+    ends_at: toDbTimestamp(input.end),
+    reason: input.reason,
+  });
+  if (error) throw error;
+}
+
+export async function deleteScheduleFreeze(
+  supabase: SupabaseBrowserClient,
+  id: string,
+): Promise<void> {
+  const { error } = await supabase.from("schedule_freezes").delete().eq("id", id);
+  if (error) throw error;
 }

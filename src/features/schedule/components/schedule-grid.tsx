@@ -3,8 +3,12 @@
 import { useMemo, type DragEvent } from "react";
 import { cn } from "@/lib/utils";
 import { indexCells, positionKey, visibleRowCount } from "@/features/schedule/lib/cell-grid";
+import { resultSummary } from "@/features/schedule/lib/cell-result";
+import type { FreezeBadge } from "@/features/schedule/lib/freeze";
+import { holidayName } from "@/features/schedule/lib/holidays";
 import { todayIso, weekdayLabel } from "@/features/schedule/lib/week";
 import {
+  resultLabel,
   TEXT_COLOR_DISPLAY,
   type CellPosition,
   type ScheduleCell,
@@ -13,6 +17,7 @@ import {
   type ScheduleMark,
 } from "@/features/schedule/types";
 import { SCHEDULE_DATE_COLUMN_WIDTH_PX } from "@/features/shell/constants";
+import { RESULT_DOT_CLASS } from "./schedule-result-dialog";
 
 /** 날짜×팀 색 위에 얹는 투명도(8자리 hex의 알파 `59` ≈ 35%). 어두운 테마에서도 글자가 읽힌다. */
 const MARK_ALPHA = "59";
@@ -23,9 +28,12 @@ interface ScheduleGridProps {
   cells: ScheduleCell[];
   dayNotes: ScheduleDayNote[];
   marks: ScheduleMark[];
+  /** 날짜별 작업금지(프리징) 배지 */
+  freezeBadges: Map<string, FreezeBadge[]>;
   canEdit: boolean;
   onEditCell: (cell: ScheduleCell | null, position: CellPosition) => void;
-  onDropCell: (dragged: ScheduleCell, target: CellPosition) => void;
+  /** `single`이면 Shift를 누른 채 놓은 것이라 끈 칸 하나만 옮긴다(아니면 같은 날짜·팀의 묶음 전체) */
+  onDropCell: (dragged: ScheduleCell, target: CellPosition, options: { single: boolean }) => void;
   onEditColumn: (column: ScheduleColumn) => void;
   onEditDay: (workDate: string) => void;
 }
@@ -40,6 +48,7 @@ export function ScheduleGrid({
   cells,
   dayNotes,
   marks,
+  freezeBadges,
   canEdit,
   onEditCell,
   onDropCell,
@@ -50,8 +59,19 @@ export function ScheduleGrid({
     () => [...columns].sort((a, b) => a.sortOrder - b.sortOrder),
     [columns],
   );
-  const cellIndex = useMemo(() => indexCells(cells), [cells]);
-  const cellById = useMemo(() => new Map(cells.map((cell) => [cell.id, cell])), [cells]);
+  const visibleColumnIds = useMemo(
+    () => new Set(sortedColumns.map((column) => column.id)),
+    [sortedColumns],
+  );
+  const visibleCells = useMemo(
+    () => cells.filter((cell) => visibleColumnIds.has(cell.columnId)),
+    [cells, visibleColumnIds],
+  );
+  const cellIndex = useMemo(() => indexCells(visibleCells), [visibleCells]);
+  const cellById = useMemo(
+    () => new Map(visibleCells.map((cell) => [cell.id, cell])),
+    [visibleCells],
+  );
   const noteByDate = useMemo(
     () => new Map(dayNotes.map((entry) => [entry.workDate, entry.note])),
     [dayNotes],
@@ -66,7 +86,7 @@ export function ScheduleGrid({
     if (!canEdit) return;
     event.preventDefault();
     const dragged = cellById.get(event.dataTransfer.getData("text/plain"));
-    if (dragged) onDropCell(dragged, target);
+    if (dragged) onDropCell(dragged, target, { single: event.shiftKey });
   };
 
   return (
@@ -108,11 +128,14 @@ export function ScheduleGrid({
       </thead>
       <tbody>
         {weekDates.flatMap((workDate) => {
-          const rowCount = visibleRowCount(cells, workDate);
+          const rowCount = visibleRowCount(visibleCells, workDate);
           const weekday = weekdayLabel(workDate);
           const isSaturday = weekday === "토";
           const isSunday = weekday === "일";
-          const isWeekend = isSaturday || isSunday;
+          const holiday = holidayName(workDate);
+          // 공휴일은 일요일처럼 빨간색으로 보이고 쉬는 날 배경을 쓴다.
+          const isWeekend = isSaturday || isSunday || holiday !== null;
+          const badges = freezeBadges.get(workDate) ?? [];
           const note = noteByDate.get(workDate) ?? "";
           const isToday = workDate === today;
           const isLastDay = workDate === weekDates[weekDates.length - 1];
@@ -123,6 +146,7 @@ export function ScheduleGrid({
                   rowSpan={rowCount}
                   className={cn(
                     "border border-slate-700 bg-slate-900/70 p-0 align-top",
+                    badges.length > 0 && "bg-rose-950/40",
                     isToday && "border-2 border-indigo-500",
                   )}
                 >
@@ -136,12 +160,27 @@ export function ScheduleGrid({
                     <span
                       className={cn(
                         "block whitespace-nowrap font-semibold",
-                        isSaturday && "text-sky-400",
-                        isSunday && "text-rose-400",
+                        isSaturday && holiday === null && "text-sky-400",
+                        (isSunday || holiday !== null) && "text-rose-400",
                       )}
                     >
                       {workDate.slice(5)} {weekday}
                     </span>
+                    {holiday ? (
+                      <span className="block truncate whitespace-nowrap text-[11px] font-semibold text-rose-400" title={holiday}>
+                        {holiday}
+                      </span>
+                    ) : null}
+                    {badges.map((badge) => (
+                      <span
+                        key={badge.id}
+                        className="block truncate whitespace-nowrap text-[11px] font-semibold text-rose-300"
+                        title={badge.title}
+                      >
+                        {"⛔ "}
+                        {badge.reason} {badge.time}
+                      </span>
+                    ))}
                     <span className="block truncate whitespace-nowrap text-[11px] text-slate-400" title={note}>
                       {note || " "}
                     </span>
@@ -159,7 +198,13 @@ export function ScheduleGrid({
                     key={column.id}
                     tabIndex={interactive ? 0 : undefined}
                     draggable={canEdit && cell !== undefined}
-                    title={cell ? `${cell.mainText}${cell.subText ? ` · ${cell.subText}` : ""}` : undefined}
+                    title={
+                      cell
+                        ? `${cell.mainText}${cell.subText ? ` · ${cell.subText}` : ""}${
+                            cell.result ? ` — ${resultSummary(cell.result)}` : ""
+                          }`
+                        : undefined
+                    }
                     style={markColor ? { backgroundColor: `#${markColor}${MARK_ALPHA}` } : undefined}
                     className={cn(
                       // 세로선만 두고, 가로선은 날짜 블록의 첫 행 위(날짜 사이 구분)에만 둔다.
@@ -191,6 +236,12 @@ export function ScheduleGrid({
                     }}
                     onDrop={(event) => handleDrop(event, position)}
                   >
+                    {cell?.result ? (
+                      <span
+                        className={cn("mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle", RESULT_DOT_CLASS[cell.result.status])}
+                        aria-label={resultLabel(cell.result.status)}
+                      />
+                    ) : null}
                     {cell ? (
                       <span
                         style={cell.textColor ? { color: TEXT_COLOR_DISPLAY[cell.textColor] } : undefined}

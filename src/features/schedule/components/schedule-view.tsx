@@ -1,13 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Upload } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Download, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { moveScheduleCell } from "@/features/schedule/api";
-import { planDrop } from "@/features/schedule/lib/cell-grid";
+import {
+  filterVisibleScheduleColumns,
+  groupOfCell,
+  isOptionalScheduleColumn,
+  MAX_ROWS,
+  planDrop,
+  planGroupDrop,
+} from "@/features/schedule/lib/cell-grid";
+import { freezeBadgesByDate } from "@/features/schedule/lib/freeze";
 import { buildMonthModel } from "@/features/schedule/lib/month-layout";
 import {
   addDays,
@@ -17,9 +25,9 @@ import {
   monthGridDates,
   monthOf,
   todayIso,
-  weekDatesOf,
   weekStartOf,
 } from "@/features/schedule/lib/week";
+import { useScheduleFreezes } from "@/features/schedule/hooks/use-schedule-freezes";
 import { useScheduleRange } from "@/features/schedule/hooks/use-schedule-range";
 import type {
   CellPosition,
@@ -31,12 +39,17 @@ import { ScheduleCellDialog, type CellEditorState } from "./schedule-cell-dialog
 import { ScheduleColumnDialog } from "./schedule-column-dialog";
 import { ScheduleDayDialog } from "./schedule-day-dialog";
 import { ScheduleExportDialog } from "./schedule-export-dialog";
+import { ScheduleFreezeDialog } from "./schedule-freeze-dialog";
 import { ScheduleGrid } from "./schedule-grid";
 import { ScheduleImportDialog } from "./schedule-import-dialog";
 import { ScheduleLegend } from "./schedule-legend";
 import { ScheduleMonthGrid } from "./schedule-month-grid";
+import { ScheduleSearch } from "./schedule-search";
 
 type ScheduleView = "week" | "month";
+/** 한 번에 볼 수 있는 주 수(1~4)와 달 수(1~3) */
+const WEEK_COUNTS = [1, 2, 3, 4];
+const MONTH_COUNTS = [1, 2, 3];
 
 const TABLE_MISSING_MESSAGE =
   "DB에 시설일정 테이블이 없습니다. 마이그레이션(20261108000000_facility_schedule.sql)을 Supabase에 적용해 주세요.";
@@ -49,51 +62,170 @@ export function ScheduleView() {
   const { supabase } = useAuthSession();
   const { toast } = useToast();
   const [view, setView] = useState<ScheduleView>("week");
+  const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [weekStart, setWeekStart] = useState(() => weekStartOf(todayIso()));
   const [month, setMonth] = useState(() => monthOf(todayIso()));
   const [cellEditor, setCellEditor] = useState<CellEditorState | null>(null);
   const [columnEditor, setColumnEditor] = useState<ScheduleColumn | null>(null);
   const [dayEditor, setDayEditor] = useState<string | null>(null);
   const [isExportOpen, setExportOpen] = useState(false);
+  const [isFreezeOpen, setFreezeOpen] = useState(false);
   const [isImportOpen, setImportOpen] = useState(false);
-
-  const weekDates = useMemo(() => weekDatesOf(weekStart), [weekStart]);
-  const monthDates = useMemo(() => monthGridDates(month), [month]);
-  const weekData = useScheduleRange(weekStart, weekDates[6], view === "week");
-  const monthData = useScheduleRange(
-    monthDates[0],
-    monthDates[monthDates.length - 1],
-    view === "month",
+  const [visibleOptionalColumnIds, setVisibleOptionalColumnIds] = useState<Set<string>>(
+    () => new Set(),
   );
+
+  // 한 번에 보는 주·달 수(1~3). 다음 주·달 일정을 옮길 때 칸 편집 창을 열지 않고 한 화면에서 끌어 옮기려는 용도다(주 4주, 달 3달까지).
+  const [weekCount, setWeekCount] = useState(1);
+  const [monthCount, setMonthCount] = useState(1);
+
+  const weekDates = useMemo(
+    () => Array.from({ length: weekCount * 7 }, (_, offset) => addDays(weekStart, offset)),
+    [weekStart, weekCount],
+  );
+  const monthKeys = useMemo(
+    () => Array.from({ length: monthCount }, (_, offset) => addMonths(month, offset)),
+    [month, monthCount],
+  );
+  const monthFrom = useMemo(() => monthGridDates(monthKeys[0])[0], [monthKeys]);
+  const monthTo = useMemo(() => {
+    const dates = monthGridDates(monthKeys[monthKeys.length - 1]);
+    return dates[dates.length - 1];
+  }, [monthKeys]);
+  const weekData = useScheduleRange(weekStart, weekDates[weekDates.length - 1], view === "week");
+  const monthData = useScheduleRange(monthFrom, monthTo, view === "month");
+
+  // 작업금지(프리징) 기간. 일정표 본 조회와 따로 불러 이 테이블이 없어도 일정표는 열린다.
+  const weekFreezes = useScheduleFreezes(
+    { from: weekDates[0], to: weekDates[weekDates.length - 1] },
+    view === "week",
+  );
+  const monthFreezes = useScheduleFreezes({ from: monthFrom, to: monthTo }, view === "month");
+  const weekFreezeBadges = useMemo(
+    () => freezeBadgesByDate(weekFreezes.freezes, weekDates),
+    [weekFreezes.freezes, weekDates],
+  );
+  const monthFreezeBadges = useMemo(() => {
+    const dates: string[] = [];
+    for (let cursor = monthFrom; cursor <= monthTo; cursor = addDays(cursor, 1)) dates.push(cursor);
+    return freezeBadgesByDate(monthFreezes.freezes, dates);
+  }, [monthFreezes.freezes, monthFrom, monthTo]);
   const data = view === "week" ? weekData : monthData;
   const { isAdmin } = data;
 
-  const monthModel = useMemo(
+  const optionalColumns = useMemo(
     () =>
-      buildMonthModel({
-        month,
-        columns: monthData.columns,
-        cells: monthData.cells,
-        dayNotes: monthData.dayNotes,
-        marks: monthData.marks,
-      }),
-    [month, monthData.columns, monthData.cells, monthData.dayNotes, monthData.marks],
+      [...data.columns]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .filter(isOptionalScheduleColumn),
+    [data.columns],
+  );
+  const visibleWeekColumns = useMemo(
+    () => filterVisibleScheduleColumns(weekData.columns, visibleOptionalColumnIds),
+    [weekData.columns, visibleOptionalColumnIds],
+  );
+  const visibleMonthColumns = useMemo(
+    () => filterVisibleScheduleColumns(monthData.columns, visibleOptionalColumnIds),
+    [monthData.columns, visibleOptionalColumnIds],
   );
 
-  const goPrev = () =>
-    view === "week" ? setWeekStart(addDays(weekStart, -7)) : setMonth(addMonths(month, -1));
-  const goNext = () =>
-    view === "week" ? setWeekStart(addDays(weekStart, 7)) : setMonth(addMonths(month, 1));
+  const monthModels = useMemo(
+    () =>
+      monthKeys.map((key) =>
+        buildMonthModel({
+          month: key,
+          columns: visibleMonthColumns,
+          cells: monthData.cells,
+          dayNotes: monthData.dayNotes,
+          marks: monthData.marks,
+        }),
+      ),
+    [monthKeys, visibleMonthColumns, monthData.cells, monthData.dayNotes, monthData.marks],
+  );
+
+  const goPrev = () => {
+    if (view === "week") {
+      setWeekStart(addDays(weekStart, -7));
+      setSelectedDate(addDays(selectedDate, -7));
+    } else {
+      setMonth(addMonths(month, -1));
+    }
+  };
+  const goNext = () => {
+    if (view === "week") {
+      setWeekStart(addDays(weekStart, 7));
+      setSelectedDate(addDays(selectedDate, 7));
+    } else {
+      setMonth(addMonths(month, 1));
+    }
+  };
+  /** 그 날짜가 보이는 주·달로 이동한다. 보기(주간·월간)는 그대로다. */
+  const jumpToDate = (workDate: string) => {
+    if (!isValidIso(workDate)) return;
+    setSelectedDate(workDate);
+    setWeekStart(weekStartOf(workDate));
+    setMonth(monthOf(workDate));
+  };
   const goToday = () => {
-    setWeekStart(weekStartOf(todayIso()));
-    setMonth(monthOf(todayIso()));
+    const today = todayIso();
+    setSelectedDate(today);
+    setWeekStart(weekStartOf(today));
+    setMonth(monthOf(today));
   };
 
-  const handleDropCell = async (dragged: ScheduleCell, target: CellPosition) => {
+  /**
+   * 끌어 놓기. 같은 날짜·팀에 한꺼번에 등록한 국소들은 한 묶음이라 **묶음 전체**를 옮긴다
+   * (도착 팀의 빈 행에 행 순서대로 이어 붙는다). 묶음이 한 칸뿐이거나 Shift를 누르고 놓으면
+   * 끈 칸 하나만 옮기고, 놓은 자리가 차 있으면 맞바꾼다. `append`(월간 보기)는 놓은 자리의 행이 정해져 있지 않아
+   * 맞바꾸지 않고 도착 팀의 빈 행에 하나를 이어 붙인다.
+   * 주간·월간 모두 지금 보이는 보기의 칸(`data.cells`)으로 판단한다.
+   */
+  const handleDropCell = async (
+    dragged: ScheduleCell,
+    target: CellPosition,
+    options: { single: boolean; append?: boolean },
+  ) => {
     if (!supabase || !isAdmin) return;
-    const plan = planDrop(weekData.cells, dragged, target);
-    if (plan.kind === "none") return;
+    const viewCells = data.cells;
+    const moveGroup = !options.single && groupOfCell(viewCells, dragged).length > 1;
     try {
+      if (moveGroup) {
+        const plan = planGroupDrop(viewCells, dragged, target);
+        if (plan.kind === "none") return;
+        if (plan.kind === "full") {
+          toast({
+            title: "옮기지 못했습니다",
+            description: "도착 날짜·팀의 행이 모자랍니다.",
+            variant: "destructive",
+          });
+          return;
+        }
+        // 순서대로 하나씩 옮긴다. 중간에 실패해도 화면은 새로 고쳐 실제 상태를 보여 준다.
+        try {
+          for (const id of plan.ids) {
+            await moveScheduleCell(supabase, id, { ...target, rowNo: null });
+          }
+        } finally {
+          await weekData.refresh();
+        }
+        return;
+      }
+      if (options.append) {
+        if (dragged.workDate === target.workDate && dragged.columnId === target.columnId) return;
+        if (groupOfCell(viewCells, target).length >= MAX_ROWS) {
+          toast({
+            title: "옮기지 못했습니다",
+            description: "도착 날짜·팀의 행이 모자랍니다.",
+            variant: "destructive",
+          });
+          return;
+        }
+        await moveScheduleCell(supabase, dragged.id, { ...target, rowNo: null });
+        await weekData.refresh();
+        return;
+      }
+      const plan = planDrop(viewCells, dragged, target);
+      if (plan.kind === "none") return;
       await moveScheduleCell(supabase, dragged.id, target);
       await weekData.refresh();
     } catch (error) {
@@ -118,8 +250,13 @@ export function ScheduleView() {
 
   const rangeLabel =
     view === "week"
-      ? `${weekDates[0]} ~ ${weekDates[6]}`
-      : `${month.replace("-", "년 ")}월`;
+      ? `${weekDates[0]} ~ ${weekDates[weekDates.length - 1]}`
+      : monthCount === 1
+        ? `${month.replace("-", "년 ")}월`
+        : `${month.replace("-", "년 ")}월 ~ ${monthKeys[monthKeys.length - 1].replace("-", "년 ")}월`;
+  const countLabel = view === "week" ? "주" : "달";
+  const activeCount = view === "week" ? weekCount : monthCount;
+  const setActiveCount = view === "week" ? setWeekCount : setMonthCount;
 
   return (
     <section
@@ -142,6 +279,28 @@ export function ScheduleView() {
               )}
             >
               {key === "week" ? "주간" : "월간"}
+            </button>
+          ))}
+        </div>
+
+        <div
+          className="flex overflow-hidden rounded-md border border-slate-700"
+          role="group"
+          aria-label={`한 번에 보는 ${countLabel} 수`}
+        >
+          {(view === "week" ? WEEK_COUNTS : MONTH_COUNTS).map((count) => (
+            <button
+              key={count}
+              type="button"
+              aria-pressed={activeCount === count}
+              onClick={() => setActiveCount(count)}
+              className={cn(
+                "h-8 whitespace-nowrap px-2.5 text-xs",
+                activeCount === count ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-slate-800",
+              )}
+            >
+              {count}
+              {countLabel}
             </button>
           ))}
         </div>
@@ -176,24 +335,31 @@ export function ScheduleView() {
         </Button>
         <span className="whitespace-nowrap text-sm font-semibold text-slate-100">{rangeLabel}</span>
         {view === "week" ? (
-          <Input
-            type="date"
-            aria-label="날짜로 이동"
-            value={weekStart}
-            onChange={(event) =>
-              isValidIso(event.target.value) && setWeekStart(weekStartOf(event.target.value))
-            }
-            className="h-8 w-36 border-slate-700 bg-slate-900 text-xs"
+          <DatePicker
+            ariaLabel="날짜로 이동"
+            value={selectedDate}
+            onChange={(nextIso) => {
+              if (!isValidIso(nextIso)) return;
+              setSelectedDate(nextIso);
+              setWeekStart(weekStartOf(nextIso));
+              setMonth(monthOf(nextIso));
+            }}
+            className="w-36"
           />
         ) : (
-          <Input
-            type="month"
-            aria-label="월로 이동"
+          <DatePicker
+            mode="month"
+            ariaLabel="월로 이동"
             value={month}
-            onChange={(event) => isValidMonth(event.target.value) && setMonth(event.target.value)}
-            className="h-8 w-36 border-slate-700 bg-slate-900 text-xs"
+            onChange={(nextMonth) => {
+              if (!isValidMonth(nextMonth)) return;
+              setMonth(nextMonth);
+            }}
+            className="w-36"
           />
         )}
+
+        <ScheduleSearch columns={data.columns} onPick={jumpToDate} />
 
         <div className="ml-auto flex items-center gap-2">
           {!isAdmin ? (
@@ -201,6 +367,15 @@ export function ScheduleView() {
               읽기 전용
             </span>
           ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
+            onClick={() => setFreezeOpen(true)}
+          >
+            <Ban className="h-3.5 w-3.5" aria-hidden />
+            작업금지
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -224,7 +399,41 @@ export function ScheduleView() {
         </div>
       </div>
 
-      <ScheduleLegend />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <ScheduleLegend />
+        {optionalColumns.length > 0 ? (
+          <div
+            className="flex items-center gap-3 text-xs text-slate-300"
+            role="group"
+            aria-label="선택 열 표시"
+          >
+            {optionalColumns.map((column) => {
+              const checked = visibleOptionalColumnIds.has(column.id);
+              return (
+                <label
+                  key={column.id}
+                  className="inline-flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap hover:text-slate-100"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      setVisibleOptionalColumnIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(column.id)) next.delete(column.id);
+                        else next.add(column.id);
+                        return next;
+                      })
+                    }
+                    className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                  />
+                  <span>{column.teamLabel}</span>
+                </label>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {data.isTableMissing ? (
@@ -241,10 +450,11 @@ export function ScheduleView() {
         ) : view === "week" ? (
           <ScheduleGrid
             weekDates={weekDates}
-            columns={weekData.columns}
+            columns={visibleWeekColumns}
             cells={weekData.cells}
             dayNotes={weekData.dayNotes}
             marks={weekData.marks}
+            freezeBadges={weekFreezeBadges}
             canEdit={isAdmin}
             onEditCell={openCellEditor}
             onDropCell={handleDropCell}
@@ -252,13 +462,34 @@ export function ScheduleView() {
             onEditDay={setDayEditor}
           />
         ) : (
-          <ScheduleMonthGrid
-            model={monthModel}
-            onPickDay={(workDate) => {
-              setWeekStart(weekStartOf(workDate));
-              setView("week");
-            }}
-          />
+          <div className="flex flex-col gap-4">
+            {monthModels.map((model) => (
+              <div key={model.month}>
+                {monthCount > 1 ? (
+                  <h2 className="mb-1 text-sm font-semibold text-slate-200">{model.title}</h2>
+                ) : null}
+                <ScheduleMonthGrid
+                  model={model}
+                  freezeBadges={monthFreezeBadges}
+                  canEdit={isAdmin}
+                  onDropCell={(cellId, workDate, columnId, group) => {
+                    const dragged = monthData.cells.find((candidate) => candidate.id === cellId);
+                    if (!dragged) return;
+                    void handleDropCell(
+                      dragged,
+                      { workDate, columnId: columnId ?? dragged.columnId, rowNo: 0 },
+                      { single: !group, append: true },
+                    );
+                  }}
+                  onPickDay={(workDate) => {
+                    setSelectedDate(workDate);
+                    setWeekStart(weekStartOf(workDate));
+                    setView("week");
+                  }}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -287,6 +518,7 @@ export function ScheduleView() {
         onClose={() => setDayEditor(null)}
         onSaved={() => void weekData.refresh()}
       />
+      <ScheduleFreezeDialog open={isFreezeOpen} onOpenChange={setFreezeOpen} canEdit={isAdmin} />
       <ScheduleExportDialog
         open={isExportOpen}
         onOpenChange={setExportOpen}
@@ -300,6 +532,7 @@ export function ScheduleView() {
         columns={weekData.columns}
         onImported={(firstDate) => {
           setView("week");
+          setSelectedDate(firstDate);
           setWeekStart(weekStartOf(firstDate));
           void weekData.refresh();
         }}

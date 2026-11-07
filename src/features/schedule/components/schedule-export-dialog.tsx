@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -218,15 +219,15 @@ function ExportBody({
       <div className="grid grid-cols-2 gap-3 text-xs">
         {mode === "weekly" ? (
           <>
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className="text-slate-300">시작 날짜(그 주의 월요일부터)</span>
-              <Input
-                type="date"
+              <DatePicker
                 value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
+                onChange={setStartDate}
+                ariaLabel="시작 날짜(그 주의 월요일부터)"
                 className={FIELD_CLASS}
               />
-            </label>
+            </div>
             <label className="flex flex-col gap-1">
               <span className="text-slate-300">주 수(1~{MAX_WEEKS})</span>
               <Input
@@ -243,36 +244,37 @@ function ExportBody({
           </>
         ) : null}
         {mode === "monthly" ? (
-          <label className="col-span-1 flex flex-col gap-1">
+          <div className="col-span-1 flex flex-col gap-1">
             <span className="text-slate-300">월</span>
-            <Input
-              type="month"
+            <DatePicker
+              mode="month"
               value={month}
-              onChange={(event) => setMonth(event.target.value)}
+              onChange={setMonth}
+              ariaLabel="월"
               className={FIELD_CLASS}
             />
-          </label>
+          </div>
         ) : null}
         {mode === "data" ? (
           <>
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className="text-slate-300">시작일</span>
-              <Input
-                type="date"
+              <DatePicker
                 value={dataFrom}
-                onChange={(event) => setDataFrom(event.target.value)}
+                onChange={setDataFrom}
+                ariaLabel="시작일"
                 className={FIELD_CLASS}
               />
-            </label>
-            <label className="flex flex-col gap-1">
+            </div>
+            <div className="flex flex-col gap-1">
               <span className="text-slate-300">종료일</span>
-              <Input
-                type="date"
+              <DatePicker
                 value={dataTo}
-                onChange={(event) => setDataTo(event.target.value)}
+                onChange={setDataTo}
+                ariaLabel="종료일"
                 className={FIELD_CLASS}
               />
-            </label>
+            </div>
           </>
         ) : (
           <label className="flex flex-col gap-1">
