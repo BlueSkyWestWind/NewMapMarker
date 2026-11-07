@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { OPTION_LIST_KEYS } from "./day-types";
-import { OPTION_LIST_LABELS, OPTION_LIST_SEEDS } from "./option-lists";
+import { cloneOptionLists, OPTION_LIST_LABELS, OPTION_LIST_SEEDS } from "./option-lists";
+
+describe("cloneOptionLists", () => {
+  it("값은 같고 목록 배열은 처음 값과 다른 참조다", () => {
+    const copy = cloneOptionLists(OPTION_LIST_SEEDS);
+    expect(copy).toEqual(OPTION_LIST_SEEDS);
+    expect(copy).not.toBe(OPTION_LIST_SEEDS);
+    for (const key of OPTION_LIST_KEYS) {
+      expect(copy[key], key).not.toBe(OPTION_LIST_SEEDS[key]);
+    }
+  });
+
+  it("복사본을 바꿔도 처음 값 상수는 그대로다", () => {
+    const before = JSON.stringify(OPTION_LIST_SEEDS);
+    const copy = cloneOptionLists(OPTION_LIST_SEEDS);
+    copy.bizClass.push("추가");
+    copy.workTime.length = 0;
+    expect(JSON.stringify(OPTION_LIST_SEEDS)).toBe(before);
+  });
+});
 
 describe("OPTION_LIST_SEEDS", () => {
   it("목록마다 처음 값 개수가 스펙과 같다", () => {

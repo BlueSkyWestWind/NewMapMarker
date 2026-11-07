@@ -13,7 +13,7 @@ import {
   type OptionLists,
   type RefValues,
 } from "@/features/schedule/lib/day-types";
-import { OPTION_LIST_SEEDS } from "@/features/schedule/lib/option-lists";
+import { cloneOptionLists, OPTION_LIST_SEEDS } from "@/features/schedule/lib/option-lists";
 import { likePattern } from "@/features/schedule/lib/search-cells";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -178,9 +178,7 @@ export async function fetchOptionLists(supabase: SupabaseBrowserClient): Promise
     (row) => isOptionListKey(row.list_key) && typeof row.value === "string",
   );
   if (rows.length === 0) {
-    return Object.fromEntries(
-      OPTION_LIST_KEYS.map((key) => [key, [...OPTION_LIST_SEEDS[key]]]),
-    ) as unknown as OptionLists;
+    return cloneOptionLists(OPTION_LIST_SEEDS);
   }
 
   const lists = emptyLists();
