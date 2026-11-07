@@ -7,6 +7,7 @@ import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-st
 import type { MapMode } from "@/features/map-marker/types/marker";
 import { useHasMounted } from "@/hooks/use-has-mounted";
 import {
+  ADMIN_ONLY_SEGMENTS,
   AUTH_ONLY_SEGMENTS,
   initialPanelStep,
 } from "@/features/shell/lib/nav-model";
@@ -44,8 +45,8 @@ export function useShellNav() {
   );
 
   /**
-   * 하위 메뉴를 고른다. 지도는 변환기까지 다루므로 `setMapSegment`를 쓰고,
-   * 마커관리는 도메인만 바꾸면 되므로 `setMode`를 쓴다.
+   * 하위 메뉴를 고른다. 지도는 변환기·CCTV까지 다루므로 `setMapSegment`를 쓰고,
+   * 마커관리는 groups면 `setMapSegment("groups")`, 그 외는 도메인(`setMode`)을 쓴다.
    */
   const pickSegment = useCallback(
     (nav: NavKey, segment: NavSubKey) => {
@@ -53,7 +54,11 @@ export function useShellNav() {
       // 일정관리의 하위 화면은 지도 모드·세그먼트를 바꾸지 않는다.
       if (nav !== "schedule" && isMapSegment(segment)) {
         if (nav === "markers") {
-          setMode(segment as MapMode);
+          if (segment === "groups") {
+            setMapSegment("groups");
+          } else {
+            setMode(segment as MapMode);
+          }
         } else {
           setMapSegment(segment);
         }
@@ -64,11 +69,15 @@ export function useShellNav() {
     [setActiveNav, setMode, setMapSegment, setPanelStep, openPanel],
   );
 
-  // 위치·변환기만 잠근다. 장비·축전지 조회는 비로그인도 가능하다.
+  // 위치·변환기는 비로그인 잠금, 그룹관리는 비관리자 잠금.
   const isSegmentLocked = useCallback(
-    (segment: NavSubKey) =>
-      hasMounted && !authed && AUTH_ONLY_SEGMENTS.includes(segment),
-    [hasMounted, authed],
+    (segment: NavSubKey) => {
+      if (!hasMounted) return false;
+      if (!authed && AUTH_ONLY_SEGMENTS.includes(segment)) return true;
+      if (!isAdmin && ADMIN_ONLY_SEGMENTS.includes(segment)) return true;
+      return false;
+    },
+    [hasMounted, authed, isAdmin],
   );
 
   return { authed, isAdmin, hasMounted, pickNav, pickSegment, isSegmentLocked };

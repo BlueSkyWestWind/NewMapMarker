@@ -1,7 +1,6 @@
 import {
   CalendarDays,
   Database,
-  Layers,
   LayoutDashboard,
   Map,
   MapPin,
@@ -17,7 +16,6 @@ export type NavKey =
   | "map"
   | "markers"
   | "schedule"
-  | "groups"
   | "barcode"
   | "backup"
   | "settings"
@@ -41,7 +39,6 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "map", label: "지도", icon: Map, auth: false, enabled: true },
   { key: "markers", label: "마커관리", icon: MapPin, auth: true, enabled: true },
   { key: "schedule", label: "일정관리", icon: CalendarDays, auth: true, enabled: true },
-  { key: "groups", label: "그룹관리", icon: Layers, auth: true, enabled: true, adminOnly: true },
   { key: "barcode", label: "바코드/QR", icon: ScanBarcode, auth: true, enabled: true },
   { key: "backup", label: "데이터백업/복원", icon: Database, auth: true, enabled: true },
   { key: "settings", label: "설정", icon: Settings, auth: true, enabled: true },

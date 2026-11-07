@@ -29,7 +29,7 @@ export function NavTree({ activeNav, segment, segmentCounts }: NavTreeProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<NavKey, boolean>>>({});
 
-  const nodes = filterNavTree(visibleNavItems(authed, isAdmin), query);
+  const nodes = filterNavTree(visibleNavItems(authed, isAdmin), query, isAdmin);
   const isSearching = query.trim().length > 0;
 
   return (

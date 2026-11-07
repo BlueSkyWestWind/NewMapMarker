@@ -58,9 +58,9 @@ describe("국소 목록 선택", () => {
 });
 
 describe("그룹관리 메뉴 상태", () => {
-  it("그룹관리 메뉴는 위치 모드를 쓴다", () => {
-    useMapMarkerStore.setState({ mode: "equipment", activeNav: "map" });
-    useMapMarkerStore.getState().setActiveNav("groups");
+  it("그룹관리 세그먼트는 위치 모드를 쓴다", () => {
+    useMapMarkerStore.setState({ mode: "equipment", activeNav: "markers", mapSegment: "equipment" });
+    useMapMarkerStore.getState().setMapSegment("groups");
     expect(useMapMarkerStore.getState().mode).toBe("location");
   });
 
@@ -153,7 +153,7 @@ describe("지도와 무관한 메뉴는 이전 마커를 숨기고 시작한다"
     expect(useMapMarkerStore.getState().isMarkersVisible).toBe(false);
   });
 
-  it.each(["map", "markers", "groups", "dashboard"] as const)("%s는 마커를 보인다", (nav) => {
+  it.each(["map", "markers", "dashboard"] as const)("%s는 마커를 보인다", (nav) => {
     useMapMarkerStore.setState({ activeNav: "settings", isMarkersVisible: false });
     useMapMarkerStore.getState().setActiveNav(nav);
     expect(useMapMarkerStore.getState().isMarkersVisible).toBe(true);

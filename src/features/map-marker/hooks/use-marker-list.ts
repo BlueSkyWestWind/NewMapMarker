@@ -53,9 +53,9 @@ export function useMarkerList(): MarkerRecord[] {
 
   const activeNav = useMapMarkerStore((state) => state.activeNav);
   const selectedGroupKeys = useMapMarkerStore((state) => state.selectedGroupKeys);
-  const isGroupNav = activeNav === "groups";
+  const isGroupNav = activeNav === "markers" && mapSegment === "groups";
   const groups = useMarkerGroups(isGroupNav);
-  // 그룹관리 메뉴에서만 체크한 묶음의 마커 ID를 넘긴다. 그 밖에는 null이라 위치 목록 동작 그대로다.
+  // 그룹관리 화면에서만 체크한 묶음의 마커 ID를 넘긴다. 그 밖에는 null이라 위치 목록 동작 그대로다.
   const groupAdminMarkerIds = useMemo(() => {
     if (!isGroupNav) return null;
     const keys = new Set(selectedGroupKeys);

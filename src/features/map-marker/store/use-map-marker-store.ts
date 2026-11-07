@@ -261,26 +261,29 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
           const nextMode = match(nav)
             .with("dashboard", () => "weather" as MapMode)
             .with("map", () => state.lastDomainMode as MapMode)
-            // 마커관리에는 위치 세그먼트가 없다(위치는 지도 전용).
+            // 마커관리에는 위치 세그먼트가 없다(위치는 지도 전용). groups 세그먼트면 location 모드.
             .with("markers", () =>
-              state.lastDomainMode === "location"
-                ? ("equipment" as MapMode)
-                : (state.lastDomainMode as MapMode),
+              state.mapSegment === "groups"
+                ? ("location" as MapMode)
+                : state.lastDomainMode === "location"
+                  ? ("equipment" as MapMode)
+                  : (state.lastDomainMode as MapMode),
             )
-            // 그룹관리는 위치 모드의 지도를 빌려 체크한 묶음의 마커만 올린다.
-            .with("groups", () => "location" as MapMode)
             .otherwise(() => state.mode);
 
           /*
            * 지도로 돌아올 때는 마지막에 보던 세그먼트를 그대로 살린다 —
            * 변환기·CCTV를 쓰다 대시보드에 다녀오면 보던 세그먼트로 돌아와야 한다.
+           * 마커관리도 그룹관리 세그먼트면 그룹관리를 살린다.
            * 다른 메뉴는 도메인만 맞춘다.
            */
           const nextSegment =
             nav === "map" &&
             (state.mapSegment === "converter" || state.mapSegment === "cctv")
               ? state.mapSegment
-              : segmentOfMode(nextMode);
+              : nav === "markers" && state.mapSegment === "groups"
+                ? "groups"
+                : segmentOfMode(nextMode);
 
           // 지도를 벗어나면 CCTV 조회 결과를 지운다.
           const leavingCctv =

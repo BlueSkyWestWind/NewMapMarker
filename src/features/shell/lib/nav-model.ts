@@ -1,6 +1,7 @@
 import {
   Battery,
   CalendarRange,
+  Layers,
   MapPin,
   Server,
   Video,
@@ -17,6 +18,7 @@ import type { MapSegment, NavSubKey } from "@/features/shell/types/segment";
 export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }> = {
   equipment: { label: "장비", icon: Server },
   battery: { label: "축전지", icon: Battery },
+  groups: { label: "그룹관리", icon: Layers },
   location: { label: "이벤트관리", icon: MapPin },
   cctv: { label: "CCTV", icon: Video },
   converter: { label: "위치/좌표", icon: Waypoints },
@@ -25,7 +27,7 @@ export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }
 
 const NAV_SEGMENTS: Partial<Record<NavKey, NavSubKey[]>> = {
   map: ["equipment", "battery", "location", "cctv", "converter"],
-  markers: ["equipment", "battery"],
+  markers: ["equipment", "battery", "groups"],
   schedule: ["facility"],
 };
 
@@ -40,14 +42,18 @@ export const NAV_DESCRIPTIONS: Partial<Record<NavKey, string>> = {
 /** 비로그인 때 잠그는 하위 메뉴 */
 export const AUTH_ONLY_SEGMENTS: NavSubKey[] = ["location", "converter"];
 
+/** 관리자에게만 보이는 하위 메뉴 */
+export const ADMIN_ONLY_SEGMENTS: NavSubKey[] = ["groups"];
+
 const MOBILE_TAB_KEYS: NavKey[] = ["dashboard", "map", "markers", "schedule"];
 
-export function segmentsOfNav(nav: NavKey): NavSubKey[] {
-  return NAV_SEGMENTS[nav] ?? [];
+export function segmentsOfNav(nav: NavKey, isAdmin = false): NavSubKey[] {
+  const all = NAV_SEGMENTS[nav] ?? [];
+  return all.filter((s) => !ADMIN_ONLY_SEGMENTS.includes(s) || isAdmin);
 }
 
-export function hasNavSegments(nav: NavKey): boolean {
-  return segmentsOfNav(nav).length > 0;
+export function hasNavSegments(nav: NavKey, isAdmin = false): boolean {
+  return segmentsOfNav(nav, isAdmin).length > 0;
 }
 
 /**
@@ -102,13 +108,14 @@ export function subLabelOf(nav: NavKey, segment: MapSegment): string {
   return nav === "schedule" ? SEGMENT_META.facility.label : SEGMENT_META[segment].label;
 }
 
-/** 마커 건수 요약(설명 줄)을 보일 화면인가. 지도·마커관리의 변환기·CCTV가 아닌 세그먼트만. */
+/** 마커 건수 요약(설명 줄)을 보일 화면인가. 지도·마커관리의 변환기·CCTV·그룹관리가 아닌 세그먼트만. */
 export function showsMarkerSummary(nav: NavKey, segment: MapSegment): boolean {
   return (
     hasNavSegments(nav) &&
     nav !== "schedule" &&
     segment !== "converter" &&
-    segment !== "cctv"
+    segment !== "cctv" &&
+    segment !== "groups"
   );
 }
 
@@ -132,12 +139,13 @@ export interface NavTreeNode {
 export function filterNavTree(
   items: NavItem[],
   query: string,
+  isAdmin = false,
 ): NavTreeNode[] {
   const needle = query.trim().toLowerCase();
   const matches = (label: string) => label.toLowerCase().includes(needle);
 
   return items.flatMap((item) => {
-    const segments = segmentsOfNav(item.key);
+    const segments = segmentsOfNav(item.key, isAdmin);
     if (!needle || matches(item.label)) return [{ item, segments }];
     const hits = segments.filter((segment) => matches(SEGMENT_META[segment].label));
     return hits.length > 0 ? [{ item, segments: hits }] : [];

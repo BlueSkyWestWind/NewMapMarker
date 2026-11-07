@@ -15,7 +15,7 @@ import {
 } from "./nav-model";
 
 describe("segmentsOfNav", () => {
-  it("지도는 다섯 가지, 마커관리는 장비·축전지다", () => {
+  it("지도는 다섯 가지, 마커관리는 장비·축전지(관리자는 그룹관리 포함)다", () => {
     expect(segmentsOfNav("map")).toEqual([
       "equipment",
       "battery",
@@ -24,6 +24,7 @@ describe("segmentsOfNav", () => {
       "converter",
     ]);
     expect(segmentsOfNav("markers")).toEqual(["equipment", "battery"]);
+    expect(segmentsOfNav("markers", true)).toEqual(["equipment", "battery", "groups"]);
   });
 
   it("일정관리는 시설일정 하나를 가진다", () => {
@@ -39,15 +40,15 @@ describe("segmentsOfNav", () => {
 });
 
 describe("모바일 메뉴", () => {
-  it("로그인하면 탭 네 개와 더보기 항목 다섯 개로 모든 메뉴가 나뉜다", () => {
+  it("로그인하면 탭 네 개와 더보기 항목 네 개로 모든 메뉴가 나뉜다", () => {
     const tabs = mobileTabItems(true, true).map((item) => item.key);
     const more = mobileMoreItems(true, true).map((item) => item.key);
     expect(tabs).toEqual(["dashboard", "map", "markers", "schedule"]);
-    expect(more).toEqual(["groups", "barcode", "backup", "settings", "accounts"]);
+    expect(more).toEqual(["barcode", "backup", "settings", "accounts"]);
     expect([...tabs, ...more].sort()).toEqual(NAV_ITEMS.map((item) => item.key).sort());
   });
 
-  it("관리자가 아니면 더보기에 그룹관리·계정설정이 없다", () => {
+  it("관리자가 아니면 더보기에 계정설정이 없다", () => {
     expect(mobileMoreItems(true, false).map((item) => item.key)).toEqual([
       "barcode",
       "backup",
@@ -75,6 +76,14 @@ describe("filterNavTree", () => {
     expect(filterNavTree(items, "").find((n) => n.item.key === "markers")?.segments).toEqual([
       "equipment",
       "battery",
+    ]);
+  });
+
+  it("관리자면 마커관리에 그룹관리도 포함된다", () => {
+    expect(filterNavTree(items, "", true).find((n) => n.item.key === "markers")?.segments).toEqual([
+      "equipment",
+      "battery",
+      "groups",
     ]);
   });
 
@@ -135,11 +144,12 @@ describe("subLabelOf", () => {
 });
 
 describe("showsMarkerSummary", () => {
-  it("지도·마커관리의 변환기가 아닌 세그먼트에서만 마커 건수 요약을 보인다", () => {
+  it("지도·마커관리의 변환기·CCTV·그룹관리가 아닌 세그먼트에서만 마커 건수 요약을 보인다", () => {
     expect(showsMarkerSummary("map", "equipment")).toBe(true);
     expect(showsMarkerSummary("markers", "battery")).toBe(true);
     expect(showsMarkerSummary("map", "converter")).toBe(false);
     expect(showsMarkerSummary("map", "cctv")).toBe(false);
+    expect(showsMarkerSummary("markers", "groups")).toBe(false);
   });
 
   it("하위 메뉴가 없거나 일정관리면 보이지 않는다", () => {

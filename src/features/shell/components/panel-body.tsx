@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { match } from "ts-pattern";
-import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
 import { MapPanel } from "@/features/shell/components/panels/map-panel";
 import { MarkersPanel } from "@/features/shell/components/panels/markers-panel";
 import type { PanelDataProps } from "@/features/shell/components/panels/types";
@@ -30,15 +29,6 @@ const BarcodePanel = dynamic(
   },
 );
 
-// 첫 화면에 필요 없는 패널. 홈 번들 기준(295 kB)을 지키기 위해 진입할 때 받는다.
-const GroupPanel = dynamic(
-  () =>
-    import("@/features/group-admin/components/group-panel").then((m) => m.GroupPanel),
-  {
-    ssr: false,
-    loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
-  },
-);
 const BackupPanel = dynamic(
   () =>
     import("@/features/shell/components/panels/backup-panel").then(
@@ -59,19 +49,6 @@ const SettingsPanel = dynamic(
     loading: () => <p className="text-[11px] text-slate-500">불러오는 중...</p>,
   },
 );
-
-/**
- * 그룹관리는 관리자 전용이다. 메뉴는 셸이 이미 숨기지만, persist로 복원된 메뉴 값 등으로
- * 여기까지 와도 관리자 확인 전에는 패널을 그리지 않는다(DB 권한은 RLS가 따로 막는다).
- */
-function AdminGroupPanel() {
-  const { isAdmin, isLoading } = useIsAdmin();
-  if (isLoading) {
-    return <p className="text-[11px] text-slate-500">불러오는 중...</p>;
-  }
-  if (!isAdmin) return null;
-  return <GroupPanel />;
-}
 
 export interface PanelBodyProps extends PanelDataProps {
   /** 하이드레이션 안전값. 셸이 마운트 전후를 판정해 내려 준다. */
@@ -106,6 +83,7 @@ export function PanelBody({
     .with("markers", () => (
       <MarkersPanel
         mode={mode}
+        segment={segment}
         markers={markers}
         filterOptions={filterOptions}
         filters={filters}
@@ -114,7 +92,6 @@ export function PanelBody({
     // 일정관리와 계정설정은 패널 없이 메인 화면을 직접 그린다. 패널 내용은 없다.
     .with("schedule", () => null)
     .with("accounts", () => null)
-    .with("groups", () => <AdminGroupPanel />)
     .with("barcode", () => <BarcodePanel />)
     .with("backup", () => (
       <BackupPanel

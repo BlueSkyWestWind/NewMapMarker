@@ -2,21 +2,13 @@ import { describe, expect, it } from "vitest";
 import { isNavAccessible, visibleNavItems } from "./nav";
 
 describe("관리자 전용 메뉴", () => {
-  it("그룹관리와 계정설정은 관리자에게만 보인다", () => {
-    expect(visibleNavItems(true, false).some((item) => item.key === "groups")).toBe(false);
-    expect(visibleNavItems(true, true).some((item) => item.key === "groups")).toBe(true);
-    expect(visibleNavItems(true).some((item) => item.key === "groups")).toBe(false);
-
+  it("계정설정은 관리자에게만 보인다", () => {
     expect(visibleNavItems(true, false).some((item) => item.key === "accounts")).toBe(false);
     expect(visibleNavItems(true, true).some((item) => item.key === "accounts")).toBe(true);
     expect(visibleNavItems(true).some((item) => item.key === "accounts")).toBe(false);
   });
 
   it("비로그인이면 관리자 여부와 관계없이 접근할 수 없다", () => {
-    expect(isNavAccessible("groups", true, false)).toBe(false);
-    expect(isNavAccessible("groups", true, true)).toBe(true);
-    expect(isNavAccessible("groups", false, true)).toBe(false);
-
     expect(isNavAccessible("accounts", true, false)).toBe(false);
     expect(isNavAccessible("accounts", true, true)).toBe(true);
     expect(isNavAccessible("accounts", false, true)).toBe(false);
@@ -42,9 +34,9 @@ describe("일정관리 메뉴", () => {
     expect(isNavAccessible("schedule", false, false)).toBe(false);
   });
 
-  it("마커관리 바로 다음, 그룹관리 바로 앞에 있다", () => {
+  it("마커관리 바로 다음, 바코드/QR 바로 앞에 있다", () => {
     const keys = visibleNavItems(true, true).map((item) => item.key);
     expect(keys.indexOf("schedule")).toBe(keys.indexOf("markers") + 1);
-    expect(keys.indexOf("groups")).toBe(keys.indexOf("schedule") + 1);
+    expect(keys.indexOf("barcode")).toBe(keys.indexOf("schedule") + 1);
   });
 });
