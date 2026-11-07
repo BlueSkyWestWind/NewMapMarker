@@ -162,10 +162,10 @@ export function AccountsPanel() {
             <div className="mt-3 rounded bg-slate-950/80 p-3 font-mono text-[11px] text-slate-300 border border-slate-800 space-y-1.5">
               <p className="text-slate-400 font-sans font-medium">설정 방법:</p>
               <p>1. Supabase 대시보드 → Project Settings → API 로 이동합니다.</p>
-              <p>2. <span className="text-amber-400">Project API keys</span> 항목의 <span className="text-amber-400">service_role</span> (secret) 키를 복사합니다.</p>
+              <p>2. 화면에 표시된 <span className="text-amber-400">SUPABASE_SECRET_KEY</span> (또는 service_role) 값을 복사합니다.</p>
               <p>3. 로컬 프로젝트의 <span className="text-indigo-400">.env.local</span> 파일에 아래와 같이 추가합니다:</p>
               <div className="rounded bg-slate-900 p-2 text-indigo-300 select-all">
-                SUPABASE_SERVICE_ROLE_KEY=&lt;복사한_service_role_키&gt;
+                SUPABASE_SECRET_KEY=&lt;복사한_sb_secret_키&gt;
               </div>
               <p className="text-slate-400">4. 추가 후 개발 서버(npm run dev)를 재시작하고 상단의 [새로고침]을 누르세요.</p>
             </div>

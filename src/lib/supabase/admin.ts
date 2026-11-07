@@ -14,11 +14,14 @@ export function getSupabaseAdminClient(): SupabaseClient {
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
     "";
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    "";
 
   if (!url || !serviceRoleKey) {
     throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY 환경 변수가 설정되지 않았습니다. Supabase 대시보드(Project Settings > API > service_role)에서 시크릿 키를 복사하여 .env.local에 추가해 주세요.",
+      "SUPABASE_SECRET_KEY 또는 SUPABASE_SERVICE_ROLE_KEY 환경 변수가 설정되지 않았습니다. .env.local에 추가해 주세요.",
     );
   }
 
