@@ -287,7 +287,7 @@ export async function saveArchiveRows(
       site: row.site,
       row_values: row.values,
       search_text: archiveSearchText(row.values),
-      saved_at: row.savedAt,
+      // saved_at·saved_by는 보내지 않는다: INSERT는 기본값이, 다시 저장(UPDATE)은 DB 트리거가 채운다.
     })),
     { onConflict: "work_date,station_key" },
   );

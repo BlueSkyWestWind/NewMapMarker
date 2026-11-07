@@ -11,6 +11,9 @@ import { OPTION_LIST_KEYS, type OptionListKey } from "@/features/schedule/lib/da
 import { OPTION_LIST_LABELS } from "@/features/schedule/lib/option-lists";
 import { useToast } from "@/hooks/use-toast";
 
+/** 목록 값의 최대 길이(`schedule_option_lists.value`의 CHECK와 같다). */
+const OPTION_VALUE_MAX_LENGTH = 100;
+
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 interface ScheduleOptionListsDialogProps {
@@ -146,6 +149,7 @@ function OptionListsForm({ canEdit, onClose }: { canEdit: boolean; onClose: () =
             aria-label={`${OPTION_LIST_LABELS[listKey]} 새 값`}
             placeholder="+ 새 값"
             disabled={isSaving || isTableMissing}
+            maxLength={OPTION_VALUE_MAX_LENGTH}
             onChange={(event) => setDraft(event.target.value)}
             className="h-8 min-w-0 flex-1 border-slate-700 bg-slate-900 text-xs"
           />

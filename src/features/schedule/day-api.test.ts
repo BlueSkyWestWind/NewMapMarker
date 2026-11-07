@@ -316,8 +316,10 @@ describe("saveArchiveRows", () => {
       station_key: "a국소",
       site: "A 국소",
       search_text: "a 국소 p1 f-1",
-      saved_at: "2026-11-07T01:00:00.000Z",
     });
+    // 저장 시각·저장자는 클라이언트 시계가 아니라 DB(기본값 + BEFORE UPDATE 트리거)가 채운다.
+    expect(rows[0]).not.toHaveProperty("saved_at");
+    expect(rows[0]).not.toHaveProperty("saved_by");
     expect((rows[0].row_values as DayValues).project).toBe("P1");
 
     expect(stepArgs(calls[1], "eq")).toEqual(["work_date", "2026-11-09"]);

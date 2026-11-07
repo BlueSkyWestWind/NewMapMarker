@@ -5,6 +5,9 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+/** 목록 값의 최대 길이(`schedule_option_lists.value`의 CHECK와 같다). */
+const OPTION_VALUE_MAX_LENGTH = 100;
+
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 interface OptionFieldProps {
@@ -85,6 +88,7 @@ export function OptionField({
             aria-label={`${label} 새 값`}
             placeholder="+ 새 값"
             disabled={adding}
+            maxLength={OPTION_VALUE_MAX_LENGTH}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;

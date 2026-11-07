@@ -39,3 +39,27 @@ export function pickPreviousInput(row: ArchiveRow | undefined): DayDetailPatch {
   if (workDetail) patch.workDetail = workDetail;
   return patch;
 }
+
+/**
+ * 복사·내려받기 뒤 자동 누적 저장을 할지. 오늘과 앞으로의 날짜만 한다 —
+ * 지난 날짜의 누적은 "만든 당시의 값"이라 자동으로 다시 쓰지 않는다(`yyyy-mm-dd` 문자열 비교).
+ */
+export function shouldAutoArchive(workDate: string, today: string): boolean {
+  return workDate >= today;
+}
+
+/**
+ * 체크한 행마다 이전 누적(`latest`, 키는 `stationKey`)의 입력 열 패치를 만든다.
+ * 이전 누적이 없거나 채울 입력 열이 모두 비어 있는 행은 패치 없이 `skipped`로 센다.
+ */
+export function buildPreviousInputPatches(
+  rows: readonly DayRow[],
+  latest: ReadonlyMap<string, ArchiveRow>,
+): { patches: { station: DayRow; patch: DayDetailPatch }[]; loaded: number; skipped: number } {
+  const patches: { station: DayRow; patch: DayDetailPatch }[] = [];
+  for (const station of rows) {
+    const patch = pickPreviousInput(latest.get(station.stationKey));
+    if (Object.keys(patch).length > 0) patches.push({ station, patch });
+  }
+  return { patches, loaded: patches.length, skipped: rows.length - patches.length };
+}

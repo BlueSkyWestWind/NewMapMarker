@@ -186,8 +186,10 @@ export function useDaySheet(workDate: string) {
       (!range.isLoaded && !range.error) ||
       detailsQuery.isLoading ||
       erpQuery.isLoading ||
-      archiveQuery.isLoading,
-    error: rangeError ?? detailsQuery.error ?? erpQuery.error ?? archiveQuery.error,
+      archiveQuery.isLoading ||
+      // 마커 층 값이 오기 전에 복사·내려받기·자동 누적 저장이 돌면 마커로 채울 열이 빈 채로 나간다.
+      markersQuery.isLoading,
+    error: rangeError ?? detailsQuery.error ?? erpQuery.error ?? archiveQuery.error ?? markersQuery.error,
     isTableMissing:
       range.isTableMissing ||
       Boolean(detailsQuery.data?.tableMissing) ||

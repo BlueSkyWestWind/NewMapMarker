@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { OptionField } from "@/features/schedule/components/option-field";
 import { useOptionLists } from "@/features/schedule/hooks/use-option-lists";
 import { DAY_COLUMNS } from "@/features/schedule/lib/day-columns";
-import { pickPreviousInput } from "@/features/schedule/lib/day-archive";
+import { buildPreviousInputPatches, pickPreviousInput } from "@/features/schedule/lib/day-archive";
 import {
   buildDetailPatches,
   emptyForm,
@@ -19,6 +19,10 @@ import type { ArchiveRow, DayDetailPatch, OptionListKey, RefKey } from "@/featur
 import { OPTION_LIST_LABELS } from "@/features/schedule/lib/option-lists";
 
 const INPUT_CLASS = "h-8 border-slate-700 bg-slate-900 text-xs";
+
+/** 글자 수 상한(DB CHECK와 같다): 짧은 칸·참조 덮어쓰기 200자, 작업내용 상세 500자 */
+const SHORT_MAX_LENGTH = 200;
+const DETAIL_MAX_LENGTH = 500;
 
 /** `이전 입력 불러오기`가 채우는 칸(`pickPreviousInput`과 같은 다섯 열) */
 const PREVIOUS_INPUT_KEYS = ["workTime", "workType", "equipment", "workContent", "workDetail"] as const;
@@ -54,19 +58,24 @@ interface ScheduleDayDetailDialogProps {
   /** 국소별 이전 누적 행(보는 날보다 앞선 것 중 가장 늦은 날) */
   latestArchive: ReadonlyMap<string, ArchiveRow>;
   onClose: () => void;
-  /** 바뀐 칸만 담은 패치로 저장한다. 실패하면 던진다(창은 열려 있다). */
-  onSave: (patches: { station: DayRow; patch: DayDetailPatch }[]) => Promise<void>;
+  /**
+   * 바뀐 칸만 담은 패치로 저장한다. 성공하면 호출한 쪽이 창을 닫고, 실패하면 창은 열려 있다.
+   * `notice`가 있으면 저장 완료 알림의 설명으로 쓴다.
+   */
+  onSave: (patches: { station: DayRow; patch: DayDetailPatch }[], notice?: string) => Promise<void>;
 }
 
 function TextField({
   label,
   value,
   disabled,
+  maxLength,
   onChange,
 }: {
   label: string;
   value: string;
   disabled: boolean;
+  maxLength: number;
   onChange: (next: string) => void;
 }) {
   return (
@@ -75,6 +84,7 @@ function TextField({
       <Input
         value={value}
         disabled={disabled}
+        maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         className={INPUT_CLASS}
       />
@@ -99,6 +109,7 @@ export function ScheduleDayDetailDialog({
   const first = rows[0];
   const [form, setForm] = useState(() => (isBulk || !first ? emptyForm() : formFromValues(first.values)));
   const [isSaving, setIsSaving] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState("");
   const patches = useMemo(() => buildDetailPatches(rows, form), [rows, form]);
 
   const setField = (key: DetailFormKey, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -115,6 +126,24 @@ export function ScheduleDayDetailDialog({
       }
       return next;
     });
+
+  /** 일괄: 체크한 행마다 이전 누적의 입력 열을 바로 저장한다(행마다 값이 달라 미리 볼 칸이 없다). */
+  const handleBulkLoadPrevious = async () => {
+    if (!canEdit || isSaving) return;
+    const { patches: previous, loaded, skipped } = buildPreviousInputPatches(rows, latestArchive);
+    const summary = `${loaded}건 불러옴 · ${skipped}건 이전 누적 없음`;
+    if (loaded === 0) {
+      setBulkNotice(summary);
+      return;
+    }
+    setBulkNotice("");
+    setIsSaving(true);
+    try {
+      await onSave(previous, summary);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!canEdit || isSaving || patches.length === 0) return;
@@ -158,19 +187,39 @@ export function ScheduleDayDetailDialog({
         </DialogDescription>
 
         {isBulk ? (
-          <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
-            {optionField("workCategory", "workCategory", "작업구분(G)")}
-            {optionField("workTime", "workTime", OPTION_LIST_LABELS.workTime)}
-            {optionField("workType", "workType", OPTION_LIST_LABELS.workType)}
-            {optionField("equipment", "equipment", OPTION_LIST_LABELS.equipment)}
-            {optionField("workContent", "workContent", OPTION_LIST_LABELS.workContent)}
-            <TextField
-              label="작업내용 상세"
-              value={form.workDetail}
-              disabled={disabled}
-              onChange={(next) => setField("workDetail", next)}
-            />
-          </div>
+          <>
+            {canEdit ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSaving}
+                  onClick={() => void handleBulkLoadPrevious()}
+                  className="h-8 border-slate-700 px-3 text-xs"
+                >
+                  선택한 {rows.length}건 이전 입력 불러오기
+                </Button>
+                <span className="text-[11px] text-slate-400">
+                  {bulkNotice ||
+                    "행마다 이전 누적의 작업시간·작업유형·중장비투입·작업내용·상세를 바로 저장합니다(미리보기 없음)."}
+                </span>
+              </div>
+            ) : null}
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+              {optionField("workCategory", "workCategory", "작업구분(G)")}
+              {optionField("workTime", "workTime", OPTION_LIST_LABELS.workTime)}
+              {optionField("workType", "workType", OPTION_LIST_LABELS.workType)}
+              {optionField("equipment", "equipment", OPTION_LIST_LABELS.equipment)}
+              {optionField("workContent", "workContent", OPTION_LIST_LABELS.workContent)}
+              <TextField
+                label="작업내용 상세"
+                value={form.workDetail}
+                disabled={disabled}
+                maxLength={DETAIL_MAX_LENGTH}
+                onChange={(next) => setField("workDetail", next)}
+              />
+            </div>
+          </>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
@@ -198,6 +247,7 @@ export function ScheduleDayDetailDialog({
                   label={label}
                   value={form[key]}
                   disabled={disabled}
+                  maxLength={key === "workDetail" ? DETAIL_MAX_LENGTH : SHORT_MAX_LENGTH}
                   onChange={(next) => setField(key, next)}
                 />
               ))}
@@ -215,6 +265,7 @@ export function ScheduleDayDetailDialog({
                     label={label}
                     value={form[key]}
                     disabled={disabled}
+                    maxLength={SHORT_MAX_LENGTH}
                     onChange={(next) => setField(key, next)}
                   />
                 ))}

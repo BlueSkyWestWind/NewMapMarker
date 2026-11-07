@@ -9,19 +9,24 @@ import { ScheduleDayDetailDialog } from "@/features/schedule/components/schedule
 import { ScheduleOptionListsDialog } from "@/features/schedule/components/schedule-option-lists-dialog";
 import { useOptionLists } from "@/features/schedule/hooks/use-option-lists";
 import { useDaySheet } from "@/features/schedule/hooks/use-day-sheet";
+import { shouldAutoArchive } from "@/features/schedule/lib/day-archive";
 import { buildCopyText } from "@/features/schedule/lib/day-copy";
 import { DAY_COLUMNS } from "@/features/schedule/lib/day-columns";
+import { formatRefNotice, summarizeRefSources } from "@/features/schedule/lib/day-ref-summary";
 import { defaultDayDate, type DayRow } from "@/features/schedule/lib/day-rows";
 import { CHECK_WIDTH_WEIGHT, widthPercent } from "@/features/schedule/lib/day-table-widths";
 import type { DayDetailPatch } from "@/features/schedule/lib/day-types";
 import { downloadDayWorkbook } from "@/features/schedule/lib/write-day-workbook";
-import { addDays, isValidIso } from "@/features/schedule/lib/week";
+import { addDays, isValidIso, todayIso } from "@/features/schedule/lib/week";
 import { useToast } from "@/hooks/use-toast";
 
 const TABLE_MISSING_MESSAGE =
   "DB에 일자별 상세 테이블이 없습니다. 마이그레이션(20261111000000_schedule_day_details.sql)을 Supabase에 적용해 주세요.";
 const EMPTY_MESSAGE =
   "이 날짜의 일정에 국소가 없습니다. 먼저 주간 보기에서 일정을 입력하거나 일정표를 가져오세요.";
+
+const PAST_ARCHIVE_CONFIRM =
+  "지난 날짜의 누적을 지금 일정 기준으로 다시 저장합니다. 이전에 저장된 값이 바뀌고, 지금 일정에 없는 국소는 누적에서 빠집니다. 계속할까요?";
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -45,6 +50,8 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   const isEmpty = rows.length === 0;
   // 상세·참조 값이 아직 오는 중이거나 불러오기에 실패하면 행이 비어 있으므로 복사·내려받기·누적 저장을 막는다.
   const canAct = !isEmpty && !sheet.isLoading && !sheet.error;
+  // 일자별 테이블이 아직 없으면(마이그레이션 전) 쓰기는 모두 막는다.
+  const canWrite = canEdit && !sheet.isTableMissing;
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   /** 상세 창에 보여 줄 행(하나면 상세, 둘 이상이면 일괄 적용). `null`이면 창이 닫혀 있다. */
@@ -54,7 +61,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
     () => rows.filter((row) => selected.has(row.stationKey)).length,
     [rows, selected],
   );
-  const missingRefCount = useMemo(() => rows.filter((row) => row.refSource === null).length, [rows]);
+  const refNotice = useMemo(() => formatRefNotice(summarizeRefSources(rows)), [rows]);
 
   const changeDate = (next: string) => {
     if (!isValidIso(next) || next === workDate) return;
@@ -86,9 +93,12 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
     }
   };
 
-  /** 복사·내려받기 뒤에 누적에 저장한다(관리자만). 저장이 실패해도 이미 한 복사·내려받기는 그대로다. */
+  /**
+   * 복사·내려받기 뒤에 누적에 저장한다(관리자만). 저장이 실패해도 이미 한 복사·내려받기는 그대로다.
+   * 지난 날짜는 "만든 당시의 값"을 지키려고 조용히 건너뛴다(고치려면 `누적 저장` 버튼).
+   */
   const archiveAfterExport = async () => {
-    if (!canEdit) return;
+    if (!canWrite || !shouldAutoArchive(workDate, todayIso())) return;
     try {
       await sheet.saveArchive();
     } catch (error) {
@@ -126,11 +136,11 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
     });
 
   /** 상세 창의 저장. 성공하면 창을 닫고, 실패하면 창을 열어 둔 채 오류를 알린다. */
-  const handleSaveDetails = (patches: { station: DayRow; patch: DayDetailPatch }[]) =>
+  const handleSaveDetails = (patches: { station: DayRow; patch: DayDetailPatch }[], notice?: string) =>
     runExclusive(async () => {
       try {
         await sheet.saveDetails(patches);
-        toast({ title: "상세를 저장했습니다", description: `${patches.length}건` });
+        toast({ title: "상세를 저장했습니다", description: notice ?? `${patches.length}건` });
         setDetailRows(null);
       } catch (error) {
         toast({ title: "저장하지 못했습니다", description: errorMessage(error), variant: "destructive" });
@@ -149,6 +159,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
 
   const handleArchive = () =>
     runExclusive(async () => {
+      if (workDate < todayIso() && !window.confirm(PAST_ARCHIVE_CONFIRM)) return;
       try {
         await sheet.saveArchive();
         toast({ title: "누적에 저장했습니다", description: `${workDate} ${rows.length}건` });
@@ -204,7 +215,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                 type="button"
                 variant="outline"
                 className="h-8 border-slate-700 px-3 text-xs"
-                disabled={!canAct || busy || selectedCount === 0}
+                disabled={!canWrite || !canAct || busy || selectedCount === 0}
                 onClick={openBulk}
               >
                 선택한 {selectedCount}건 일괄 적용
@@ -245,7 +256,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
               type="button"
               variant="outline"
               className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-              disabled={!canAct || busy}
+              disabled={!canWrite || !canAct || busy}
               onClick={() => void handleArchive()}
             >
               <Save className="h-3.5 w-3.5" aria-hidden />
@@ -261,8 +272,13 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
           일자별 상세를 불러오지 못했습니다. {errorMessage(sheet.error)}
         </p>
       ) : null}
-      {missingRefCount > 0 ? (
-        <p className="text-xs text-amber-400">공정관리 정보가 없는 국소 {missingRefCount}건</p>
+      {refNotice ? (
+        <p
+          className="text-xs text-amber-400"
+          title="공정관리(erp_details)에서 찾지 못해 누적·마커로 채웠거나 비어 있는 국소입니다. 표에서 배경색이 있는 참조 열 칸이 해당 값입니다."
+        >
+          {refNotice}
+        </p>
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
@@ -332,7 +348,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                         title={value}
                         className={cn(
                           "truncate whitespace-nowrap border border-slate-700 px-1.5 py-1",
-                          column.kind === "ref" && row.refSource === null && "text-slate-500",
+                          column.kind === "ref" && row.refSource !== "erp" && "bg-amber-950/30 text-slate-400",
                         )}
                       >
                         {value}
@@ -349,7 +365,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
       {detailRows ? (
         <ScheduleDayDetailDialog
           rows={detailRows}
-          canEdit={canEdit}
+          canEdit={canWrite}
           latestArchive={sheet.latestArchive}
           onClose={() => setDetailRows(null)}
           onSave={handleSaveDetails}
