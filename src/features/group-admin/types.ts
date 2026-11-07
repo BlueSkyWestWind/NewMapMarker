@@ -34,3 +34,47 @@ export interface GroupFilters {
   onlyNoCoord: boolean;
   onlySuspect: boolean;
 }
+
+/** 표에서 직접 수정하는 `markers` 쪽 필드(마커 단위). */
+export interface MarkerFields {
+  name: string;
+  lat: number | null;
+  lng: number | null;
+  memo: string;
+  tags: string[];
+  color: string;
+  facilityTeam: string;
+  facilityCode: string;
+  roadAddress: string;
+  jibunAddress: string;
+}
+
+/** `information` 한 행. 마커 하나에 여러 개일 수 있다. */
+export interface InfoRecord {
+  id: number;
+  markerId: string;
+  projectCode: string;
+  facilityYear: string;
+  businessType: string;
+  finalStationName: string;
+  eqClass: string;
+  eqType: string;
+  installDate: string;
+  openDate: string;
+}
+
+/** 정보 행에서 수정할 수 있는 필드. */
+export type InfoFields = Omit<InfoRecord, "id" | "markerId">;
+
+/** 저장 전까지 쌓아 두는 변경분. 마커는 마커 ID, 정보는 정보 행 ID로 쌓는다. */
+export interface EditDraft {
+  markerEdits: Record<string, Partial<MarkerFields>>;
+  infoEdits: Record<number, Partial<InfoFields>>;
+  ops: MarkerOp[];
+}
+
+/** 입력 검증 결과 한 건. `key`는 `marker:<id>:<field>` / `info:<id>:<field>`. */
+export interface DraftIssue {
+  key: string;
+  message: string;
+}
