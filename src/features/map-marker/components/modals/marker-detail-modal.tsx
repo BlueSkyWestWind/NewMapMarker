@@ -26,13 +26,20 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import {
+  MarkerOpsError,
+  applyMarkerOps,
+} from '@/features/group-admin/lib/group-ops';
+import {
+  planMergeSplitToLot,
+  planRoleChange,
+  planSeparate,
+} from '@/features/group-admin/lib/group-actions';
 import { runSingleLookup, type GpsLookupResult } from '@/features/gpsmap/lib/lookup';
 import {
   GROUP_ROLE_REPRESENTATIVE,
   GROUP_ROLE_STANDALONE,
   GROUP_ROLE_SUB,
-  buildSplitGroupKey,
-  getLotAddressKey,
   normalizeGroupRole,
   type GroupRole,
 } from '@/features/map-marker/lib/address-group';
@@ -44,7 +51,6 @@ import {
   getMarkerDongLabel,
   getMarkerEffectiveKey,
   pickDongMapRepresentative,
-  pickNextAddressRepresentative,
   storedGroupRoleOf,
   type InfoRow,
 } from '@/features/map-marker/lib/marker-detail-rows';
@@ -306,10 +312,7 @@ export function MarkerDetailModal() {
   };
 
   /**
-   * 국소 구분(대표/단독/SUB)을 DB에 저장한다.
-   * - 대표: 동일 번지에서 이 국소를 대표로, 나머지(단독 제외)는 SUB
-   * - 단독: 그룹에서 이탈. 대상이 대표였으면 남은 국소 중 새 대표(1명이면 단독) 승격
-   * - SUB: 현재 대표(없으면 다른 국소 승격) 아래로 연결
+   * 국소 구분(대표/단독/SUB)을 DB에 저장한다. 계획은 planRoleChange가 만든다.
    */
   const changeMarkerGroupRole = async (
     markerId: string,
@@ -328,196 +331,18 @@ export function MarkerDetailModal() {
 
     setChangingRoleId(markerId);
     try {
-      const mates = getAddressGroupMates(target, allEquipment);
-
-      if (nextRole === GROUP_ROLE_STANDALONE) {
-        const wasRep =
-          storedGroupRoleOf(target) === GROUP_ROLE_REPRESENTATIVE ||
-          (!target.parentMarkerId &&
-            storedGroupRoleOf(target) !== GROUP_ROLE_STANDALONE);
-
-        const { error } = await supabase
-          .from('markers')
-          .update({
-            parent_marker_id: null,
-            group_role: GROUP_ROLE_STANDALONE,
-          })
-          .eq('id', markerId);
-        if (error) throw error;
-
-        if (wasRep) {
-          const remaining = mates.filter(
-            (item) =>
-              item.id !== markerId &&
-              storedGroupRoleOf(item) !== GROUP_ROLE_STANDALONE,
-          );
-
-          if (remaining.length === 0) {
-            toast({
-              description: '단독으로 변경했습니다. 그룹에서 분리됩니다.',
-            });
-          } else if (remaining.length === 1) {
-            const { error: soloError } = await supabase
-              .from('markers')
-              .update({
-                parent_marker_id: null,
-                group_role: GROUP_ROLE_STANDALONE,
-              })
-              .eq('id', remaining[0].id);
-            if (soloError) throw soloError;
-            toast({
-              description:
-                '단독으로 분리했습니다. 남은 1국소도 단독으로 변경했습니다.',
-            });
-          } else {
-            const newRep = pickNextAddressRepresentative(remaining);
-            if (!newRep) {
-              toast({
-                description: '단독으로 변경했습니다. 그룹에서 분리됩니다.',
-              });
-            } else {
-              const { error: promoteError } = await supabase
-                .from('markers')
-                .update({
-                  parent_marker_id: null,
-                  group_role: GROUP_ROLE_REPRESENTATIVE,
-                })
-                .eq('id', newRep.id);
-              if (promoteError) throw promoteError;
-
-              const subIds = remaining
-                .filter((item) => item.id !== newRep.id)
-                .map((item) => item.id);
-              if (subIds.length > 0) {
-                const { error: subError } = await supabase
-                  .from('markers')
-                  .update({
-                    parent_marker_id: newRep.id,
-                    group_role: GROUP_ROLE_SUB,
-                  })
-                  .in('id', subIds);
-                if (subError) throw subError;
-              }
-              toast({
-                description: `단독으로 분리했습니다. '${newRep.finalStationName || newRep.name}'을(를) 새 대표로 지정했습니다.`,
-              });
-            }
-          }
-        } else {
-          toast({
-            description: '단독으로 변경했습니다. 그룹에서 분리됩니다.',
-          });
-        }
-      } else if (nextRole === GROUP_ROLE_REPRESENTATIVE) {
-        const { error: repError } = await supabase
-          .from('markers')
-          .update({
-            parent_marker_id: null,
-            group_role: GROUP_ROLE_REPRESENTATIVE,
-          })
-          .eq('id', markerId);
-        if (repError) throw repError;
-
-        const subIds = mates
-          .filter(
-            (item) =>
-              item.id !== markerId &&
-              storedGroupRoleOf(item) !== GROUP_ROLE_STANDALONE,
-          )
-          .map((item) => item.id);
-        if (subIds.length > 0) {
-          const { error: subError } = await supabase
-            .from('markers')
-            .update({
-              parent_marker_id: markerId,
-              group_role: GROUP_ROLE_SUB,
-            })
-            .in('id', subIds);
-          if (subError) throw subError;
-        }
-        toast({
-          description: `대표로 변경했습니다.${subIds.length > 0 ? ` (SUB ${subIds.length}건)` : ''}`,
-        });
-      } else {
-        // SUB
-        const candidates = mates.filter(
-          (item) =>
-            item.id !== markerId &&
-            storedGroupRoleOf(item) !== GROUP_ROLE_STANDALONE,
-        );
-        const rep =
-          candidates.find(
-            (item) => storedGroupRoleOf(item) === GROUP_ROLE_REPRESENTATIVE,
-          ) ??
-          candidates.find((item) => !item.parentMarkerId) ??
-          candidates[0];
-
-        if (!rep) {
-          const { error } = await supabase
-            .from('markers')
-            .update({
-              parent_marker_id: null,
-              group_role: GROUP_ROLE_STANDALONE,
-            })
-            .eq('id', markerId);
-          if (error) throw error;
-          toast({
-            description:
-              '같은 번지에 연결할 대표가 없어 단독으로 설정했습니다.',
-          });
-        } else {
-          const wasRep =
-            storedGroupRoleOf(target) === GROUP_ROLE_REPRESENTATIVE ||
-            !target.parentMarkerId;
-
-          if (wasRep) {
-            const { error: promoteError } = await supabase
-              .from('markers')
-              .update({
-                parent_marker_id: null,
-                group_role: GROUP_ROLE_REPRESENTATIVE,
-              })
-              .eq('id', rep.id);
-            if (promoteError) throw promoteError;
-
-            const reassignIds = mates
-              .filter(
-                (item) =>
-                  item.id !== markerId &&
-                  item.id !== rep.id &&
-                  storedGroupRoleOf(item) !== GROUP_ROLE_STANDALONE,
-              )
-              .map((item) => item.id);
-            if (reassignIds.length > 0) {
-              const { error: reassignError } = await supabase
-                .from('markers')
-                .update({
-                  parent_marker_id: rep.id,
-                  group_role: GROUP_ROLE_SUB,
-                })
-                .in('id', reassignIds);
-              if (reassignError) throw reassignError;
-            }
-          }
-
-          const { error } = await supabase
-            .from('markers')
-            .update({
-              parent_marker_id: rep.id,
-              group_role: GROUP_ROLE_SUB,
-            })
-            .eq('id', markerId);
-          if (error) throw error;
-          toast({ description: 'SUB로 변경했습니다.' });
-        }
-      }
-
+      const { ops, notice } = planRoleChange(target, nextRole, allEquipment);
+      await applyMarkerOps(supabase, ops);
+      toast({ description: notice });
       await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
     } catch (err) {
       console.error('구분 변경 실패:', err);
       toast({
         variant: 'destructive',
-        description: dbErrorMessage(err, '구분 변경에 실패했습니다.'),
+        description: dbErrorMessage(
+          err instanceof MarkerOpsError ? err.cause : err,
+          '구분 변경에 실패했습니다.',
+        ),
       });
     } finally {
       setChangingRoleId(null);
@@ -525,64 +350,8 @@ export function MarkerDetailModal() {
   };
 
   /**
-   * 그룹 멤버에 group_key·대표·SUB를 일괄 지정한다.
-   * 대표 1개(기존 대표 우선, 없으면 최초 등록) → parent=null, 나머지 SUB, 1개면 단독.
-   * 반환: 지정된 대표.
-   */
-  const assignGroupMembers = async (
-    members: EquipmentMarker[],
-    groupKeyValue: string | null,
-    preferredRepId?: string,
-  ): Promise<EquipmentMarker | null> => {
-    if (!supabase || members.length === 0) return null;
-    const ordered = [...members].sort((a, b) => {
-      const at = a.createdAt || '';
-      const bt = b.createdAt || '';
-      if (at !== bt) return at.localeCompare(bt);
-      return a.id.localeCompare(b.id);
-    });
-    // 대표: 직접 지정(preferredRepId) 우선 → 기존 대표 → 최초 등록
-    const rep =
-      (preferredRepId
-        ? ordered.find((m) => m.id === preferredRepId)
-        : undefined) ??
-      ordered.find(
-        (m) => storedGroupRoleOf(m) === GROUP_ROLE_REPRESENTATIVE,
-      ) ??
-      ordered[0];
-    const isSolo = ordered.length === 1;
-
-    const { error: repError } = await supabase
-      .from('markers')
-      .update({
-        group_key: groupKeyValue,
-        parent_marker_id: null,
-        group_role: isSolo ? GROUP_ROLE_STANDALONE : GROUP_ROLE_REPRESENTATIVE,
-        detached_visible: false,
-      })
-      .eq('id', rep.id);
-    if (repError) throw repError;
-
-    const subIds = ordered.filter((m) => m.id !== rep.id).map((m) => m.id);
-    if (subIds.length > 0) {
-      const { error: subError } = await supabase
-        .from('markers')
-        .update({
-          group_key: groupKeyValue,
-          parent_marker_id: rep.id,
-          group_role: GROUP_ROLE_SUB,
-          detached_visible: false,
-        })
-        .in('id', subIds);
-      if (subError) throw subError;
-    }
-    return rep;
-  };
-
-  /**
    * 라벨(동/지하/기타) 국소들을 번지 그룹에서 빼내 독립 그룹(대표+SUB)으로 분리한다.
-   * - 분리 그룹: 새 group_key 부여 후 대표+SUB(1개면 단독).
-   * - 남은 번지 그룹: 대표가 빠졌으면 최초 국소를 새 대표로 승격(1개면 단독).
+   * 계획은 planSeparate가 만든다(남은 번지 그룹 재승격 → 분리 그룹 순).
    */
   const separateLabelGroup = async (label: string, repId?: string) => {
     if (!supabase) return;
@@ -600,18 +369,8 @@ export function MarkerDetailModal() {
 
     setSeparatingLabel(label);
     try {
-      const lotKey =
-        getLotAddressKey(
-          targets[0].roadAddress || targets[0].jibunAddress || '',
-        ) || 'lot';
-      const newKey = buildSplitGroupKey(lotKey, label, targets[0].id);
-      // G6: 남은 번지 그룹 재승격을 먼저 수행한다. 이렇게 하면 뒤 단계가 실패해도
-      // 남은 SUB의 parent_marker_id가 (분리돼 나갈) 옛 대표를 가리키는 dangling이
-      // 남지 않는다. 두 그룹은 서로소라 성공 경로에선 순서가 결과에 영향 없음.
-      if (remaining.length > 0) {
-        await assignGroupMembers(remaining, null);
-      }
-      await assignGroupMembers(targets, newKey, repId);
+      const { ops } = planSeparate(targets, remaining, label, repId);
+      await applyMarkerOps(supabase, ops);
       setPickingSplitLabel(null);
       await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
       const repMarker = repId
@@ -628,7 +387,10 @@ export function MarkerDetailModal() {
       console.error('분리 실패:', err);
       toast({
         variant: 'destructive',
-        description: dbErrorMessage(err, '분리에 실패했습니다.'),
+        description: dbErrorMessage(
+          err instanceof MarkerOpsError ? err.cause : err,
+          '분리에 실패했습니다.',
+        ),
       });
     } finally {
       setSeparatingLabel(null);
@@ -637,7 +399,7 @@ export function MarkerDetailModal() {
 
   /**
    * 현재 보고 있는 분리 그룹(group_key)을 번지 그룹으로 되돌린다(원복).
-   * group_key 를 지우고, 번지 전체(기존 번지 멤버 + 되돌린 멤버)를 재정렬한다.
+   * 계획은 planMergeSplitToLot이 만든다.
    */
   const mergeSplitGroupToLot = async () => {
     if (!supabase) return;
@@ -650,38 +412,23 @@ export function MarkerDetailModal() {
     );
     if (splitMembers.length === 0) return;
 
-    const lotKey = getLotAddressKey(
-      splitMembers[0].roadAddress || splitMembers[0].jibunAddress || '',
-    );
-    const revertIds = new Set(splitMembers.map((m) => m.id));
-
     setMergingSplit(true);
     try {
-      const { error } = await supabase
-        .from('markers')
-        .update({ group_key: null })
-        .in('id', [...revertIds]);
-      if (error) throw error;
-
-      // 번지 그룹 전체 = 되돌린 멤버 + 기존 번지 멤버(다른 분리 그룹은 제외).
-      const allEquipment = markers as EquipmentMarker[];
-      const lotMembers = allEquipment.filter((m) => {
-        if (revertIds.has(m.id)) return true;
-        if ((m.groupKey ?? '').trim()) return false;
-        return (
-          lotKey !== '' &&
-          getLotAddressKey(m.roadAddress || m.jibunAddress || '') === lotKey
-        );
-      });
-      await assignGroupMembers(lotMembers, null);
-
+      const { ops } = planMergeSplitToLot(
+        splitMembers,
+        markers as EquipmentMarker[],
+      );
+      await applyMarkerOps(supabase, ops);
       await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
       toast({ description: '분리를 해제하고 번지 그룹으로 합쳤습니다.' });
     } catch (err) {
       console.error('번지로 합치기 실패:', err);
       toast({
         variant: 'destructive',
-        description: dbErrorMessage(err, '번지로 합치기에 실패했습니다.'),
+        description: dbErrorMessage(
+          err instanceof MarkerOpsError ? err.cause : err,
+          '번지로 합치기에 실패했습니다.',
+        ),
       });
     } finally {
       setMergingSplit(false);
