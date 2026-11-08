@@ -99,6 +99,7 @@ function initialDrafts(cells: ScheduleCell[], state: CellEditorState): EntryDraf
     mainText: "",
     subText: "",
     textColor: null,
+    noCompanion: false,
   };
   const index = drafts.findIndex((draft) => (draft.rowNo ?? 0) > position.rowNo);
   return index === -1 ? [...drafts, blank] : [...drafts.slice(0, index), blank, ...drafts.slice(index)];
@@ -254,6 +255,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         mainText: mainText.trim(),
         subText: "",
         textColor: null,
+        noCompanion: false,
       },
     ]);
   };
@@ -495,6 +497,20 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                   >
                     가
                   </button>
+                  {canEdit ? (
+                    <label
+                      className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap text-[11px] text-slate-300"
+                      title="건물 옥상·실내처럼 입회·신호수가 필요 없는 국소. 일일일정에서 이 국소의 입회자·신호수 이름이 비워집니다"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={draft.noCompanion}
+                        disabled={disabled}
+                        onChange={(event) => updateDraft(draft.key, { noCompanion: event.target.checked })}
+                      />
+                      입회·신호수 불필요
+                    </label>
+                  ) : null}
                   {draft.id !== null && (canEdit || resultOf(draft.id)) ? (
                     <button
                       type="button"

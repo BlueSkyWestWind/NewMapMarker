@@ -18,6 +18,8 @@ export interface EntryDraft {
   mainText: string;
   subText: string;
   textColor: TextColor | null;
+  /** 이 국소는 입회·신호수가 필요 없다(건물 옥상·실내 등) */
+  noCompanion: boolean;
 }
 
 export type GroupOp =
@@ -47,6 +49,7 @@ export function draftsFromCells(
     mainText: cell.mainText,
     subText: cell.subText,
     textColor: cell.textColor,
+    noCompanion: cell.noCompanion === true,
   }));
 }
 
@@ -87,12 +90,19 @@ export function planGroupOps(input: {
     if (!current) continue;
     const text = trimmed(draft);
     if (isBlank(text)) return { error: "blank" };
+    const flagChanged = draft.noCompanion !== (current.noCompanion === true);
     if (
       text.mainText !== current.mainText ||
       text.subText !== current.subText ||
-      text.textColor !== current.textColor
+      text.textColor !== current.textColor ||
+      flagChanged
     ) {
-      updates.push({ op: "update", id: draft.id, text });
+      // 표시가 바뀐 때만 값을 보낸다. 컬럼이 없는 DB에서도 다른 수정은 저장되도록 평소엔 생략한다.
+      updates.push({
+        op: "update",
+        id: draft.id,
+        text: flagChanged ? { ...text, noCompanion: draft.noCompanion } : text,
+      });
     }
   }
 
@@ -130,7 +140,14 @@ export function planGroupOps(input: {
     working.push(placeholder);
     occupied.set(positionKey(position), placeholder);
     usedRows.push(rowNo);
-    creates.push({ op: "create", key: draft.key, position, text: trimmed(draft) });
+    // 새 칸은 표시했을 때만 값을 싣는다(기본 false는 DB 기본값에 맡긴다).
+    const createText = trimmed(draft);
+    creates.push({
+      op: "create",
+      key: draft.key,
+      position,
+      text: draft.noCompanion ? { ...createText, noCompanion: true } : createText,
+    });
   }
 
   return { ops: [...deletes, ...updates, ...creates], usedRows };

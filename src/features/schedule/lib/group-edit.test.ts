@@ -33,12 +33,13 @@ function draftOf(source: ScheduleCell, patch: Partial<EntryDraft> = {}): EntryDr
     mainText: source.mainText,
     subText: source.subText,
     textColor: source.textColor,
+    noCompanion: source.noCompanion === true,
     ...patch,
   };
 }
 
 function newDraft(key: string, mainText: string, rowNo: number | null = null, subText = ""): EntryDraft {
-  return { key, id: null, rowNo, mainText, subText, textColor: null };
+  return { key, id: null, rowNo, mainText, subText, textColor: null, noCompanion: false };
 }
 
 describe("draftsFromCells", () => {
@@ -191,5 +192,62 @@ describe("planGroupOps", () => {
         drafts: [...full.map((c) => draftOf(c)), newDraft("n1", "새국소")],
       }),
     ).toEqual({ error: "full" });
+  });
+});
+
+describe("입회·신호수 불필요 표시", () => {
+  const base = { workDate: D, columnId: COL };
+  const flagged = (rowNo: number, mainText: string, noCompanion: boolean): ScheduleCell => ({
+    ...cell(rowNo, mainText),
+    noCompanion,
+  });
+
+  it("draftsFromCells가 noCompanion을 채운다", () => {
+    const drafts = draftsFromCells([flagged(0, "가", true), flagged(1, "나", false)], D, COL);
+    expect(drafts.map((draft) => draft.noCompanion)).toEqual([true, false]);
+  });
+
+  it("표시만 바뀐 기존 칸은 noCompanion을 담은 update로 나온다", () => {
+    const cells = [flagged(0, "가", false)];
+    const result = planGroupOps({ ...base, cells, drafts: [draftOf(cells[0], { noCompanion: true })] });
+    expect(result).toEqual({
+      ops: [
+        {
+          op: "update",
+          id: cells[0].id,
+          text: { mainText: "가", subText: "", textColor: null, noCompanion: true },
+        },
+      ],
+      usedRows: [],
+    });
+  });
+
+  it("표시를 해제하면 false를 명시해 보낸다", () => {
+    const cells = [flagged(0, "가", true)];
+    const result = planGroupOps({ ...base, cells, drafts: [draftOf(cells[0], { noCompanion: false })] });
+    expect(result).toMatchObject({
+      ops: [{ op: "update", text: { noCompanion: false } }],
+    });
+  });
+
+  it("바뀌지 않았으면 연산이 없다", () => {
+    const cells = [flagged(0, "가", true)];
+    expect(planGroupOps({ ...base, cells, drafts: [draftOf(cells[0])] })).toEqual({
+      ops: [],
+      usedRows: [],
+    });
+  });
+
+  it("새 칸은 표시했을 때만 noCompanion을 싣는다(컬럼 없는 DB에서도 저장되도록)", () => {
+    const on = planGroupOps({
+      ...base,
+      cells: [],
+      drafts: [{ ...newDraft("n1", "가", 2), noCompanion: true }],
+    });
+    expect(on).toMatchObject({ ops: [{ op: "create", text: { noCompanion: true } }] });
+    const off = planGroupOps({ ...base, cells: [], drafts: [newDraft("n2", "나", 2)] });
+    expect(off).toMatchObject({ ops: [{ op: "create" }] });
+    const create = "ops" in off ? off.ops[0] : null;
+    expect(create && create.op === "create" && "noCompanion" in create.text).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import type { EntryDraft } from "./group-edit";
 import { pickStation, startPickSession } from "./station-pick";
 
 function draft(key: string, mainText: string, id: string | null = null): EntryDraft {
-  return { key, id, rowNo: null, mainText, subText: "", textColor: null };
+  return { key, id, rowNo: null, mainText, subText: "", textColor: null, noCompanion: false };
 }
 
 function keyGenerator() {
