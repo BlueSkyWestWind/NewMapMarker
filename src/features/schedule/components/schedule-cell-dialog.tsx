@@ -31,6 +31,7 @@ import {
 } from "@/features/schedule/lib/companions";
 import { groupOfCell, MAX_ROWS } from "@/features/schedule/lib/cell-grid";
 import { useStationOptions } from "@/features/schedule/hooks/use-station-options";
+import { SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX } from "@/features/shell/constants";
 import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
 import { pickStation, startPickSession, type PickSession } from "@/features/schedule/lib/station-pick";
 import { searchStations } from "@/features/schedule/lib/station-search";
@@ -384,7 +385,10 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   const title = `${cell ? "일정 수정" : "일정 추가"} · ${position.workDate} (${weekdayLabel(position.workDate)}) · ${teamName}`;
 
   return (
-    <DialogContent className="flex max-h-[92vh] max-w-2xl flex-col gap-3 overflow-y-auto p-5">
+    <DialogContent
+      className="flex max-h-[94vh] w-[96vw] flex-col gap-3 overflow-y-auto p-5"
+      style={{ maxWidth: SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX }}
+    >
       <DialogTitle className="text-base">{title}</DialogTitle>
       <DialogDescription className="sr-only">
         {canEdit

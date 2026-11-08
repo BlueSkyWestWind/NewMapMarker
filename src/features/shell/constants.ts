@@ -16,6 +16,8 @@ export const GROUP_MANAGE_DIALOG_MAX_WIDTH_PX = 1680;
 export const GROUP_MANAGE_LIST_WIDTH_PX = 260;
 /** 그룹관리 일괄 수정 창 최대 폭. */
 export const GROUP_BULK_DIALOG_MAX_WIDTH_PX = 880;
+/** 일정 수정(칸 편집) 창 최대 폭. 국소 목록·입회신호수·함께 등록할 팀을 한 화면에 보이려고 넓혔다. */
+export const SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX = 1024;
 /** 일정표의 날짜 열 폭. 공휴일 이름·작업금지 배지가 줄바꿈 없이 보이도록 넉넉하게 잡는다. */
 export const SCHEDULE_DATE_COLUMN_WIDTH_PX = 150;
 
