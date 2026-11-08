@@ -423,22 +423,28 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       // 대상 표시가 있으면 일정표 행을 대상 국소 → 입회 → 신호수 → 나머지 순으로 정리한다.
       // 방금 저장한 칸까지 반영하려고 도착 날짜의 칸을 새로 불러와 계산한다.
       // 함께 등록한 팀도 같은 순서로 정리한다(복사된 대상 표시가 있는 팀만 바뀐다).
+      // 정리가 실패해도 칸은 이미 저장됐다. 저장 실패로 보이지 않게 따로 알린다.
+      let arrangeError: string | null = null;
       if (entries.some((draft) => draft.companionTarget)) {
-        const finalDate = moving ? workDate : position.workDate;
-        const finalColumnIds = [
-          moving ? columnId : position.columnId,
-          ...new Set(crossPlan.creates.map((created) => created.columnId)),
-        ];
-        const fresh = await fetchScheduleCells(supabase, finalDate, finalDate);
-        for (const finalColumnId of finalColumnIds) {
-          const finalGroup = fresh.filter((candidate) => candidate.columnId === finalColumnId);
-          for (const step of planCompanionArrangement(finalGroup)) {
-            await moveScheduleCell(supabase, step.id, {
-              workDate: finalDate,
-              columnId: finalColumnId,
-              rowNo: step.toRow,
-            });
+        try {
+          const finalDate = moving ? workDate : position.workDate;
+          const finalColumnIds = [
+            moving ? columnId : position.columnId,
+            ...new Set(crossPlan.creates.map((created) => created.columnId)),
+          ];
+          const fresh = await fetchScheduleCells(supabase, finalDate, finalDate);
+          for (const finalColumnId of finalColumnIds) {
+            const finalGroup = fresh.filter((candidate) => candidate.columnId === finalColumnId);
+            for (const step of planCompanionArrangement(finalGroup)) {
+              await moveScheduleCell(supabase, step.id, {
+                workDate: finalDate,
+                columnId: finalColumnId,
+                rowNo: step.toRow,
+              });
+            }
           }
+        } catch (error) {
+          arrangeError = error instanceof Error ? error.message : String(error);
         }
       }
       const teamLabelOf = (id: string) =>
@@ -449,10 +455,20 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             `${teamLabelOf(item.columnId)}: ${item.mainText} (${item.reason === "full" ? "행이 가득 참" : "이미 있음"})`,
         )
         .join(", ");
+      const notes = [
+        skippedText === "" ? null : `함께 등록하지 못한 항목 — ${skippedText}`,
+        arrangeError === null
+          ? null
+          : `행 순서 정리에 실패했습니다(${arrangeError}). 칸은 저장됐습니다. DB 마이그레이션 20261116000000_fix_move_schedule_cell_deferred.sql 적용 여부를 확인해 주세요.`,
+      ].filter((note): note is string => note !== null);
       toast(
-        skippedText === ""
+        notes.length === 0
           ? { title: "저장했습니다" }
-          : { title: "저장했습니다", description: `함께 등록하지 못한 항목 — ${skippedText}` },
+          : {
+              title: "저장했습니다",
+              description: notes.join(" "),
+              variant: arrangeError === null ? undefined : "destructive",
+            },
       );
       onSaved();
       onClose();
