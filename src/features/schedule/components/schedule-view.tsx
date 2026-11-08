@@ -46,6 +46,7 @@ import { ScheduleLegend } from "./schedule-legend";
 import { ScheduleMonthGrid } from "./schedule-month-grid";
 import { ScheduleArchiveView } from "./schedule-archive-view";
 import { ScheduleDayView } from "./schedule-day-view";
+import { ScheduleMailView } from "./schedule-mail-view";
 import { ScheduleUnscheduledDialog } from "./schedule-unscheduled-dialog";
 import { ScheduleSectionSwitch } from "./schedule-section-switch";
 import { ScheduleSearch } from "./schedule-search";
@@ -65,14 +66,15 @@ const TABLE_MISSING_MESSAGE =
  * 시설일정 화면. 지도 자리(오른쪽 전체)를 차지한다. 주간(관리자 수정)과 월간(월 달력, 조회 전용)을 전환한다.
  * 부모(`main`)가 `relative`이므로 `absolute inset-0`으로 영역을 채운다.
  */
-export function ScheduleView({ section = "facility" }: { section?: "facility" | "daily" }) {
+export function ScheduleView({ section = "facility" }: { section?: "facility" | "daily" | "mail" }) {
   const { supabase } = useAuthSession();
   const { toast } = useToast();
   // 시설일정은 주간·월간, 일일일정은 일자별·누적을 보인다. 두 메뉴가 각자 마지막 보기를 기억한다.
   const [facilityView, setFacilityView] = useState<"week" | "month">("week");
   const [dailyView, setDailyView] = useState<"day" | "archive">("day");
   const isDaily = section === "daily";
-  const view: ScheduleViewKind = isDaily ? dailyView : facilityView;
+  // 메일양식은 주간·월간 조회가 필요 없어 일자별과 같이 취급한다(조회 훅이 꺼진다).
+  const view: ScheduleViewKind = section === "mail" ? "day" : isDaily ? dailyView : facilityView;
   const setView = (next: ScheduleViewKind) => {
     if (next === "day" || next === "archive") setDailyView(next);
     else setFacilityView(next);
@@ -275,6 +277,22 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   const countLabel = view === "week" ? "주" : "달";
   const activeCount = view === "week" ? weekCount : monthCount;
   const setActiveCount = view === "week" ? setWeekCount : setMonthCount;
+
+  // 메일양식은 일일일정 값으로 글을 만든다. 주간·월간의 조회·이동 도구가 필요 없다.
+  if (section === "mail") {
+    return (
+      <section
+        className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-slate-950 p-4 text-slate-100"
+        aria-label="메일양식"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="sr-only">메일양식</h1>
+          <ScheduleSectionSwitch section="mail" />
+        </div>
+        <ScheduleMailView />
+      </section>
+    );
+  }
 
   // 일자별·누적 보기는 주간·월간의 조회·이동 도구가 필요 없다. 훅은 모두 위에서 불렀다.
   if (view === "day" || view === "archive") {

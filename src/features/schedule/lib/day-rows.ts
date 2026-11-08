@@ -21,6 +21,8 @@ export interface DayRow {
   refSource: RefSource | null;
   /** 일정이 아니라 표에서 직접 추가한 행 */
   isManual?: boolean;
+  /** 이 국소를 맡은 팀(`1팀(박경훈)`). 직접 추가한 행은 비어 있다 */
+  teams?: string[];
 }
 
 export interface BuildDayRowsInput {
@@ -53,7 +55,14 @@ export function manualStationsOf(
   return [...details]
     .filter((detail) => detail.isManual === true && !taken.has(detail.stationKey))
     .sort((a, b) => a.site.localeCompare(b.site, "ko"))
-    .map((detail) => ({ key: detail.stationKey, site: detail.site, leaders: [], witnesses: [], signalers: [] }));
+    .map((detail) => ({
+      key: detail.stationKey,
+      site: detail.site,
+      leaders: [],
+      witnesses: [],
+      signalers: [],
+      teams: [],
+    }));
 }
 
 /**
@@ -100,6 +109,7 @@ export function buildDayRows(input: BuildDayRowsInput): DayRow[] {
       site: station.site,
       values,
       refSource: source,
+      teams: station.teams,
       ...(manualKeys.has(station.key) ? { isManual: true } : null),
     };
   });

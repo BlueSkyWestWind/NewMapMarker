@@ -2,6 +2,7 @@ import {
   Battery,
   CalendarRange,
   ClipboardList,
+  Mail,
   Layers,
   MapPin,
   Server,
@@ -25,19 +26,20 @@ export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }
   converter: { label: "위치/좌표", icon: Waypoints },
   facility: { label: "시설일정", icon: CalendarRange },
   daily: { label: "일일일정", icon: ClipboardList },
+  mail: { label: "메일양식", icon: Mail },
 };
 
 const NAV_SEGMENTS: Partial<Record<NavKey, NavSubKey[]>> = {
   map: ["equipment", "battery", "location", "cctv", "converter"],
   markers: ["equipment", "battery", "groups"],
-  schedule: ["facility", "daily"],
+  schedule: ["facility", "daily", "mail"],
 };
 
 /** 패널 첫 단계의 설명 문구 */
 export const NAV_DESCRIPTIONS: Partial<Record<NavKey, string>> = {
   map: "표시할 데이터를 고르고 위치를 찾습니다",
   markers: "마커를 등록하고 목록을 관리합니다",
-  schedule: "시설팀 일정표와 일일 작업 상세를 보고 관리합니다",
+  schedule: "시설팀 일정표와 일일 작업 상세를 보고 메일 양식을 만듭니다",
   accounts: "사용자 계정과 관리자 권한을 관리합니다",
 };
 

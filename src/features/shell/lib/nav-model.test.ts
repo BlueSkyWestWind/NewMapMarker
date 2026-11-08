@@ -28,7 +28,7 @@ describe("segmentsOfNav", () => {
   });
 
   it("일정관리는 시설일정과 일일일정을 가진다", () => {
-    expect(segmentsOfNav("schedule")).toEqual(["facility", "daily"]);
+    expect(segmentsOfNav("schedule")).toEqual(["facility", "daily", "mail"]);
     expect(hasNavSegments("schedule")).toBe(true);
   });
 
@@ -125,7 +125,7 @@ describe("일정관리 하위 메뉴", () => {
 
   it("일정으로 검색하면 일정관리 노드가 하위 메뉴를 모두 가진다", () => {
     const node = filterNavTree(NAV_ITEMS, "일정").find((n) => n.item.key === "schedule");
-    expect(node?.segments).toEqual(["facility", "daily"]);
+    expect(node?.segments).toEqual(["facility", "daily", "mail"]);
   });
 });
 

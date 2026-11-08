@@ -22,6 +22,8 @@ export interface DayStation {
   leaders: string[];
   witnesses: string[];
   signalers: string[];
+  /** 이 국소를 맡은 팀(`1팀(박경훈)`), 팀 열 순서 */
+  teams: string[];
 }
 
 interface StationDraft {
@@ -116,6 +118,13 @@ export function buildDayStations(input: {
         pushUnique(witnesses, companionNames(columnIndex, "입회"));
         pushUnique(signalers, companionNames(columnIndex, "신호수"));
       }
-      return { key: draft.key, site: draft.site, leaders, witnesses, signalers };
+      const teams = [...draft.columnIndexes]
+        .sort((a, b) => a - b)
+        .map((columnIndex) => {
+          const column = teamColumns[columnIndex];
+          const leader = column.leaderLabel.trim();
+          return leader === "" ? column.teamLabel.trim() : `${column.teamLabel.trim()}(${leader})`;
+        });
+      return { key: draft.key, site: draft.site, leaders, witnesses, signalers, teams };
     });
 }
