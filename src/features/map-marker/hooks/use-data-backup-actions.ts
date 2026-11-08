@@ -251,6 +251,13 @@ export function useDataBackupActions() {
             previous: new Map(),
             needsRegroup: false,
           });
+          // 가려낸 마커 수와 확인 대기 행 수가 다르면 중단한다. 이 행들은 복원에서 빠져 있어
+          // 그대로 진행하면 유실된다(통합시설코드가 겹치거나 시트 양식이 다를 때).
+          if (staged.reviewRows.length !== split.deferredCount) {
+            throw new Error(
+              `위치 확인 대상 ${split.deferredCount}건 중 ${staged.reviewRows.length}건만 읽혀 복원을 중단했습니다. 데이터는 바뀌지 않았습니다. 통합시설코드 중복·시트 양식을 확인하세요.`,
+            );
+          }
           // 복원하는 행(좌표 있음)은 확인할 필요가 없고, 코드·주소 없는 행도 이미 복원된다.
           stagedUpload = { ...staged, existingRows: [], skippedRows: [] };
         }

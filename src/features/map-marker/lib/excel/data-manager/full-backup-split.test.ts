@@ -22,6 +22,7 @@ describe('splitBackupForLocationReview', () => {
   it('좌표 없음 + 주소 + 코드가 있는 행만 위치 확인으로 넘기고 DB 복원에서 뺀다', () => {
     const split = splitBackupForLocationReview(tables([located, needsReview]));
     expect([...split.deferredFacilityCodes]).toEqual(['2']);
+    expect(split.deferredCount).toBe(1);
     expect(split.restore.markers.map((m) => m.id)).toEqual(['a']);
     expect(split.restore.information.map((m) => m.marker_id)).toEqual(['a']);
     expect(split.restore.erp_details.map((m) => m.marker_id)).toEqual(['a']);
@@ -45,5 +46,12 @@ describe('splitBackupForLocationReview', () => {
   it('대상이 없으면 입력을 그대로 돌려준다', () => {
     const input = tables([located]);
     expect(splitBackupForLocationReview(input).restore).toBe(input);
+  });
+
+  it('통합시설코드가 겹치면 코드 수보다 마커 수가 많다', () => {
+    const twin = { ...needsReview, id: 'b2' };
+    const split = splitBackupForLocationReview(tables([needsReview, twin]));
+    expect(split.deferredFacilityCodes.size).toBe(1);
+    expect(split.deferredCount).toBe(2);
   });
 });

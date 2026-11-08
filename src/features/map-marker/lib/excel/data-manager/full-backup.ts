@@ -704,12 +704,11 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
   );
   const batteryTables = parseFullBackupSheetRows(sheetRows);
   // 전용 시트(`축전지`·`축전지규격`)가 있으면 그것을, 없으면 옛 백업처럼 장비 시트 하단 행을 쓴다.
-  tables.battery_markers =
-    readBatterySheet(workbook, BATTERY_SHEET_NAME, 'battery_markers') ??
-    batteryTables.battery_markers;
-  tables.battery_specs =
-    readBatterySheet(workbook, BATTERY_SPEC_SHEET_NAME, 'battery_specs') ??
-    batteryTables.battery_specs;
+  const sheetMarkers = readBatterySheet(workbook, BATTERY_SHEET_NAME, 'battery_markers');
+  const sheetSpecs = readBatterySheet(workbook, BATTERY_SPEC_SHEET_NAME, 'battery_specs');
+  // 전용 시트가 비어 있으면 옛 하단 행을 쓴다(일부만 옮긴 파일에서 축전지가 사라지지 않게).
+  tables.battery_markers = sheetMarkers?.length ? sheetMarkers : batteryTables.battery_markers;
+  tables.battery_specs = sheetSpecs?.length ? sheetSpecs : batteryTables.battery_specs;
 
   return tables;
 }

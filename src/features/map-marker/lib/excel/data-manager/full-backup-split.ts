@@ -22,6 +22,8 @@ export interface LocationReviewSplit {
   restore: FullBackupTables;
   /** 위치 확인 흐름으로 넘길 행의 통합시설코드 */
   deferredFacilityCodes: Set<string>;
+  /** 위치 확인 흐름으로 넘길 마커 수. 코드가 겹치면 코드 수보다 많을 수 있다 */
+  deferredCount: number;
   /** 좌표도 주소도 없어 위치를 확인할 수 없는 장비 마커 수(그대로 복원한다) */
   unlocatableCount: number;
 }
@@ -57,7 +59,7 @@ export function splitBackupForLocationReview(
   }
 
   if (deferredIds.size === 0) {
-    return { restore: tables, deferredFacilityCodes, unlocatableCount };
+    return { restore: tables, deferredFacilityCodes, deferredCount: 0, unlocatableCount };
   }
 
   const notDeferred = (row: Record<string, unknown>, key: string) =>
@@ -71,6 +73,7 @@ export function splitBackupForLocationReview(
       erp_details: tables.erp_details.filter((row) => notDeferred(row, 'marker_id')),
     },
     deferredFacilityCodes,
+    deferredCount: deferredIds.size,
     unlocatableCount,
   };
 }
