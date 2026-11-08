@@ -63,6 +63,8 @@ interface ScheduleDayDetailDialogProps {
    * `notice`가 있으면 저장 완료 알림의 설명으로 쓴다.
    */
   onSave: (patches: { station: DayRow; patch: DayDetailPatch }[], notice?: string) => Promise<void>;
+  /** 직접 추가한 행을 지운다(한 행이 직접 추가한 행일 때만 버튼이 보인다) */
+  onDeleteRow?: (row: DayRow) => Promise<void>;
 }
 
 function TextField({
@@ -103,6 +105,7 @@ export function ScheduleDayDetailDialog({
   latestArchive,
   onClose,
   onSave,
+  onDeleteRow,
 }: ScheduleDayDetailDialogProps) {
   const { lists, add } = useOptionLists();
   const isBulk = rows.length > 1;
@@ -275,6 +278,17 @@ export function ScheduleDayDetailDialog({
         )}
 
         <div className="flex justify-end gap-2">
+          {canEdit && !isBulk && first?.isManual && onDeleteRow ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSaving}
+              onClick={() => void onDeleteRow(first)}
+              className="mr-auto h-8 border-slate-700 text-xs text-rose-300 hover:border-rose-700 hover:text-rose-200"
+            >
+              이 행 삭제
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"

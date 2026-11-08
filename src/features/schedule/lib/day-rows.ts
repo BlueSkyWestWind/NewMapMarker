@@ -1,4 +1,4 @@
-import { buildDayStations } from "@/features/schedule/lib/day-stations";
+import { buildDayStations, type DayStation } from "@/features/schedule/lib/day-stations";
 import { mergeRefTiers } from "@/features/schedule/lib/day-reference";
 import {
   DAY_COLUMN_KEYS,
@@ -19,6 +19,8 @@ export interface DayRow {
   values: DayValues;
   /** 참조 열 값을 가져온 층. 어느 층에도 없으면 `null`. */
   refSource: RefSource | null;
+  /** 일정이 아니라 표에서 직접 추가한 행 */
+  isManual?: boolean;
 }
 
 export interface BuildDayRowsInput {
@@ -39,9 +41,29 @@ function emptyValues(): DayValues {
   return Object.fromEntries(DAY_COLUMN_KEYS.map((key) => [key, ""])) as DayValues;
 }
 
-/** 일정의 국소마다 한 행을 만든다. 참조(공정관리 → 누적 → 마커) → 덮어쓰기 → 상세·기본값 순으로 채운다. */
+/**
+ * 그날 표에 직접 추가한 국소(상세 행의 `isManual`). 일정에 이미 있는 국소는 제외한다(일정 행이 우선).
+ * 작업일 필터는 DB 조회(`fetchDayDetails`)가 이미 한다.
+ */
+export function manualStationsOf(
+  details: Iterable<DayDetail>,
+  scheduled: readonly { key: string }[],
+): DayStation[] {
+  const taken = new Set(scheduled.map((station) => station.key));
+  return [...details]
+    .filter((detail) => detail.isManual === true && !taken.has(detail.stationKey))
+    .sort((a, b) => a.site.localeCompare(b.site, "ko"))
+    .map((detail) => ({ key: detail.stationKey, site: detail.site, leaders: [], witnesses: [], signalers: [] }));
+}
+
+/**
+ * 일정의 국소마다 한 행을 만들고, 직접 추가한 행을 뒤에 붙인다.
+ * 참조(공정관리 → 누적 → 마커) → 덮어쓰기 → 상세·기본값 순으로 채운다.
+ */
 export function buildDayRows(input: BuildDayRowsInput): DayRow[] {
-  const stations = buildDayStations({ workDate: input.workDate, columns: input.columns, cells: input.cells });
+  const scheduled = buildDayStations({ workDate: input.workDate, columns: input.columns, cells: input.cells });
+  const stations = [...scheduled, ...manualStationsOf(input.details.values(), scheduled)];
+  const manualKeys = new Set(stations.slice(scheduled.length).map((station) => station.key));
 
   return stations.map((station, index) => {
     const detail = input.details.get(station.key);
@@ -73,7 +95,13 @@ export function buildDayRows(input: BuildDayRowsInput): DayRow[] {
     values.workContent = detail?.workContent ?? "";
     values.workDetail = detail?.workDetail ?? "";
 
-    return { stationKey: station.key, site: station.site, values, refSource: source };
+    return {
+      stationKey: station.key,
+      site: station.site,
+      values,
+      refSource: source,
+      ...(manualKeys.has(station.key) ? { isManual: true } : null),
+    };
   });
 }
 

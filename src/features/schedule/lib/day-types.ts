@@ -79,6 +79,8 @@ export interface DayDetail {
   witness: string | null;
   signaler: string | null;
   overrides: RefValues;
+  /** 일정에 없는 국소를 일자별 표에 직접 추가한 행이면 true(없으면 false로 본다) */
+  isManual?: boolean;
 }
 
 export type DayDetailPatch = Partial<Omit<DayDetail, "workDate" | "stationKey" | "site">>;

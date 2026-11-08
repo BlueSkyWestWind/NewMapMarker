@@ -77,8 +77,10 @@ export async function fetchErpRefs(
 // 일자별 상세 입력(schedule_day_details)
 // ---------------------------------------------------------------------
 
-const DETAIL_COLUMNS =
+const DETAIL_COLUMNS_BASE =
   "work_date, station_key, site, work_category, level_label, work_time, work_type, equipment, work_content, work_detail, worker, witness, signaler, overrides";
+/** `is_manual`은 20261112000000_schedule_day_manual_rows.sql 이후에만 있다. */
+const DETAIL_COLUMNS = `${DETAIL_COLUMNS_BASE}, is_manual`;
 
 /** jsonb `overrides`에서 참조 열 이름에 글 값인 것만 남긴다. */
 function toOverrides(value: unknown): RefValues {
@@ -108,6 +110,7 @@ function toDetail(row: Row): DayDetail {
     witness: textOrNull(row.witness),
     signaler: textOrNull(row.signaler),
     overrides: toOverrides(row.overrides),
+    ...(row.is_manual === true ? { isManual: true } : null),
   };
 }
 
@@ -128,6 +131,8 @@ function fromDetail(detail: DayDetail): Row {
     witness: detail.witness ?? null,
     signaler: detail.signaler ?? null,
     overrides: detail.overrides ?? {},
+    // 열이 아직 없는 DB(마이그레이션 전)에도 저장되도록 직접 추가 행만 보낸다.
+    ...(detail.isManual ? { is_manual: true } : null),
   };
 }
 
@@ -135,12 +140,30 @@ export async function fetchDayDetails(
   supabase: SupabaseBrowserClient,
   workDate: string,
 ): Promise<DayDetail[]> {
+  const first = await supabase.from("schedule_day_details").select(DETAIL_COLUMNS).eq("work_date", workDate);
+  if (!first.error) return ((first.data ?? []) as unknown as Row[]).map(toDetail);
+  // 직접 추가 열이 아직 없는 DB: 열 없이 다시 읽는다(직접 추가 행 기능만 꺼진다).
+  if (!first.error.message?.includes("is_manual")) throw first.error;
   const { data, error } = await supabase
     .from("schedule_day_details")
-    .select(DETAIL_COLUMNS)
+    .select(DETAIL_COLUMNS_BASE)
     .eq("work_date", workDate);
   if (error) throw error;
   return ((data ?? []) as unknown as Row[]).map(toDetail);
+}
+
+/** 직접 추가한 행을 지운다. */
+export async function deleteDayDetail(
+  supabase: SupabaseBrowserClient,
+  workDate: string,
+  stationKey: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("schedule_day_details")
+    .delete()
+    .eq("work_date", workDate)
+    .eq("station_key", stationKey);
+  if (error) throw error;
 }
 
 export async function upsertDayDetails(

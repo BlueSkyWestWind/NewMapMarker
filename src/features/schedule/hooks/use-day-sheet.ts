@@ -6,6 +6,7 @@ import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import {
   DAY_QUERY_KEY,
+  deleteDayDetail,
   fetchDayDetails,
   fetchErpRefs,
   fetchLatestArchive,
@@ -17,7 +18,7 @@ import { useScheduleRange } from "@/features/schedule/hooks/use-schedule-range";
 import { archiveValuesToRef, markerToRef } from "@/features/schedule/lib/day-reference";
 import { rowsToArchive } from "@/features/schedule/lib/day-archive";
 import { mergeDetailPatch } from "@/features/schedule/lib/day-details";
-import { buildDayRows, type DayRow } from "@/features/schedule/lib/day-rows";
+import { buildDayRows, manualStationsOf, type DayRow } from "@/features/schedule/lib/day-rows";
 import { buildDayStations, stationKey } from "@/features/schedule/lib/day-stations";
 import type {
   ArchiveRow,
@@ -63,9 +64,6 @@ export function useDaySheet(workDate: string) {
     () => buildDayStations({ workDate, columns, cells }),
     [workDate, columns, cells],
   );
-  const sites = useMemo(() => stations.map((station) => station.site), [stations]);
-  const stationKeys = useMemo(() => stations.map((station) => station.key), [stations]);
-  const hasStations = stations.length > 0;
 
   const detailsQuery = useQuery<DetailsResult>({
     queryKey: [...DETAILS_QUERY_KEY, userId, workDate],
@@ -82,6 +80,21 @@ export function useDaySheet(workDate: string) {
     refetchOnWindowFocus: false,
     retry: false,
   });
+
+  // 직접 추가한 행도 공정관리·누적·마커 참조를 찾아야 하므로 조회 대상에 넣는다.
+  const manualStations = useMemo(
+    () => manualStationsOf(detailsQuery.data?.details ?? NO_DETAILS, stations),
+    [detailsQuery.data, stations],
+  );
+  const sites = useMemo(
+    () => [...stations, ...manualStations].map((station) => station.site),
+    [stations, manualStations],
+  );
+  const stationKeys = useMemo(
+    () => [...stations, ...manualStations].map((station) => station.key),
+    [stations, manualStations],
+  );
+  const hasStations = stationKeys.length > 0;
 
   const erpQuery = useQuery({
     queryKey: [...ERP_QUERY_KEY, userId, sites],
@@ -148,7 +161,7 @@ export function useDaySheet(workDate: string) {
   );
 
   const saveDetails = useCallback(
-    async (patches: { station: DayRow; patch: DayDetailPatch }[]) => {
+    async (patches: { station: Pick<DayRow, "stationKey" | "site">; patch: DayDetailPatch }[]) => {
       if (!supabase) throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
       if (patches.length === 0) return;
       // 캐시된 값이 아니라 저장 시점의 DB 행에 합친다(다른 관리자의 수정·연달아 한 저장을 덮지 않도록).
@@ -164,6 +177,28 @@ export function useDaySheet(workDate: string) {
         );
       }
       await upsertDayDetails(supabase, [...next.values()]);
+      await queryClient.invalidateQueries({ queryKey: DETAILS_QUERY_KEY });
+    },
+    [supabase, workDate, queryClient],
+  );
+
+  /** 표에 행을 직접 추가한다(일정에 없는 국소). `overrides`는 처음부터 채울 참조 열(통합시설코드 등). */
+  const addManualRow = useCallback(
+    async (site: string, overrides: RefValues = {}) => {
+      const name = site.trim();
+      if (name === "") throw new Error("국소명을 입력하세요.");
+      await saveDetails([
+        { station: { stationKey: stationKey(name), site: name }, patch: { isManual: true, overrides } },
+      ]);
+    },
+    [saveDetails],
+  );
+
+  /** 직접 추가한 행을 지운다(저장한 상세도 함께 사라진다). */
+  const deleteManualRow = useCallback(
+    async (key: string) => {
+      if (!supabase) throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
+      await deleteDayDetail(supabase, workDate, key);
       await queryClient.invalidateQueries({ queryKey: DETAILS_QUERY_KEY });
     },
     [supabase, workDate, queryClient],
@@ -195,6 +230,8 @@ export function useDaySheet(workDate: string) {
       Boolean(detailsQuery.data?.tableMissing) ||
       Boolean(archiveQuery.data?.tableMissing),
     saveDetails,
+    addManualRow,
+    deleteManualRow,
     saveArchive,
     latestArchive,
   };
