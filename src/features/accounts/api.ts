@@ -1,3 +1,4 @@
+import type { CreateAccountResult } from "./lib/account-helpers";
 import type { AdminUser, CreateAccountInput } from "./types";
 
 interface ApiErrorResponse {
@@ -35,7 +36,7 @@ export async function fetchAdminUsers(token: string): Promise<AdminUser[]> {
 export async function createAdminUser(
   token: string,
   input: CreateAccountInput,
-): Promise<AdminUser> {
+): Promise<CreateAccountResult> {
   const res = await fetch("/api/admin/users", {
     method: "POST",
     headers: {
@@ -45,8 +46,7 @@ export async function createAdminUser(
     body: JSON.stringify(input),
   });
 
-  const data = await handleResponse<{ user: AdminUser }>(res);
-  return data.user;
+  return handleResponse<CreateAccountResult>(res);
 }
 
 /**

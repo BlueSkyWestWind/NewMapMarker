@@ -5,7 +5,7 @@ import { Loader2, Plus, RefreshCw, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminUsers } from "../hooks/use-admin-users";
-import { isCurrentUser } from "../lib/account-helpers";
+import { describeCreateResult, isCurrentUser } from "../lib/account-helpers";
 import type { AdminUser, CreateAccountInput } from "../types";
 import { AccountCreateDialog } from "./account-create-dialog";
 import { AccountDeleteDialog } from "./account-delete-dialog";
@@ -40,9 +40,10 @@ export function AccountsPanel() {
 
   const handleCreateSubmit = async (input: CreateAccountInput) => {
     try {
-      await createUser(input);
-      setStatusMessage({ text: "새 계정이 생성되었습니다.", type: "success" });
-      setTimeout(() => setStatusMessage(null), 3500);
+      const result = await createUser(input);
+      const { text, type, durationMs } = describeCreateResult(result);
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), durationMs);
     } catch (err) {
       throw err;
     }

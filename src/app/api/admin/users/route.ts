@@ -108,20 +108,16 @@ export async function POST(req: Request) {
       );
     }
 
+    // 계정은 이미 만들어졌다. 관리자 권한 부여만 실패하면 같은 모양의 user(일반 계정)와
+    // 경고를 함께 돌려준다 — 클라이언트가 207을 성공으로만 처리해 경고가 사라지던 문제.
+    let warning: string | undefined;
     if (body.isAdmin === true) {
       const { error: insertAdminError } = await adminClient
         .from("app_admins")
         .insert({ user_id: created.user.id });
 
       if (insertAdminError) {
-        return NextResponse.json(
-          {
-            warning: "계정은 생성되었으나 관리자 권한 부여에 실패했습니다.",
-            error: insertAdminError.message,
-            user: created.user,
-          },
-          { status: 207 },
-        );
+        warning = `계정은 생성되었으나 관리자 권한 부여에 실패했습니다: ${insertAdminError.message}`;
       }
     }
 
@@ -132,8 +128,9 @@ export async function POST(req: Request) {
           email: created.user.email ?? trimmedEmail,
           createdAt: created.user.created_at,
           lastSignInAt: null,
-          isAdmin: body.isAdmin === true,
+          isAdmin: body.isAdmin === true && !warning,
         },
+        ...(warning ? { warning } : {}),
       },
       { status: 201 },
     );

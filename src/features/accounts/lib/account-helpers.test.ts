@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAccountDateTime, isCurrentUser } from "./account-helpers";
+import { describeCreateResult, formatAccountDateTime, isCurrentUser } from "./account-helpers";
 
 describe("account-helpers", () => {
   describe("formatAccountDateTime", () => {
@@ -30,3 +30,36 @@ describe("account-helpers", () => {
     });
   });
 });
+
+describe("describeCreateResult", () => {
+  const user = {
+    id: "u1",
+    email: "a@b.c",
+    createdAt: "2026-11-08T00:00:00.000Z",
+    lastSignInAt: null,
+    isAdmin: false,
+  };
+
+  it("경고가 없으면 성공 문구를 짧게 보인다", () => {
+    expect(describeCreateResult({ user })).toEqual({
+      text: "새 계정이 생성되었습니다.",
+      type: "success",
+      durationMs: 3500,
+    });
+  });
+
+  it("경고가 있으면 오류로 표시하고 경고 문구를 그대로 보여 더 오래 둔다", () => {
+    const result = describeCreateResult({
+      user,
+      warning: "계정은 생성되었으나 관리자 권한 부여에 실패했습니다.",
+    });
+    expect(result.type).toBe("error");
+    expect(result.text).toContain("관리자 권한 부여에 실패했습니다");
+    expect(result.durationMs).toBeGreaterThan(3500);
+  });
+
+  it("빈 경고 문자열은 경고로 보지 않는다", () => {
+    expect(describeCreateResult({ user, warning: "" }).type).toBe("success");
+  });
+});
+
