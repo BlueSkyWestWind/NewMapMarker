@@ -6,7 +6,7 @@ import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import {
   DAY_QUERY_KEY,
-  deleteDayDetail,
+  deleteDayDetails,
   fetchDayDetails,
   fetchErpRefs,
   fetchLatestArchive,
@@ -194,11 +194,11 @@ export function useDaySheet(workDate: string) {
     [saveDetails],
   );
 
-  /** 직접 추가한 행을 지운다(저장한 상세도 함께 사라진다). */
-  const deleteManualRow = useCallback(
-    async (key: string) => {
+  /** 직접 추가한 행들을 지운다(저장한 상세도 함께 사라진다). */
+  const deleteManualRows = useCallback(
+    async (keys: string[]) => {
       if (!supabase) throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
-      await deleteDayDetail(supabase, workDate, key);
+      await deleteDayDetails(supabase, workDate, keys);
       await queryClient.invalidateQueries({ queryKey: DETAILS_QUERY_KEY });
     },
     [supabase, workDate, queryClient],
@@ -231,7 +231,7 @@ export function useDaySheet(workDate: string) {
       Boolean(archiveQuery.data?.tableMissing),
     saveDetails,
     addManualRow,
-    deleteManualRow,
+    deleteManualRows,
     saveArchive,
     latestArchive,
   };

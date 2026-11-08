@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ClipboardCopy, Download, ListChecks, Plus, Save } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardCopy, Download, ListChecks, Plus, Save, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -103,6 +103,10 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   }, [widths]);
   const frozenStyle = (key: string) => (frozenLeft[key] !== undefined ? { left: frozenLeft[key] } : undefined);
   const tableWidth = CHECK_COLUMN_PX + orderedColumns.reduce((sum, column) => sum + (widths[column.key] ?? 0), 0);
+  const selectedManualRows = useMemo(
+    () => rows.filter((row) => row.isManual && selected.has(row.stationKey)),
+    [rows, selected],
+  );
   const refNotice = useMemo(() => formatRefNotice(summarizeRefSources(rows)), [rows]);
 
   const changeDate = (next: string) => {
@@ -218,13 +222,18 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
     }
   };
 
-  const handleDeleteRow = (row: DayRow) =>
+  /** 직접 추가한 행만 지운다. 일정에서 온 행은 일정표에서 고친다. */
+  const deleteManual = (targets: DayRow[]) =>
     runExclusive(async () => {
-      if (!window.confirm(`직접 추가한 "${row.site}" 행을 삭제할까요? 입력한 상세도 함께 지워집니다.`)) return;
+      const manual = targets.filter((row) => row.isManual);
+      if (manual.length === 0) return;
+      const label = manual.length === 1 ? `"${manual[0].site}" 행` : `직접 추가한 ${manual.length}개 행`;
+      if (!window.confirm(`${label}을 삭제할까요? 입력한 상세도 함께 지워지며 되돌릴 수 없습니다.`)) return;
       try {
-        await sheet.deleteManualRow(row.stationKey);
-        toast({ title: "행을 삭제했습니다", description: row.site });
+        await sheet.deleteManualRows(manual.map((row) => row.stationKey));
+        toast({ title: "행을 삭제했습니다", description: `${manual.length}건` });
         setDetailRows(null);
+        setSelected(new Set());
       } catch (error) {
         toast({ title: "삭제하지 못했습니다", description: errorMessage(error), variant: "destructive" });
       }
@@ -302,6 +311,17 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                 onClick={openBulk}
               >
                 선택한 {selectedCount}건 일괄 적용
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
+                title="직접 추가한 행 중 체크한 행을 지웁니다(일정에서 온 행은 지워지지 않습니다)"
+                disabled={!canWrite || !canAct || busy || selectedManualRows.length === 0}
+                onClick={() => void deleteManual(selectedManualRows)}
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                선택 행 삭제{selectedManualRows.length > 0 ? ` (${selectedManualRows.length})` : ""}
               </Button>
               <Button
                 type="button"
@@ -508,7 +528,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
           latestArchive={sheet.latestArchive}
           onClose={() => setDetailRows(null)}
           onSave={handleSaveDetails}
-          onDeleteRow={handleDeleteRow}
+          onDeleteRow={(row) => deleteManual([row])}
         />
       ) : null}
       {isAddRowOpen ? (

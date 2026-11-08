@@ -73,6 +73,41 @@ export async function fetchErpRefs(
   return refs;
 }
 
+/** 한 번에 `in` 조건으로 보내는 국소 수(URL이 길어지지 않게 나눠 보낸다). */
+const ERP_NAME_CHUNK = 100;
+
+/**
+ * 국소 이름(`erp_details.station_final`)별 `방식`(erp_details.method). 키는 `stationKey`.
+ * 같은 국소가 여러 행이면 id가 가장 큰(최근 등록) 행을 쓴다. 방식이 비어 있으면 넣지 않는다.
+ */
+export async function fetchErpMethods(
+  supabase: SupabaseBrowserClient,
+  sites: string[],
+): Promise<Map<string, string>> {
+  const names = [...new Set(sites.map((site) => site.trim()).filter((site) => site !== ""))];
+  const newest = new Map<string, { id: number; method: string }>();
+  for (let start = 0; start < names.length; start += ERP_NAME_CHUNK) {
+    const chunk = names.slice(start, start + ERP_NAME_CHUNK);
+    const rows = await fetchAllRows<Row>(
+      (from, to) =>
+        supabase
+          .from("erp_details")
+          .select("id, station_final, method", { count: "exact" })
+          .in("station_final", chunk)
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<FetchPageResult<Row>>,
+    );
+    for (const row of rows) {
+      if (typeof row.station_final !== "string" || typeof row.method !== "string" || row.method.trim() === "") continue;
+      const key = stationKey(row.station_final);
+      const id = Number(row.id);
+      const current = newest.get(key);
+      if (!current || id > current.id) newest.set(key, { id, method: row.method.trim() });
+    }
+  }
+  return new Map([...newest].map(([key, { method }]) => [key, method]));
+}
+
 // ---------------------------------------------------------------------
 // 일자별 상세 입력(schedule_day_details)
 // ---------------------------------------------------------------------
@@ -152,17 +187,18 @@ export async function fetchDayDetails(
   return ((data ?? []) as unknown as Row[]).map(toDetail);
 }
 
-/** 직접 추가한 행을 지운다. */
-export async function deleteDayDetail(
+/** 직접 추가한 행들을 지운다. */
+export async function deleteDayDetails(
   supabase: SupabaseBrowserClient,
   workDate: string,
-  stationKey: string,
+  stationKeys: string[],
 ): Promise<void> {
+  if (stationKeys.length === 0) return;
   const { error } = await supabase
     .from("schedule_day_details")
     .delete()
     .eq("work_date", workDate)
-    .eq("station_key", stationKey);
+    .in("station_key", stationKeys);
   if (error) throw error;
 }
 
