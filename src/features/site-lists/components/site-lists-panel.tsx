@@ -124,6 +124,8 @@ export function SiteListsPanel({ markers }: { markers: MarkerRecord[] }) {
 
   return (
     <div className="space-y-3">
+      {/* 새 목록·목록·국소 검색은 국소 목록을 스크롤해도 위에 고정한다. 목록이 길면 이 영역 안에서 스크롤한다. */}
+      <div className="sticky top-0 z-10 max-h-[60vh] space-y-3 overflow-y-auto bg-slate-950 pb-2">
       {showForm ? (
       <PanelSection title={editingId ? "목록 수정" : "새 목록"}>
         <form
@@ -283,61 +285,61 @@ export function SiteListsPanel({ markers }: { markers: MarkerRecord[] }) {
             목록을 고르면 해당 국소가 지도와 여기에 표시됩니다.
           </p>
         ) : (
-          <>
-            <Input
-              value={siteFilter}
-              onChange={(event) => setSiteFilter(event.target.value)}
-              placeholder="국소명·주소로 찾기..."
-              aria-label="표시 중인 국소 찾기"
-              className="mb-2 h-8 border-slate-700 bg-slate-900 text-xs"
-            />
-            {visibleSites.length === 0 ? (
-              <p className="p-3 text-center text-xs text-slate-400">표시할 국소가 없습니다.</p>
-            ) : (
-              <ul className="divide-y divide-slate-800/80 rounded-lg border border-slate-800">
-                {visibleSites.map((marker) => {
-                  const site = marker as EquipmentMarker;
-                  const address = site.jibunAddress || site.roadAddress;
-                  return (
-                    <li key={marker.id}>
-                      <button
-                        type="button"
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-slate-800/50 ${
-                          marker.id === selectedMarkerId ? "bg-indigo-500/10" : ""
-                        }`}
-                        onClick={() => setSelectedMarkerId(marker.id)}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium text-slate-100" title={marker.name}>
-                            {marker.name || "이름 없음"}
-                          </span>
-                          <span className="block truncate text-[11px] text-slate-400" title={address}>
-                            {address || "주소 없음"}
-                          </span>
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1" aria-hidden>
-                          {(marker.siteListColors ?? []).map((value) => (
-                            <span
-                              key={value}
-                              className="h-2.5 w-2.5 rounded-full"
-                              style={{ backgroundColor: value }}
-                            />
-                          ))}
-                          {marker.siteListExtraCount ? (
-                            <span className="text-[11px] text-slate-400">
-                              +{marker.siteListExtraCount}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </>
+          <Input
+            value={siteFilter}
+            onChange={(event) => setSiteFilter(event.target.value)}
+            placeholder="국소명·주소로 찾기..."
+            aria-label="표시 중인 국소 찾기"
+            className="h-8 border-slate-700 bg-slate-900 text-xs"
+          />
         )}
       </PanelSection>
+      </div>
+
+      {selectedIds.length > 0 ? (
+        visibleSites.length === 0 ? (
+          <p className="p-3 text-center text-xs text-slate-400">표시할 국소가 없습니다.</p>
+        ) : (
+          <ul className="divide-y divide-slate-800/80 rounded-lg border border-slate-800">
+            {visibleSites.map((marker) => {
+              const site = marker as EquipmentMarker;
+              const address = site.jibunAddress || site.roadAddress;
+              return (
+                <li key={marker.id}>
+                  <button
+                    type="button"
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-slate-800/50 ${
+                      marker.id === selectedMarkerId ? "bg-indigo-500/10" : ""
+                    }`}
+                    onClick={() => setSelectedMarkerId(marker.id)}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-100" title={marker.name}>
+                        {marker.name || "이름 없음"}
+                      </span>
+                      <span className="block truncate text-[11px] text-slate-400" title={address}>
+                        {address || "주소 없음"}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1" aria-hidden>
+                      {(marker.siteListColors ?? []).map((value) => (
+                        <span
+                          key={value}
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: value }}
+                        />
+                      ))}
+                      {marker.siteListExtraCount ? (
+                        <span className="text-[11px] text-slate-400">+{marker.siteListExtraCount}</span>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )
+      ) : null}
 
       {managing ? (
         <SiteListMembersDialog
