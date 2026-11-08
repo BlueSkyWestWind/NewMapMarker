@@ -11,7 +11,6 @@ import {
 import { MAP_MARKER_QUERY_KEY } from "@/features/map-marker/constants/map-config";
 import { fetchAllRows } from "@/features/map-marker/api";
 import type { ExistingMarkerRef } from "@/features/map-marker/lib/erp-classify";
-import { withPreviousCoords } from "@/features/map-marker/lib/erp-review";
 import {
   geocodeAddressQueue,
   reverseGeocode,
@@ -439,9 +438,6 @@ export function useExcelUploadActions() {
       }
       await assertErpDateColumns(rows);
 
-      const { buildStagedErpRow, classifyErpRows } = await import(
-        "@/features/map-marker/lib/erp-classify"
-      );
       const existingMarkers = await fetchAllRows<ExistingMarkerRef>((from, to) =>
         supabase
           .from("markers")
@@ -449,48 +445,15 @@ export function useExcelUploadActions() {
           .order("id")
           .range(from, to),
       );
-      const { classified, skippedRows } = classifyErpRows(rows, existingMarkers);
-
-      const geocodeTargets = classified
-        .filter((item) => item.kind !== "existing" && !previous.has(item.id))
-        .map((item) => ({
-          id: item.id,
-          name: item.row.name,
-          address: item.row.address,
-        }));
-
-      const coordsById = new Map<string, { lat: number; lng: number }>();
-      let failedAddresses: string[] = [];
-      if (geocodeTargets.length > 0) {
-        setStatusText(
-          `주소 좌표 변환 시작... (확인 대상 ${geocodeTargets.length}건)`,
-        );
-        const geocoded = await geocodeAddressQueue(
-          geocodeTargets,
-          (current, total) => {
-            setStatusText(`주소 좌표 변환 중... (${current}/${total})`);
-          },
-        );
-        for (const item of geocoded.results) {
-          coordsById.set(item.id, { lat: item.lat, lng: item.lng });
-        }
-        failedAddresses = formatFailedAddresses(geocoded.failedItems);
-      }
-
-      const stagedRows = classified.map((item) =>
-        buildStagedErpRow(item, coordsById.get(item.id) ?? null),
-      );
-      return {
-        reviewRows: withPreviousCoords(
-          stagedRows.filter((row) => row.kind !== "existing"),
-          previous,
-        ),
-        existingRows: stagedRows.filter((row) => row.kind === "existing"),
-        skippedRows,
+      const { stageErpRows } = await import("@/features/map-marker/lib/erp-staging");
+      return stageErpRows({
+        rows,
+        existing: existingMarkers,
+        previous,
         needsRegroup:
           useMapMarkerStore.getState().stagedErpUpload?.needsRegroup ?? false,
-        geocodeFailedAddresses: failedAddresses,
-      };
+        onStatus: setStatusText,
+      });
     },
     [supabase],
   );

@@ -12,7 +12,7 @@ import {
 } from '@/features/map-marker/lib/excel/data-manager/full-backup-schema';
 import { fetchFullBackupTables } from '@/features/map-marker/lib/fetch-full-backup-tables';
 import { applyMarkerRolesFromStoredGroupRole } from '@/features/map-marker/lib/address-group';
-import type { MapMode } from '@/features/map-marker/types/marker';
+import type { MapMode, StagedErpUpload } from '@/features/map-marker/types/marker';
 import type { SiteListBackup } from '@/features/site-lists/types';
 import { SITE_LISTS_QUERY_KEY } from '@/features/site-lists/hooks/use-site-lists';
 import { isSiteListsTableMissing } from '@/features/site-lists/lib/site-list-view';
@@ -211,6 +211,7 @@ export function useDataBackupActions() {
         [
           '전체 데이터를 이 백업 엑셀로 전면 교체합니다.',
           '현재 markers·information·erp_details·battery 데이터는 모두 삭제됩니다.',
+          '(좌표 없이 주소만 있는 장비는 저장하지 않고, 위치 확인 후 등록 대기로 넘깁니다.)',
           '',
           '계속하시겠습니까?',
         ].join('\n'),
@@ -223,7 +224,37 @@ export function useDataBackupActions() {
       setIsBusy(true);
       try {
         toast({ description: '전체 복원 처리 중...' });
-        const tables = (await MapMarkerExcelManager.parseFullBackupExcel(file)) as FullBackupTables;
+        const parsedTables = (await MapMarkerExcelManager.parseFullBackupExcel(file)) as FullBackupTables;
+
+        // 좌표 없이 주소만 채워 넣은 장비 행은 DB에 넣지 않고 위치 확인 흐름으로 보낸다.
+        // DB를 비우기 전에 주소 변환까지 끝내 둔다 — 변환이 실패해도 데이터가 사라지지 않게.
+        const { splitBackupForLocationReview } = await import(
+          '@/features/map-marker/lib/excel/data-manager/full-backup-split'
+        );
+        const split = splitBackupForLocationReview(parsedTables);
+        const tables = split.restore;
+        let stagedUpload: StagedErpUpload | null = null;
+        if (split.deferredFacilityCodes.size > 0) {
+          toast({
+            description: `위치 확인 대상 ${split.deferredFacilityCodes.size}건의 주소를 좌표로 변환 중... (잠시 걸립니다)`,
+          });
+          const [{ parseErpSheet }, { stageErpRows }] = await Promise.all([
+            import('@/features/map-marker/lib/excel-upload-helpers'),
+            import('@/features/map-marker/lib/erp-staging'),
+          ]);
+          const reviewRows = (await parseErpSheet(file)).filter((row) =>
+            split.deferredFacilityCodes.has(String(row.facilityCode ?? '').trim()),
+          );
+          const staged = await stageErpRows({
+            rows: reviewRows,
+            existing: [],
+            previous: new Map(),
+            needsRegroup: false,
+          });
+          // 복원하는 행(좌표 있음)은 확인할 필요가 없고, 코드·주소 없는 행도 이미 복원된다.
+          stagedUpload = { ...staged, existingRows: [], skippedRows: [] };
+        }
+
         const markers = tables.markers;
         const information = tables.information;
         const erpDetails = tables.erp_details;
@@ -269,6 +300,21 @@ export function useDataBackupActions() {
 
         await invalidateMarkers();
 
+        if (stagedUpload) {
+          const { stagedMarkerRowToPending } = await import(
+            '@/features/map-marker/lib/excel-upload-helpers'
+          );
+          const store = useMapMarkerStore.getState();
+          store.clearPendingMarkers('equipment');
+          store.addPendingMarkers(
+            'equipment',
+            stagedUpload.reviewRows
+              .filter((row) => row.lat !== null && row.lng !== null)
+              .map(stagedMarkerRowToPending),
+          );
+          store.setStagedErpUpload(stagedUpload);
+        }
+
         // 장비 복원이 끝난 뒤라, 목록 복원이 실패해도 장비 복원을 되돌리지 않고 따로 알린다.
         try {
           const siteListBackup = (await MapMarkerExcelManager.parseSiteListBackup(
@@ -295,6 +341,12 @@ export function useDataBackupActions() {
             `erp_details ${erpDetails.length} · battery ${batteryMarkers.length}/${batterySpecs.length}` +
             (regroup.subCount > 0
               ? ` · ${regroup.usedStoredRoles ? '구분열' : '자동'} 서브 ${regroup.subCount}건`
+              : '') +
+            (stagedUpload
+              ? ` · 위치 확인 대기 ${stagedUpload.reviewRows.length}건(마커관리 → 장비에서 확인 후 등록)`
+              : '') +
+            (split.unlocatableCount > 0
+              ? ` · 주소 없음 ${split.unlocatableCount}건(좌표 없이 복원)`
               : ''),
         });
       } catch (error) {
