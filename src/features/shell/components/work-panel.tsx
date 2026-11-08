@@ -25,7 +25,7 @@ interface WorkPanelProps extends PanelBodyProps {
 /** 드릴다운 패널. 첫 단계는 하위 메뉴 목록, 상세 단계는 기존 패널 내용이다. */
 export function WorkPanel({ countSummary, segmentCounts, ...bodyProps }: WorkPanelProps) {
   const { activeNav, segment } = bodyProps;
-  const { pickSegment, isSegmentLocked } = useShellNav();
+  const { pickSegment, isSegmentLocked, isAdmin } = useShellNav();
   const toggleSidebar = useMapMarkerStore((state) => state.toggleSidebar);
   const markerListFilter = useMapMarkerStore((state) => state.markerListFilter);
   const setMarkerListFilter = useMapMarkerStore(
@@ -116,7 +116,7 @@ export function WorkPanel({ countSummary, segmentCounts, ...bodyProps }: WorkPan
 
       {isRoot ? (
         <div className="flex flex-col gap-0.5 p-2">
-          {segmentsOfNav(activeNav).map((key) => {
+          {segmentsOfNav(activeNav, isAdmin).map((key) => {
             const { label, icon: Icon } = SEGMENT_META[key];
             const locked = isSegmentLocked(key);
             const count = segmentCounts[key];

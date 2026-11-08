@@ -226,7 +226,7 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
           </div>
         ) : isRoot ? (
           <div className="flex flex-col gap-0.5 p-2">
-            {segmentsOfNav(activeNav).map((key) => {
+            {segmentsOfNav(activeNav, isAdmin).map((key) => {
               const { label, icon: Icon } = SEGMENT_META[key];
               const locked = isSegmentLocked(key);
               const count = segmentCounts[key];
