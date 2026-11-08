@@ -1,5 +1,10 @@
 import { firstFreeRow } from "@/features/schedule/lib/cell-grid";
-import { isCompanionCell } from "@/features/schedule/lib/companions";
+import {
+  findCompanions,
+  formatCompanionText,
+  isCompanionCell,
+  type CompanionKind,
+} from "@/features/schedule/lib/companions";
 import { stationKey } from "@/features/schedule/lib/day-stations";
 import type {
   CellPosition,
@@ -20,6 +25,12 @@ export interface CrossTeamEntry {
   companionTarget: boolean;
 }
 
+/** 함께 복사할 입회·신호수. 이름이 비어 있으면 종류만 적은 칸을 만든다. */
+export interface CrossTeamCompanion {
+  kind: CompanionKind;
+  names: string;
+}
+
 export interface CrossTeamPlan {
   /** 팀(열)별로 만들 칸 */
   creates: { columnId: string; position: CellPosition; text: ScheduleTextInput }[];
@@ -32,6 +43,8 @@ export function planCrossTeamCreate(input: {
   workDate: string;
   targetColumnIds: string[];
   entries: CrossTeamEntry[];
+  /** 국소 칸 다음에 함께 만들 입회·신호수. 대상 팀에 같은 종류가 이미 있으면 덮어쓰지 않는다 */
+  companions?: CrossTeamCompanion[];
 }): CrossTeamPlan {
   const { workDate } = input;
   const plan: CrossTeamPlan = { creates: [], skipped: [] };
@@ -51,6 +64,7 @@ export function planCrossTeamCreate(input: {
       ...working.filter((cell) => inColumn(cell) && !isCompanionCell(cell)).map((cell) => cell.rowNo),
     );
 
+    let lastRow = anchorRow;
     for (const entry of entries) {
       const mainText = entry.mainText.trim();
       const key = stationKey(mainText);
@@ -58,7 +72,7 @@ export function planCrossTeamCreate(input: {
         plan.skipped.push({ columnId, reason: "duplicate", mainText });
         continue;
       }
-      const rowNo = firstFreeRow(working, workDate, columnId, anchorRow + 1);
+      const rowNo = firstFreeRow(working, workDate, columnId, lastRow + 1);
       if (rowNo === null) {
         plan.skipped.push({ columnId, reason: "full", mainText });
         continue;
@@ -81,6 +95,37 @@ export function planCrossTeamCreate(input: {
         ...(entry.companionTarget ? { companionTarget: true } : {}),
       };
       plan.creates.push({ columnId, position: { workDate, columnId, rowNo }, text });
+      lastRow = rowNo;
+    }
+
+    // 입회·신호수: 방금 놓은 국소 칸 아래부터 빈 행에 차례로 만든다.
+    // 국소가 모두 이미 있어도 복사한다(나중에 입회만 추가한 경우). 같은 종류가 있으면 덮어쓰지 않는다.
+    for (const companion of input.companions ?? []) {
+      if (findCompanions(working, workDate, columnId)[companion.kind] !== null) {
+        plan.skipped.push({ columnId, reason: "duplicate", mainText: companion.kind });
+        continue;
+      }
+      const rowNo = firstFreeRow(working, workDate, columnId, lastRow + 1);
+      if (rowNo === null) {
+        plan.skipped.push({ columnId, reason: "full", mainText: companion.kind });
+        continue;
+      }
+      const subText = formatCompanionText(companion.kind, companion.names);
+      working.push({
+        id: `cross-${columnId}-${rowNo}`,
+        workDate,
+        columnId,
+        rowNo,
+        mainText: "",
+        subText,
+        textColor: null,
+      });
+      plan.creates.push({
+        columnId,
+        position: { workDate, columnId, rowNo },
+        text: { mainText: "", subText, textColor: null },
+      });
+      lastRow = rowNo;
     }
   }
   return plan;

@@ -402,6 +402,11 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         targetColumnIds: crossTeamIds.filter((id) => crossTeamOptions.some((column) => column.id === id)),
         // 목록의 국소 전체를 복사한다(이미 있는 국소도 포함). 고른 팀에 같은 국소가 있으면 건너뛴다.
         entries: entries.filter((draft) => draft.mainText.trim() !== ""),
+        // 창에서 체크한 입회·신호수도 함께 복사한다. 고른 팀에 같은 종류가 있으면 덮어쓰지 않는다.
+        companions: COMPANION_KINDS.filter((kind) => companions[kind].enabled).map((kind) => ({
+          kind,
+          names: companions[kind].names,
+        })),
       });
       for (const created of crossPlan.creates) {
         await createScheduleCell(supabase, created.position, created.text);
@@ -417,17 +422,23 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       }
       // 대상 표시가 있으면 일정표 행을 대상 국소 → 입회 → 신호수 → 나머지 순으로 정리한다.
       // 방금 저장한 칸까지 반영하려고 도착 날짜의 칸을 새로 불러와 계산한다.
+      // 함께 등록한 팀도 같은 순서로 정리한다(복사된 대상 표시가 있는 팀만 바뀐다).
       if (entries.some((draft) => draft.companionTarget)) {
         const finalDate = moving ? workDate : position.workDate;
-        const finalColumnId = moving ? columnId : position.columnId;
+        const finalColumnIds = [
+          moving ? columnId : position.columnId,
+          ...new Set(crossPlan.creates.map((created) => created.columnId)),
+        ];
         const fresh = await fetchScheduleCells(supabase, finalDate, finalDate);
-        const finalGroup = fresh.filter((candidate) => candidate.columnId === finalColumnId);
-        for (const step of planCompanionArrangement(finalGroup)) {
-          await moveScheduleCell(supabase, step.id, {
-            workDate: finalDate,
-            columnId: finalColumnId,
-            rowNo: step.toRow,
-          });
+        for (const finalColumnId of finalColumnIds) {
+          const finalGroup = fresh.filter((candidate) => candidate.columnId === finalColumnId);
+          for (const step of planCompanionArrangement(finalGroup)) {
+            await moveScheduleCell(supabase, step.id, {
+              workDate: finalDate,
+              columnId: finalColumnId,
+              rowNo: step.toRow,
+            });
+          }
         }
       }
       const teamLabelOf = (id: string) =>
@@ -683,9 +694,9 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                   ))}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  위 목록의 국소 전체(이미 있는 국소 포함)가 고른 팀의 같은 날짜 빈 행에도 기록됩니다(입회·신호수
-                  대상 표시도 같이 복사, 입회·신호수 칸과 시행 결과는 복사하지 않음). 행이 모자라거나 이미 같은
-                  국소가 있는 팀은 건너뛰고 알려 드립니다.
+                  위 목록의 국소 전체(이미 있는 국소 포함)와 체크한 입회·신호수가 고른 팀의 같은 날짜 빈 행에도
+                  기록됩니다(입회·신호수 대상 표시도 같이 복사, 시행 결과는 복사하지 않음). 그 팀에 이미 같은
+                  국소나 입회·신호수가 있으면 덮어쓰지 않고 건너뛰며, 행이 모자란 팀도 건너뛰고 알려 드립니다.
                 </p>
               </fieldset>
             ) : null}

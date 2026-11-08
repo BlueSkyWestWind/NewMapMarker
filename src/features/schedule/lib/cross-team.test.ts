@@ -126,3 +126,87 @@ describe("crossTeamBlockReason", () => {
     ).toBeNull();
   });
 });
+
+describe("planCrossTeamCreate 입회·신호수 복사", () => {
+  const companions = [
+    { kind: "입회" as const, names: "박황열" },
+    { kind: "신호수" as const, names: "김철수, 이영희" },
+  ];
+
+  it("국소 칸 다음 빈 행에 입회·신호수 칸을 만든다", () => {
+    const plan = planCrossTeamCreate({
+      cells: [],
+      workDate: D,
+      targetColumnIds: ["a"],
+      entries: [entry("국소1"), entry("국소2")],
+      companions,
+    });
+    expect(plan.skipped).toEqual([]);
+    expect(
+      plan.creates.map((c) => [c.position.rowNo, c.text.mainText, c.text.subText]),
+    ).toEqual([
+      [0, "국소1", ""],
+      [1, "국소2", ""],
+      [2, "", "입회 : 박황열"],
+      [3, "", "신호수 : 김철수, 이영희"],
+    ]);
+  });
+
+  it("대상 팀에 이미 입회가 있으면 덮어쓰지 않고 duplicate로 알린다(신호수는 복사한다)", () => {
+    const plan = planCrossTeamCreate({
+      cells: [cell("a", 0, "", "입회 : 기존사람")],
+      workDate: D,
+      targetColumnIds: ["a"],
+      entries: [entry("국소1")],
+      companions,
+    });
+    expect(plan.skipped).toEqual([{ columnId: "a", reason: "duplicate", mainText: "입회" }]);
+    expect(plan.creates.map((c) => c.text.subText)).toEqual(["", "신호수 : 김철수, 이영희"]);
+  });
+
+  it("국소가 모두 이미 있어도 입회·신호수는 복사한다(나중에 입회만 추가한 경우)", () => {
+    const plan = planCrossTeamCreate({
+      cells: [cell("a", 0, "국소1")],
+      workDate: D,
+      targetColumnIds: ["a"],
+      entries: [entry("국소1")],
+      companions,
+    });
+    expect(plan.skipped).toEqual([{ columnId: "a", reason: "duplicate", mainText: "국소1" }]);
+    expect(plan.creates.map((c) => c.text.subText)).toEqual(["입회 : 박황열", "신호수 : 김철수, 이영희"]);
+  });
+
+  it("이름이 비어 있으면 종류만 적은 칸을 만든다", () => {
+    const plan = planCrossTeamCreate({
+      cells: [],
+      workDate: D,
+      targetColumnIds: ["a"],
+      entries: [entry("국소1")],
+      companions: [{ kind: "입회", names: "  " }],
+    });
+    expect(plan.creates.map((c) => c.text.subText)).toEqual(["", "입회"]);
+  });
+
+  it("companions를 주지 않으면 이전과 같다", () => {
+    const plan = planCrossTeamCreate({
+      cells: [],
+      workDate: D,
+      targetColumnIds: ["a"],
+      entries: [entry("국소1")],
+    });
+    expect(plan.creates).toHaveLength(1);
+  });
+
+  it("행이 모자라면 입회·신호수도 full로 건너뛴다", () => {
+    const full = Array.from({ length: MAX_ROWS - 1 }, (_, i) => cell("a", i, `기존${i}`));
+    const plan = planCrossTeamCreate({
+      cells: full,
+      workDate: D,
+      targetColumnIds: ["a"],
+      entries: [],
+      companions,
+    });
+    expect(plan.creates.map((c) => c.text.subText)).toEqual(["입회 : 박황열"]);
+    expect(plan.skipped).toEqual([{ columnId: "a", reason: "full", mainText: "신호수" }]);
+  });
+});
