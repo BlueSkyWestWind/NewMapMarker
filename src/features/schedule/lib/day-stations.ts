@@ -32,6 +32,11 @@ interface StationDraft {
   rowNo: number;
   /** 이 국소를 맡은 열 번호(중복 없음, 발견 순서) */
   columnIndexes: Set<number>;
+  /**
+   * 열 번호 → 그 열의 입회·신호수가 이 국소에 필요한가. 그 열의 이 국소 칸 중 하나라도
+   * 불필요 표시가 없으면 필요하다(모두 불필요로 표시했을 때만 비운다).
+   */
+  needsCompanion: Map<number, boolean>;
 }
 
 /** `홍길동, 김철수`처럼 쉼표로 이은 이름을 쪼개 빈 값 없이 돌려준다. */
@@ -74,11 +79,20 @@ export function buildDayStations(input: {
     const site = cell.mainText.trim();
     const key = stationKey(site);
     const draft = drafts.get(key);
+    const needs = cell.noCompanion !== true;
     if (draft) {
       draft.columnIndexes.add(columnIndex);
+      draft.needsCompanion.set(columnIndex, (draft.needsCompanion.get(columnIndex) ?? false) || needs);
       continue;
     }
-    drafts.set(key, { key, site, columnIndex, rowNo: cell.rowNo, columnIndexes: new Set([columnIndex]) });
+    drafts.set(key, {
+      key,
+      site,
+      columnIndex,
+      rowNo: cell.rowNo,
+      columnIndexes: new Set([columnIndex]),
+      needsCompanion: new Map([[columnIndex, needs]]),
+    });
   }
 
   const companionsByColumn = teamColumns.map((column) => findCompanions(input.cells, workDate, column.id));
@@ -95,6 +109,8 @@ export function buildDayStations(input: {
       const signalers: string[] = [];
       for (const columnIndex of draft.columnIndexes) {
         pushUnique(leaders, [teamColumns[columnIndex].leaderLabel.trim()].filter((name) => name !== ""));
+        // 불필요로 표시한 국소는 그 팀의 입회·신호수 이름을 모으지 않는다.
+        if (draft.needsCompanion.get(columnIndex) === false) continue;
         pushUnique(witnesses, companionNames(columnIndex, "입회"));
         pushUnique(signalers, companionNames(columnIndex, "신호수"));
       }
