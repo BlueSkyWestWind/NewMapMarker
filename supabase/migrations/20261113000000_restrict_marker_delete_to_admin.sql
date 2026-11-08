@@ -13,6 +13,7 @@
 --       축전지 전체 삭제는 관리자만 할 수 있다. 등록·수정은 그대로다.
 --
 -- 적용 방법: Supabase 대시보드 -> SQL Editor 에 붙여넣고 Run. 다시 실행해도 안전하다.
+--   (이미 적용했다면 다시 실행해 INSERT/UPDATE 정책의 조건만 바뀐다.)
 -- 되돌리기: 파일 맨 아래 주석의 SQL.
 -- =====================================================================
 
@@ -29,10 +30,15 @@ BEGIN
 
     EXECUTE format(
       'CREATE POLICY %I_select_auth ON public.%I FOR SELECT TO authenticated USING (true)', t, t);
+    -- 조건을 literal true로 두면 Security Advisor가 "RLS Policy Always True"(경고)를 낸다.
+    -- (select auth.role())은 행마다 다시 계산하지 않아 Performance Advisor의 initplan 경고도 피한다.
     EXECUTE format(
-      'CREATE POLICY %I_insert_auth ON public.%I FOR INSERT TO authenticated WITH CHECK (true)', t, t);
+      'CREATE POLICY %I_insert_auth ON public.%I FOR INSERT TO authenticated '
+      || 'WITH CHECK ((SELECT auth.role()) = ''authenticated'')', t, t);
     EXECUTE format(
-      'CREATE POLICY %I_update_auth ON public.%I FOR UPDATE TO authenticated USING (true) WITH CHECK (true)', t, t);
+      'CREATE POLICY %I_update_auth ON public.%I FOR UPDATE TO authenticated '
+      || 'USING ((SELECT auth.role()) = ''authenticated'') '
+      || 'WITH CHECK ((SELECT auth.role()) = ''authenticated'')', t, t);
     EXECUTE format(
       'CREATE POLICY %I_delete_admin ON public.%I FOR DELETE TO authenticated USING (public.is_app_admin())', t, t);
   END LOOP;
@@ -41,7 +47,8 @@ END $$;
 NOTIFY pgrst, 'reload schema';
 
 -- ---------------------------------------------------------------------
--- 적용 후 확인 (정책 20개가 보여야 한다: 5개 테이블 x select/insert/update/delete_admin)
+-- 적용 후 확인: Security Advisor 에 "RLS Policy Always True"가 없어야 한다.
+--   (정책 20개가 보여야 한다: 5개 테이블 x select/insert/update/delete_admin)
 --   SELECT tablename, policyname, cmd FROM pg_policies
 --   WHERE schemaname = 'public'
 --     AND tablename IN ('markers','information','erp_details','battery_markers','battery_specs')
