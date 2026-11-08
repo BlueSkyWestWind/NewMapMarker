@@ -271,7 +271,8 @@ export function useMarkerEditForm() {
 
     const latitude = Number(lat);
     const longitude = Number(lng);
-    if (isNaN(latitude) || isNaN(longitude)) {
+    // Number('')은 0이라 빈 칸이 (0,0)으로 저장된다. 비어 있으면 거른다.
+    if (String(lat).trim() === '' || String(lng).trim() === '' || isNaN(latitude) || isNaN(longitude)) {
       toast({ variant: 'destructive', description: '올바른 위도와 경도를 입력해주세요.' });
       return;
     }
