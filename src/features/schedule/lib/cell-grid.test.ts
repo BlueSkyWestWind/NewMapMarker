@@ -163,22 +163,37 @@ describe("positionKey / indexCells", () => {
   });
 });
 
-describe("선택 열(시험팀·실사&재하도급) 표시 필터", () => {
+describe("선택 열(6팀·시험팀·실사&재하도급) 표시 필터", () => {
   const columns: ScheduleColumn[] = [
     { id: "c1", sortOrder: 0, teamLabel: "1팀", leaderLabel: "" },
+    { id: "c7", sortOrder: 6, teamLabel: "6팀", leaderLabel: "" },
     { id: "c8", sortOrder: 7, teamLabel: "시험팀", leaderLabel: "" },
     { id: "c9", sortOrder: 8, teamLabel: "실사&재하도급", leaderLabel: "" },
     { id: "c10", sortOrder: 9, teamLabel: "비고", leaderLabel: "" },
   ];
 
-  it("시험팀과 실사&재하도급만 선택 열로 판정한다", () => {
+  it("6팀·시험팀·실사&재하도급만 선택 열로 판정한다", () => {
     expect(columns.filter(isOptionalScheduleColumn).map((c) => c.teamLabel)).toEqual([
+      "6팀",
       "시험팀",
       "실사&재하도급",
     ]);
   });
 
-  it("기본값(빈 집합)에서는 시험팀과 실사&재하도급을 숨긴다", () => {
+  it("다른 팀(1~5팀, 7팀)과 비고는 선택 열이 아니다", () => {
+    const others: ScheduleColumn[] = ["1팀", "2팀", "3팀", "4팀", "5팀", "7팀", "비고"].map(
+      (teamLabel, index) => ({ id: `x${index}`, sortOrder: index, teamLabel, leaderLabel: "" }),
+    );
+    expect(others.filter(isOptionalScheduleColumn)).toEqual([]);
+  });
+
+  it("앞뒤 공백이 있는 6팀 이름도 선택 열이다", () => {
+    expect(isOptionalScheduleColumn({ id: "x", sortOrder: 0, teamLabel: " 6팀 ", leaderLabel: "" })).toBe(
+      true,
+    );
+  });
+
+  it("기본값(빈 집합)에서는 6팀·시험팀·실사&재하도급을 숨긴다", () => {
     expect(filterVisibleScheduleColumns(columns, new Set()).map((c) => c.teamLabel)).toEqual([
       "1팀",
       "비고",
@@ -187,10 +202,13 @@ describe("선택 열(시험팀·실사&재하도급) 표시 필터", () => {
 
   it("체크한 선택 열만 함께 표시한다", () => {
     expect(
+      filterVisibleScheduleColumns(columns, new Set(["c7"])).map((c) => c.teamLabel),
+    ).toEqual(["1팀", "6팀", "비고"]);
+    expect(
       filterVisibleScheduleColumns(columns, new Set(["c8"])).map((c) => c.teamLabel),
     ).toEqual(["1팀", "시험팀", "비고"]);
     expect(
-      filterVisibleScheduleColumns(columns, new Set(["c8", "c9"])).map((c) => c.teamLabel),
-    ).toEqual(["1팀", "시험팀", "실사&재하도급", "비고"]);
+      filterVisibleScheduleColumns(columns, new Set(["c7", "c8", "c9"])).map((c) => c.teamLabel),
+    ).toEqual(["1팀", "6팀", "시험팀", "실사&재하도급", "비고"]);
   });
 });

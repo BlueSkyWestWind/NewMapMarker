@@ -5,15 +5,15 @@ export const MIN_VISIBLE_ROWS = 4;
 /** DB의 `row_no` 0..29와 같다. */
 export const MAX_ROWS = 30;
 
-/** 기본 숨김(체크 시 표시) 대상인 선택 열 이름. */
-export const OPTIONAL_COLUMN_LABELS = ["시험팀", "실사&재하도급"] as const;
+/** 기본 숨김(체크 시 표시) 대상인 선택 열 이름. 6팀은 쓰는 날만 켜서 보려고 넣었다. */
+export const OPTIONAL_COLUMN_LABELS = ["6팀", "시험팀", "실사&재하도급"] as const;
 
 export function isOptionalScheduleColumn(column: ScheduleColumn): boolean {
   const label = column.teamLabel.trim();
   return (OPTIONAL_COLUMN_LABELS as readonly string[]).includes(label);
 }
 
-/** 기본 열은 항상 남기고, 선택 열(시험팀·실사&재하도급)은 체크된 ID만 남긴다. */
+/** 기본 열은 항상 남기고, 선택 열(6팀·시험팀·실사&재하도급)은 체크된 ID만 남긴다. */
 export function filterVisibleScheduleColumns(
   columns: ScheduleColumn[],
   visibleOptionalIds: ReadonlySet<string>,
