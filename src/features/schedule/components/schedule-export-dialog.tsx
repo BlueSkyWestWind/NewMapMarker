@@ -25,17 +25,19 @@ import {
 import { computeWeeklyScale, type PaperSize } from "@/features/schedule/lib/weekly-layout";
 import { useToast } from "@/hooks/use-toast";
 
-type ExportMode = "weekly" | "monthly" | "data";
+type ExportMode = "weekly" | "monthly" | "data" | "image";
 
 const MODE_LABEL: Record<ExportMode, string> = {
   weekly: "주간 배포용",
   monthly: "월간 배포용",
   data: "일정표_New 형식",
+  image: "이미지(PNG)",
 };
 const MODE_HINT: Record<ExportMode, string> = {
   weekly: "주마다 한 쪽, 쪽마다 팀 머리글이 반복되는 배포 양식입니다.",
   monthly: "한 달을 한 쪽 달력으로 담는 배포 양식입니다.",
   data: "엑셀 일정표와 같은 열 구성입니다. 다시 가져올 수 있습니다.",
+  image: "지금 화면의 일정표(주간·월간 보기 그대로)를 그림 한 장으로 저장합니다. 가려진 부분까지 모두 담깁니다.",
 };
 const MAX_WEEKS = 12;
 const MAX_DATA_DAYS = 366;
@@ -59,6 +61,10 @@ interface ScheduleExportDialogProps {
   defaultTo: string;
   /** 미리보기 확대율 어림에 쓰는 팀 열 수 */
   columnCount?: number;
+  /** 이미지로 저장할 일정표 요소. 없거나 `null`이면 이미지 저장을 쓸 수 없다 */
+  getCaptureTarget?: () => HTMLElement | null;
+  /** 이미지 맨 위에 넣는 제목(예: 시설일정 2026-11-02 ~ 2026-11-15) */
+  captureTitle?: string;
 }
 
 export function ScheduleExportDialog({
@@ -67,6 +73,8 @@ export function ScheduleExportDialog({
   defaultFrom,
   defaultTo,
   columnCount = DEFAULT_COLUMN_COUNT,
+  getCaptureTarget,
+  captureTitle = "시설일정",
 }: ScheduleExportDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,6 +83,8 @@ export function ScheduleExportDialog({
           defaultFrom={defaultFrom}
           defaultTo={defaultTo}
           columnCount={columnCount}
+          getCaptureTarget={getCaptureTarget}
+          captureTitle={captureTitle}
           onClose={() => onOpenChange(false)}
         />
       ) : null}
@@ -86,11 +96,15 @@ function ExportBody({
   defaultFrom,
   defaultTo,
   columnCount,
+  getCaptureTarget,
+  captureTitle,
   onClose,
 }: {
   defaultFrom: string;
   defaultTo: string;
   columnCount: number;
+  getCaptureTarget?: () => HTMLElement | null;
+  captureTitle: string;
   onClose: () => void;
 }) {
   const { supabase } = useAuthSession();
@@ -131,6 +145,9 @@ function ExportBody({
       });
       summary = `${month.replace("-", "년 ")}월 · ${weekCount}주 · 확대율 최대 약 ${scale}% (일정이 많으면 더 작아질 수 있습니다)`;
     }
+  } else if (mode === "image") {
+    if (!getCaptureTarget) blocked = "이 보기에서는 이미지로 저장할 수 없습니다.";
+    else summary = captureTitle;
   } else if (dataDays <= 0) {
     blocked = "시작일과 종료일을 확인해 주세요(종료일이 시작일보다 빠를 수 없습니다).";
   } else if (dataDays > MAX_DATA_DAYS) {
@@ -140,7 +157,33 @@ function ExportBody({
   }
 
   const handleDownload = async () => {
-    if (!supabase || blocked) return;
+    if (blocked) return;
+    if (mode === "image") {
+      const target = getCaptureTarget?.();
+      if (!target) {
+        toast({ title: "저장할 일정표를 찾지 못했습니다", variant: "destructive" });
+        return;
+      }
+      setIsBusy(true);
+      try {
+        // html2canvas는 이 시점에 처음 불러온다(홈 번들에 넣지 않는다).
+        const capture = await import("@/features/schedule/lib/capture-schedule-image");
+        const blob = await capture.captureScheduleImage(target, captureTitle);
+        capture.downloadBlob(blob, `${captureTitle.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")}.png`);
+        toast({ title: "이미지를 저장했습니다" });
+        onClose();
+      } catch (error) {
+        toast({
+          title: "이미지를 저장하지 못했습니다",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        });
+      } finally {
+        setIsBusy(false);
+      }
+      return;
+    }
+    if (!supabase) return;
     setIsBusy(true);
     try {
       // exceljs는 이 시점에 처음 불러온다(홈 번들에 넣지 않는다).
@@ -187,9 +230,9 @@ function ExportBody({
 
   return (
     <DialogContent className="flex max-w-lg flex-col gap-3 p-5">
-      <DialogTitle className="text-base">엑셀로 내려받기</DialogTitle>
+      <DialogTitle className="text-base">내보내기</DialogTitle>
       <DialogDescription className="sr-only">
-        시설일정을 엑셀 파일로 내려받습니다.
+        시설일정을 엑셀 파일이나 이미지로 내려받습니다.
       </DialogDescription>
 
       <div className="flex flex-col gap-1.5 text-xs" role="radiogroup" aria-label="내려받기 방식">
@@ -276,7 +319,7 @@ function ExportBody({
               />
             </div>
           </>
-        ) : (
+        ) : mode === "image" ? null : (
           <label className="flex flex-col gap-1">
             <span className="text-slate-300">용지(가로)</span>
             <select

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Ban, ChevronLeft, ChevronRight, Download, Upload } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Ban, ChevronLeft, ChevronRight, Download, ListPlus, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -46,6 +46,7 @@ import { ScheduleLegend } from "./schedule-legend";
 import { ScheduleMonthGrid } from "./schedule-month-grid";
 import { ScheduleArchiveView } from "./schedule-archive-view";
 import { ScheduleDayView } from "./schedule-day-view";
+import { ScheduleUnscheduledDialog } from "./schedule-unscheduled-dialog";
 import { ScheduleSectionSwitch } from "./schedule-section-switch";
 import { ScheduleSearch } from "./schedule-search";
 import { ScheduleViewToggle, type ScheduleViewKind } from "./schedule-view-toggle";
@@ -85,6 +86,9 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   const [isExportOpen, setExportOpen] = useState(false);
   const [isFreezeOpen, setFreezeOpen] = useState(false);
   const [isImportOpen, setImportOpen] = useState(false);
+  const [isUnscheduledOpen, setUnscheduledOpen] = useState(false);
+  /** 이미지로 저장할 일정표(스크롤 영역) */
+  const gridAreaRef = useRef<HTMLDivElement>(null);
   const [visibleOptionalColumnIds, setVisibleOptionalColumnIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -301,6 +305,18 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="sr-only">시설일정</h1>
         <ScheduleSectionSwitch section="facility" />
+        {isAdmin ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 shrink-0 gap-1.5 border-slate-700 px-3 text-xs"
+            title="시설일이 없고 오늘 이후 일정에도 없는 국소를 찾아 일정에 추가합니다"
+            onClick={() => setUnscheduledOpen(true)}
+          >
+            <ListPlus className="h-3.5 w-3.5" aria-hidden />
+            미배정 국소
+          </Button>
+        ) : null}
 
         <ScheduleViewToggle view={view} onChange={setView} kinds={FACILITY_VIEW_KINDS} />
 
@@ -456,7 +472,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={gridAreaRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {data.isTableMissing ? (
           <p className="p-4 text-sm text-amber-400">{TABLE_MISSING_MESSAGE}</p>
         ) : data.error ? (
@@ -539,6 +555,15 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         onClose={() => setDayEditor(null)}
         onSaved={() => void weekData.refresh()}
       />
+      {isAdmin ? (
+        <ScheduleUnscheduledDialog
+          open={isUnscheduledOpen}
+          onOpenChange={setUnscheduledOpen}
+          columns={data.columns}
+          defaultDate={selectedDate}
+          onAdded={() => void data.refresh()}
+        />
+      ) : null}
       <ScheduleFreezeDialog open={isFreezeOpen} onOpenChange={setFreezeOpen} canEdit={isAdmin} />
       <ScheduleExportDialog
         open={isExportOpen}
@@ -546,6 +571,8 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         defaultFrom={weekDates[0]}
         defaultTo={weekDates[6]}
         columnCount={weekData.columns.length || undefined}
+        getCaptureTarget={() => gridAreaRef.current}
+        captureTitle={`시설일정 ${rangeLabel}`}
       />
       <ScheduleImportDialog
         open={isImportOpen}
