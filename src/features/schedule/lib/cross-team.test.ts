@@ -9,15 +9,15 @@ function cell(columnId: string, rowNo: number, mainText: string, subText = ""): 
   return { id: `${columnId}-${rowNo}`, workDate: D, columnId, rowNo, mainText, subText, textColor: null };
 }
 
-const entry = (mainText: string, noCompanion = false) => ({
+const entry = (mainText: string, companionTarget = false) => ({
   mainText,
   subText: "",
   textColor: null,
-  noCompanion,
+  companionTarget,
 });
 
 describe("planCrossTeamCreate", () => {
-  it("두 팀 모두 마지막 일정 아래 빈 행에 순서대로 배정하고 noCompanion을 복사한다", () => {
+  it("두 팀 모두 마지막 일정 아래 빈 행에 순서대로 배정하고 companionTarget을 복사한다", () => {
     const plan = planCrossTeamCreate({
       cells: [cell("a", 0, "기존A"), cell("a", 1, "", "입회 : 홍길동"), cell("b", 0, "기존B")],
       workDate: D,
@@ -26,7 +26,7 @@ describe("planCrossTeamCreate", () => {
     });
     expect(plan.skipped).toEqual([]);
     expect(
-      plan.creates.map((c) => [c.columnId, c.position.rowNo, c.text.mainText, c.text.noCompanion]),
+      plan.creates.map((c) => [c.columnId, c.position.rowNo, c.text.mainText, c.text.companionTarget]),
     ).toEqual([
       // a팀은 입회 칸(1행)이 있어도 일정 목록의 마지막(0행) 바로 아래부터 빈 행을 찾는다.
       ["a", 2, "국소1", true],

@@ -17,7 +17,7 @@ export interface CrossTeamEntry {
   mainText: string;
   subText: string;
   textColor: TextColor | null;
-  noCompanion: boolean;
+  companionTarget: boolean;
 }
 
 export interface CrossTeamPlan {
@@ -78,7 +78,7 @@ export function planCrossTeamCreate(input: {
         subText: entry.subText.trim(),
         textColor: entry.textColor,
         // 표시했을 때만 값을 싣는다(컬럼이 없는 DB에서도 저장되도록).
-        ...(entry.noCompanion ? { noCompanion: true } : {}),
+        ...(entry.companionTarget ? { companionTarget: true } : {}),
       };
       plan.creates.push({ columnId, position: { workDate, columnId, rowNo }, text });
     }

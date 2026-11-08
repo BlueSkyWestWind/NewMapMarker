@@ -189,71 +189,74 @@ describe("buildDayStations", () => {
   });
 });
 
-describe("buildDayStations 입회·신호수 불필요", () => {
+describe("buildDayStations 입회·신호수 대상", () => {
   const withFlag = (flag: boolean | undefined, ...args: Parameters<typeof cell>): ScheduleCell => ({
     ...cell(...args),
-    ...(flag === undefined ? {} : { noCompanion: flag }),
+    ...(flag === undefined ? {} : { companionTarget: flag }),
   });
+  const companions = [
+    cell(DATE, "c1", 5, "", "입회 : 홍길동"),
+    cell(DATE, "c1", 6, "", "신호수 : 김철수"),
+  ];
 
-  it("불필요로 표시한 국소는 입회자·신호수가 비고 팀장은 남는다", () => {
+  it("대상 표시가 있으면 표시한 국소만 입회자·신호수가 모이고 표시 없는 국소는 비며 팀장은 모두 남는다", () => {
     const stations = buildDayStations({
       workDate: DATE,
       columns: COLUMNS,
       cells: [
-        withFlag(true, DATE, "c1", 0, "국동신월"),
-        cell(DATE, "c1", 1, "", "입회 : 홍길동"),
-        cell(DATE, "c1", 2, "", "신호수 : 김철수"),
+        withFlag(true, DATE, "c1", 0, "신월금호4"),
+        withFlag(false, DATE, "c1", 1, "국동신월"),
+        ...companions,
       ],
     });
-    expect(stations).toHaveLength(1);
-    expect(stations[0].leaders).toEqual(["박경훈"]);
-    expect(stations[0].witnesses).toEqual([]);
-    expect(stations[0].signalers).toEqual([]);
+    const byName = Object.fromEntries(stations.map((station) => [station.site, station]));
+    expect(byName["신월금호4"].witnesses).toEqual(["홍길동"]);
+    expect(byName["신월금호4"].signalers).toEqual(["김철수"]);
+    expect(byName["국동신월"].witnesses).toEqual([]);
+    expect(byName["국동신월"].signalers).toEqual([]);
+    expect(byName["국동신월"].leaders).toEqual(["박경훈"]);
   });
 
-  it("표시가 없으면 입회자·신호수가 그대로 모인다", () => {
+  it("그 팀·날짜에 대상 표시가 하나도 없으면 모든 국소에 붙는다(기존 일정과 같다)", () => {
     const stations = buildDayStations({
       workDate: DATE,
       columns: COLUMNS,
-      cells: [
-        withFlag(false, DATE, "c1", 0, "신월금호4"),
-        cell(DATE, "c1", 1, "", "입회 : 홍길동"),
-        cell(DATE, "c1", 2, "", "신호수 : 김철수"),
-      ],
+      cells: [cell(DATE, "c1", 0, "신월금호4"), cell(DATE, "c1", 1, "국동신월"), ...companions],
     });
-    expect(stations[0].witnesses).toEqual(["홍길동"]);
-    expect(stations[0].signalers).toEqual(["김철수"]);
+    expect(stations.map((station) => station.witnesses)).toEqual([["홍길동"], ["홍길동"]]);
   });
 
-  it("같은 국소를 두 팀이 맡고 한 팀만 불필요면 다른 팀의 이름은 남는다", () => {
+  it("대상 표시는 팀별로 따로 본다: 한 팀에만 표시가 있어도 다른 팀은 모든 국소에 붙는다", () => {
     const stations = buildDayStations({
       workDate: DATE,
       columns: COLUMNS,
       cells: [
         withFlag(true, DATE, "c1", 0, "공용국소"),
-        cell(DATE, "c1", 1, "", "입회 : 불필요팀원"),
-        withFlag(false, DATE, "c3", 0, "공용국소"),
-        cell(DATE, "c3", 1, "", "입회 : 필요팀원"),
+        withFlag(false, DATE, "c1", 1, "표시없음국소"),
+        cell(DATE, "c1", 5, "", "입회 : 일팀원"),
+        cell(DATE, "c3", 0, "표시없음국소"),
+        cell(DATE, "c3", 5, "", "입회 : 삼팀원"),
       ],
     });
-    expect(stations).toHaveLength(1);
-    expect(stations[0].witnesses).toEqual(["필요팀원"]);
+    const byName = Object.fromEntries(stations.map((station) => [station.site, station]));
+    expect(byName["공용국소"].witnesses).toEqual(["일팀원"]);
+    expect(byName["표시없음국소"].witnesses).toEqual(["삼팀원"]);
   });
 
-  it("한 팀의 같은 국소 칸이 둘 이상이면 모두 불필요일 때만 비운다", () => {
+  it("한 팀의 같은 국소 칸이 둘 이상이면 하나라도 대상이면 대상이다", () => {
     const stations = buildDayStations({
       workDate: DATE,
       columns: COLUMNS,
       cells: [
-        withFlag(true, DATE, "c1", 0, "중복국소"),
-        withFlag(false, DATE, "c1", 1, "중복국소"),
-        cell(DATE, "c1", 2, "", "입회 : 홍길동"),
+        withFlag(false, DATE, "c1", 0, "중복국소"),
+        withFlag(true, DATE, "c1", 1, "중복국소"),
+        ...companions,
       ],
     });
     expect(stations[0].witnesses).toEqual(["홍길동"]);
   });
 
-  it("입회·신호수 칸의 noCompanion은 국소가 아니므로 무시한다", () => {
+  it("입회·신호수 칸의 companionTarget은 국소가 아니므로 대상 판정에 쓰지 않는다", () => {
     const stations = buildDayStations({
       workDate: DATE,
       columns: COLUMNS,
@@ -265,4 +268,3 @@ describe("buildDayStations 입회·신호수 불필요", () => {
     expect(stations[0].witnesses).toEqual(["홍길동"]);
   });
 });
-

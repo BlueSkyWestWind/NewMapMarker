@@ -4,7 +4,7 @@ import {
   applyScheduleImport,
   createScheduleCell,
   fetchScheduleCells,
-  isNoCompanionSupported,
+  isCompanionTargetSupported,
 } from "./api";
 import type { ImportPlan } from "./lib/schedule-excel";
 
@@ -68,7 +68,7 @@ describe("applyScheduleImport", () => {
   });
 });
 
-describe("no_companion 컬럼", () => {
+describe("companion_target 컬럼", () => {
   const cellRow = (extra: Record<string, unknown>) => ({
     id: "c1",
     work_date: "2026-11-09",
@@ -103,24 +103,24 @@ describe("no_companion 컬럼", () => {
     return { client, requested };
   }
 
-  it("no_companion 값을 noCompanion으로 바꾸고 없으면 false다", async () => {
+  it("companion_target 값을 companionTarget으로 바꾸고 없으면 false다", async () => {
     const { client } = cellsClient([
-      { data: [cellRow({ no_companion: true }), cellRow({ id: "c2", row_no: 1 })] },
+      { data: [cellRow({ companion_target: true }), cellRow({ id: "c2", row_no: 1 })] },
     ]);
     const cells = await fetchScheduleCells(client, "2026-11-09", "2026-11-09");
-    expect(cells.map((cell) => cell.noCompanion)).toEqual([true, false]);
+    expect(cells.map((cell) => cell.companionTarget)).toEqual([true, false]);
   });
 
-  it("컬럼이 아직 없으면 그 열 없이 다시 읽고 noCompanion은 false다", async () => {
+  it("컬럼이 아직 없으면 그 열 없이 다시 읽고 companionTarget은 false다", async () => {
     const { client, requested } = cellsClient([
-      { error: { code: "42703", message: "column schedule_cells.no_companion does not exist" } },
+      { error: { code: "42703", message: "column schedule_cells.companion_target does not exist" } },
       { data: [cellRow({})] },
     ]);
     const cells = await fetchScheduleCells(client, "2026-11-09", "2026-11-09");
     expect(requested).toHaveLength(2);
-    expect(requested[0]).toContain("no_companion");
-    expect(requested[1]).not.toContain("no_companion");
-    expect(cells[0].noCompanion).toBe(false);
+    expect(requested[0]).toContain("companion_target");
+    expect(requested[1]).not.toContain("companion_target");
+    expect(cells[0].companionTarget).toBe(false);
   });
 
   /** insert(payload)를 기록하는 생성 대역. */
@@ -140,20 +140,20 @@ describe("no_companion 컬럼", () => {
   const position = { workDate: "2026-11-09", columnId: "col1", rowNo: 0 };
   const text = { mainText: "국소", subText: "", textColor: null };
 
-  it("noCompanion이 없으면 no_companion 키를 보내지 않는다(컬럼 없는 DB에서도 저장된다)", async () => {
+  it("companionTarget이 없으면 companion_target 키를 보내지 않는다(컬럼 없는 DB에서도 저장된다)", async () => {
     const { client, payloads } = insertClient();
     await createScheduleCell(client, position, text);
-    expect("no_companion" in payloads[0]).toBe(false);
+    expect("companion_target" in payloads[0]).toBe(false);
   });
 
-  it("noCompanion이 true면 no_companion: true를 보낸다", async () => {
+  it("companionTarget이 true면 companion_target: true를 보낸다", async () => {
     const { client, payloads } = insertClient();
-    await createScheduleCell(client, position, { ...text, noCompanion: true });
-    expect(payloads[0].no_companion).toBe(true);
+    await createScheduleCell(client, position, { ...text, companionTarget: true });
+    expect(payloads[0].companion_target).toBe(true);
   });
 });
 
-describe("isNoCompanionSupported", () => {
+describe("isCompanionTargetSupported", () => {
   const probeClient = (error: unknown) =>
     ({
       from: () => ({
@@ -162,16 +162,16 @@ describe("isNoCompanionSupported", () => {
     }) as unknown as SupabaseBrowserClient;
 
   it("컬럼이 있으면 true다", async () => {
-    await expect(isNoCompanionSupported(probeClient(null))).resolves.toBe(true);
+    await expect(isCompanionTargetSupported(probeClient(null))).resolves.toBe(true);
   });
 
   it("컬럼이 없다는 오류면 false다(저장 전에 마이그레이션 안내를 하려고)", async () => {
-    const error = { message: "column schedule_cells.no_companion does not exist" };
-    await expect(isNoCompanionSupported(probeClient(error))).resolves.toBe(false);
+    const error = { message: "column schedule_cells.companion_target does not exist" };
+    await expect(isCompanionTargetSupported(probeClient(error))).resolves.toBe(false);
   });
 
   it("다른 오류는 그대로 던진다", async () => {
     const error = { message: "network" };
-    await expect(isNoCompanionSupported(probeClient(error))).rejects.toBe(error);
+    await expect(isCompanionTargetSupported(probeClient(error))).rejects.toBe(error);
   });
 });

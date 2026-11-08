@@ -32,11 +32,8 @@ interface StationDraft {
   rowNo: number;
   /** 이 국소를 맡은 열 번호(중복 없음, 발견 순서) */
   columnIndexes: Set<number>;
-  /**
-   * 열 번호 → 그 열의 입회·신호수가 이 국소에 필요한가. 그 열의 이 국소 칸 중 하나라도
-   * 불필요 표시가 없으면 필요하다(모두 불필요로 표시했을 때만 비운다).
-   */
-  needsCompanion: Map<number, boolean>;
+  /** 열 번호 → 그 열의 이 국소 칸 중 하나라도 입회·신호수 대상으로 표시했는가 */
+  targeted: Map<number, boolean>;
 }
 
 /** `홍길동, 김철수`처럼 쉼표로 이은 이름을 쪼개 빈 값 없이 돌려준다. */
@@ -79,10 +76,10 @@ export function buildDayStations(input: {
     const site = cell.mainText.trim();
     const key = stationKey(site);
     const draft = drafts.get(key);
-    const needs = cell.noCompanion !== true;
+    const isTarget = cell.companionTarget === true;
     if (draft) {
       draft.columnIndexes.add(columnIndex);
-      draft.needsCompanion.set(columnIndex, (draft.needsCompanion.get(columnIndex) ?? false) || needs);
+      draft.targeted.set(columnIndex, (draft.targeted.get(columnIndex) ?? false) || isTarget);
       continue;
     }
     drafts.set(key, {
@@ -91,10 +88,15 @@ export function buildDayStations(input: {
       columnIndex,
       rowNo: cell.rowNo,
       columnIndexes: new Set([columnIndex]),
-      needsCompanion: new Map([[columnIndex, needs]]),
+      targeted: new Map([[columnIndex, isTarget]]),
     });
   }
 
+  // 그 팀·날짜에 대상 표시가 하나라도 있으면 표시한 국소에만 입회·신호수가 붙는다.
+  // 표시가 하나도 없으면(기존 일정) 모든 국소에 붙는다.
+  const columnsWithTarget = new Set(
+    dayCells.filter(({ cell }) => cell.companionTarget === true).map(({ columnIndex }) => columnIndex),
+  );
   const companionsByColumn = teamColumns.map((column) => findCompanions(input.cells, workDate, column.id));
   const companionNames = (columnIndex: number, kind: "입회" | "신호수"): string[] => {
     const subText = companionsByColumn[columnIndex][kind]?.subText;
@@ -109,8 +111,8 @@ export function buildDayStations(input: {
       const signalers: string[] = [];
       for (const columnIndex of draft.columnIndexes) {
         pushUnique(leaders, [teamColumns[columnIndex].leaderLabel.trim()].filter((name) => name !== ""));
-        // 불필요로 표시한 국소는 그 팀의 입회·신호수 이름을 모으지 않는다.
-        if (draft.needsCompanion.get(columnIndex) === false) continue;
+        // 대상 표시가 있는 팀에서 표시하지 않은 국소는 그 팀의 입회·신호수 이름을 모으지 않는다.
+        if (columnsWithTarget.has(columnIndex) && draft.targeted.get(columnIndex) !== true) continue;
         pushUnique(witnesses, companionNames(columnIndex, "입회"));
         pushUnique(signalers, companionNames(columnIndex, "신호수"));
       }

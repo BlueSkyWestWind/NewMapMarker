@@ -70,7 +70,7 @@ export function pickStation(input: {
     mainText: name,
     subText: "",
     textColor: null,
-    noCompanion: false,
+    companionTarget: false,
   };
   return {
     drafts: insertAfter(drafts, lastKey, entry),

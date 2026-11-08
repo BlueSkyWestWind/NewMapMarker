@@ -39,7 +39,7 @@ export interface ScheduleCell {
   subText: string;
   textColor: TextColor | null;
   /** 이 국소는 입회·신호수가 필요 없다(건물 옥상·실내 등). 없으면 false. 국소 칸에서만 뜻이 있다 */
-  noCompanion?: boolean;
+  companionTarget?: boolean;
   /** 시행 결과. 없으면 아직 기록하지 않았다 */
   result?: CellResult | null;
 }
@@ -54,8 +54,8 @@ export interface ScheduleTextInput {
   mainText: string;
   subText: string;
   textColor: TextColor | null;
-  /** 있을 때만 `no_companion`을 저장한다. 컬럼이 없는 DB에서도 저장되도록 보통은 생략한다 */
-  noCompanion?: boolean;
+  /** 있을 때만 `companion_target`을 저장한다. 컬럼이 없는 DB에서도 저장되도록 보통은 생략한다 */
+  companionTarget?: boolean;
 }
 
 export interface ScheduleDayNote {

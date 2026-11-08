@@ -5,7 +5,7 @@ import { addDays } from "@/features/schedule/lib/week";
 import type { ImportPlan } from "@/features/schedule/lib/schedule-excel";
 import { likePattern } from "@/features/schedule/lib/search-cells";
 import {
-  isNoCompanionColumnMissing,
+  isCompanionTargetColumnMissing,
   isResultColumnMissing,
 } from "@/features/schedule/lib/table-missing";
 import {
@@ -59,14 +59,14 @@ function toCell(row: Row): ScheduleCell {
     mainText: String(row.main_text ?? ""),
     subText: String(row.sub_text ?? ""),
     textColor: isTextColor(row.text_color) ? row.text_color : null,
-    noCompanion: row.no_companion === true,
+    companionTarget: row.companion_target === true,
     result: toResult(row),
   };
 }
 
 const CELL_COLUMNS = "id, work_date, column_id, row_no, main_text, sub_text, text_color";
 const RESULT_COLUMNS = "result_status, result_reason, rescheduled_to";
-const COMPANION_COLUMNS = "no_companion";
+const COMPANION_COLUMNS = "companion_target";
 
 export async function fetchScheduleColumns(
   supabase: SupabaseBrowserClient,
@@ -108,7 +108,7 @@ export async function fetchScheduleCells(
     try {
       return (await fetchRows(columns)).map(toCell);
     } catch (error) {
-      if (withCompanion && isNoCompanionColumnMissing(error)) withCompanion = false;
+      if (withCompanion && isCompanionTargetColumnMissing(error)) withCompanion = false;
       else if (withResult && isResultColumnMissing(error)) withResult = false;
       else throw error;
     }
@@ -203,13 +203,13 @@ export async function fetchScheduleRange(
 }
 
 /**
- * `no_companion` 컬럼이 있는지 확인한다. 마이그레이션 전에 표시를 저장하면 앞선 지움·수정만
+ * `companion_target` 컬럼이 있는지 확인한다. 마이그레이션 전에 표시를 저장하면 앞선 지움·수정만
  * 반영된 채 실패하므로, 표시를 저장하기 전에 먼저 알아본다. 다른 오류는 그대로 던진다.
  */
-export async function isNoCompanionSupported(supabase: SupabaseBrowserClient): Promise<boolean> {
-  const { error } = await supabase.from("schedule_cells").select("no_companion").limit(1);
+export async function isCompanionTargetSupported(supabase: SupabaseBrowserClient): Promise<boolean> {
+  const { error } = await supabase.from("schedule_cells").select("companion_target").limit(1);
   if (!error) return true;
-  if (isNoCompanionColumnMissing(error)) return false;
+  if (isCompanionTargetColumnMissing(error)) return false;
   throw error;
 }
 
@@ -227,7 +227,7 @@ export async function createScheduleCell(
     main_text: text.mainText,
     sub_text: text.subText,
     text_color: text.textColor,
-    ...(text.noCompanion !== undefined ? { no_companion: text.noCompanion } : {}),
+    ...(text.companionTarget !== undefined ? { companion_target: text.companionTarget } : {}),
     })
     .select("id")
     .single();
@@ -246,7 +246,7 @@ export async function updateScheduleCellText(
       main_text: text.mainText,
       sub_text: text.subText,
       text_color: text.textColor,
-      ...(text.noCompanion !== undefined ? { no_companion: text.noCompanion } : {}),
+      ...(text.companionTarget !== undefined ? { companion_target: text.companionTarget } : {}),
     })
     .eq("id", id);
   if (error) throw error;

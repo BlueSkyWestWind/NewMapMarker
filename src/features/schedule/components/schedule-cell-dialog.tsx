@@ -18,7 +18,7 @@ import {
   createScheduleCell,
   deleteScheduleCell,
   fetchScheduleCells,
-  isNoCompanionSupported,
+  isCompanionTargetSupported,
   moveScheduleCell,
   setScheduleMark,
   updateScheduleCellText,
@@ -33,6 +33,7 @@ import {
 import { groupOfCell, MAX_ROWS } from "@/features/schedule/lib/cell-grid";
 import { useStationOptions } from "@/features/schedule/hooks/use-station-options";
 import { SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX } from "@/features/shell/constants";
+import { planCompanionArrangement } from "@/features/schedule/lib/companion-arrange";
 import { crossTeamBlockReason, planCrossTeamCreate } from "@/features/schedule/lib/cross-team";
 import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
 import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
@@ -102,7 +103,7 @@ function initialDrafts(cells: ScheduleCell[], state: CellEditorState): EntryDraf
     mainText: "",
     subText: "",
     textColor: null,
-    noCompanion: false,
+    companionTarget: false,
   };
   const index = drafts.findIndex((draft) => (draft.rowNo ?? 0) > position.rowNo);
   return index === -1 ? [...drafts, blank] : [...drafts.slice(0, index), blank, ...drafts.slice(index)];
@@ -265,7 +266,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         mainText: mainText.trim(),
         subText: "",
         textColor: null,
-        noCompanion: false,
+        companionTarget: false,
       },
     ]);
   };
@@ -339,6 +340,8 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       groupPlan.ops.length === 0 &&
       companionPlan.ops.length === 0 &&
       !(moving && groupSize > 0) &&
+      // 저장해 둔 대상 표시와 행 순서가 어긋나 있으면(예전에 표시만 저장한 경우) 정리할 일이 있다.
+      planCompanionArrangement(groupOfCell(cells, position)).length === 0 &&
       markColor === mark;
     if (nothingToDo) {
       if (cell === null) {
@@ -353,11 +356,11 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
     try {
       // 마이그레이션 전이면 표시를 저장할 수 없다. 앞선 지움·수정이 반영되기 전에 먼저 알린다.
       const usesFlag = groupPlan.ops.some(
-        (op) => op.op !== "delete" && op.text.noCompanion !== undefined,
+        (op) => op.op !== "delete" && op.text.companionTarget !== undefined,
       );
-      if (usesFlag && !(await isNoCompanionSupported(supabase))) {
+      if (usesFlag && !(await isCompanionTargetSupported(supabase))) {
         setNotice(
-          "입회·신호수 불필요 표시를 저장하려면 DB 마이그레이션(20261114000000_schedule_cells_no_companion.sql)을 먼저 적용해 주세요. 아무것도 저장하지 않았습니다.",
+          "입회·신호수 대상 표시를 저장하려면 DB 마이그레이션(20261115000000_schedule_cells_companion_target.sql)을 먼저 적용해 주세요. 아무것도 저장하지 않았습니다.",
         );
         return;
       }
@@ -407,6 +410,21 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       }
       if (markColor !== mark) {
         await setScheduleMark(supabase, position.workDate, position.columnId, markColor);
+      }
+      // 대상 표시가 있으면 일정표 행을 대상 국소 → 입회 → 신호수 → 나머지 순으로 정리한다.
+      // 방금 저장한 칸까지 반영하려고 도착 날짜의 칸을 새로 불러와 계산한다.
+      if (entries.some((draft) => draft.companionTarget)) {
+        const finalDate = moving ? workDate : position.workDate;
+        const finalColumnId = moving ? columnId : position.columnId;
+        const fresh = await fetchScheduleCells(supabase, finalDate, finalDate);
+        const finalGroup = fresh.filter((candidate) => candidate.columnId === finalColumnId);
+        for (const step of planCompanionArrangement(finalGroup)) {
+          await moveScheduleCell(supabase, step.id, {
+            workDate: finalDate,
+            columnId: finalColumnId,
+            rowNo: step.toRow,
+          });
+        }
       }
       const teamLabelOf = (id: string) =>
         columns.find((column) => column.id === id)?.teamLabel ?? "팀";
@@ -553,15 +571,15 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                   {canEdit ? (
                     <label
                       className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap text-[11px] text-slate-300"
-                      title="건물 옥상·실내처럼 입회·신호수가 필요 없는 국소. 일일일정에서 이 국소의 입회자·신호수 이름이 비워집니다"
+                      title="입회·신호수가 붙는 국소로 묶습니다. 저장하면 일정표가 대상 국소 → 입회 → 신호수 → 나머지 국소 순으로 정리되고, 일일일정에서는 표시한 국소에만 입회자·신호수가 들어갑니다. 이 팀·날짜에 표시가 하나도 없으면 모든 국소가 대상입니다"
                     >
                       <input
                         type="checkbox"
-                        checked={draft.noCompanion}
+                        checked={draft.companionTarget}
                         disabled={disabled}
-                        onChange={(event) => updateDraft(draft.key, { noCompanion: event.target.checked })}
+                        onChange={(event) => updateDraft(draft.key, { companionTarget: event.target.checked })}
                       />
-                      입회·신호수 불필요
+                      입회·신호수 대상
                     </label>
                   ) : null}
                   {draft.id !== null && (canEdit || resultOf(draft.id)) ? (
@@ -661,7 +679,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                   ))}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  이번에 새로 추가한 국소만 고른 팀의 같은 날짜 빈 행에도 기록됩니다(입회·신호수 불필요
+                  이번에 새로 추가한 국소만 고른 팀의 같은 날짜 빈 행에도 기록됩니다(입회·신호수 대상
                   표시도 같이 복사). 행이 모자라거나 이미 같은 국소가 있는 팀은 건너뛰고 알려 드립니다.
                 </p>
               </fieldset>

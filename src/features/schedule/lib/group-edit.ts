@@ -19,7 +19,7 @@ export interface EntryDraft {
   subText: string;
   textColor: TextColor | null;
   /** 이 국소는 입회·신호수가 필요 없다(건물 옥상·실내 등) */
-  noCompanion: boolean;
+  companionTarget: boolean;
 }
 
 export type GroupOp =
@@ -49,7 +49,7 @@ export function draftsFromCells(
     mainText: cell.mainText,
     subText: cell.subText,
     textColor: cell.textColor,
-    noCompanion: cell.noCompanion === true,
+    companionTarget: cell.companionTarget === true,
   }));
 }
 
@@ -90,7 +90,7 @@ export function planGroupOps(input: {
     if (!current) continue;
     const text = trimmed(draft);
     if (isBlank(text)) return { error: "blank" };
-    const flagChanged = draft.noCompanion !== (current.noCompanion === true);
+    const flagChanged = draft.companionTarget !== (current.companionTarget === true);
     if (
       text.mainText !== current.mainText ||
       text.subText !== current.subText ||
@@ -101,7 +101,7 @@ export function planGroupOps(input: {
       updates.push({
         op: "update",
         id: draft.id,
-        text: flagChanged ? { ...text, noCompanion: draft.noCompanion } : text,
+        text: flagChanged ? { ...text, companionTarget: draft.companionTarget } : text,
       });
     }
   }
@@ -146,7 +146,7 @@ export function planGroupOps(input: {
       op: "create",
       key: draft.key,
       position,
-      text: draft.noCompanion ? { ...createText, noCompanion: true } : createText,
+      text: draft.companionTarget ? { ...createText, companionTarget: true } : createText,
     });
   }
 
