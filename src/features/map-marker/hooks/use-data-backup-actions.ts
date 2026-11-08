@@ -7,15 +7,14 @@ import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import {
-  buildDatedBackupFilename,
   type FullBackupTables,
 } from '@/features/map-marker/lib/excel/data-manager/full-backup-schema';
-import { fetchFullBackupTables } from '@/features/map-marker/lib/fetch-full-backup-tables';
+import { downloadFullBackupFile } from '@/features/map-marker/lib/full-backup-file';
+import { runWithSafetyBackup, SafetyBackupError } from '@/features/map-marker/lib/safe-restore';
 import { applyMarkerRolesFromStoredGroupRole } from '@/features/map-marker/lib/address-group';
 import type { MapMode, StagedErpUpload } from '@/features/map-marker/types/marker';
 import type { SiteListBackup } from '@/features/site-lists/types';
 import { SITE_LISTS_QUERY_KEY } from '@/features/site-lists/hooks/use-site-lists';
-import { isSiteListsTableMissing } from '@/features/site-lists/lib/site-list-view';
 
 const INSERT_CHUNK_SIZE = 200;
 const ERP_INSERT_CHUNK_SIZE = 100;
@@ -134,8 +133,6 @@ export function useDataBackupActions() {
    * 전체 스냅샷 백업(Excel 1시트). `yyyymmdd_mapmarker_backup.xlsx` 형식으로 다운로드.
    */
   const exportFullExcel = useCallback(async () => {
-    const MapMarkerExcelManager = (await import('@/features/map-marker/lib/excel/data-manager'))
-      .default;
     if (!supabase) {
       toast({
         variant: 'destructive',
@@ -147,40 +144,18 @@ export function useDataBackupActions() {
     setIsBusy(true);
     try {
       toast({ description: '전체 데이터 조회 중...' });
-      const tables = await fetchFullBackupTables(supabase);
-
-      if (!tables.erp_details.length && !tables.markers.length) {
-        throw new Error('백업할 장비 데이터가 없습니다.');
-      }
-
-      const filename = buildDatedBackupFilename('mapmarker_backup');
-      // 마이그레이션 전이면 목록 없이 백업한다.
-      const siteListApi = await import('@/features/site-lists/api');
-      const siteLists = await siteListApi.fetchSiteListBackup(supabase).catch((error: unknown) => {
-        if (isSiteListsTableMissing(error)) return null;
-        throw error;
-      });
-
-      const result = MapMarkerExcelManager.exportFullBackupToExcel(tables, filename, siteLists) as {
-        headerCount: number;
-        tables: {
-          markers: number;
-          information: number;
-          erp_details: number;
-          battery_markers: number;
-          battery_specs: number;
-        };
-      };
+      const result = await downloadFullBackupFile(supabase, 'mapmarker_backup');
+      if (!result) throw new Error('백업할 장비 데이터가 없습니다.');
 
       const stationCount = result.tables.erp_details || result.tables.markers;
       toast({
         title: '전체 백업 완료',
         description:
-          `${filename} · 열 ${result.headerCount}개 · 국소 ${stationCount}건` +
+          `${result.filename} · 열 ${result.headerCount}개 · 국소 ${stationCount}건` +
           (result.tables.battery_markers || result.tables.battery_specs
             ? ` · 축전지 ${result.tables.battery_markers}/${result.tables.battery_specs}`
             : '') +
-          (siteLists ? ` · 국소 목록 ${siteLists.lists.length}개` : ''),
+          (result.siteListCount !== null ? ` · 국소 목록 ${result.siteListCount}개` : ''),
         duration: 10000,
       });
     } catch (error) {
@@ -211,6 +186,7 @@ export function useDataBackupActions() {
         [
           '전체 데이터를 이 백업 엑셀로 전면 교체합니다.',
           '현재 markers·information·erp_details·battery 데이터는 모두 삭제됩니다.',
+          '(삭제 전에 현재 데이터를 파일로 먼저 내려받습니다.)',
           '(좌표 없이 주소만 있는 장비는 저장하지 않고, 위치 확인 후 등록 대기로 넘깁니다.)',
           '',
           '계속하시겠습니까?',
@@ -268,40 +244,49 @@ export function useDataBackupActions() {
         const batteryMarkers = tables.battery_markers;
         const batterySpecs = tables.battery_specs;
 
-        const { error: clearMarkersError } = await supabase
-          .from('markers')
-          .delete()
-          .neq('id', '');
-        if (clearMarkersError) throw clearMarkersError;
+        // 파일을 받지 못했는데 DB를 지우면 되돌릴 수 없다. 현재 데이터를 먼저 내려받고, 실패하면 중단한다.
+        await runWithSafetyBackup(
+          async () => {
+            toast({ description: '복원 전 현재 데이터를 파일로 내려받는 중...' });
+            await downloadFullBackupFile(supabase, '복원전_mapmarker_backup');
+          },
+          async () => {
+          const { error: clearMarkersError } = await supabase
+            .from('markers')
+            .delete()
+            .neq('id', '');
+          if (clearMarkersError) throw clearMarkersError;
 
-        const { error: clearBatteryError } = await supabase
-          .from('battery_markers')
-          .delete()
-          .neq('id', '');
-        if (clearBatteryError) throw clearBatteryError;
+          const { error: clearBatteryError } = await supabase
+            .from('battery_markers')
+            .delete()
+            .neq('id', '');
+          if (clearBatteryError) throw clearBatteryError;
 
-        for (const batch of chunkArray(stripParentMarkerId(markers), INSERT_CHUNK_SIZE)) {
-          const { error } = await supabase.from('markers').insert(batch);
-          if (error) throw error;
-        }
+          for (const batch of chunkArray(stripParentMarkerId(markers), INSERT_CHUNK_SIZE)) {
+            const { error } = await supabase.from('markers').insert(batch);
+            if (error) throw error;
+          }
 
-        for (const batch of chunkArray(stripIdentityId(information), INSERT_CHUNK_SIZE)) {
-          const { error } = await supabase.from('information').insert(batch);
-          if (error) throw error;
-        }
-        for (const batch of chunkArray(stripIdentityId(erpDetails), ERP_INSERT_CHUNK_SIZE)) {
-          const { error } = await supabase.from('erp_details').insert(batch);
-          if (error) throw error;
-        }
+          for (const batch of chunkArray(stripIdentityId(information), INSERT_CHUNK_SIZE)) {
+            const { error } = await supabase.from('information').insert(batch);
+            if (error) throw error;
+          }
+          for (const batch of chunkArray(stripIdentityId(erpDetails), ERP_INSERT_CHUNK_SIZE)) {
+            const { error } = await supabase.from('erp_details').insert(batch);
+            if (error) throw error;
+          }
 
-        for (const batch of chunkArray(batteryMarkers, INSERT_CHUNK_SIZE)) {
-          const { error } = await supabase.from('battery_markers').insert(batch);
-          if (error) throw error;
-        }
-        for (const batch of chunkArray(stripIdentityId(batterySpecs), INSERT_CHUNK_SIZE)) {
-          const { error } = await supabase.from('battery_specs').insert(batch);
-          if (error) throw error;
-        }
+          for (const batch of chunkArray(batteryMarkers, INSERT_CHUNK_SIZE)) {
+            const { error } = await supabase.from('battery_markers').insert(batch);
+            if (error) throw error;
+          }
+          for (const batch of chunkArray(stripIdentityId(batterySpecs), INSERT_CHUNK_SIZE)) {
+            const { error } = await supabase.from('battery_specs').insert(batch);
+            if (error) throw error;
+          }
+          },
+        );
 
         const regroup = await applyMarkerRolesFromStoredGroupRole(supabase);
 
@@ -357,6 +342,14 @@ export function useDataBackupActions() {
               : ''),
         });
       } catch (error) {
+        if (error instanceof SafetyBackupError) {
+          const reason = error.cause instanceof Error ? ` (${error.cause.message})` : '';
+          toast({
+            variant: 'destructive',
+            description: `복원 전 백업 파일을 만들지 못해 복원을 중단했습니다. 데이터는 바뀌지 않았습니다.${reason}`,
+          });
+          return;
+        }
         const message = error instanceof Error ? error.message : '알 수 없는 오류';
         toast({ variant: 'destructive', description: `전체 복원 실패: ${message}` });
       } finally {
