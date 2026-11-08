@@ -305,6 +305,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
     const crossBlock = crossTeamBlockReason({
       moving,
       crossTeamCount: crossTeamIds.length,
+      copyableCount: entries.filter((draft) => draft.mainText.trim() !== "").length,
       newEntries: entries.filter((draft) => draft.id === null),
     });
     if (crossBlock !== null) {
@@ -340,6 +341,8 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       groupPlan.ops.length === 0 &&
       companionPlan.ops.length === 0 &&
       !(moving && groupSize > 0) &&
+      // 함께 등록할 팀을 골랐으면 목록이 그대로여도 할 일이 있다(이미 있는 국소를 다른 팀에 복사).
+      crossTeamIds.length === 0 &&
       // 저장해 둔 대상 표시와 행 순서가 어긋나 있으면(예전에 표시만 저장한 경우) 정리할 일이 있다.
       planCompanionArrangement(groupOfCell(cells, position)).length === 0 &&
       markColor === mark;
@@ -397,7 +400,8 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         cells,
         workDate: position.workDate,
         targetColumnIds: crossTeamIds.filter((id) => crossTeamOptions.some((column) => column.id === id)),
-        entries: entries.filter((draft) => draft.id === null),
+        // 목록의 국소 전체를 복사한다(이미 있는 국소도 포함). 고른 팀에 같은 국소가 있으면 건너뛴다.
+        entries: entries.filter((draft) => draft.mainText.trim() !== ""),
       });
       for (const created of crossPlan.creates) {
         await createScheduleCell(supabase, created.position, created.text);
@@ -679,8 +683,9 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                   ))}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  이번에 새로 추가한 국소만 고른 팀의 같은 날짜 빈 행에도 기록됩니다(입회·신호수 대상
-                  표시도 같이 복사). 행이 모자라거나 이미 같은 국소가 있는 팀은 건너뛰고 알려 드립니다.
+                  위 목록의 국소 전체(이미 있는 국소 포함)가 고른 팀의 같은 날짜 빈 행에도 기록됩니다(입회·신호수
+                  대상 표시도 같이 복사, 입회·신호수 칸과 시행 결과는 복사하지 않음). 행이 모자라거나 이미 같은
+                  국소가 있는 팀은 건너뛰고 알려 드립니다.
                 </p>
               </fieldset>
             ) : null}

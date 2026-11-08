@@ -92,13 +92,21 @@ describe("crossTeamBlockReason", () => {
   const withText = [entry("가")];
 
   it("함께 등록할 팀을 고르지 않았으면 막을 이유가 없다", () => {
-    expect(crossTeamBlockReason({ moving: true, crossTeamCount: 0, newEntries: [entry("")] })).toBeNull();
+    expect(
+      crossTeamBlockReason({ moving: true, crossTeamCount: 0, copyableCount: 0, newEntries: [entry("")] }),
+    ).toBeNull();
   });
 
   it("날짜·팀을 바꾸는 저장과는 함께 쓸 수 없다", () => {
-    expect(crossTeamBlockReason({ moving: true, crossTeamCount: 1, newEntries: withText })).toContain(
-      "날짜",
-    );
+    expect(
+      crossTeamBlockReason({ moving: true, crossTeamCount: 1, copyableCount: 1, newEntries: withText }),
+    ).toContain("날짜");
+  });
+
+  it("팀을 골랐는데 복사할 국소가 목록에 하나도 없으면 안내한다(아무것도 안 들어갔는데 저장된 것처럼 보이지 않게)", () => {
+    expect(
+      crossTeamBlockReason({ moving: false, crossTeamCount: 3, copyableCount: 0, newEntries: [] }),
+    ).toContain("목록");
   });
 
   it("새 항목에 국소·작업 글이 없으면 함께 등록할 수 없다(메모만 있는 항목이 조용히 빠지지 않게)", () => {
@@ -106,12 +114,15 @@ describe("crossTeamBlockReason", () => {
       crossTeamBlockReason({
         moving: false,
         crossTeamCount: 1,
+        copyableCount: 1,
         newEntries: [{ ...entry(""), subText: "메모만" }],
       }),
     ).toContain("국소");
   });
 
   it("조건이 맞으면 null이다", () => {
-    expect(crossTeamBlockReason({ moving: false, crossTeamCount: 2, newEntries: withText })).toBeNull();
+    expect(
+      crossTeamBlockReason({ moving: false, crossTeamCount: 2, copyableCount: 1, newEntries: withText }),
+    ).toBeNull();
   });
 });

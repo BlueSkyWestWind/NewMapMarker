@@ -89,11 +89,15 @@ export function planCrossTeamCreate(input: {
 /**
  * 함께 등록을 쓸 수 없는 경우의 안내 문구. 쓸 수 있으면 null.
  * - 날짜·팀을 바꾸는 저장과 섞이면 계획한 자리와 옮긴 자리가 어긋난다.
+ * - 복사할 국소가 하나도 없으면 아무것도 안 들어갔는데 저장된 것처럼 보이므로 알려 준다.
  * - 국소·작업 글이 없는 새 항목(메모만 있는 항목)은 다른 팀에 만들 수 없는데 조용히 빠지면 안 된다.
  */
 export function crossTeamBlockReason(input: {
   moving: boolean;
   crossTeamCount: number;
+  /** 목록에서 복사할 수 있는(국소·작업 글이 있는) 항목 수. 이미 있는 항목도 센다 */
+  copyableCount: number;
+  /** 이번에 새로 추가한 항목 */
   newEntries: CrossTeamEntry[];
 }): string | null {
   if (input.crossTeamCount === 0) return null;
@@ -102,6 +106,9 @@ export function crossTeamBlockReason(input: {
   }
   if (input.newEntries.some((entry) => entry.mainText.trim() === "")) {
     return "함께 등록하려면 새 항목마다 국소·작업 글을 입력해 주세요.";
+  }
+  if (input.copyableCount === 0) {
+    return "함께 등록할 국소가 목록에 없습니다. 국소를 추가하거나 팀 선택을 풀어 주세요.";
   }
   return null;
 }
