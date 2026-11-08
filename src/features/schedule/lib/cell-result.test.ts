@@ -105,3 +105,27 @@ describe("resultSummary", () => {
     );
   });
 });
+
+describe("planReschedule 입회·신호수 불필요", () => {
+  const source: ScheduleCell = {
+    id: "s1",
+    workDate: "2026-11-09",
+    columnId: "col1",
+    rowNo: 0,
+    mainText: "국동신월",
+    subText: "",
+    textColor: null,
+    noCompanion: true,
+  };
+
+  it("불필요로 표시한 칸을 복사하면 표시도 함께 복사한다", () => {
+    const plan = planReschedule([], source, "2026-11-12");
+    expect(plan).toMatchObject({ text: { mainText: "국동신월", noCompanion: true } });
+  });
+
+  it("표시가 없는 칸은 noCompanion 키를 싣지 않는다(컬럼 없는 DB에서도 복사된다)", () => {
+    const plan = planReschedule([], { ...source, noCompanion: false }, "2026-11-12");
+    const text = "text" in plan ? plan.text : null;
+    expect(text !== null && "noCompanion" in text).toBe(false);
+  });
+});

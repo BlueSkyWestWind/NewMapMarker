@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_ROWS } from "./cell-grid";
-import { planCrossTeamCreate } from "./cross-team";
+import { crossTeamBlockReason, planCrossTeamCreate } from "./cross-team";
 import type { ScheduleCell } from "@/features/schedule/types";
 
 const D = "2026-11-09";
@@ -85,5 +85,33 @@ describe("planCrossTeamCreate", () => {
       entries: [entry("가")],
     });
     expect(plan.creates[0].position.rowNo).toBe(0);
+  });
+});
+
+describe("crossTeamBlockReason", () => {
+  const withText = [entry("가")];
+
+  it("함께 등록할 팀을 고르지 않았으면 막을 이유가 없다", () => {
+    expect(crossTeamBlockReason({ moving: true, crossTeamCount: 0, newEntries: [entry("")] })).toBeNull();
+  });
+
+  it("날짜·팀을 바꾸는 저장과는 함께 쓸 수 없다", () => {
+    expect(crossTeamBlockReason({ moving: true, crossTeamCount: 1, newEntries: withText })).toContain(
+      "날짜",
+    );
+  });
+
+  it("새 항목에 국소·작업 글이 없으면 함께 등록할 수 없다(메모만 있는 항목이 조용히 빠지지 않게)", () => {
+    expect(
+      crossTeamBlockReason({
+        moving: false,
+        crossTeamCount: 1,
+        newEntries: [{ ...entry(""), subText: "메모만" }],
+      }),
+    ).toContain("국소");
+  });
+
+  it("조건이 맞으면 null이다", () => {
+    expect(crossTeamBlockReason({ moving: false, crossTeamCount: 2, newEntries: withText })).toBeNull();
   });
 });

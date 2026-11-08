@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
-import { applyScheduleImport, createScheduleCell, fetchScheduleCells } from "./api";
+import {
+  applyScheduleImport,
+  createScheduleCell,
+  fetchScheduleCells,
+  isNoCompanionSupported,
+} from "./api";
 import type { ImportPlan } from "./lib/schedule-excel";
 
 const PLAN: ImportPlan = {
@@ -145,5 +150,28 @@ describe("no_companion 컬럼", () => {
     const { client, payloads } = insertClient();
     await createScheduleCell(client, position, { ...text, noCompanion: true });
     expect(payloads[0].no_companion).toBe(true);
+  });
+});
+
+describe("isNoCompanionSupported", () => {
+  const probeClient = (error: unknown) =>
+    ({
+      from: () => ({
+        select: () => ({ limit: async () => ({ data: [], error }) }),
+      }),
+    }) as unknown as SupabaseBrowserClient;
+
+  it("컬럼이 있으면 true다", async () => {
+    await expect(isNoCompanionSupported(probeClient(null))).resolves.toBe(true);
+  });
+
+  it("컬럼이 없다는 오류면 false다(저장 전에 마이그레이션 안내를 하려고)", async () => {
+    const error = { message: "column schedule_cells.no_companion does not exist" };
+    await expect(isNoCompanionSupported(probeClient(error))).resolves.toBe(false);
+  });
+
+  it("다른 오류는 그대로 던진다", async () => {
+    const error = { message: "network" };
+    await expect(isNoCompanionSupported(probeClient(error))).rejects.toBe(error);
   });
 });

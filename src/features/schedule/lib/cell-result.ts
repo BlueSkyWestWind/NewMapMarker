@@ -71,6 +71,8 @@ export function planReschedule(
       mainText: source.mainText,
       subText: source.subText,
       textColor: source.textColor,
+      // 입회·신호수 불필요 표시도 복사한다. 표시가 있을 때만 싣는다(컬럼 없는 DB에서도 복사되도록).
+      ...(source.noCompanion ? { noCompanion: true } : {}),
     },
   };
 }

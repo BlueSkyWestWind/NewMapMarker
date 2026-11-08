@@ -202,6 +202,17 @@ export async function fetchScheduleRange(
   return { columns, cells, dayNotes, marks };
 }
 
+/**
+ * `no_companion` 컬럼이 있는지 확인한다. 마이그레이션 전에 표시를 저장하면 앞선 지움·수정만
+ * 반영된 채 실패하므로, 표시를 저장하기 전에 먼저 알아본다. 다른 오류는 그대로 던진다.
+ */
+export async function isNoCompanionSupported(supabase: SupabaseBrowserClient): Promise<boolean> {
+  const { error } = await supabase.from("schedule_cells").select("no_companion").limit(1);
+  if (!error) return true;
+  if (isNoCompanionColumnMissing(error)) return false;
+  throw error;
+}
+
 export async function createScheduleCell(
   supabase: SupabaseBrowserClient,
   position: CellPosition,

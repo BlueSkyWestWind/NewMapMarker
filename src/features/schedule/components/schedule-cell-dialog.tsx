@@ -18,6 +18,7 @@ import {
   createScheduleCell,
   deleteScheduleCell,
   fetchScheduleCells,
+  isNoCompanionSupported,
   moveScheduleCell,
   setScheduleMark,
   updateScheduleCellText,
@@ -32,7 +33,7 @@ import {
 import { groupOfCell, MAX_ROWS } from "@/features/schedule/lib/cell-grid";
 import { useStationOptions } from "@/features/schedule/hooks/use-station-options";
 import { SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX } from "@/features/shell/constants";
-import { planCrossTeamCreate } from "@/features/schedule/lib/cross-team";
+import { crossTeamBlockReason, planCrossTeamCreate } from "@/features/schedule/lib/cross-team";
 import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
 import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
 import { pickStation, startPickSession, type PickSession } from "@/features/schedule/lib/station-pick";
@@ -299,6 +300,16 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       );
       return;
     }
+    const moving = workDate !== position.workDate || columnId !== position.columnId;
+    const crossBlock = crossTeamBlockReason({
+      moving,
+      crossTeamCount: crossTeamIds.length,
+      newEntries: entries.filter((draft) => draft.id === null),
+    });
+    if (crossBlock !== null) {
+      setNotice(crossBlock);
+      return;
+    }
     const lastRow = Math.max(position.rowNo, ...entries.map((draft) => draft.rowNo ?? -1));
     const companionPlan = planCompanionOps({
       cells,
@@ -316,7 +327,6 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
 
     // 날짜·팀을 바꾸면 이 날짜·팀의 일정 전체(입회·신호수 포함)가 한 묶음으로 옮겨진다.
     // 저장하면서 지워지는 칸은 빼고, 새로 만드는 칸은 더한다.
-    const moving = workDate !== position.workDate || columnId !== position.columnId;
     const deletedIds = new Set<string>();
     let createdCount = 0;
     for (const op of [...groupPlan.ops, ...companionPlan.ops]) {
@@ -341,6 +351,16 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
 
     setIsSaving(true);
     try {
+      // 마이그레이션 전이면 표시를 저장할 수 없다. 앞선 지움·수정이 반영되기 전에 먼저 알린다.
+      const usesFlag = groupPlan.ops.some(
+        (op) => op.op !== "delete" && op.text.noCompanion !== undefined,
+      );
+      if (usesFlag && !(await isNoCompanionSupported(supabase))) {
+        setNotice(
+          "입회·신호수 불필요 표시를 저장하려면 DB 마이그레이션(20261114000000_schedule_cells_no_companion.sql)을 먼저 적용해 주세요. 아무것도 저장하지 않았습니다.",
+        );
+        return;
+      }
       if (moving && groupSize > 0) {
         // 도착 날짜는 보고 있는 기간 밖일 수 있어 따로 불러와, 행이 모자라면 아무것도 저장하지 않는다.
         const destination = await fetchScheduleCells(supabase, workDate, workDate);
@@ -410,6 +430,8 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         variant: "destructive",
       });
       onSaved(); // 일부만 저장됐을 수 있으니 화면을 새로 고친다.
+      // 창을 열어 둔 채 다시 저장하면 이미 만든 항목을 한 번 더 만든다. 닫고 새로 열어 고치게 한다.
+      onClose();
     } finally {
       setIsSaving(false);
     }
