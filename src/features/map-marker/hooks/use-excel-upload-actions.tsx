@@ -10,6 +10,7 @@ import {
 } from "@/features/map-marker/constants/facility-teams";
 import { MAP_MARKER_QUERY_KEY } from "@/features/map-marker/constants/map-config";
 import { fetchAllRows } from "@/features/map-marker/api";
+import { savePendingBattery, savePendingEquipment } from "@/features/map-marker/lib/save-pending";
 import type { ExistingMarkerRef } from "@/features/map-marker/lib/erp-classify";
 import {
   geocodeAddressQueue,
@@ -865,11 +866,6 @@ export function useExcelUploadActions() {
             created_at: new Date().toISOString(),
           }));
 
-          const { error } = await supabase!
-            .from("battery_markers")
-            .insert(bulkMarkers);
-          if (error) throw error;
-
           const bulkSpecs = batteryPending.flatMap((marker) => {
             const specItems =
               Array.isArray(marker.items) && marker.items.length > 0
@@ -897,12 +893,8 @@ export function useExcelUploadActions() {
             }));
           });
 
-          if (bulkSpecs.length > 0) {
-            const { error: specsError } = await supabase!
-              .from("battery_specs")
-              .insert(bulkSpecs);
-            if (specsError) throw specsError;
-          }
+          // 청크로 나눠 저장하고, 중간 실패 뒤 재시도해도 중복이 생기지 않는다.
+          await savePendingBattery(supabase!, { markers: bulkMarkers, specs: bulkSpecs });
         } else {
           const equipmentPending = pendingMarkers as EquipmentMarker[];
           const bulkMarkers = equipmentPending.map((marker) => ({
@@ -919,11 +911,6 @@ export function useExcelUploadActions() {
             jibun_address: marker.jibunAddress ?? "",
             created_at: new Date().toISOString(),
           }));
-
-          const { error: markerError } = await supabase!
-            .from("markers")
-            .insert(bulkMarkers);
-          if (markerError) throw markerError;
 
           const bulkInfo = equipmentPending
             .filter((marker) => marker.facilityCode)
@@ -945,12 +932,7 @@ export function useExcelUploadActions() {
               ),
             }));
 
-          if (bulkInfo.length > 0) {
-            const { error: infoError } = await supabase!
-              .from("information")
-              .upsert(bulkInfo);
-            if (infoError) throw infoError;
-          }
+          await savePendingEquipment(supabase!, { markers: bulkMarkers, info: bulkInfo });
         }
 
         clearPendingMarkers(mode);

@@ -9,6 +9,7 @@ import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-st
 import {
   type FullBackupTables,
 } from '@/features/map-marker/lib/excel/data-manager/full-backup-schema';
+import { chunkArray } from '@/features/map-marker/lib/chunk';
 import { downloadFullBackupFile } from '@/features/map-marker/lib/full-backup-file';
 import { runWithSafetyBackup, SafetyBackupError } from '@/features/map-marker/lib/safe-restore';
 import { applyMarkerRolesFromStoredGroupRole } from '@/features/map-marker/lib/address-group';
@@ -23,14 +24,6 @@ function resetFileInput(input: HTMLInputElement | null) {
   if (input) {
     input.value = '';
   }
-}
-
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    out.push(arr.slice(i, i + size));
-  }
-  return out;
 }
 
 function stripIdentityId(rows: Record<string, unknown>[]) {
