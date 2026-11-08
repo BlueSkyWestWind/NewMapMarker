@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { guardProxyRequest } from "@/lib/api/proxy-guard";
+import { fetchAllowedTile, isAllowedTileHost, TileFetchError } from "@/lib/api/tile-fetch";
 
 /**
- * 카카오/다음 지도 타일만 프록시한다. (SSRF 방지)
+ * 카카오/다음 지도 타일만 프록시한다. (SSRF 방지 — 호스트 검사와 리다이렉트 추적은 `tile-fetch`)
  * Static Map API가 비활성인 앱에서도 격자 캡처가 가능하도록 한다.
  */
-function isAllowedTileHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  return (
-    host === "daumcdn.net" ||
-    host.endsWith(".daumcdn.net") ||
-    host === "kakaocdn.net" ||
-    host.endsWith(".kakaocdn.net") ||
-    host === "kakao.com" ||
-    host.endsWith(".kakao.com") ||
-    host === "daum.net" ||
-    host.endsWith(".daum.net")
-  );
-}
-
 export async function GET(request: NextRequest) {
   const blocked = await guardProxyRequest(request);
   if (blocked) return blocked;
@@ -53,15 +40,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await fetch(target.toString(), {
-      signal: AbortSignal.timeout(12000),
-      cache: "force-cache",
-      headers: {
-        // 일부 CDN이 빈 UA를 거절하는 경우 대비
-        "User-Agent": "Mozilla/5.0 MapCaptureProxy",
-        Referer: "https://map.kakao.com/",
-      },
-    });
+    const response = await fetchAllowedTile(target);
 
     if (!response.ok) {
       return NextResponse.json(
@@ -89,7 +68,10 @@ export async function GET(request: NextRequest) {
         "Cache-Control": "private, max-age=300",
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof TileFetchError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     return NextResponse.json(
       { error: "지도 타일 프록시 중 오류가 발생했습니다." },
       { status: 504 },
