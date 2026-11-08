@@ -491,15 +491,35 @@ export function KakaoMapCanvas({
     const container = mapRef.current;
     if (!mapInstance || !container || typeof ResizeObserver === "undefined") return;
 
+    let frame = 0;
+    // 마지막으로 맞춘 크기. 숨겨져 0이 되면 0으로 기록해, 같은 크기로 다시 보일 때도 맞춘다.
+    let lastWidth = 0;
+    let lastHeight = 0;
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
-      if (!rect || rect.width === 0 || rect.height === 0) return;
-      const center = mapInstance.getCenter();
-      mapInstance.relayout();
-      mapInstance.setCenter(center);
+      if (!rect) return;
+      if (rect.width === 0 || rect.height === 0) {
+        lastWidth = 0;
+        lastHeight = 0;
+        return;
+      }
+      // 연속 변화는 프레임당 한 번만 처리한다. 크기가 그대로면 건너뛴다.
+      if (rect.width === lastWidth && rect.height === lastHeight) return;
+      lastWidth = rect.width;
+      lastHeight = rect.height;
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const center = mapInstance.getCenter();
+        mapInstance.relayout();
+        mapInstance.setCenter(center);
+      });
     });
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+    };
   }, [mapInstance]);
 
   useEffect(() => {
@@ -543,12 +563,17 @@ export function KakaoMapCanvas({
         cached.kakaoMarkers.forEach((marker) => marker.setMap(map));
       }
     } else {
+      const presentIds = new Set(markers.map((marker) => marker.id));
       const visibleMarkers = markers.filter((marker) => {
-        // 같은 번지 SUB는 기본 숨김. 단 "개별 표시 해제(detachedVisible)"된 것만 노출.
+        // 같은 번지 SUB는 모든 모드(그룹관리·위치 포함)에서 숨기고 대표만 올린다.
+        // 단 "개별 표시(detachedVisible)"로 지정한 것, 그리고 대표가 이 목록에 없는 SUB는
+        // 숨기면 지도에서 사라지므로 노출한다. 대시보드(날씨)·축전지는 기존대로.
+        const equipment = marker as EquipmentMarker;
         if (
-          mode === "equipment" &&
-          isEquipmentSubMarker(marker as EquipmentMarker) &&
-          !(marker as EquipmentMarker).detachedVisible
+          (mode === "equipment" || mode === "location") &&
+          isEquipmentSubMarker(equipment) &&
+          !equipment.detachedVisible &&
+          presentIds.has(equipment.parentMarkerId ?? "")
         ) {
           return false;
         }
