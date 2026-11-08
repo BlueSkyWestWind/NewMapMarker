@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import { MultiDatePicker } from "@/components/ui/multi-date-picker";
 import {
   Dialog,
   DialogContent,
@@ -41,8 +42,9 @@ import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
 import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
 import { pickStation, startPickSession, type PickSession } from "@/features/schedule/lib/station-pick";
 import { searchStations } from "@/features/schedule/lib/station-search";
-import { expandPeriodDates, MAX_PERIOD_DAYS, planPeriodCreate, type PeriodPlan } from "@/features/schedule/lib/period";
-import { addDays, isValidIso, weekdayLabel } from "@/features/schedule/lib/week";
+import { MAX_WORK_DATES, planWorkDatesCreate, type WorkDatesPlan } from "@/features/schedule/lib/period";
+import { holidayName } from "@/features/schedule/lib/holidays";
+import { isValidIso, weekdayLabel } from "@/features/schedule/lib/week";
 import {
   MARK_COLORS,
   markLabel,
@@ -202,17 +204,23 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   );
   const toggleCrossTeam = (id: string) =>
     setCrossTeamIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
-  // 국소별 종료일(draft.key → 종료일). 저장하지 않고, 저장할 때 날짜마다 칸을 만드는 데만 쓴다.
-  const [endDates, setEndDates] = useState<Record<string, string>>({});
-  // 기간 등록은 토·일·공휴일을 빼는 것이 기본이고, 특이한 경우에만 포함한다.
-  const [includeOffDays, setIncludeOffDays] = useState(false);
-  const setEndDate = (key: string, value: string) =>
-    setEndDates((prev) => {
-      const next = { ...prev };
-      if (value === "") delete next[key];
-      else next[key] = value;
-      return next;
+  // 작업일자. 지금 창의 날짜는 항상 저장되므로 여기에는 그 밖에 직접 고른 날짜만 들어 있다.
+  // 저장하지 않고, 저장할 때 그 날짜마다 칸을 만드는 데만 쓴다.
+  //  - commonDates: 목록의 모든 국소에 적용한다.
+  //  - workDates: 국소(draft.key)별 예외. 날짜를 고른 줄은 공통 대신 이 날짜만 쓴다.
+  const [commonDates, setCommonDates] = useState<string[]>([]);
+  const [workDates, setWorkDates] = useState<Record<string, string[]>>({});
+  const setRowDates = (key: string, next: string[]) =>
+    setWorkDates((prev) => {
+      const copy = { ...prev };
+      if (next.length === 0) delete copy[key];
+      else copy[key] = next;
+      return copy;
     });
+  /** 그 국소가 쓸 작업일자: 줄에서 따로 골랐으면 그것, 아니면 공통 작업일자. */
+  const datesOf = (key: string): string[] =>
+    (workDates[key]?.length ?? 0) > 0 ? (workDates[key] ?? []) : commonDates;
+  const describeDate = (iso: string) => `(${weekdayLabel(iso)})${holidayName(iso) ? " 공휴일" : ""}`;
 
   const updateDraft = (key: string, patch: Partial<EntryDraft>) =>
     setDrafts((prev) => prev.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -262,7 +270,11 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   };
   const removeDraft = (key: string) => {
     setDrafts((prev) => prev.filter((draft) => draft.key !== key));
-    setEndDate(key, "");
+    setWorkDates((prev) => {
+      const copy = { ...prev };
+      delete copy[key];
+      return copy;
+    });
   };
   const addDraft = (mainText: string) => {
     newKeyCounter.current += 1;
@@ -282,7 +294,8 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   /** 이 팀·날짜의 일정과 입회·신호수를 한꺼번에 목록에서 뺀다. 저장하면 삭제된다(취소하면 그대로). */
   const clearAll = () => {
     setDrafts([]);
-    setEndDates({});
+    setWorkDates({});
+    setCommonDates([]);
     setCompanions({ 입회: { enabled: false, names: "" }, 신호수: { enabled: false, names: "" } });
   };
   const setCompanion = (kind: CompanionKind, patch: Partial<CompanionFields[CompanionKind]>) =>
@@ -321,47 +334,13 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       setNotice(crossBlock);
       return;
     }
-    // 기간 등록: 아무것도 저장하기 전에 종료일을 검사한다.
+    // 작업일자: 고른 날짜가 있는 국소(국소 글이 있는 줄만). 날짜는 입력할 때 검사해 두었다.
     const periodDrafts = entries.filter(
-      (draft) => draft.mainText.trim() !== "" && (endDates[draft.key] ?? "") !== "",
+      (draft) => draft.mainText.trim() !== "" && datesOf(draft.key).length > 0,
     );
-    if (periodDrafts.length > 0) {
-      if (moving) {
-        setNotice("날짜나 팀을 바꾸는 저장에서는 기간 등록을 쓸 수 없습니다. 종료일을 비우거나 날짜·팀을 되돌려 주세요.");
-        return;
-      }
-      for (const draft of periodDrafts) {
-        const check = expandPeriodDates({
-          startIso: position.workDate,
-          endIso: endDates[draft.key],
-          includeOffDays,
-        });
-        if ("error" in check) {
-          setNotice(
-            check.error === "reversed"
-              ? "종료일이 이 날짜보다 이릅니다. 종료일을 확인해 주세요."
-              : check.error === "too-long"
-                ? `기간은 시작일로부터 ${MAX_PERIOD_DAYS}일까지만 등록할 수 있습니다.`
-                : "종료일 형식이 올바르지 않습니다.",
-          );
-          return;
-        }
-      }
-      // 같은 날이거나 사이가 주말·공휴일뿐이라 만들 날짜가 하나도 없으면 아무 일도 하지 않는다.
-      const hasAnyDate = periodDrafts.some((draft) => {
-        const check = expandPeriodDates({
-          startIso: position.workDate,
-          endIso: endDates[draft.key],
-          includeOffDays,
-        });
-        return "dates" in check && check.dates.length > 0;
-      });
-      if (!hasAnyDate) {
-        setNotice(
-          "종료일까지 만들 날짜가 없습니다(같은 날이거나 토·일·공휴일뿐입니다). 종료일을 바꾸거나 '토·일·공휴일도 포함'을 켜 주세요.",
-        );
-        return;
-      }
+    if (periodDrafts.length > 0 && moving) {
+      setNotice("날짜나 팀을 바꾸는 저장에서는 작업일자를 쓸 수 없습니다. 작업일자를 비우거나 날짜·팀을 되돌려 주세요.");
+      return;
     }
     const lastRow = Math.max(position.rowNo, ...entries.map((draft) => draft.rowNo ?? -1));
     const companionPlan = planCompanionOps({
@@ -423,16 +402,13 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         );
         return;
       }
-      // 기간 등록 계획은 읽기만 하므로 첫 쓰기 전에 세운다. 조회가 실패해도 아무것도 저장되지 않는다.
-      // 그 날짜들의 칸은 보고 있는 기간 밖일 수 있어 따로 불러온다.
-      let periodPlan: PeriodPlan | null = null;
+      // 작업일자 계획은 읽기만 하므로 첫 쓰기 전에 세운다. 조회가 실패해도 아무것도 저장되지 않는다.
+      // 고른 날짜들의 칸은 보고 있는 기간 밖일 수 있어 가장 이른 날짜부터 늦은 날짜까지 한 번에 불러온다.
+      let periodPlan: WorkDatesPlan | null = null;
       if (periodDrafts.length > 0) {
-        const maxEnd = periodDrafts.reduce(
-          (max, draft) => (endDates[draft.key] > max ? endDates[draft.key] : max),
-          "",
-        );
-        const later = await fetchScheduleCells(supabase, addDays(position.workDate, 1), maxEnd);
-        const planned = planPeriodCreate({
+        const picked = periodDrafts.flatMap((draft) => datesOf(draft.key)).sort();
+        const later = await fetchScheduleCells(supabase, picked[0], picked[picked.length - 1]);
+        const planned = planWorkDatesCreate({
           cells: later,
           startIso: position.workDate,
           targetColumnIds: [
@@ -444,13 +420,12 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             subText: draft.subText,
             textColor: draft.textColor,
             companionTarget: draft.companionTarget,
-            endIso: endDates[draft.key],
+            dates: datesOf(draft.key),
           })),
           companions: copyCompanions,
-          includeOffDays,
         });
         if ("error" in planned) {
-          setNotice("기간 등록 날짜를 계산하지 못했습니다. 아무것도 저장하지 않았습니다.");
+          setNotice("작업일자를 계산하지 못했습니다. 아무것도 저장하지 않았습니다.");
           return;
         }
         periodPlan = planned;
@@ -496,7 +471,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       for (const created of crossPlan.creates) {
         await createScheduleCell(supabase, created.position, created.text);
       }
-      // 기간 등록: 앞에서 세운 계획대로 날짜마다 칸을 만든다. 이미 있는 날은 계획에서 건너뛰었다.
+      // 작업일자: 앞에서 세운 계획대로 고른 날짜마다 칸을 만든다. 이미 있는 날은 계획에서 건너뛰었다.
       if (periodPlan !== null) {
         for (const created of periodPlan.creates) {
           await createScheduleCell(supabase, created.position, created.text);
@@ -538,7 +513,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
           arrangeError = error instanceof Error ? error.message : String(error);
         }
       }
-      // 기간 등록으로 대상 표시가 복사된 (날짜, 팀)도 같은 순서로 정리한다.
+      // 작업일자로 대상 표시가 복사된 (날짜, 팀)도 같은 순서로 정리한다.
       if (
         periodPlan !== null &&
         periodPlan.dates.length > 0 &&
@@ -583,12 +558,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         periodPlan === null
           ? null
           : [
-              `기간 등록: ${periodPlan.dates.length}일 · 칸 ${periodPlan.creates.length}개`,
-              periodPlan.skippedDates.length === 0
-                ? null
-                : `제외한 날짜 ${periodPlan.skippedDates
-                    .map((item) => `${dateLabel(item.date)}(${item.reason === "weekend" ? "주말" : "공휴일"})`)
-                    .join(", ")}`,
+              `작업일자 등록: ${periodPlan.dates.length}일 · 칸 ${periodPlan.creates.length}개`,
               periodPlan.skipped.length === 0
                 ? null
                 : `건너뜀 ${periodPlan.skipped
@@ -791,25 +761,22 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                   ) : null}
                   </div>
                   {canEdit ? (
-                    <div className="ml-7 flex items-center gap-2 text-[11px] text-slate-400">
-                      <span className="whitespace-nowrap">종료일</span>
-                      <DatePicker
-                        value={endDates[draft.key] ?? ""}
+                    <div className="ml-7 flex flex-wrap items-start gap-2 text-[11px] text-slate-400">
+                      <span className="whitespace-nowrap pt-2">이 국소만 다른 작업일자</span>
+                      <MultiDatePicker
+                        value={workDates[draft.key] ?? []}
+                        lockedIso={position.workDate}
+                        max={MAX_WORK_DATES}
                         disabled={disabled}
-                        ariaLabel="이 국소를 등록할 기간의 종료일"
-                        placeholder="비우면 이 날짜 하루만"
-                        onChange={(next) => setEndDate(draft.key, isValidIso(next) ? next : "")}
-                        className={cn(FIELD_CLASS, "w-44")}
+                        ariaLabel="이 국소만 다른 작업일자 선택"
+                        placeholder="날짜 선택"
+                        describeDate={describeDate}
+                        onChange={(next) => setRowDates(draft.key, next)}
                       />
-                      {endDates[draft.key] ? (
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          className="whitespace-nowrap text-slate-400 underline hover:text-slate-200 disabled:opacity-50"
-                          onClick={() => setEndDate(draft.key, "")}
-                        >
-                          기간 지우기
-                        </button>
+                      {(workDates[draft.key]?.length ?? 0) === 0 ? (
+                        <span className="pt-2">
+                          {commonDates.length > 0 ? "비우면 위 공통 작업일자를 따릅니다" : "비우면 공통 작업일자(없으면 이 날짜 하루만)"}
+                        </span>
                       ) : null}
                     </div>
                   ) : null}
@@ -834,6 +801,26 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             </div>
           )}
         </div>
+
+        {canEdit ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-slate-300">작업일자 (모든 국소)</span>
+            <MultiDatePicker
+              value={commonDates}
+              lockedIso={position.workDate}
+              max={MAX_WORK_DATES}
+              disabled={disabled}
+              ariaLabel="모든 국소의 작업일자 선택"
+              placeholder="작업할 날짜 선택"
+              describeDate={describeDate}
+              onChange={setCommonDates}
+            />
+            <p className="text-[11px] text-slate-400">
+              {position.workDate}(회색)은 항상 저장되고, 여기서 고른 날짜는 위 목록의 모든 국소에 더해 만들어집니다.
+              국소마다 다르게 하려면 그 줄의 &quot;이 국소만 다른 작업일자&quot;에서 따로 고르세요.
+            </p>
+          </div>
+        ) : null}
 
         {canEdit ? (
           <div className="flex flex-col gap-1">
@@ -873,18 +860,9 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                 </p>
               </fieldset>
             ) : null}
-            <label className="mt-1 flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={includeOffDays}
-                disabled={disabled}
-                onChange={(event) => setIncludeOffDays(event.target.checked)}
-              />
-              기간 등록에 토·일·공휴일도 포함
-            </label>
             <p className="text-[11px] text-slate-400">
-              국소 줄의 종료일을 정하면 이 날짜 다음 날부터 종료일까지 날짜마다 같은 팀(과 함께 등록할 팀)에
-              만들어집니다. 기본은 토·일·공휴일을 빼고, 이미 있는 날은 건너뜁니다(최대 31일).
+              작업일자를 고르면 이 날짜에 더해 고른 날짜마다 같은 팀(과 함께 등록할 팀)에 만들어집니다.
+              토·일·공휴일도 직접 고르면 만들고, 이미 있는 날은 건너뜁니다(국소마다 최대 31일).
             </p>
           </div>
         ) : null}
