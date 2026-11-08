@@ -4,7 +4,10 @@ import { toDbTimestamp, toKstLocal, type Freeze, type FreezeInput } from "@/feat
 import { addDays } from "@/features/schedule/lib/week";
 import type { ImportPlan } from "@/features/schedule/lib/schedule-excel";
 import { likePattern } from "@/features/schedule/lib/search-cells";
-import { isResultColumnMissing } from "@/features/schedule/lib/table-missing";
+import {
+  isNoCompanionColumnMissing,
+  isResultColumnMissing,
+} from "@/features/schedule/lib/table-missing";
 import {
   isMarkColor,
   isResultStatus,
@@ -56,12 +59,14 @@ function toCell(row: Row): ScheduleCell {
     mainText: String(row.main_text ?? ""),
     subText: String(row.sub_text ?? ""),
     textColor: isTextColor(row.text_color) ? row.text_color : null,
+    noCompanion: row.no_companion === true,
     result: toResult(row),
   };
 }
 
 const CELL_COLUMNS = "id, work_date, column_id, row_no, main_text, sub_text, text_color";
 const RESULT_COLUMNS = "result_status, result_reason, rescheduled_to";
+const COMPANION_COLUMNS = "no_companion";
 
 export async function fetchScheduleColumns(
   supabase: SupabaseBrowserClient,
@@ -91,12 +96,22 @@ export async function fetchScheduleCells(
         .order("row_no")
         .range(from, to) as unknown as PromiseLike<FetchPageResult<Row>>,
     );
-  try {
-    return (await fetchRows(`${CELL_COLUMNS}, ${RESULT_COLUMNS}`)).map(toCell);
-  } catch (error) {
-    // 시행 결과 마이그레이션 전이면 결과 없이 일정표를 그대로 보여 준다.
-    if (!isResultColumnMissing(error)) throw error;
-    return (await fetchRows(CELL_COLUMNS)).map(toCell);
+  // 마이그레이션 전이어도 일정표는 그대로 보여 준다. 없는 열을 하나씩 빼며 다시 읽는다.
+  let withResult = true;
+  let withCompanion = true;
+  for (;;) {
+    const columns = [
+      CELL_COLUMNS,
+      ...(withResult ? [RESULT_COLUMNS] : []),
+      ...(withCompanion ? [COMPANION_COLUMNS] : []),
+    ].join(", ");
+    try {
+      return (await fetchRows(columns)).map(toCell);
+    } catch (error) {
+      if (withCompanion && isNoCompanionColumnMissing(error)) withCompanion = false;
+      else if (withResult && isResultColumnMissing(error)) withResult = false;
+      else throw error;
+    }
   }
 }
 
@@ -201,6 +216,7 @@ export async function createScheduleCell(
     main_text: text.mainText,
     sub_text: text.subText,
     text_color: text.textColor,
+    ...(text.noCompanion !== undefined ? { no_companion: text.noCompanion } : {}),
     })
     .select("id")
     .single();
@@ -219,6 +235,7 @@ export async function updateScheduleCellText(
       main_text: text.mainText,
       sub_text: text.subText,
       text_color: text.textColor,
+      ...(text.noCompanion !== undefined ? { no_companion: text.noCompanion } : {}),
     })
     .eq("id", id);
   if (error) throw error;

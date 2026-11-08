@@ -21,3 +21,14 @@ export function isResultColumnMissing(error: unknown): boolean {
   if (typeof message !== "string") return false;
   return /result_status|result_reason|rescheduled_to/.test(message) && /does not exist|Could not find/i.test(message);
 }
+
+/**
+ * 입회·신호수 불필요 컬럼(`no_companion`)이 아직 없는지(마이그레이션 전인지) 판별한다.
+ * 다른 컬럼의 오류와 섞이지 않게 메시지에 컬럼 이름이 있어야 한다.
+ */
+export function isNoCompanionColumnMissing(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { message } = error as { message?: unknown };
+  if (typeof message !== "string") return false;
+  return /no_companion/.test(message) && /does not exist|Could not find/i.test(message);
+}
