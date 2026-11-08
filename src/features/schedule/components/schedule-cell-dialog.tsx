@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import {
   createScheduleCell,
@@ -32,14 +31,18 @@ import {
 } from "@/features/schedule/lib/companions";
 import { groupOfCell, MAX_ROWS } from "@/features/schedule/lib/cell-grid";
 import { useStationOptions } from "@/features/schedule/hooks/use-station-options";
-import { SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX } from "@/features/shell/constants";
+import {
+  SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX,
+  SCHEDULE_CELL_MEMO_WIDTH_PX,
+} from "@/features/shell/constants";
 import { planCompanionArrangement } from "@/features/schedule/lib/companion-arrange";
 import { crossTeamBlockReason, planCrossTeamCreate } from "@/features/schedule/lib/cross-team";
 import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
 import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
 import { pickStation, startPickSession, type PickSession } from "@/features/schedule/lib/station-pick";
 import { searchStations } from "@/features/schedule/lib/station-search";
-import { isValidIso, weekdayLabel } from "@/features/schedule/lib/week";
+import { expandPeriodDates, MAX_PERIOD_DAYS, planPeriodCreate, type PeriodPlan } from "@/features/schedule/lib/period";
+import { addDays, isValidIso, weekdayLabel } from "@/features/schedule/lib/week";
 import {
   MARK_COLORS,
   markLabel,
@@ -182,13 +185,6 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   const [suggestQuery, setSuggestQuery] = useState("");
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [pickSession, setPickSession] = useState<PickSession | null>(null);
-  // 같은 국소를 한꺼번에 등록한 줄들은 모국·장비·메모가 같다. 처음 열 때 모든 줄의 메모가 같으면(모두 빈 경우 포함)
-  // 메모 칸을 하나로 합쳐 보여 주고 저장할 때 모든 줄에 같은 값을 쓴다. 줄마다 메모가 다른 기존 일정은
-  // 합치면 덮어쓰게 되므로 줄별 입력으로 보여 준다(null).
-  const [mergedMemo, setMergedMemo] = useState<string | null>(() => {
-    const first = drafts[0]?.subText ?? "";
-    return drafts.every((draft) => draft.subText === first) ? first : null;
-  });
   // 시행 결과 창을 연 칸. 이 창의 입력은 그대로 두고 그 위에 겹쳐 연다.
   const [resultCellId, setResultCellId] = useState<string | null>(null);
   const resultOf = (id: string | null) =>
@@ -206,6 +202,17 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   );
   const toggleCrossTeam = (id: string) =>
     setCrossTeamIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
+  // 국소별 종료일(draft.key → 종료일). 저장하지 않고, 저장할 때 날짜마다 칸을 만드는 데만 쓴다.
+  const [endDates, setEndDates] = useState<Record<string, string>>({});
+  // 기간 등록은 토·일·공휴일을 빼는 것이 기본이고, 특이한 경우에만 포함한다.
+  const [includeOffDays, setIncludeOffDays] = useState(false);
+  const setEndDate = (key: string, value: string) =>
+    setEndDates((prev) => {
+      const next = { ...prev };
+      if (value === "") delete next[key];
+      else next[key] = value;
+      return next;
+    });
 
   const updateDraft = (key: string, patch: Partial<EntryDraft>) =>
     setDrafts((prev) => prev.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -253,8 +260,10 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       pickRowStation(rowResults[suggestIndex].label);
     }
   };
-  const removeDraft = (key: string) =>
+  const removeDraft = (key: string) => {
     setDrafts((prev) => prev.filter((draft) => draft.key !== key));
+    setEndDate(key, "");
+  };
   const addDraft = (mainText: string) => {
     newKeyCounter.current += 1;
     setDrafts((prev) => [
@@ -273,6 +282,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   /** 이 팀·날짜의 일정과 입회·신호수를 한꺼번에 목록에서 뺀다. 저장하면 삭제된다(취소하면 그대로). */
   const clearAll = () => {
     setDrafts([]);
+    setEndDates({});
     setCompanions({ 입회: { enabled: false, names: "" }, 신호수: { enabled: false, names: "" } });
   };
   const setCompanion = (kind: CompanionKind, patch: Partial<CompanionFields[CompanionKind]>) =>
@@ -282,9 +292,8 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
     event?.preventDefault();
     if (!supabase || !canEdit) return;
 
-    // 합친 메모 칸이면 모든 줄에 같은 메모를 쓴다.
-    const entries =
-      mergedMemo === null ? drafts : drafts.map((draft) => ({ ...draft, subText: mergedMemo }));
+    // 모국·장비·메모는 국소(줄)마다 따로 저장한다.
+    const entries = drafts;
 
     // 계획을 먼저 세운다. 문제가 있으면 아무것도 저장하지 않는다.
     const groupPlan = planGroupOps({
@@ -311,6 +320,48 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
     if (crossBlock !== null) {
       setNotice(crossBlock);
       return;
+    }
+    // 기간 등록: 아무것도 저장하기 전에 종료일을 검사한다.
+    const periodDrafts = entries.filter(
+      (draft) => draft.mainText.trim() !== "" && (endDates[draft.key] ?? "") !== "",
+    );
+    if (periodDrafts.length > 0) {
+      if (moving) {
+        setNotice("날짜나 팀을 바꾸는 저장에서는 기간 등록을 쓸 수 없습니다. 종료일을 비우거나 날짜·팀을 되돌려 주세요.");
+        return;
+      }
+      for (const draft of periodDrafts) {
+        const check = expandPeriodDates({
+          startIso: position.workDate,
+          endIso: endDates[draft.key],
+          includeOffDays,
+        });
+        if ("error" in check) {
+          setNotice(
+            check.error === "reversed"
+              ? "종료일이 이 날짜보다 이릅니다. 종료일을 확인해 주세요."
+              : check.error === "too-long"
+                ? `기간은 시작일로부터 ${MAX_PERIOD_DAYS}일까지만 등록할 수 있습니다.`
+                : "종료일 형식이 올바르지 않습니다.",
+          );
+          return;
+        }
+      }
+      // 같은 날이거나 사이가 주말·공휴일뿐이라 만들 날짜가 하나도 없으면 아무 일도 하지 않는다.
+      const hasAnyDate = periodDrafts.some((draft) => {
+        const check = expandPeriodDates({
+          startIso: position.workDate,
+          endIso: endDates[draft.key],
+          includeOffDays,
+        });
+        return "dates" in check && check.dates.length > 0;
+      });
+      if (!hasAnyDate) {
+        setNotice(
+          "종료일까지 만들 날짜가 없습니다(같은 날이거나 토·일·공휴일뿐입니다). 종료일을 바꾸거나 '토·일·공휴일도 포함'을 켜 주세요.",
+        );
+        return;
+      }
     }
     const lastRow = Math.max(position.rowNo, ...entries.map((draft) => draft.rowNo ?? -1));
     const companionPlan = planCompanionOps({
@@ -343,6 +394,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       !(moving && groupSize > 0) &&
       // 함께 등록할 팀을 골랐으면 목록이 그대로여도 할 일이 있다(이미 있는 국소를 다른 팀에 복사).
       crossTeamIds.length === 0 &&
+      periodDrafts.length === 0 &&
       // 저장해 둔 대상 표시와 행 순서가 어긋나 있으면(예전에 표시만 저장한 경우) 정리할 일이 있다.
       planCompanionArrangement(groupOfCell(cells, position)).length === 0 &&
       markColor === mark;
@@ -355,6 +407,10 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       return;
     }
 
+    const copyCompanions = COMPANION_KINDS.filter((kind) => companions[kind].enabled).map((kind) => ({
+      kind,
+      names: companions[kind].names,
+    }));
     setIsSaving(true);
     try {
       // 마이그레이션 전이면 표시를 저장할 수 없다. 앞선 지움·수정이 반영되기 전에 먼저 알린다.
@@ -366,6 +422,38 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
           "입회·신호수 대상 표시를 저장하려면 DB 마이그레이션(20261115000000_schedule_cells_companion_target.sql)을 먼저 적용해 주세요. 아무것도 저장하지 않았습니다.",
         );
         return;
+      }
+      // 기간 등록 계획은 읽기만 하므로 첫 쓰기 전에 세운다. 조회가 실패해도 아무것도 저장되지 않는다.
+      // 그 날짜들의 칸은 보고 있는 기간 밖일 수 있어 따로 불러온다.
+      let periodPlan: PeriodPlan | null = null;
+      if (periodDrafts.length > 0) {
+        const maxEnd = periodDrafts.reduce(
+          (max, draft) => (endDates[draft.key] > max ? endDates[draft.key] : max),
+          "",
+        );
+        const later = await fetchScheduleCells(supabase, addDays(position.workDate, 1), maxEnd);
+        const planned = planPeriodCreate({
+          cells: later,
+          startIso: position.workDate,
+          targetColumnIds: [
+            position.columnId,
+            ...crossTeamIds.filter((id) => crossTeamOptions.some((column) => column.id === id)),
+          ],
+          entries: periodDrafts.map((draft) => ({
+            mainText: draft.mainText,
+            subText: draft.subText,
+            textColor: draft.textColor,
+            companionTarget: draft.companionTarget,
+            endIso: endDates[draft.key],
+          })),
+          companions: copyCompanions,
+          includeOffDays,
+        });
+        if ("error" in planned) {
+          setNotice("기간 등록 날짜를 계산하지 못했습니다. 아무것도 저장하지 않았습니다.");
+          return;
+        }
+        periodPlan = planned;
       }
       if (moving && groupSize > 0) {
         // 도착 날짜는 보고 있는 기간 밖일 수 있어 따로 불러와, 행이 모자라면 아무것도 저장하지 않는다.
@@ -403,13 +491,16 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         // 목록의 국소 전체를 복사한다(이미 있는 국소도 포함). 고른 팀에 같은 국소가 있으면 건너뛴다.
         entries: entries.filter((draft) => draft.mainText.trim() !== ""),
         // 창에서 체크한 입회·신호수도 함께 복사한다. 고른 팀에 같은 종류가 있으면 덮어쓰지 않는다.
-        companions: COMPANION_KINDS.filter((kind) => companions[kind].enabled).map((kind) => ({
-          kind,
-          names: companions[kind].names,
-        })),
+        companions: copyCompanions,
       });
       for (const created of crossPlan.creates) {
         await createScheduleCell(supabase, created.position, created.text);
+      }
+      // 기간 등록: 앞에서 세운 계획대로 날짜마다 칸을 만든다. 이미 있는 날은 계획에서 건너뛰었다.
+      if (periodPlan !== null) {
+        for (const created of periodPlan.creates) {
+          await createScheduleCell(supabase, created.position, created.text);
+        }
       }
       if (moving) {
         // 빈 행에 차례로 이어 붙는다(`rowNo` null은 도착 팀의 가장 작은 빈 행).
@@ -447,6 +538,38 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
           arrangeError = error instanceof Error ? error.message : String(error);
         }
       }
+      // 기간 등록으로 대상 표시가 복사된 (날짜, 팀)도 같은 순서로 정리한다.
+      if (
+        periodPlan !== null &&
+        periodPlan.dates.length > 0 &&
+        periodDrafts.some((draft) => draft.companionTarget)
+      ) {
+        try {
+          const periodFresh = await fetchScheduleCells(
+            supabase,
+            periodPlan.dates[0],
+            periodPlan.dates[periodPlan.dates.length - 1],
+          );
+          const touched = new Set(
+            periodPlan.creates.map((created) => `${created.position.workDate}|${created.columnId}`),
+          );
+          for (const key of touched) {
+            const [date, columnKey] = key.split("|");
+            const group = periodFresh.filter(
+              (candidate) => candidate.workDate === date && candidate.columnId === columnKey,
+            );
+            for (const step of planCompanionArrangement(group)) {
+              await moveScheduleCell(supabase, step.id, {
+                workDate: date,
+                columnId: columnKey,
+                rowNo: step.toRow,
+              });
+            }
+          }
+        } catch (error) {
+          arrangeError = arrangeError ?? (error instanceof Error ? error.message : String(error));
+        }
+      }
       const teamLabelOf = (id: string) =>
         columns.find((column) => column.id === id)?.teamLabel ?? "팀";
       const skippedText = crossPlan.skipped
@@ -455,7 +578,31 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             `${teamLabelOf(item.columnId)}: ${item.mainText} (${item.reason === "full" ? "행이 가득 참" : "이미 있음"})`,
         )
         .join(", ");
+      const dateLabel = (iso: string) => iso.slice(5);
+      const periodNote =
+        periodPlan === null
+          ? null
+          : [
+              `기간 등록: ${periodPlan.dates.length}일 · 칸 ${periodPlan.creates.length}개`,
+              periodPlan.skippedDates.length === 0
+                ? null
+                : `제외한 날짜 ${periodPlan.skippedDates
+                    .map((item) => `${dateLabel(item.date)}(${item.reason === "weekend" ? "주말" : "공휴일"})`)
+                    .join(", ")}`,
+              periodPlan.skipped.length === 0
+                ? null
+                : `건너뜀 ${periodPlan.skipped
+                    .slice(0, 6)
+                    .map(
+                      (item) =>
+                        `${dateLabel(item.date)} ${teamLabelOf(item.columnId)}: ${item.mainText} (${item.reason === "full" ? "행이 가득 참" : "이미 있음"})`,
+                    )
+                    .join(", ")}${periodPlan.skipped.length > 6 ? ` 외 ${periodPlan.skipped.length - 6}건` : ""}`,
+            ]
+              .filter((part): part is string => part !== null)
+              .join(" · ");
       const notes = [
+        periodNote,
         skippedText === "" ? null : `함께 등록하지 못한 항목 — ${skippedText}`,
         arrangeError === null
           ? null
@@ -570,20 +717,19 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                       draft.textColor ? { color: TEXT_COLOR_DISPLAY[draft.textColor] } : undefined
                     }
                   />
-                  {mergedMemo === null ? (
-                    <Input
-                      value={draft.subText}
-                      maxLength={500}
-                      disabled={disabled}
-                      aria-label="모국·장비·메모"
-                      placeholder="모국·장비·메모"
-                      onChange={(event) => updateDraft(draft.key, { subText: event.target.value })}
-                      className={cn(FIELD_CLASS, "w-40 shrink-0")}
-                      style={
-                        draft.textColor ? { color: TEXT_COLOR_DISPLAY[draft.textColor] } : undefined
-                      }
-                    />
-                  ) : null}
+                  <Input
+                    value={draft.subText}
+                    maxLength={500}
+                    disabled={disabled}
+                    aria-label="모국·장비·메모"
+                    placeholder="모국·장비·메모"
+                    onChange={(event) => updateDraft(draft.key, { subText: event.target.value })}
+                    className={cn(FIELD_CLASS, "min-w-0")}
+                    style={{
+                      width: SCHEDULE_CELL_MEMO_WIDTH_PX,
+                      ...(draft.textColor ? { color: TEXT_COLOR_DISPLAY[draft.textColor] } : null),
+                    }}
+                  />
                   <button
                     type="button"
                     disabled={disabled}
@@ -644,6 +790,29 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                     </button>
                   ) : null}
                   </div>
+                  {canEdit ? (
+                    <div className="ml-7 flex items-center gap-2 text-[11px] text-slate-400">
+                      <span className="whitespace-nowrap">종료일</span>
+                      <DatePicker
+                        value={endDates[draft.key] ?? ""}
+                        disabled={disabled}
+                        ariaLabel="이 국소를 등록할 기간의 종료일"
+                        placeholder="비우면 이 날짜 하루만"
+                        onChange={(next) => setEndDate(draft.key, isValidIso(next) ? next : "")}
+                        className={cn(FIELD_CLASS, "w-44")}
+                      />
+                      {endDates[draft.key] ? (
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          className="whitespace-nowrap text-slate-400 underline hover:text-slate-200 disabled:opacity-50"
+                          onClick={() => setEndDate(draft.key, "")}
+                        >
+                          기간 지우기
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {suggestKey === draft.key && rowResults.length > 0 ? (
                     <StationSuggestionList
                       results={rowResults}
@@ -662,18 +831,6 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                 </li>
               ))}
             </ul>
-            {mergedMemo !== null ? (
-              <Textarea
-                value={mergedMemo}
-                maxLength={500}
-                disabled={disabled}
-                aria-label="모국·장비·메모 (모든 일정 공통)"
-                placeholder="모국·장비·메모 (모든 일정 공통)"
-                // 표에는 한 줄로 보이므로 줄바꿈은 공백으로 바꾼다.
-                onChange={(event) => setMergedMemo(event.target.value.replace(/\r?\n/g, " "))}
-                className="w-44 shrink-0 resize-none border-slate-700 bg-slate-900 text-xs"
-              />
-            ) : null}
             </div>
           )}
         </div>
@@ -716,6 +873,19 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                 </p>
               </fieldset>
             ) : null}
+            <label className="mt-1 flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={includeOffDays}
+                disabled={disabled}
+                onChange={(event) => setIncludeOffDays(event.target.checked)}
+              />
+              기간 등록에 토·일·공휴일도 포함
+            </label>
+            <p className="text-[11px] text-slate-400">
+              국소 줄의 종료일을 정하면 이 날짜 다음 날부터 종료일까지 날짜마다 같은 팀(과 함께 등록할 팀)에
+              만들어집니다. 기본은 토·일·공휴일을 빼고, 이미 있는 날은 건너뜁니다(최대 31일).
+            </p>
           </div>
         ) : null}
 
