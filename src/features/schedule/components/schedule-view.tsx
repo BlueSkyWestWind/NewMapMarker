@@ -89,7 +89,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   );
 
   // 한 번에 보는 주·달 수(1~3). 다음 주·달 일정을 옮길 때 칸 편집 창을 열지 않고 한 화면에서 끌어 옮기려는 용도다(주 4주, 달 3달까지).
-  const [weekCount, setWeekCount] = useState(1);
+  const [weekCount, setWeekCount] = useState(2);
   const [monthCount, setMonthCount] = useState(1);
 
   const weekDates = useMemo(
