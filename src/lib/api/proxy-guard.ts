@@ -45,10 +45,10 @@ function hostOf(value: string | null): string | null {
  */
 export function isSameOriginRequest(request: NextRequest): boolean {
   const selfHost = request.nextUrl.host.toLowerCase();
-  const forwardedHost = request.headers.get("x-forwarded-host")?.toLowerCase();
+  // x-forwarded-host는 클라이언트가 마음대로 보낼 수 있어 신뢰하지 않는다.
+  // 프록시 뒤에서 도메인이 다르면 PROXY_ALLOWED_ORIGINS(또는 NEXT_PUBLIC_SITE_URL)에 등록한다.
   const allowed = getExtraAllowedHosts();
   allowed.add(selfHost);
-  if (forwardedHost) allowed.add(forwardedHost);
 
   const originHost = hostOf(request.headers.get("origin"));
   const refererHost = hostOf(request.headers.get("referer"));

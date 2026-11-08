@@ -36,6 +36,22 @@ describe("isSameOriginRequest", () => {
     const req = makeRequest({ referer: "https://evil.example.org/page" });
     expect(isSameOriginRequest(req)).toBe(false);
   });
+
+  it("클라이언트가 보낸 x-forwarded-host로 다른 사이트의 Origin을 통과시킬 수 없다", () => {
+    const req = makeRequest({
+      origin: "https://evil.example.org",
+      "x-forwarded-host": "evil.example.org",
+    });
+    expect(isSameOriginRequest(req)).toBe(false);
+  });
+
+  it("x-forwarded-host로 다른 사이트의 Referer(핫링크)를 통과시킬 수 없다", () => {
+    const req = makeRequest({
+      referer: "https://evil.example.org/page",
+      "x-forwarded-host": "evil.example.org",
+    });
+    expect(isSameOriginRequest(req)).toBe(false);
+  });
 });
 
 describe("guardProxyRequest", () => {
