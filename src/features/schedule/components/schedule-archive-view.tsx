@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_ARCHIVE_LIMIT } from "@/features/schedule/day-api";
+import { CHECK_COLUMN_PX, useDayColumnWidths } from "@/features/schedule/hooks/use-day-column-widths";
 import { useArchive } from "@/features/schedule/hooks/use-archive";
 import { useOptionLists } from "@/features/schedule/hooks/use-option-lists";
 import { buildCopyText } from "@/features/schedule/lib/day-copy";
 import { DAY_COLUMNS } from "@/features/schedule/lib/day-columns";
-import { CHECK_WIDTH_WEIGHT, widthPercent } from "@/features/schedule/lib/day-table-widths";
 import { downloadArchiveWorkbook } from "@/features/schedule/lib/write-day-workbook";
 import { isValidIso, todayIso } from "@/features/schedule/lib/week";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,21 @@ const EMPTY_FILTERED_MESSAGE = "조건에 맞는 상세가 없습니다.";
 /** 입력을 멈추고 이 시간(ms)이 지나면 조회한다. 글자마다 DB를 부르지 않게 한다. */
 const DEBOUNCE_MS = 300;
 
+/** 틀 고정 열(왼쪽부터 이 순서로 붙는다). 일자별 표와 같다. */
+const FROZEN_KEYS: string[] = [
+  "seq",
+  "project",
+  "facilityCode",
+  "bizClass",
+  "bizKind",
+  "constructionType",
+  "workCategory",
+  "region",
+  "site",
+];
+const HEAD_CELL = "border-b border-r border-slate-700 bg-slate-900 py-1.5 font-semibold";
+const BODY_CELL = "border-b border-r border-slate-700 py-1.5";
+
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 /** 누적 행의 식별(작업일 + 국소). 같은 국소가 여러 날 쌓이므로 국소 키만으로는 모자란다. */
 const rowId = (workDate: string, stationKey: string) => `${workDate}|${stationKey}`;
@@ -35,7 +50,7 @@ interface ScheduleArchiveViewProps {
 
 /**
  * 시설일정 > 누적. 일자별 보기에서 쌓은 24열 상세를 작업일 내림차순으로 보여 준다(기간·글 거르기, 복사·엑셀).
- * 표 셀은 줄바꿈 없이 말줄임으로 보이고(전체 글은 툴팁), 가로 스크롤은 쓰지 않는다.
+ * 표 셀은 줄바꿈 없이 말줄임으로 보이고(전체 글은 툴팁), 순번~국소명은 틀 고정, 열 폭은 끌어서 바꾼다.
  */
 export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
   const { toast } = useToast();
@@ -62,6 +77,22 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
   });
   const { lists } = useOptionLists();
   const { rows } = archive;
+  // 열 폭은 일자별 표와 같은 값을 쓴다(한쪽에서 바꾸면 다른 쪽도 다음에 열 때 따라온다).
+  const { widths, startResize, resetWidth } = useDayColumnWidths();
+  // 열 순서는 원래(엑셀) 그대로다. 순번~국소명은 틀 고정이다(왼쪽 끝부터 이어진 열이라 원래 자리 그대로 붙는다).
+  const orderedColumns = DAY_COLUMNS;
+  const checkPx = canEdit ? CHECK_COLUMN_PX : 0;
+  const frozenLeft = useMemo(() => {
+    const result: Record<string, number> = {};
+    let offset = checkPx;
+    for (const key of FROZEN_KEYS) {
+      result[key] = offset;
+      offset += widths[key] ?? 0;
+    }
+    return result;
+  }, [widths, checkPx]);
+  const frozenStyle = (key: string) => (frozenLeft[key] !== undefined ? { left: frozenLeft[key] } : undefined);
+  const tableWidth = checkPx + orderedColumns.reduce((sum, column) => sum + (widths[column.key] ?? 0), 0);
 
   // 거르기 조건이 바뀌면 이전 조건에서 고른 행은 선택에서 빠진다(조건이 같을 때만 선택이 살아 있다).
   const filterKey = `${from}|${to}|${debouncedText.trim()}`;
@@ -235,7 +266,7 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
         </p>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="min-h-0 flex-1 overflow-auto">
         {isEmpty ? (
           <p className="p-4 text-sm text-slate-400">
             {archive.isLoading || isStale
@@ -247,17 +278,20 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
                   : EMPTY_MESSAGE}
           </p>
         ) : (
-          <table className="w-full table-fixed border-collapse text-xs text-slate-100">
+          <table
+            className="table-fixed border-separate border-spacing-0 border-l border-t border-slate-700 text-sm text-slate-100"
+            style={{ width: tableWidth }}
+          >
             <colgroup>
-              {canEdit ? <col style={{ width: widthPercent(CHECK_WIDTH_WEIGHT) }} /> : null}
-              {DAY_COLUMNS.map((column) => (
-                <col key={column.key} style={{ width: widthPercent(column.widthChars) }} />
+              {canEdit ? <col style={{ width: CHECK_COLUMN_PX }} /> : null}
+              {orderedColumns.map((column) => (
+                <col key={column.key} style={{ width: widths[column.key] }} />
               ))}
             </colgroup>
-            <thead className="sticky top-0 z-10 bg-slate-900">
+            <thead>
               <tr>
                 {canEdit ? (
-                  <th className="border border-slate-700 px-1 py-1 text-center">
+                  <th className={cn(HEAD_CELL, "sticky left-0 top-0 z-30 px-1 text-center")}>
                     <input
                       type="checkbox"
                       aria-label="전체 선택"
@@ -271,13 +305,26 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
                     />
                   </th>
                 ) : null}
-                {DAY_COLUMNS.map((column) => (
+                {orderedColumns.map((column) => (
                   <th
                     key={column.key}
                     title={column.header}
-                    className="truncate whitespace-nowrap border border-slate-700 px-1 py-1 text-center font-semibold"
+                    style={frozenStyle(column.key)}
+                    className={cn(
+                      HEAD_CELL,
+                      "relative truncate whitespace-nowrap px-1 text-center",
+                      frozenLeft[column.key] !== undefined ? "sticky top-0 z-30" : "sticky top-0 z-20",
+                    )}
                   >
                     {column.header}
+                    <span
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`${column.header} 열 폭 조절`}
+                      onPointerDown={(event) => startResize(column.key, event)}
+                      onDoubleClick={() => resetWidth(column.key)}
+                      className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-indigo-500/60"
+                    />
                   </th>
                 ))}
               </tr>
@@ -285,13 +332,15 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
             <tbody>
               {rows.map((row) => {
                 const id = rowId(row.workDate, row.stationKey);
+                const isSelected = selectedIds.has(id);
+                const stickyBg = isSelected ? "bg-indigo-950" : "bg-slate-900 group-hover:bg-slate-800";
                 return (
                   <tr
                     key={id}
-                    className={cn("hover:bg-slate-800/60", selectedIds.has(id) && "bg-indigo-950/40")}
+                    className={cn("group hover:bg-slate-800/60", isSelected && "bg-indigo-950/40")}
                   >
                     {canEdit ? (
-                      <td className="border border-slate-700 px-1 py-1 text-center">
+                      <td className={cn(BODY_CELL, "sticky left-0 z-10 px-1 text-center", stickyBg)}>
                         <input
                           type="checkbox"
                           aria-label={`${row.workDate} ${row.site} 선택`}
@@ -302,13 +351,18 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
                         />
                       </td>
                     ) : null}
-                    {DAY_COLUMNS.map((column) => {
+                    {orderedColumns.map((column) => {
                       const value = row.values[column.key];
                       return (
                         <td
                           key={column.key}
                           title={value}
-                          className="truncate whitespace-nowrap border border-slate-700 px-1.5 py-1"
+                          style={frozenStyle(column.key)}
+                          className={cn(
+                            BODY_CELL,
+                            "truncate whitespace-nowrap px-1.5",
+                            frozenLeft[column.key] !== undefined && cn("sticky z-10", stickyBg),
+                          )}
                         >
                           {value}
                         </td>

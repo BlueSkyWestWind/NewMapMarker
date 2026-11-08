@@ -46,6 +46,7 @@ import { ScheduleLegend } from "./schedule-legend";
 import { ScheduleMonthGrid } from "./schedule-month-grid";
 import { ScheduleArchiveView } from "./schedule-archive-view";
 import { ScheduleDayView } from "./schedule-day-view";
+import { ScheduleSectionSwitch } from "./schedule-section-switch";
 import { ScheduleSearch } from "./schedule-search";
 import { ScheduleViewToggle, type ScheduleViewKind } from "./schedule-view-toggle";
 
@@ -279,7 +280,8 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         aria-label="일일일정"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="shrink-0 whitespace-nowrap text-base font-semibold">일일일정</h1>
+          <h1 className="sr-only">일일일정</h1>
+          <ScheduleSectionSwitch section="daily" />
           <ScheduleViewToggle view={view} onChange={setView} kinds={DAILY_VIEW_KINDS} />
         </div>
         {view === "day" ? (
@@ -297,7 +299,8 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
       aria-label="시설일정"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="shrink-0 whitespace-nowrap text-base font-semibold">시설일정</h1>
+        <h1 className="sr-only">시설일정</h1>
+        <ScheduleSectionSwitch section="facility" />
 
         <ScheduleViewToggle view={view} onChange={setView} kinds={FACILITY_VIEW_KINDS} />
 
