@@ -32,6 +32,8 @@ import {
 import { groupOfCell, MAX_ROWS } from "@/features/schedule/lib/cell-grid";
 import { useStationOptions } from "@/features/schedule/hooks/use-station-options";
 import { SCHEDULE_CELL_DIALOG_MAX_WIDTH_PX } from "@/features/shell/constants";
+import { planCrossTeamCreate } from "@/features/schedule/lib/cross-team";
+import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
 import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
 import { pickStation, startPickSession, type PickSession } from "@/features/schedule/lib/station-pick";
 import { searchStations } from "@/features/schedule/lib/station-search";
@@ -195,6 +197,13 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
     columns.find((column) => column.id === position.columnId)?.teamLabel ?? "팀";
   const disabled = !canEdit || isSaving;
   const listedNames = drafts.map((draft) => draft.mainText.trim()).filter(Boolean);
+  // 새로 추가한 국소를 같은 날짜의 다른 팀에도 한 번에 등록한다(비고 열과 원래 팀은 뺀다).
+  const [crossTeamIds, setCrossTeamIds] = useState<string[]>([]);
+  const crossTeamOptions = sortedColumns.filter(
+    (column) => column.id !== position.columnId && column.teamLabel.trim() !== NOTE_COLUMN_LABEL,
+  );
+  const toggleCrossTeam = (id: string) =>
+    setCrossTeamIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
 
   const updateDraft = (key: string, patch: Partial<EntryDraft>) =>
     setDrafts((prev) => prev.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft)));
@@ -360,6 +369,16 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         } else if (op.op === "update") await updateScheduleCellText(supabase, op.id, op.text);
         else await deleteScheduleCell(supabase, op.id);
       }
+      // 함께 등록할 팀: 새로 추가한 국소를 고른 팀의 같은 날짜 빈 행에도 만든다.
+      const crossPlan = planCrossTeamCreate({
+        cells,
+        workDate: position.workDate,
+        targetColumnIds: crossTeamIds.filter((id) => crossTeamOptions.some((column) => column.id === id)),
+        entries: entries.filter((draft) => draft.id === null),
+      });
+      for (const created of crossPlan.creates) {
+        await createScheduleCell(supabase, created.position, created.text);
+      }
       if (moving) {
         // 빈 행에 차례로 이어 붙는다(`rowNo` null은 도착 팀의 가장 작은 빈 행).
         for (const item of [...toMove].sort((a, b) => a.rowNo - b.rowNo)) {
@@ -369,7 +388,19 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       if (markColor !== mark) {
         await setScheduleMark(supabase, position.workDate, position.columnId, markColor);
       }
-      toast({ title: "저장했습니다" });
+      const teamLabelOf = (id: string) =>
+        columns.find((column) => column.id === id)?.teamLabel ?? "팀";
+      const skippedText = crossPlan.skipped
+        .map(
+          (item) =>
+            `${teamLabelOf(item.columnId)}: ${item.mainText} (${item.reason === "full" ? "행이 가득 참" : "이미 있음"})`,
+        )
+        .join(", ");
+      toast(
+        skippedText === ""
+          ? { title: "저장했습니다" }
+          : { title: "저장했습니다", description: `함께 등록하지 못한 항목 — ${skippedText}` },
+      );
       onSaved();
       onClose();
     } catch (error) {
@@ -589,6 +620,30 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             <p className="text-[11px] text-slate-400">
               여러 개를 이어서 고를 수 있고, 저장하면 이 팀·날짜의 아래 빈 행에 차례로 기록됩니다.
             </p>
+            {crossTeamOptions.length > 0 ? (
+              <fieldset className="mt-1 flex flex-col gap-1" disabled={disabled}>
+                <legend className="mb-1 text-slate-300">함께 등록할 팀</legend>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {crossTeamOptions.map((column) => (
+                    <label
+                      key={column.id}
+                      className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={crossTeamIds.includes(column.id)}
+                        onChange={() => toggleCrossTeam(column.id)}
+                      />
+                      {column.teamLabel}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  이번에 새로 추가한 국소만 고른 팀의 같은 날짜 빈 행에도 기록됩니다(입회·신호수 불필요
+                  표시도 같이 복사). 행이 모자라거나 이미 같은 국소가 있는 팀은 건너뛰고 알려 드립니다.
+                </p>
+              </fieldset>
+            ) : null}
           </div>
         ) : null}
 
