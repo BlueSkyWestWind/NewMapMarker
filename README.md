@@ -239,7 +239,7 @@ npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 | `20261108000000_facility_schedule.sql` | 시설일정(`schedule_columns`·`schedule_cells`·`schedule_days`·`schedule_marks`) 4개 테이블, 관리자만 쓰는 RLS, 칸 이동(맞바꾸기)·날짜 범위 교체 함수 |
 | `20261111000000_schedule_day_details.sql` | 시설일정 일자별 상세(`schedule_day_details`·`schedule_option_lists`·`schedule_archive_rows`) 3개 테이블, 관리자만 쓰는 RLS, 누적 `saved_by`/`saved_at` 자동 기록 트리거 |
 | `20261107000100_site_lists_invoker_functions.sql` ~ `000400` | 국소 목록 권한 함수 `SECURITY INVOKER` 전환 및 Advisor·미사용 인덱스/스키마 정리 |
-| `20261113000000_restrict_marker_delete_to_admin.sql` | 장비·축전지 5개 테이블의 삭제(DELETE)를 관리자 전용으로 제한 — 등록·수정은 로그인 사용자 그대로. 적용 전 일반 계정의 삭제·위치등록 저장·전체 복원이 막힘을 알려 둘 것 |
+| `20261113000000_restrict_marker_delete_to_admin.sql` | 장비·축전지 5개 테이블의 삭제(DELETE)를 관리자 전용으로 제한 — 등록·수정은 로그인 사용자 그대로. 적용하면 일반 계정은 삭제·위치등록 저장·기존 마커의 수정 저장·전체 복원이 막힌다(새 마커 등록은 가능) |
 
 > 마이그레이션 미적용 상태에서도 기존 지도·마커 조회는 깨지지 않습니다(신규 컬럼을 optional로 읽고, 국소 목록 테이블이 없으면 위치 목록 패널에만, 시설일정 테이블이 없으면 일정표 화면에만 안내를 표시).
 

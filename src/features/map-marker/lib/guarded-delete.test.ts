@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
-import { DeletePermissionError, deleteRowsGuarded } from "./guarded-delete";
+import { assertTableEmpty, DeletePermissionError, deleteRowsGuarded } from "./guarded-delete";
 
 /** RLS를 흉내 내는 가짜 클라이언트. allowDelete가 false면 삭제가 오류 없이 0행만 지운다. */
 function fakeClient(rows: string[], allowDelete: boolean, deleteError: unknown = null) {
@@ -66,5 +66,35 @@ describe("deleteRowsGuarded", () => {
     const { client, calls } = fakeClient([], true);
     await deleteRowsGuarded(client, "information", "marker_id", []);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("deleteRowsGuarded 요청 크기", () => {
+  it("값이 많으면 100개씩 나눠 지워 URL이 길어지지 않게 한다", async () => {
+    const values = Array.from({ length: 250 }, (_, i) => `id${i}`);
+    const { client, calls } = fakeClient([...values], true);
+    await deleteRowsGuarded(client, "information", "marker_id", values);
+    const deletes = calls.filter((call) => call.startsWith("delete"));
+    expect(deletes).toHaveLength(3);
+  });
+});
+
+describe("assertTableEmpty", () => {
+  function countClient(count: number) {
+    return {
+      from: () => ({
+        select: async () => ({ count, error: null }),
+      }),
+    } as unknown as SupabaseBrowserClient;
+  }
+
+  it("행이 남아 있지 않으면 통과한다", async () => {
+    await expect(assertTableEmpty(countClient(0), "markers")).resolves.toBeUndefined();
+  });
+
+  it("전체 삭제 뒤에도 행이 남아 있으면(RLS 거부) DeletePermissionError를 던진다", async () => {
+    await expect(assertTableEmpty(countClient(5), "markers")).rejects.toBeInstanceOf(
+      DeletePermissionError,
+    );
   });
 });

@@ -10,6 +10,7 @@ import {
   type FullBackupTables,
 } from '@/features/map-marker/lib/excel/data-manager/full-backup-schema';
 import { chunkArray } from '@/features/map-marker/lib/chunk';
+import { assertTableEmpty } from '@/features/map-marker/lib/guarded-delete';
 import { downloadFullBackupFile } from '@/features/map-marker/lib/full-backup-file';
 import { runWithSafetyBackup, SafetyBackupError } from '@/features/map-marker/lib/safe-restore';
 import { applyMarkerRolesFromStoredGroupRole } from '@/features/map-marker/lib/address-group';
@@ -244,40 +245,43 @@ export function useDataBackupActions() {
             await downloadFullBackupFile(supabase, '복원전_mapmarker_backup');
           },
           async () => {
-          const { error: clearMarkersError } = await supabase
-            .from('markers')
-            .delete()
-            .neq('id', '');
-          if (clearMarkersError) throw clearMarkersError;
+            const { error: clearMarkersError } = await supabase
+              .from('markers')
+              .delete()
+              .neq('id', '');
+            if (clearMarkersError) throw clearMarkersError;
+            // RLS가 삭제를 거르면 오류 없이 0행만 지워진다. 비었는지 확인하지 않으면 이어지는 insert가 섞인다.
+            await assertTableEmpty(supabase, 'markers');
 
-          const { error: clearBatteryError } = await supabase
-            .from('battery_markers')
-            .delete()
-            .neq('id', '');
-          if (clearBatteryError) throw clearBatteryError;
+            const { error: clearBatteryError } = await supabase
+              .from('battery_markers')
+              .delete()
+              .neq('id', '');
+            if (clearBatteryError) throw clearBatteryError;
+            await assertTableEmpty(supabase, 'battery_markers');
 
-          for (const batch of chunkArray(stripParentMarkerId(markers), INSERT_CHUNK_SIZE)) {
-            const { error } = await supabase.from('markers').insert(batch);
-            if (error) throw error;
-          }
+            for (const batch of chunkArray(stripParentMarkerId(markers), INSERT_CHUNK_SIZE)) {
+              const { error } = await supabase.from('markers').insert(batch);
+              if (error) throw error;
+            }
 
-          for (const batch of chunkArray(stripIdentityId(information), INSERT_CHUNK_SIZE)) {
-            const { error } = await supabase.from('information').insert(batch);
-            if (error) throw error;
-          }
-          for (const batch of chunkArray(stripIdentityId(erpDetails), ERP_INSERT_CHUNK_SIZE)) {
-            const { error } = await supabase.from('erp_details').insert(batch);
-            if (error) throw error;
-          }
+            for (const batch of chunkArray(stripIdentityId(information), INSERT_CHUNK_SIZE)) {
+              const { error } = await supabase.from('information').insert(batch);
+              if (error) throw error;
+            }
+            for (const batch of chunkArray(stripIdentityId(erpDetails), ERP_INSERT_CHUNK_SIZE)) {
+              const { error } = await supabase.from('erp_details').insert(batch);
+              if (error) throw error;
+            }
 
-          for (const batch of chunkArray(batteryMarkers, INSERT_CHUNK_SIZE)) {
-            const { error } = await supabase.from('battery_markers').insert(batch);
-            if (error) throw error;
-          }
-          for (const batch of chunkArray(stripIdentityId(batterySpecs), INSERT_CHUNK_SIZE)) {
-            const { error } = await supabase.from('battery_specs').insert(batch);
-            if (error) throw error;
-          }
+            for (const batch of chunkArray(batteryMarkers, INSERT_CHUNK_SIZE)) {
+              const { error } = await supabase.from('battery_markers').insert(batch);
+              if (error) throw error;
+            }
+            for (const batch of chunkArray(stripIdentityId(batterySpecs), INSERT_CHUNK_SIZE)) {
+              const { error } = await supabase.from('battery_specs').insert(batch);
+              if (error) throw error;
+            }
           },
         );
 

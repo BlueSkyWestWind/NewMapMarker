@@ -7,6 +7,7 @@ import { useMarkerList } from '@/features/map-marker/hooks/use-marker-list';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { useIsAdmin } from '@/features/map-marker/hooks/use-is-admin';
 import { deleteRowsGuarded } from '@/features/map-marker/lib/guarded-delete';
+import { needsAdminToSave } from '@/features/map-marker/lib/save-permission';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_MARKER_COLOR } from '@/features/map-marker/constants/facility-teams';
@@ -264,6 +265,14 @@ export function useMarkerEditForm() {
       toast({
         variant: 'destructive',
         description: '저장 권한이 없습니다. 로그인이 필요합니다.',
+      });
+      return;
+    }
+
+    if (needsAdminToSave({ selectedMarkerId, isAdmin })) {
+      toast({
+        variant: 'destructive',
+        description: '기존 마커의 수정 저장은 관리자만 할 수 있습니다. (일부만 저장되는 것을 막기 위해 시작하지 않았습니다.)',
       });
       return;
     }

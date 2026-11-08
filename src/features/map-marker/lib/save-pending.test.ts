@@ -46,7 +46,33 @@ describe("savePendingEquipment", () => {
     await savePendingEquipment(client, { markers: rows(450), info: [] });
     const upserts = calls.filter((c) => c.table === "markers" && c.op === "upsert");
     expect(upserts.map((c) => (c.payload as unknown[]).length)).toEqual([200, 200, 50]);
-    expect(upserts.every((c) => (c.options as { onConflict: string }).onConflict === "id")).toBe(true);
+    // 이미 있는 id는 덮어쓰지 않는다(재시도는 안전하게, 기존 마커의 메모·태그·좌표는 그대로).
+    expect(
+      upserts.every(
+        (c) =>
+          (c.options as { onConflict: string; ignoreDuplicates: boolean }).onConflict === "id" &&
+          (c.options as { ignoreDuplicates: boolean }).ignoreDuplicates === true,
+      ),
+    ).toBe(true);
+  });
+
+  it("한 마커의 하위 행이 청크 경계에 걸려도 앞 청크가 넣은 행을 지우지 않는다", async () => {
+    const { calls, client } = fakeSupabase();
+    // 마커 X의 행 3개가 청크 크기 2의 경계에 걸린다.
+    const info = [
+      { marker_id: "X", n: 1 },
+      { marker_id: "X", n: 2 },
+      { marker_id: "X", n: 3 },
+    ];
+    await savePendingEquipment(client, { markers: rows(1), info }, 2);
+    const infoOps = calls.filter((c) => c.table === "information");
+    const firstInsert = infoOps.findIndex((c) => c.op === "insert");
+    // 모든 delete가 첫 insert보다 앞에 있어야 한다.
+    expect(infoOps.slice(firstInsert).some((c) => c.op === "delete")).toBe(false);
+    const inserted = infoOps
+      .filter((c) => c.op === "insert")
+      .flatMap((c) => c.payload as unknown[]);
+    expect(inserted).toHaveLength(3);
   });
 
   it("시설정보는 같은 마커의 기존 행을 지운 뒤 넣는다(재시도해도 중복이 생기지 않는다)", async () => {
@@ -78,7 +104,10 @@ describe("savePendingBattery", () => {
     await savePendingBattery(client, { markers: rows(1, "b"), specs: rows(1, "b") });
     const specOps = calls.filter((c) => c.table === "battery_specs").map((c) => c.op);
     expect(specOps).toEqual(["delete", "insert"]);
-    expect(calls.find((c) => c.table === "battery_markers")?.options).toEqual({ onConflict: "id" });
+    expect(calls.find((c) => c.table === "battery_markers")?.options).toEqual({
+      onConflict: "id",
+      ignoreDuplicates: true,
+    });
   });
 
   it("규격이 없으면 규격 테이블을 건드리지 않는다", async () => {
