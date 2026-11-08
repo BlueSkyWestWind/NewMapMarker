@@ -23,6 +23,15 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 export { fetchIsAppAdmin };
 
+/** 등록된 목록 수. 사이드바 배지용이라 행을 받지 않고 개수만 센다. */
+export async function fetchSiteListCount(supabase: SupabaseBrowserClient): Promise<number> {
+  const { count, error } = await supabase
+    .from("site_lists")
+    .select("id", { count: "exact", head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function fetchSiteListData(
   supabase: SupabaseBrowserClient,
   userId: string,

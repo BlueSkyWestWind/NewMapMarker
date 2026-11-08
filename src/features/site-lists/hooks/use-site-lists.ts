@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
-import { fetchSiteListData } from "@/features/site-lists/api";
+import { fetchSiteListCount, fetchSiteListData } from "@/features/site-lists/api";
 import { isSiteListsTableMissing } from "@/features/site-lists/lib/site-list-view";
 import type { SiteList, SiteListMember } from "@/features/site-lists/types";
 
@@ -44,4 +44,22 @@ export function useSiteLists() {
     error: query.error,
     refresh,
   };
+}
+
+/**
+ * 이벤트관리 배지용 목록 수. `useSiteLists`는 모든 소속 행까지 받아 오므로 앱 시작에는 쓰지 않는다.
+ * 키가 `SITE_LISTS_QUERY_KEY`로 시작해, 목록을 바꾼 뒤의 `refresh`에 함께 갱신된다.
+ */
+export function useSiteListCount(): number {
+  const { supabase, user } = useAuthSession();
+  const userId = user?.id ?? null;
+  const query = useQuery({
+    queryKey: [...SITE_LISTS_QUERY_KEY, "count", userId],
+    queryFn: () => fetchSiteListCount(supabase!),
+    enabled: Boolean(supabase && userId),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  return query.data ?? 0;
 }

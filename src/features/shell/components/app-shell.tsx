@@ -8,7 +8,7 @@ import { useHasMounted } from "@/hooks/use-has-mounted";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
-import { useSiteLists } from "@/features/site-lists/hooks/use-site-lists";
+import { useSiteListCount } from "@/features/site-lists/hooks/use-site-lists";
 import { NavRail } from "@/features/shell/components/nav-rail";
 import { TopSearchBar } from "@/features/shell/components/top-search-bar";
 import { WorkPanel } from "@/features/shell/components/work-panel";
@@ -111,7 +111,7 @@ export function AppShell({
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   // 이벤트관리 배지는 등록한 목록(이벤트) 수다. 지도에 올라온 마커 수(locationCount)는
   // 위치 모드일 때만 값이 있어서 다른 메뉴에서는 0으로 보였다.
-  const { lists: siteLists } = useSiteLists();
+  const siteListCount = useSiteListCount();
 
   // 첫 화면 마운트 후 유휴 시간에 주요 메뉴 청크를 미리 받아 두어 첫 메뉴 전환 지연을 줄인다.
   useEffect(() => {
@@ -157,7 +157,7 @@ export function AppShell({
   const segmentCounts = {
     equipment: equipmentCount,
     battery: batteryCount,
-    location: siteLists.length,
+    location: siteListCount,
   };
   const bodyProps = {
     mode,
