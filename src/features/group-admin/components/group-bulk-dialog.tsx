@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEditDraft } from "../hooks/use-edit-draft";
 import { planBulkEdit, type BulkValues } from "../lib/bulk-edit";
 import { emptyDraft } from "../lib/edit-draft";
+import { planSyncSubCoords } from "../lib/sync-coords";
 import type { MarkerGroup } from "../types";
 import { ConfirmDialog } from "./confirm-dialog";
 
@@ -47,6 +48,7 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
   const [color, setColor] = useState("");
   const [addTags, setAddTags] = useState("");
   const [removeTags, setRemoveTags] = useState("");
+  const [syncCoords, setSyncCoords] = useState(false);
   const [askClose, setAskClose] = useState(false);
   const ignoreCloseRef = useRef(false);
 
@@ -61,7 +63,7 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
     if (remove.length > 0) next.removeTags = remove;
     return next;
   }, [businessType, facilityTeam, color, addTags, removeTags]);
-  const hasValues = Object.keys(values).length > 0;
+  const hasValues = Object.keys(values).length > 0 || syncCoords;
 
   // 입력만으로 미리 계산해 건너뛸 마커 수를 보여 준다. 변경분에는 아직 넣지 않는다.
   const preview = useMemo(
@@ -69,9 +71,18 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
     [markers, edit.originalInfoRows, values],
   );
 
+  // SUB 좌표 맞추기 미리보기. 변경분에는 아직 넣지 않는다.
+  const syncPreview = useMemo(
+    () => planSyncSubCoords(edit.draft, groups),
+    [edit.draft, groups],
+  );
+
   const apply = () => {
     if (!infoReady) return;
-    edit.update((d) => planBulkEdit(d, markers, edit.originalInfoRows, values).draft);
+    edit.update((d) => {
+      const edited = planBulkEdit(d, markers, edit.originalInfoRows, values).draft;
+      return syncCoords ? planSyncSubCoords(edited, groups).draft : edited;
+    });
   };
 
   const closeNow = () => {
@@ -107,6 +118,7 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
   if (values.color) summary.push(`색상 → ${LEGACY_COLOR_NAMES[values.color] ?? values.color}`);
   if (values.addTags) summary.push(`태그 추가 → ${values.addTags.join(", ")}`);
   if (values.removeTags) summary.push(`태그 제거 → ${values.removeTags.join(", ")}`);
+  if (syncCoords) summary.push("SUB 위경도 → 대표 위경도");
 
   const result = edit.lastResult;
 
@@ -224,6 +236,20 @@ export function GroupBulkDialog({ groups, onClose }: GroupBulkDialogProps) {
             className="h-8 border-slate-700 bg-slate-900 text-xs"
           />
         </div>
+
+        <label className="flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={syncCoords}
+            onChange={(e) => setSyncCoords(e.target.checked)}
+            disabled={isSaving}
+          />
+          <span className="whitespace-nowrap">SUB 위경도를 대표 위경도로 맞추기</span>
+          <span className="whitespace-nowrap text-slate-400">
+            (바뀔 SUB {syncPreview.changed}건
+            {syncPreview.skippedNoRep > 0 ? ` · 대표 좌표 없어 건너뜀 ${syncPreview.skippedNoRep}묶음` : ""})
+          </span>
+        </label>
 
         <div className="space-y-1 rounded-lg border border-slate-800 p-3 text-xs text-slate-300">
           <p>
