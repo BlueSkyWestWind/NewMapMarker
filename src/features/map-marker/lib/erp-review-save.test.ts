@@ -11,7 +11,7 @@ interface Call {
 }
 
 /** 호출을 기록하는 Supabase 대역. `failOn`에 걸린 연산은 오류를 돌려준다. */
-function fakeSupabase(failOn?: string) {
+function fakeSupabase(failOn?: string, remainingAfterDelete = 0) {
   const calls: Call[] = [];
   const result = (table: string, op: string) => ({
     error: failOn === `${table}.${op}` ? { message: `${table}.${op} 실패` } : null,
@@ -31,6 +31,10 @@ function fakeSupabase(failOn?: string) {
           calls.push({ table, op: "delete", payload });
           return result(table, "delete");
         },
+      }),
+      // 삭제 뒤 남은 행 수 확인. remainingAfterDelete > 0이면 RLS가 삭제를 거른 상황이다.
+      select: () => ({
+        in: async () => ({ count: remainingAfterDelete, error: null }),
       }),
     }),
   };
@@ -93,6 +97,16 @@ describe("saveReviewRow", () => {
     await expect(
       saveReviewRow(client, row("new", { id: "a" }), { lat: 1, lng: 2 }),
     ).rejects.toMatchObject({ message: "information.delete 실패" });
+    expect(calls.some((c) => c.op === "insert")).toBe(false);
+  });
+});
+
+describe("saveReviewRow 삭제 권한", () => {
+  it("삭제가 권한 때문에 막혀 행이 남으면 insert하지 않고 중단한다", async () => {
+    const { calls, client } = fakeSupabase(undefined, 1);
+    await expect(
+      saveReviewRow(client, row("new", { id: "a" }), { lat: 1, lng: 2 }),
+    ).rejects.toMatchObject({ name: "DeletePermissionError" });
     expect(calls.some((c) => c.op === "insert")).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { deleteRowsGuarded } from "@/features/map-marker/lib/guarded-delete";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 import type { StagedErpRow } from "@/features/map-marker/types/marker";
 
@@ -21,8 +22,8 @@ async function replaceProcessRows(
 ) {
   for (const ids of chunk(rows.map((row) => row.id), DELETE_CHUNK_SIZE)) {
     for (const table of ["erp_details", "information"] as const) {
-      const { error } = await supabase.from(table).delete().in("marker_id", ids);
-      if (error) throw error;
+      // 삭제가 권한 때문에 막히면 뒤의 insert가 중복 행을 만들므로 여기서 멈춘다.
+      await deleteRowsGuarded(supabase, table, "marker_id", ids);
     }
   }
   for (const batch of chunk(rows.map((row) => row.info), INFO_CHUNK_SIZE)) {

@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import { useMarkerList } from '@/features/map-marker/hooks/use-marker-list';
 import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
+import { useIsAdmin } from '@/features/map-marker/hooks/use-is-admin';
+import { deleteRowsGuarded } from '@/features/map-marker/lib/guarded-delete';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_MARKER_COLOR } from '@/features/map-marker/constants/facility-teams';
@@ -56,6 +58,8 @@ export function useMarkerEditForm() {
   const marker = markers.find((m) => m.id === selectedMarkerId);
   
   const { supabase, isAuthenticated } = useAuthSession();
+  // 삭제(와 "지우고 다시 넣는" 저장)는 DB 정책상 관리자만 된다.
+  const { isAdmin } = useIsAdmin();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -309,11 +313,7 @@ export function useMarkerEditForm() {
         //    facility_code 에 UNIQUE 제약이 없어 ON CONFLICT upsert 는 불가하므로,
         //    battery_specs 와 동일하게 marker_id 기준으로 전부 삭제 후 insert 한다.
         if (selectedMarkerId) {
-          const { error: deleteError } = await supabase
-            .from('information')
-            .delete()
-            .eq('marker_id', id);
-          if (deleteError) throw deleteError;
+          await deleteRowsGuarded(supabase, 'information', 'marker_id', [id]);
         }
 
         const infoPayloads = equipmentItems
@@ -360,11 +360,7 @@ export function useMarkerEditForm() {
 
         // 2. battery_specs 테이블 처리 (기존 스펙 삭제 후 재삽입)
         if (selectedMarkerId) {
-          const { error: deleteError } = await supabase
-            .from('battery_specs')
-            .delete()
-            .eq('marker_id', id);
-          if (deleteError) throw deleteError;
+          await deleteRowsGuarded(supabase, 'battery_specs', 'marker_id', [id]);
         }
 
         const specsPayloads = batteryItems.map((item) => ({
@@ -431,16 +427,14 @@ export function useMarkerEditForm() {
     try {
       if (mode === 'equipment') {
         // information 데이터 삭제 (마커 ID에 연동된 상세 장비들 전부 삭제)
-        await supabase.from('information').delete().eq('marker_id', selectedMarkerId);
+        await deleteRowsGuarded(supabase, 'information', 'marker_id', [selectedMarkerId]);
         // markers 데이터 삭제
-        const { error } = await supabase.from('markers').delete().eq('id', selectedMarkerId);
-        if (error) throw error;
+        await deleteRowsGuarded(supabase, 'markers', 'id', [selectedMarkerId]);
       } else {
         // battery_specs 삭제
-        await supabase.from('battery_specs').delete().eq('marker_id', selectedMarkerId);
+        await deleteRowsGuarded(supabase, 'battery_specs', 'marker_id', [selectedMarkerId]);
         // battery_markers 삭제
-        const { error } = await supabase.from('battery_markers').delete().eq('id', selectedMarkerId);
-        if (error) throw error;
+        await deleteRowsGuarded(supabase, 'battery_markers', 'id', [selectedMarkerId]);
       }
 
       toast({ description: '마커가 삭제되었습니다.' });
@@ -463,6 +457,7 @@ export function useMarkerEditForm() {
     closeAllModals,
     mode,
     isAuthenticated,
+    canDelete: isAdmin,
     isSubmitting,
     name,
     setName,

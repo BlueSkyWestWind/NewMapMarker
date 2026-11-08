@@ -65,6 +65,7 @@ export function MarkerEditModal() {
     handleBatteryRowChange,
     handleSave,
     handleDelete,
+    canDelete,
   } = useMarkerEditForm();
 
   return (
@@ -197,7 +198,8 @@ export function MarkerEditModal() {
               <Button
                 variant="destructive"
                 onClick={handleDelete}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !canDelete}
+                title={canDelete ? undefined : '관리자만 삭제할 수 있습니다'}
                 className="h-9 px-4 text-xs font-medium"
               >
                 <Trash2 className="h-4 w-4 mr-1.5" />
