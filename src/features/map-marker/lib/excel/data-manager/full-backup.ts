@@ -30,6 +30,8 @@ export {
 const TABLE_COLUMN = '테이블';
 const JSON_OBJECT_COLUMNS = new Set(['tags', 'raw']);
 const SHEET_NAME = 'mapmarker_backup';
+const BATTERY_SHEET_NAME = '축전지';
+const BATTERY_SPEC_SHEET_NAME = '축전지규격';
 const MARKER_ID_COLUMN = '마커아이디';
 const LAT_COLUMN = '위도';
 const LNG_COLUMN = '경도';
@@ -425,7 +427,7 @@ function buildProcessExcelRow(
 
 /**
  * 맨 앞: 위도/경도/마커아이디/등록일/구분/시설연도/색상
- * 이어서 공정관리 79열. 축전지는 하단에 `테이블` 구분 행으로 이어 붙인다.
+ * 이어서 공정관리 79열. 장비 마커만 담는다 — 축전지는 별도 시트(`축전지`·`축전지규격`)로 나간다.
  */
 export function buildFullBackupSheetRows(
   tables: FullBackupTables,
@@ -502,19 +504,6 @@ export function buildFullBackupSheetRows(
         },
       ),
     );
-  }
-
-  // 축전지: 레거시 구분 열 형식으로 하단에 추가
-  for (const tableName of ['battery_markers', 'battery_specs'] as const) {
-    for (const row of tables[tableName]) {
-      const excelRow: Record<string, string | number | boolean> = {
-        [TABLE_COLUMN]: tableName,
-      };
-      for (const [key, value] of Object.entries(row)) {
-        excelRow[key] = serializeCellValue(value);
-      }
-      rows.push(excelRow);
-    }
   }
 
   return rows;
@@ -714,8 +703,13 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
     { defval: '' },
   );
   const batteryTables = parseFullBackupSheetRows(sheetRows);
-  tables.battery_markers = batteryTables.battery_markers;
-  tables.battery_specs = batteryTables.battery_specs;
+  // 전용 시트(`축전지`·`축전지규격`)가 있으면 그것을, 없으면 옛 백업처럼 장비 시트 하단 행을 쓴다.
+  tables.battery_markers =
+    readBatterySheet(workbook, BATTERY_SHEET_NAME, 'battery_markers') ??
+    batteryTables.battery_markers;
+  tables.battery_specs =
+    readBatterySheet(workbook, BATTERY_SPEC_SHEET_NAME, 'battery_specs') ??
+    batteryTables.battery_specs;
 
   return tables;
 }
@@ -768,6 +762,36 @@ function buildWorksheetFromRows(
 const SITE_LIST_SHEET_NAME = '국소목록';
 const SITE_LIST_MEMBER_SHEET_NAME = '국소목록소속';
 
+/** 축전지 테이블 한 종류를 `테이블` 열 없이 DB 열 그대로 시트로 만든다. */
+function buildBatteryWorksheet(
+  tableName: 'battery_markers' | 'battery_specs',
+  rows: FullBackupTables['battery_markers'],
+): XLSX.WorkSheet {
+  const columns = TABLE_COLUMNS[tableName];
+  const aoa: (string | number | boolean)[][] = [[...columns]];
+  for (const row of rows) {
+    aoa.push(columns.map((column) => serializeCellValue(row[column])));
+  }
+  return XLSX.utils.aoa_to_sheet(aoa);
+}
+
+/**
+ * 축전지 전용 시트를 읽는다. 시트가 없으면(옛 백업) null — 그때는 장비 시트 하단의
+ * `테이블` 구분 행을 쓴다.
+ */
+function readBatterySheet(
+  workbook: XLSX.WorkBook,
+  sheetName: string,
+  tableName: 'battery_markers' | 'battery_specs',
+): FullBackupTables['battery_markers'] | null {
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) return null;
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  return parseFullBackupSheetRows(
+    rows.map((row) => ({ ...row, [TABLE_COLUMN]: tableName })),
+  )[tableName];
+}
+
 export const fullBackupMethods: Record<string, unknown> & ThisType<Record<string, unknown>> = {
   /**
    * 공정관리(업로드)와 같은 한글 열 1시트로 전체 장비 데이터를 백업한다.
@@ -785,6 +809,17 @@ export const fullBackupMethods: Record<string, unknown> & ThisType<Record<string
     const worksheet = buildWorksheetFromRows(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, SHEET_NAME);
+    // 장비 마커와 축전지 마커를 한 시트에 섞지 않는다. 비어 있어도 시트는 만들어 구조를 고정한다.
+    XLSX.utils.book_append_sheet(
+      workbook,
+      buildBatteryWorksheet('battery_markers', tables.battery_markers),
+      BATTERY_SHEET_NAME,
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      buildBatteryWorksheet('battery_specs', tables.battery_specs),
+      BATTERY_SPEC_SHEET_NAME,
+    );
     if (siteLists) {
       XLSX.utils.book_append_sheet(
         workbook,
