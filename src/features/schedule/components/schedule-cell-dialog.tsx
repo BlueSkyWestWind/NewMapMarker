@@ -658,7 +658,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             <ul className="flex max-h-72 min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
               {drafts.map((draft) => (
                 <li key={draft.key} className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                   <span
                     className="w-6 shrink-0 text-center text-[11px] text-slate-500"
                     title={draft.rowNo !== null ? `${draft.rowNo + 1}행` : "새 항목"}
@@ -700,6 +700,19 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                       ...(draft.textColor ? { color: TEXT_COLOR_DISPLAY[draft.textColor] } : null),
                     }}
                   />
+                  {canEdit ? (
+                      <MultiDatePicker
+                        value={workDates[draft.key] ?? []}
+                        lockedIso={position.workDate}
+                        max={MAX_WORK_DATES}
+                        disabled={disabled}
+                        ariaLabel="이 국소만 다른 작업일자 선택"
+                        placeholder="작업일자"
+                        compact
+                        describeDate={describeDate}
+                        onChange={(next) => setRowDates(draft.key, next)}
+                      />
+                  ) : null}
                   <button
                     type="button"
                     disabled={disabled}
@@ -760,26 +773,6 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                     </button>
                   ) : null}
                   </div>
-                  {canEdit ? (
-                    <div className="ml-7 flex flex-wrap items-start gap-2 text-[11px] text-slate-400">
-                      <span className="whitespace-nowrap pt-2">이 국소만 다른 작업일자</span>
-                      <MultiDatePicker
-                        value={workDates[draft.key] ?? []}
-                        lockedIso={position.workDate}
-                        max={MAX_WORK_DATES}
-                        disabled={disabled}
-                        ariaLabel="이 국소만 다른 작업일자 선택"
-                        placeholder="날짜 선택"
-                        describeDate={describeDate}
-                        onChange={(next) => setRowDates(draft.key, next)}
-                      />
-                      {(workDates[draft.key]?.length ?? 0) === 0 ? (
-                        <span className="pt-2">
-                          {commonDates.length > 0 ? "비우면 위 공통 작업일자를 따릅니다" : "비우면 공통 작업일자(없으면 이 날짜 하루만)"}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
                   {suggestKey === draft.key && rowResults.length > 0 ? (
                     <StationSuggestionList
                       results={rowResults}
@@ -817,7 +810,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             />
             <p className="text-[11px] text-slate-400">
               {position.workDate}(회색)은 항상 저장되고, 여기서 고른 날짜는 위 목록의 모든 국소에 더해 만들어집니다.
-              국소마다 다르게 하려면 그 줄의 &quot;이 국소만 다른 작업일자&quot;에서 따로 고르세요.
+              국소마다 다르게 하려면 그 줄 메모 옆의 작업일자 칸에서 따로 고르세요(비워 두면 위 공통 작업일자를 따릅니다).
             </p>
           </div>
         ) : null}

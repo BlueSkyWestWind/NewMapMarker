@@ -23,6 +23,11 @@ export interface MultiDatePickerProps {
   /** 날짜 칩에 붙일 보조 표시(요일·공휴일 등) */
   describeDate?: (iso: string) => string;
   className?: string;
+  /**
+   * 한 줄에 끼워 넣는 모드. 버튼만 줄에 놓이고(고른 날짜는 버튼 툴팁과 달력 위 칩으로 본다),
+   * 달력은 부모 줄(`flex-wrap`이어야 한다) 아래 줄 전체 폭으로 펼쳐진다.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -41,6 +46,7 @@ export function MultiDatePicker({
   disabled,
   describeDate,
   className,
+  compact = false,
 }: MultiDatePickerProps) {
   const anchor = startIso ?? lockedIso ?? new Date().toISOString().slice(0, 10);
   const [open, setOpen] = useState(false);
@@ -54,41 +60,50 @@ export function MultiDatePicker({
   const step = (delta: number) => setView((prev) => stepYearMonth(prev.year, prev.month, delta));
   const label = (iso: string) => `${iso.slice(5)}${describeDate ? describeDate(iso) : ""}`;
 
+  const chips = value.map((iso) => (
+    <span
+      key={iso}
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] text-slate-200"
+    >
+      {label(iso)}
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={`${label(iso)} 빼기`}
+        className="text-slate-400 hover:text-rose-300 disabled:opacity-50"
+        onClick={() => onChange(toggleDate(value, iso, { locked: lockedIso, max }))}
+      >
+        <X className="h-3 w-3" aria-hidden />
+      </button>
+    </span>
+  ));
+
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={cn(compact ? "contents" : "flex flex-col gap-1.5", className)}>
+      <div className={cn(compact ? "contents" : "flex flex-wrap items-center gap-2")}>
         <button
           type="button"
           disabled={disabled}
           aria-label={ariaLabel}
           aria-expanded={open}
+          title={compact ? (value.length > 0 ? value.map(label).join(", ") : ariaLabel) : undefined}
           onClick={() => setOpen((prev) => !prev)}
-          className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-700 bg-slate-900 px-2.5 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-700 bg-slate-900 px-2.5 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-50"
         >
           <Calendar className="h-3.5 w-3.5" aria-hidden />
           {value.length === 0 ? placeholder : `${placeholder} (${value.length}일)`}
         </button>
-        {value.map((iso) => (
-          <span
-            key={iso}
-            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] text-slate-200"
-          >
-            {label(iso)}
-            <button
-              type="button"
-              disabled={disabled}
-              aria-label={`${label(iso)} 빼기`}
-              className="text-slate-400 hover:text-rose-300 disabled:opacity-50"
-              onClick={() => onChange(toggleDate(value, iso, { locked: lockedIso, max }))}
-            >
-              <X className="h-3 w-3" aria-hidden />
-            </button>
-          </span>
-        ))}
+        {compact ? null : chips}
       </div>
 
       {open ? (
-        <div className="w-[304px] rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-lg">
+        <div
+          className={cn(
+            "w-[304px] rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-lg",
+            compact && "order-last basis-full",
+          )}
+        >
+          {compact && value.length > 0 ? <div className="mb-2 flex flex-wrap gap-1.5">{chips}</div> : null}
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
