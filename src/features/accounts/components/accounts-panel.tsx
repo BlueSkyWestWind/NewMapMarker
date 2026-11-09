@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Plus, RefreshCw, Search, Users } from "lucide-react";
+import { ClipboardList, Loader2, Plus, RefreshCw, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminUsers } from "../hooks/use-admin-users";
 import { describeCreateResult, isCurrentUser } from "../lib/account-helpers";
 import type { AdminUser, CreateAccountInput } from "../types";
 import { AccountCreateDialog } from "./account-create-dialog";
+import { AccountAuditDialog } from "./account-audit-dialog";
 import { AccountDeleteDialog } from "./account-delete-dialog";
 import { AccountHistoryDialog } from "./account-history-dialog";
 import { AccountTableRow } from "./account-table-row";
@@ -32,6 +33,7 @@ export function AccountsPanel() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [historyTarget, setHistoryTarget] = useState<AdminUser | null>(null);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const filteredUsers = useMemo(() => {
@@ -106,6 +108,18 @@ export function AccountsPanel() {
             title="새로고침"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsAuditOpen(true)}
+            className="h-8 gap-1 border-slate-700 bg-slate-800 px-2.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-slate-100"
+            title="계정 생성·삭제·권한 변경 기록"
+          >
+            <ClipboardList className="h-3.5 w-3.5" />
+            작업 기록
           </Button>
 
           <Button
@@ -224,6 +238,7 @@ export function AccountsPanel() {
       />
 
       {/* 계정 삭제 확인 모달 */}
+      <AccountAuditDialog open={isAuditOpen} onOpenChange={setIsAuditOpen} />
       <AccountHistoryDialog
         user={historyTarget}
         open={!!historyTarget}

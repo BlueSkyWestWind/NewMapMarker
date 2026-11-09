@@ -1,4 +1,5 @@
 import type { CreateAccountResult } from "./lib/account-helpers";
+import type { AuditEntry } from "./lib/audit-log";
 import type { AdminUser, CreateAccountInput, LoginEvent } from "./types";
 
 interface ApiErrorResponse {
@@ -42,6 +43,17 @@ export async function fetchLoginHistory(
     headers: { Authorization: `Bearer ${token}` },
   });
   return handleResponse<{ events: LoginEvent[]; available: boolean }>(res);
+}
+
+/**
+ * 관리자 작업 기록(계정 생성·삭제·권한 변경, 관리자 전용). 테이블이 아직 없으면 `available: false`.
+ */
+export async function fetchAuditLog(token: string): Promise<{ entries: AuditEntry[]; available: boolean }> {
+  const res = await fetch("/api/admin/audit", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<{ entries: AuditEntry[]; available: boolean }>(res);
 }
 
 /**

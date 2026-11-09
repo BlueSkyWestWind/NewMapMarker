@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { clientIpOf } from "@/features/accounts/lib/audit-log";
 import { authenticateAdminRequest } from "@/features/accounts/server/admin-auth";
+import { recordAudit } from "@/features/accounts/server/audit";
 import type { AdminSession } from "@/features/accounts/types";
 
 export const dynamic = "force-dynamic";
@@ -146,6 +148,16 @@ export async function POST(req: Request) {
         warning = `계정은 생성되었으나 관리자 권한 부여에 실패했습니다: ${insertAdminError.message}`;
       }
     }
+
+    await recordAudit(adminClient, {
+      actorId: auth.user.id,
+      actorEmail: auth.user.email,
+      action: "account_create",
+      targetId: created.user.id,
+      targetEmail: created.user.email ?? trimmedEmail,
+      detail: { isAdmin: body.isAdmin === true, ...(warning ? { warning } : {}) },
+      ip: clientIpOf(req.headers),
+    });
 
     return NextResponse.json(
       {

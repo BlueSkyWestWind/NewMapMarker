@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { clientIpOf } from "@/features/accounts/lib/audit-log";
 import {
   authenticateAdminRequest,
   preventSelfAction,
 } from "@/features/accounts/server/admin-auth";
+import { lookupEmail, recordAudit } from "@/features/accounts/server/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +70,15 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       }
     }
 
+    await recordAudit(adminClient, {
+      actorId: auth.user.id,
+      actorEmail: auth.user.email,
+      action: body.isAdmin ? "admin_grant" : "admin_revoke",
+      targetId: id,
+      targetEmail: await lookupEmail(adminClient, id),
+      ip: clientIpOf(req.headers),
+    });
+
     return NextResponse.json({ ok: true, id, isAdmin: body.isAdmin });
   } catch (err) {
     return NextResponse.json(
@@ -102,11 +113,22 @@ export async function DELETE(req: Request, { params }: RouteParams) {
 
   try {
     const { adminClient } = auth;
+    // 삭제하면 이메일을 읽을 수 없으므로 먼저 읽어 둔다(기록에 남긴다).
+    const targetEmail = await lookupEmail(adminClient, id);
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(id);
 
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 400 });
     }
+
+    await recordAudit(adminClient, {
+      actorId: auth.user.id,
+      actorEmail: auth.user.email,
+      action: "account_delete",
+      targetId: id,
+      targetEmail,
+      ip: clientIpOf(req.headers),
+    });
 
     return NextResponse.json({ ok: true, id });
   } catch (err) {
