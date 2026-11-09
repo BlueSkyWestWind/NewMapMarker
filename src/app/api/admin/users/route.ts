@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateAdminRequest } from "@/features/accounts/server/admin-auth";
+import type { AdminSession } from "@/features/accounts/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +31,37 @@ export async function GET(req: Request) {
 
     const adminIds = new Set((adminRows ?? []).map((row) => row.user_id));
 
+    // 접속 정보(IP·브라우저·마지막 활동). 마이그레이션 전이면 함수가 없어 실패하므로 목록은 그대로 돌려주고 접속 정보만 뺀다.
+    const { data: sessionRows, error: sessionsError } = await adminClient.rpc("admin_user_sessions");
+    const sessionsByUser = new Map<string, AdminSession[]>();
+    if (!sessionsError) {
+      for (const row of (sessionRows ?? []) as {
+        user_id: string;
+        session_id: string;
+        ip: string | null;
+        user_agent: string | null;
+        created_at: string;
+        last_active_at: string;
+      }[]) {
+        const list = sessionsByUser.get(row.user_id) ?? [];
+        list.push({
+          id: row.session_id,
+          ip: row.ip ?? null,
+          userAgent: row.user_agent ?? null,
+          createdAt: row.created_at,
+          lastActiveAt: row.last_active_at,
+        });
+        sessionsByUser.set(row.user_id, list);
+      }
+    }
+
     const users = (userData?.users ?? []).map((user) => ({
       id: user.id,
       email: user.email ?? "",
       createdAt: user.created_at,
       lastSignInAt: user.last_sign_in_at ?? null,
       isAdmin: adminIds.has(user.id),
+      ...(sessionsError ? null : { sessions: sessionsByUser.get(user.id) ?? [] }),
     }));
 
     // 가입일 내림차순 정렬 (최신 계정 먼저)

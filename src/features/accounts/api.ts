@@ -1,5 +1,5 @@
 import type { CreateAccountResult } from "./lib/account-helpers";
-import type { AdminUser, CreateAccountInput } from "./types";
+import type { AdminUser, CreateAccountInput, LoginEvent } from "./types";
 
 interface ApiErrorResponse {
   error?: string;
@@ -28,6 +28,20 @@ export async function fetchAdminUsers(token: string): Promise<AdminUser[]> {
 
   const data = await handleResponse<{ users: AdminUser[] }>(res);
   return data.users;
+}
+
+/**
+ * 계정의 로그인·로그아웃 기록(관리자 전용). 조회 함수가 아직 없으면 `available: false`.
+ */
+export async function fetchLoginHistory(
+  token: string,
+  userId: string,
+): Promise<{ events: LoginEvent[]; available: boolean }> {
+  const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/history`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<{ events: LoginEvent[]; available: boolean }>(res);
 }
 
 /**

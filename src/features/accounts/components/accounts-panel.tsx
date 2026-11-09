@@ -9,6 +9,7 @@ import { describeCreateResult, isCurrentUser } from "../lib/account-helpers";
 import type { AdminUser, CreateAccountInput } from "../types";
 import { AccountCreateDialog } from "./account-create-dialog";
 import { AccountDeleteDialog } from "./account-delete-dialog";
+import { AccountHistoryDialog } from "./account-history-dialog";
 import { AccountTableRow } from "./account-table-row";
 
 export function AccountsPanel() {
@@ -30,6 +31,7 @@ export function AccountsPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<AdminUser | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const filteredUsers = useMemo(() => {
@@ -190,6 +192,7 @@ export function AccountsPanel() {
                 <th className="whitespace-nowrap px-3 py-2">이메일</th>
                 <th className="whitespace-nowrap px-3 py-2 w-36">가입일</th>
                 <th className="whitespace-nowrap px-3 py-2 w-36">최근 로그인</th>
+                <th className="whitespace-nowrap px-3 py-2">접속 정보</th>
                 <th className="whitespace-nowrap px-3 py-2 w-28">권한</th>
                 <th className="whitespace-nowrap px-3 py-2 text-center w-14">관리</th>
               </tr>
@@ -203,6 +206,7 @@ export function AccountsPanel() {
                   isCurrent={isCurrentUser(currentUserId, user.id)}
                   onToggleRole={handleToggleRole}
                   onDelete={(target) => setDeleteTarget(target)}
+                  onShowHistory={(target) => setHistoryTarget(target)}
                   disabled={isUpdatingRole || isDeleting}
                 />
               ))}
@@ -220,6 +224,13 @@ export function AccountsPanel() {
       />
 
       {/* 계정 삭제 확인 모달 */}
+      <AccountHistoryDialog
+        user={historyTarget}
+        open={!!historyTarget}
+        onOpenChange={(open) => {
+          if (!open) setHistoryTarget(null);
+        }}
+      />
       <AccountDeleteDialog
         user={deleteTarget}
         open={!!deleteTarget}
