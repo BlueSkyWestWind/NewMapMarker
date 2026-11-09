@@ -1,4 +1,5 @@
 import { fetchAllRows, type FetchPageResult } from "@/features/map-marker/api";
+import { planCompanionArrangement } from "@/features/schedule/lib/companion-arrange";
 import { planReschedule } from "@/features/schedule/lib/cell-result";
 import { toDbTimestamp, toKstLocal, type Freeze, type FreezeInput } from "@/features/schedule/lib/freeze";
 import { addDays } from "@/features/schedule/lib/week";
@@ -299,6 +300,22 @@ export async function moveScheduleCell(
     p_row_no: target.rowNo,
   });
   if (error) throw error;
+}
+
+/**
+ * 그 날짜·팀의 칸 행을 정리한다(`planCompanionArrangement`): 칸을 옮기거나 지워서 생긴 빈 행을 위로 닫는다.
+ * 입회 대상 표시가 있으면 대상 국소 → 입회 → 신호수 → 나머지 순으로도 정리한다.
+ */
+export async function arrangeScheduleGroup(
+  supabase: SupabaseBrowserClient,
+  workDate: string,
+  columnId: string,
+): Promise<void> {
+  const cells = await fetchScheduleCells(supabase, workDate, workDate);
+  const group = cells.filter((cell) => cell.columnId === columnId);
+  for (const step of planCompanionArrangement(group)) {
+    await moveScheduleCell(supabase, step.id, { workDate, columnId, rowNo: step.toRow });
+  }
 }
 
 export async function deleteScheduleCell(

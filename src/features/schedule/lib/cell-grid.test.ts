@@ -5,6 +5,7 @@ import {
   firstFreeRow,
   indexCells,
   isOptionalScheduleColumn,
+  leftoverGroupAfterMove,
   MAX_ROWS,
   MIN_VISIBLE_ROWS,
   planDrop,
@@ -210,5 +211,27 @@ describe("선택 열(6팀·시험팀·실사&재하도급) 표시 필터", () =>
     expect(
       filterVisibleScheduleColumns(columns, new Set(["c7", "c8", "c9"])).map((c) => c.teamLabel),
     ).toEqual(["1팀", "6팀", "시험팀", "실사&재하도급", "비고"]);
+  });
+});
+
+describe("leftoverGroupAfterMove", () => {
+  const dragged = { workDate: "2026-11-09", columnId: "team1", rowNo: 2 };
+
+  it("다른 팀으로 옮기면 원래 팀을 정리 대상으로 돌려준다", () => {
+    expect(leftoverGroupAfterMove(dragged, { workDate: "2026-11-09", columnId: "team2", rowNo: 0 })).toEqual({
+      workDate: "2026-11-09",
+      columnId: "team1",
+    });
+  });
+
+  it("다른 날짜로 옮겨도 원래 날짜·팀을 정리 대상으로 돌려준다", () => {
+    expect(leftoverGroupAfterMove(dragged, { workDate: "2026-11-10", columnId: "team1", rowNo: 0 })).toEqual({
+      workDate: "2026-11-09",
+      columnId: "team1",
+    });
+  });
+
+  it("같은 날짜·팀 안에서 순서를 바꾸는 끌기는 정리하지 않는다(끈 순서를 되돌리지 않는다)", () => {
+    expect(leftoverGroupAfterMove(dragged, { workDate: "2026-11-09", columnId: "team1", rowNo: 0 })).toBeNull();
   });
 });

@@ -63,6 +63,18 @@ export function firstFreeRow(
   return null;
 }
 
+/**
+ * 칸을 `target`에 놓은 뒤 빈 행을 닫아야 할 원래 날짜·팀. 다른 날짜·팀으로 옮겼을 때만 돌려준다.
+ * 같은 날짜·팀 안에서 순서를 바꾼 끌기는 정리하지 않는다(끈 순서를 되돌리면 안 되기 때문이다).
+ */
+export function leftoverGroupAfterMove(
+  dragged: CellPosition,
+  target: CellPosition,
+): { workDate: string; columnId: string } | null {
+  if (dragged.workDate === target.workDate && dragged.columnId === target.columnId) return null;
+  return { workDate: dragged.workDate, columnId: dragged.columnId };
+}
+
 export type DropPlan =
   | { kind: "none" }
   | { kind: "move" }

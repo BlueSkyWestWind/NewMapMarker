@@ -486,39 +486,34 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       if (markColor !== mark) {
         await setScheduleMark(supabase, position.workDate, position.columnId, markColor);
       }
-      // 대상 표시가 있으면 일정표 행을 대상 국소 → 입회 → 신호수 → 나머지 순으로 정리한다.
+      // 저장할 때마다 일정표 행을 정리한다. 대상 표시가 있으면 대상 국소 → 입회 → 신호수 → 나머지 순으로,
+      // 없으면 순서는 그대로 두고 삭제로 생긴 빈 행만 위로 닫는다.
       // 방금 저장한 칸까지 반영하려고 도착 날짜의 칸을 새로 불러와 계산한다.
-      // 함께 등록한 팀도 같은 순서로 정리한다(복사된 대상 표시가 있는 팀만 바뀐다).
+      // 함께 등록한 팀도 같은 방식으로 정리한다.
       // 정리가 실패해도 칸은 이미 저장됐다. 저장 실패로 보이지 않게 따로 알린다.
       let arrangeError: string | null = null;
-      if (entries.some((draft) => draft.companionTarget)) {
-        try {
-          const finalDate = moving ? workDate : position.workDate;
-          const finalColumnIds = [
-            moving ? columnId : position.columnId,
-            ...new Set(crossPlan.creates.map((created) => created.columnId)),
-          ];
-          const fresh = await fetchScheduleCells(supabase, finalDate, finalDate);
-          for (const finalColumnId of finalColumnIds) {
-            const finalGroup = fresh.filter((candidate) => candidate.columnId === finalColumnId);
-            for (const step of planCompanionArrangement(finalGroup)) {
-              await moveScheduleCell(supabase, step.id, {
-                workDate: finalDate,
-                columnId: finalColumnId,
-                rowNo: step.toRow,
-              });
-            }
+      try {
+        const finalDate = moving ? workDate : position.workDate;
+        const finalColumnIds = [
+          moving ? columnId : position.columnId,
+          ...new Set(crossPlan.creates.map((created) => created.columnId)),
+        ];
+        const fresh = await fetchScheduleCells(supabase, finalDate, finalDate);
+        for (const finalColumnId of finalColumnIds) {
+          const finalGroup = fresh.filter((candidate) => candidate.columnId === finalColumnId);
+          for (const step of planCompanionArrangement(finalGroup)) {
+            await moveScheduleCell(supabase, step.id, {
+              workDate: finalDate,
+              columnId: finalColumnId,
+              rowNo: step.toRow,
+            });
           }
-        } catch (error) {
-          arrangeError = error instanceof Error ? error.message : String(error);
         }
+      } catch (error) {
+        arrangeError = error instanceof Error ? error.message : String(error);
       }
-      // 작업일자로 대상 표시가 복사된 (날짜, 팀)도 같은 순서로 정리한다.
-      if (
-        periodPlan !== null &&
-        periodPlan.dates.length > 0 &&
-        periodDrafts.some((draft) => draft.companionTarget)
-      ) {
+      // 작업일자로 칸을 만든 (날짜, 팀)도 같은 방식으로 정리한다(대상 표시가 없어도 빈 행은 닫는다).
+      if (periodPlan !== null && periodPlan.dates.length > 0) {
         try {
           const periodFresh = await fetchScheduleCells(
             supabase,

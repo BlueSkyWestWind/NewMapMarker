@@ -57,9 +57,34 @@ describe("planCompanionArrangement", () => {
     expect(planCompanionArrangement(ordered)).toEqual([]);
   });
 
-  it("대상 표시가 하나도 없으면 손대지 않는다", () => {
+  it("대상 표시가 하나도 없고 빈 행도 없으면 손대지 않는다(순서를 바꾸지 않는다)", () => {
     const none = [cell(0, "가"), cell(1, "", { sub: "입회 : 홍" }), cell(2, "나")];
     expect(planCompanionArrangement(none)).toEqual([]);
+  });
+
+  // 실제 데이터에서 따온 경우: 2026-11-12 1팀은 0행이 삭제돼 1·2행에만 남아 위가 비어 보였다.
+  it("대상 표시가 없어도 삭제로 생긴 위쪽 빈 행을 닫는다", () => {
+    const topGap = [cell(1, "(공동)강광고속장암-RRU(F2)"), cell(2, "(공동)강광고속장암-RRU(F1)")];
+    const moves = planCompanionArrangement(topGap);
+    expect(moves).toEqual([
+      { id: "r1", toRow: 0 },
+      { id: "r2", toRow: 1 },
+    ]);
+  });
+
+  // 2026-11-10 2팀은 행이 0·1·3이라 입회 위에 빈 행이 하나 있었다(3팀은 0·1·2로 붙어 있었다).
+  it("대상 표시가 없어도 입회 위의 빈 행을 닫아 팀마다 입회 위치를 같게 한다", () => {
+    const withGap = [cell(0, "103동"), cell(1, "104동"), cell(3, "", { sub: "입회 : 박황열" })];
+    const withoutGap = [cell(0, "103동"), cell(1, "104동"), cell(2, "", { sub: "입회 : 박황열" })];
+
+    expect(planCompanionArrangement(withGap)).toEqual([{ id: "r3", toRow: 2 }]);
+    expect(planCompanionArrangement(withoutGap)).toEqual([]);
+  });
+
+  it("빈 행을 닫아도 국소와 입회의 원래 순서는 바꾸지 않는다", () => {
+    const gaps = [cell(2, "가"), cell(4, "", { sub: "입회 : 홍" }), cell(7, "나")];
+    expect(apply(gaps, planCompanionArrangement(gaps))).toEqual(["r2", "r4", "r7"]);
+    expect(planCompanionArrangement(gaps).map((m) => m.toRow)).toEqual([0, 1, 2]);
   });
 
   it("입회·신호수 칸이 없어도 대상 국소를 앞으로 모은다", () => {

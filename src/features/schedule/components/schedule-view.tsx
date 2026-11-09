@@ -6,11 +6,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
-import { moveScheduleCell } from "@/features/schedule/api";
+import { arrangeScheduleGroup, moveScheduleCell } from "@/features/schedule/api";
 import {
   filterVisibleScheduleColumns,
   groupOfCell,
   isOptionalScheduleColumn,
+  leftoverGroupAfterMove,
   MAX_ROWS,
   planDrop,
   planGroupDrop,
@@ -200,6 +201,24 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
    * 맞바꾸지 않고 도착 팀의 빈 행에 하나를 이어 붙인다.
    * 주간·월간 모두 지금 보이는 보기의 칸(`data.cells`)으로 판단한다.
    */
+  /**
+   * 다른 날짜·팀으로 옮긴 뒤 원래 팀에 남은 빈 행을 위로 닫는다. 칸은 이미 옮겨졌으므로
+   * 정리가 실패해도 옮김은 취소하지 않고 따로 알린다.
+   */
+  const closeLeftoverGap = async (dragged: CellPosition, target: CellPosition) => {
+    const leftover = leftoverGroupAfterMove(dragged, target);
+    if (!supabase || leftover === null) return;
+    try {
+      await arrangeScheduleGroup(supabase, leftover.workDate, leftover.columnId);
+    } catch (error) {
+      toast({
+        title: "행 순서 정리에 실패했습니다",
+        description: `칸은 옮겨졌습니다. ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDropCell = async (
     dragged: ScheduleCell,
     target: CellPosition,
@@ -241,12 +260,14 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
           return;
         }
         await moveScheduleCell(supabase, dragged.id, { ...target, rowNo: null });
+        await closeLeftoverGap(dragged, target);
         await weekData.refresh();
         return;
       }
       const plan = planDrop(viewCells, dragged, target);
       if (plan.kind === "none") return;
       await moveScheduleCell(supabase, dragged.id, target);
+      await closeLeftoverGap(dragged, target);
       await weekData.refresh();
     } catch (error) {
       toast({
