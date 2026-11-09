@@ -4,16 +4,13 @@ import { DISCLAIMER } from "@/features/worksite-weather/constants/thresholds";
 import { resolveWarnStnId } from "@/features/worksite-weather/constants/kma-regions";
 import {
   buildTyphoonFromAlerts,
-  fetchUltraSrtFcst,
-  fetchUltraSrtNcst,
-  fetchVilageFcst,
   fetchWeatherAlerts,
   KmaError,
 } from "@/features/worksite-weather/lib/kma-client";
+import { loadForecastItems } from "@/features/worksite-weather/lib/kma-forecast-source";
 import {
   baseToIsoKst,
   currentKstHhmm,
-  getUltraFcstBase,
   getUltraNcstBase,
   getVilageBaseForToday,
   isoDateKst,
@@ -82,16 +79,14 @@ export async function GET(request: NextRequest) {
   const targetDate = ymdKst(now);
   const vilageBase = getVilageBaseForToday(now);
   const ncstBase = getUltraNcstBase(now);
-  const ultraBase = getUltraFcstBase(now);
   const region = params.get("region") ?? "";
   const stnId = resolveWarnStnId(region);
 
   try {
-    // 동시 외부 연결 6개 제한에 여유를 두기 위해 4건으로 묶는다
-    const [vilageItems, ncstItems, ultraItems, alertResult] = await Promise.all([
-      fetchVilageFcst({ nx: grid.nx, ny: grid.ny, base: vilageBase }),
-      fetchUltraSrtNcst({ nx: grid.nx, ny: grid.ny, base: ncstBase }).catch(() => []),
-      fetchUltraSrtFcst({ nx: grid.nx, ny: grid.ny, base: ultraBase }).catch(() => []),
+    // 예보 3종은 저장분(기준시각이 같은 것)을 먼저 쓰고 빠진 것만 실시간으로 받는다.
+    // 동시 외부 연결 6개 제한에 여유를 두기 위해 예보 묶음과 특보 2건으로 묶는다.
+    const [{ vilage: vilageItems, ncst: ncstItems, ufcst: ultraItems }, alertResult] = await Promise.all([
+      loadForecastItems({ nx: grid.nx, ny: grid.ny, now }),
       fetchWeatherAlerts(stnId, targetDate, ymdKst(now, -1), region).catch(() => ({
         alerts: [],
         parsed: false,

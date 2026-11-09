@@ -1,4 +1,5 @@
 import type { CreateAccountResult } from "./lib/account-helpers";
+import type { KmaUsageReport } from "@/features/worksite-weather/lib/kma-usage-stats";
 import type { AuditEntry } from "./lib/audit-log";
 import type { AdminUser, CreateAccountInput, LoginEvent } from "./types";
 
@@ -54,6 +55,15 @@ export async function fetchAuditLog(token: string): Promise<{ entries: AuditEntr
     headers: { Authorization: `Bearer ${token}` },
   });
   return handleResponse<{ entries: AuditEntry[]; available: boolean }>(res);
+}
+
+/** 기상청 호출 집계(오늘 시간대별·최근 7일). 마이그레이션 전이면 `available: false`. */
+export async function fetchKmaUsage(token: string): Promise<KmaUsageReport | { available: false }> {
+  const res = await fetch("/api/admin/kma-usage", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<KmaUsageReport | { available: false }>(res);
 }
 
 /**

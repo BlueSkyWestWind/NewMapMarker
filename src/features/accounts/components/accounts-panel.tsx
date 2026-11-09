@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ClipboardList, Loader2, Plus, RefreshCw, Search, Users } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Activity, ClipboardList, Loader2, Plus, RefreshCw, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminUsers } from "../hooks/use-admin-users";
@@ -12,6 +13,12 @@ import { AccountAuditDialog } from "./account-audit-dialog";
 import { AccountDeleteDialog } from "./account-delete-dialog";
 import { AccountHistoryDialog } from "./account-history-dialog";
 import { AccountTableRow } from "./account-table-row";
+
+/** 관리자가 열 때만 불러온다(홈 번들에 넣지 않는다). */
+const KmaUsageDialog = dynamic(
+  () => import("./kma-usage-dialog").then((mod) => mod.KmaUsageDialog),
+  { ssr: false },
+);
 
 export function AccountsPanel() {
   const {
@@ -34,6 +41,7 @@ export function AccountsPanel() {
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [historyTarget, setHistoryTarget] = useState<AdminUser | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const [isKmaUsageOpen, setIsKmaUsageOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const filteredUsers = useMemo(() => {
@@ -120,6 +128,17 @@ export function AccountsPanel() {
           >
             <ClipboardList className="h-3.5 w-3.5" />
             작업 기록
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsKmaUsageOpen(true)}
+            className="h-8 gap-1 border-slate-700 bg-slate-800 px-2.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-slate-100"
+            title="기상청 API 호출 횟수와 한도 대비 사용률"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            기상청 호출
           </Button>
 
           <Button
@@ -239,6 +258,7 @@ export function AccountsPanel() {
 
       {/* 계정 삭제 확인 모달 */}
       <AccountAuditDialog open={isAuditOpen} onOpenChange={setIsAuditOpen} />
+      {isKmaUsageOpen ? <KmaUsageDialog open={isKmaUsageOpen} onOpenChange={setIsKmaUsageOpen} /> : null}
       <AccountHistoryDialog
         user={historyTarget}
         open={!!historyTarget}

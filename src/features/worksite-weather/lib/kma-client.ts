@@ -1,5 +1,10 @@
 import "server-only";
 import { CACHE_TTL_MS } from "@/features/worksite-weather/constants/thresholds";
+import {
+  recordKmaCall,
+  type UsageProvider,
+  type UsageSource,
+} from "@/features/worksite-weather/lib/kma-usage";
 import { WARN_KEYWORDS } from "@/features/worksite-weather/constants/kma-regions";
 import type { KmaItem } from "@/features/worksite-weather/lib/merge-sources";
 import type { KmaBase } from "@/features/worksite-weather/lib/kma-base-time";
@@ -38,7 +43,58 @@ const WARN_SERVICE = "WthrWrnInfoService";
 
 const FETCH_TIMEOUT_MS = 8000;
 
-export class KmaError extends Error {}
+export class KmaError extends Error {
+  /** 호출 집계에 남길 오류 코드. 원문 메시지·URL·키는 넣지 않는다. */
+  readonly code: string;
+
+  constructor(message: string, code = "error") {
+    super(message);
+    this.code = code;
+  }
+}
+
+/** 호출 출처. 기본은 사용자 요청이고, 사전 수집은 "prefetch"로 구분해 센다. */
+export interface KmaCallOptions {
+  source?: UsageSource;
+}
+
+/**
+ * 실제로 기상청에 나가는 요청 1건을 집계에 올린다(성공·실패 모두 정확히 1회).
+ * 캐시가 맞아 요청이 나가지 않는 경로에서는 부르지 않는다.
+ * `inspect`는 성공 응답 본문 안의 오류 코드(예: 한도 초과 22)를 뽑는 데 쓴다.
+ */
+async function trackCall<T>(
+  provider: UsageProvider,
+  operation: string,
+  source: UsageSource,
+  run: () => Promise<T>,
+  inspect?: (value: T) => string | null,
+): Promise<T> {
+  let error: string | null = null;
+  try {
+    const value = await run();
+    error = inspect ? inspect(value) : null;
+    return value;
+  } catch (err) {
+    error = err instanceof KmaError ? err.code : "error";
+    throw err;
+  } finally {
+    recordKmaCall({ provider, operation, source, error });
+  }
+}
+
+function providerOf(url: URL): UsageProvider {
+  return url.hostname.includes("apihub") ? "apihub" : "datago";
+}
+
+/** 정상 HTTP 응답이어도 본문이 오류 봉투면 그 코드를 돌려준다. NODATA(03)는 정상으로 본다. */
+function bodyErrorCode(body: KmaResponseBody): string | null {
+  const status = body.result?.status;
+  if (status && status !== 200) return String(status);
+  const code = body.response?.header?.resultCode;
+  if (code && code !== "00" && code !== "03") return code;
+  return null;
+}
 
 /**
  * isolate 메모리 캐시.
@@ -144,9 +200,9 @@ interface KmaResponseBody {
 function extractItems(body: KmaResponseBody): { items: KmaItem[]; totalCount: number } {
   // API 허브는 오류를 { result: { status, message } } 형태로 준다
   if (body.result?.status && body.result.status !== 200) {
-    if (body.result.status === 401) throw new KmaError(AUTH_ERROR_MESSAGE);
-    if (body.result.status === 403) throw new KmaError(NOT_SUBSCRIBED_MESSAGE);
-    throw new KmaError(`기상청 응답 오류 (status ${body.result.status})`);
+    if (body.result.status === 401) throw new KmaError(AUTH_ERROR_MESSAGE, "401");
+    if (body.result.status === 403) throw new KmaError(NOT_SUBSCRIBED_MESSAGE, "403");
+    throw new KmaError(`기상청 응답 오류 (status ${body.result.status})`, String(body.result.status));
   }
 
   const header = body.response?.header;
@@ -154,10 +210,10 @@ function extractItems(body: KmaResponseBody): { items: KmaItem[]; totalCount: nu
 
   if (code !== "00") {
     // 30 SERVICE_KEY_IS_NOT_REGISTERED / 31 만료 / 32 등록되지 않은 도메인
-    if (["30", "31", "32"].includes(code)) throw new KmaError(AUTH_ERROR_MESSAGE);
+    if (["30", "31", "32"].includes(code)) throw new KmaError(AUTH_ERROR_MESSAGE, "401");
     // 원문 메시지를 그대로 노출하면 서비스키가 섞여 나올 수 있어 코드만 전달한다
     if (code === "03") return { items: [], totalCount: 0 }; // NODATA_ERROR
-    throw new KmaError(`기상청 응답 오류 (코드 ${code || "불명"})`);
+    throw new KmaError(`기상청 응답 오류 (코드 ${code || "불명"})`, code || "error");
   }
 
   const raw = body.response?.body?.items?.item;
@@ -178,7 +234,13 @@ const NOT_SUBSCRIBED_MESSAGE =
   "기상청 인증키는 유효하지만 이 서비스에 활용신청이 되어 있지 않습니다. " +
   "포털에서 해당 API 활용신청을 완료한 뒤 다시 시도하세요.";
 
-async function fetchJson(url: URL): Promise<KmaResponseBody> {
+/** 호출 종류(operation)는 URL 마지막 경로에서 얻는다. */
+async function fetchJson(url: URL, source: UsageSource): Promise<KmaResponseBody> {
+  const operation = url.pathname.split("/").filter(Boolean).pop() ?? "unknown";
+  return trackCall(providerOf(url), operation, source, () => fetchJsonRaw(url), bodyErrorCode);
+}
+
+async function fetchJsonRaw(url: URL): Promise<KmaResponseBody> {
   let response: Response;
   try {
     response = await fetch(url.toString(), {
@@ -187,7 +249,7 @@ async function fetchJson(url: URL): Promise<KmaResponseBody> {
       headers: { Accept: "application/json" },
     });
   } catch {
-    throw new KmaError("기상청 API 요청이 시간 초과되었거나 연결에 실패했습니다.");
+    throw new KmaError("기상청 API 요청이 시간 초과되었거나 연결에 실패했습니다.", "timeout");
   }
 
   // 오류 응답도 본문이 JSON이면 사유가 훨씬 정확하므로(허브의 result.status)
@@ -197,20 +259,20 @@ async function fetchJson(url: URL): Promise<KmaResponseBody> {
     try {
       return JSON.parse(text) as KmaResponseBody;
     } catch {
-      throw new KmaError("기상청 API 응답을 해석하지 못했습니다.");
+      throw new KmaError("기상청 API 응답을 해석하지 못했습니다.", "parse");
     }
   }
 
   // 공공데이터포털은 키가 틀리면 JSON이 아니라 평문 "Unauthorized"에 401을 준다
   if (response.status === 401 || /unauthorized|인증키/i.test(text)) {
-    throw new KmaError(AUTH_ERROR_MESSAGE);
+    throw new KmaError(AUTH_ERROR_MESSAGE, "401");
   }
-  if (response.status === 403) throw new KmaError(NOT_SUBSCRIBED_MESSAGE);
+  if (response.status === 403) throw new KmaError(NOT_SUBSCRIBED_MESSAGE, "403");
   if (!response.ok) {
-    throw new KmaError(`기상청 API가 ${response.status} 상태를 반환했습니다.`);
+    throw new KmaError(`기상청 API가 ${response.status} 상태를 반환했습니다.`, String(response.status));
   }
   // dataType=JSON을 줘도 장애 시 XML 오류 페이지가 오는 경우가 있다
-  throw new KmaError("기상청 API가 JSON이 아닌 응답을 반환했습니다.");
+  throw new KmaError("기상청 API가 JSON이 아닌 응답을 반환했습니다.", "nonjson");
 }
 
 function buildUrl(
@@ -240,7 +302,11 @@ interface GridQuery {
 }
 
 /** 단기예보 — 07~17시 골격. totalCount가 넘치면 다음 페이지까지 받아 슬롯 누락을 막는다. */
-export async function fetchVilageFcst(query: GridQuery): Promise<KmaItem[]> {
+export async function fetchVilageFcst(
+  query: GridQuery,
+  opts: KmaCallOptions = {},
+): Promise<KmaItem[]> {
+  const source = opts.source ?? "user";
   const cacheKey = `vilage:${query.nx}:${query.ny}:${query.base.baseDate}${query.base.baseTime}`;
   const cached = readCache<KmaItem[]>(cacheKey);
   if (cached) return cached;
@@ -255,6 +321,7 @@ export async function fetchVilageFcst(query: GridQuery): Promise<KmaItem[]> {
       nx: String(query.nx),
       ny: String(query.ny),
     }),
+    source,
   );
 
   const { items, totalCount } = extractItems(first);
@@ -271,6 +338,7 @@ export async function fetchVilageFcst(query: GridQuery): Promise<KmaItem[]> {
         nx: String(query.nx),
         ny: String(query.ny),
       }),
+      source,
     );
     all.push(...extractItems(next).items);
   }
@@ -280,7 +348,11 @@ export async function fetchVilageFcst(query: GridQuery): Promise<KmaItem[]> {
 }
 
 /** 초단기실황 — 현재 시각 보정 */
-export async function fetchUltraSrtNcst(query: GridQuery): Promise<KmaItem[]> {
+export async function fetchUltraSrtNcst(
+  query: GridQuery,
+  opts: KmaCallOptions = {},
+): Promise<KmaItem[]> {
+  const source = opts.source ?? "user";
   const cacheKey = `ncst:${query.nx}:${query.ny}:${query.base.baseDate}${query.base.baseTime}`;
   const cached = readCache<KmaItem[]>(cacheKey);
   if (cached) return cached;
@@ -294,6 +366,7 @@ export async function fetchUltraSrtNcst(query: GridQuery): Promise<KmaItem[]> {
       nx: String(query.nx),
       ny: String(query.ny),
     }),
+    source,
   );
 
   const { items } = extractItems(body);
@@ -302,7 +375,11 @@ export async function fetchUltraSrtNcst(query: GridQuery): Promise<KmaItem[]> {
 }
 
 /** 초단기예보 — +6시간 정밀 보정 */
-export async function fetchUltraSrtFcst(query: GridQuery): Promise<KmaItem[]> {
+export async function fetchUltraSrtFcst(
+  query: GridQuery,
+  opts: KmaCallOptions = {},
+): Promise<KmaItem[]> {
+  const source = opts.source ?? "user";
   const cacheKey = `ufcst:${query.nx}:${query.ny}:${query.base.baseDate}${query.base.baseTime}`;
   const cached = readCache<KmaItem[]>(cacheKey);
   if (cached) return cached;
@@ -316,6 +393,7 @@ export async function fetchUltraSrtFcst(query: GridQuery): Promise<KmaItem[]> {
       nx: String(query.nx),
       ny: String(query.ny),
     }),
+    source,
   );
 
   const { items } = extractItems(body);
@@ -350,7 +428,9 @@ export async function fetchWeatherAlerts(
   todayYmd: string,
   yesterdayYmd: string,
   address: string,
+  opts: KmaCallOptions = {},
 ): Promise<ParsedAlerts> {
+  const source = opts.source ?? "user";
   const provider = resolveProvider();
   const bucket = Math.floor(Date.now() / CACHE_TTL_MS.warn);
   const cacheKey = `warn:${provider.authParam}:${stnId}:${normalizeRegionKey(address)}:${bucket}`;
@@ -359,8 +439,8 @@ export async function fetchWeatherAlerts(
 
   const result =
     provider.authParam === "authKey"
-      ? await fetchAlertsFromHub(provider, address)
-      : await fetchAlertsFromPortal(stnId, todayYmd, yesterdayYmd);
+      ? await trackCall("apihub", "wrn_now_data", source, () => fetchAlertsFromHub(provider, address))
+      : await fetchAlertsFromPortal(stnId, todayYmd, yesterdayYmd, source);
 
   writeCache(cacheKey, result, CACHE_TTL_MS.warn);
   return result;
@@ -399,7 +479,7 @@ async function fetchAlertsFromHub(
       cache: "no-store",
     });
   } catch {
-    throw new KmaError("기상청 API 요청이 시간 초과되었거나 연결에 실패했습니다.");
+    throw new KmaError("기상청 API 요청이 시간 초과되었거나 연결에 실패했습니다.", "timeout");
   }
 
   // typ01 응답은 Content-Type: text/plain;charset=EUC-KR 이다.
@@ -413,7 +493,7 @@ async function fetchAlertsFromHub(
     return { alerts: [], parsed: false };
   }
   if (!response.ok) {
-    throw new KmaError(`기상청 API가 ${response.status} 상태를 반환했습니다.`);
+    throw new KmaError(`기상청 API가 ${response.status} 상태를 반환했습니다.`, String(response.status));
   }
 
   return parseWrnNowText(text, address);
@@ -424,6 +504,7 @@ async function fetchAlertsFromPortal(
   stnId: number,
   todayYmd: string,
   yesterdayYmd: string,
+  source: UsageSource,
 ): Promise<ParsedAlerts> {
   const body = await fetchJson(
     buildUrl(WARN_SERVICE, "getWthrWrnList", {
@@ -433,6 +514,7 @@ async function fetchAlertsFromPortal(
       fromTmFc: yesterdayYmd,
       toTmFc: todayYmd,
     }),
+    source,
   );
 
   const { items } = extractItems(body);
