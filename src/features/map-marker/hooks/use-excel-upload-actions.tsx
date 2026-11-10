@@ -446,10 +446,22 @@ export function useExcelUploadActions() {
           .order("id")
           .range(from, to),
       );
-      const { stageErpRows } = await import("@/features/map-marker/lib/erp-staging");
+      // 같은 통합시설코드라도 사업연도가 올해 이상이면 새 마커로 보므로 기존 마커의 시설연도가 필요하다.
+      const infoYears = await fetchAllRows<{ marker_id: string; facility_year: string | null }>(
+        (from, to) =>
+          supabase
+            .from("information")
+            .select("marker_id, facility_year", { count: "exact" })
+            .order("id")
+            .range(from, to),
+      );
+      const [{ stageErpRows }, { withFacilityYears }] = await Promise.all([
+        import("@/features/map-marker/lib/erp-staging"),
+        import("@/features/map-marker/lib/erp-classify"),
+      ]);
       return stageErpRows({
         rows,
-        existing: existingMarkers,
+        existing: withFacilityYears(existingMarkers, infoYears),
         previous,
         needsRegroup:
           useMapMarkerStore.getState().stagedErpUpload?.needsRegroup ?? false,
@@ -586,30 +598,34 @@ export function useExcelUploadActions() {
       const coords = { lat: marker.lat, lng: marker.lng };
       setIsUploading(true);
       try {
-        if (!force) {
-          setStatusText("마커 위치의 주소 확인 중...");
-          const [actual, { isSameAddress }] = await Promise.all([
-            reverseGeocode(coords.lat, coords.lng),
-            import("@/features/map-marker/lib/address-compare"),
-          ]);
-          if (!isSameAddress(row.address, actual)) {
-            return {
-              status: "mismatch",
-              ...coords,
-              actualAddress: actual
-                ? [actual.jibunAddress, actual.roadAddress]
-                    .filter(Boolean)
-                    .join(" / ")
-                : null,
-            };
-          }
+        // 마커 위치의 주소는 엑셀 주소와 같든 다르든 마커주소로 저장하므로 항상 구한다.
+        setStatusText("마커 위치의 주소 확인 중...");
+        const [actual, { isSameAddress }] = await Promise.all([
+          reverseGeocode(coords.lat, coords.lng),
+          import("@/features/map-marker/lib/address-compare"),
+        ]);
+        if (!force && !isSameAddress(row.address, actual)) {
+          return {
+            status: "mismatch",
+            ...coords,
+            actualAddress: actual
+              ? [actual.jibunAddress, actual.roadAddress]
+                  .filter(Boolean)
+                  .join(" / ")
+              : null,
+          };
         }
 
         setStatusText(`"${row.name}" 저장 중...`);
-        const { saveReviewRow } = await import(
-          "@/features/map-marker/lib/erp-review-save"
-        );
+        const [{ saveReviewRow }, { saveMarkerAddress }] = await Promise.all([
+          import("@/features/map-marker/lib/erp-review-save"),
+          import("@/features/map-marker/lib/marker-address"),
+        ]);
         await saveReviewRow(supabase, row, coords);
+        // 주소를 못 구했으면 마커주소는 비워 둔다. 컬럼이 없는 DB면 저장만 건너뛰고 아래에서 알린다.
+        const isAddressSaved = actual
+          ? await saveMarkerAddress(supabase, id, actual.address)
+          : true;
         await invalidateMarkers();
 
         const latest = useMapMarkerStore.getState().stagedErpUpload;
@@ -627,7 +643,11 @@ export function useExcelUploadActions() {
         const next = remaining.find((item) => item.lat !== null);
         useMapMarkerStore.getState().setSelectedMarkerId(next?.id ?? null);
 
-        toast({ description: `"${row.name}" 위치를 저장했습니다.` });
+        toast({
+          description: isAddressSaved
+            ? `"${row.name}" 위치를 저장했습니다.`
+            : `"${row.name}" 위치를 저장했습니다. 마커주소는 저장하지 못했습니다(마이그레이션 20261117000000_marker_address.sql 적용 필요).`,
+        });
         await closeReviewIfDone();
         return { status: "saved" };
       } catch (error) {

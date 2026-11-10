@@ -687,6 +687,15 @@ export function KakaoMapCanvas({
                   .eq("id", data.id);
 
                 if (error) throw error;
+                if (mode === "equipment") {
+                  // 옮긴 자리의 주소를 마커주소로 저장한다(못 구하면 비운다). 실패해도 위치 이동은 그대로 둔다.
+                  const [{ reverseGeocode }, { saveMarkerAddress }] = await Promise.all([
+                    import("@/features/map-marker/lib/geocode"),
+                    import("@/features/map-marker/lib/marker-address"),
+                  ]);
+                  const geocoded = await reverseGeocode(newLat, newLng);
+                  await saveMarkerAddress(supabase, data.id, geocoded?.address ?? "");
+                }
                 await queryClient.invalidateQueries({
                   queryKey: MAP_MARKER_QUERY_KEY,
                 });

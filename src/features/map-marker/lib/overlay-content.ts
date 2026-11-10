@@ -20,6 +20,7 @@ function getOverlayAddressParts(data: MarkerRecord, mode: MapMode) {
     return {
       jibun: equipment.jibunAddress,
       road: equipment.roadAddress,
+      marker: equipment.markerAddress ?? "",
     };
   }
 
@@ -27,6 +28,7 @@ function getOverlayAddressParts(data: MarkerRecord, mode: MapMode) {
     return {
       jibun: "",
       road: (data as BatteryMarker).address,
+      marker: "",
     };
   }
 
@@ -314,7 +316,7 @@ export function createOverlayContent(
   const addressDiv = document.createElement("div");
   addressDiv.className = "overlay-address";
 
-  const { jibun, road } = getOverlayAddressParts(data, mode);
+  const { jibun, road, marker: markerAddr } = getOverlayAddressParts(data, mode);
 
   if (jibun || road) {
     let html = "";
@@ -322,7 +324,10 @@ export function createOverlayContent(
       html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibun, mode))}</span>`;
     }
     if (road) {
-      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(road)}</span>`;
+      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(신주소) ${escapeHtml(road)}</span>`;
+    }
+    if (markerAddr) {
+      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(마커주소) ${escapeHtml(markerAddr)}</span>`;
     }
     addressDiv.innerHTML = html;
   } else {
@@ -353,7 +358,7 @@ export function createOverlayContent(
               html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibunAddr, mode))}</span>`;
             }
             if (roadAddr) {
-              html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
+              html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(신주소) ${escapeHtml(roadAddr)}</span>`;
             }
             if (!roadAddr && !jibunAddr) {
               html = '<span class="road-addr">주소 없음</span>';
@@ -579,15 +584,18 @@ export function createCaptureLabelContent(
   const addressDiv = document.createElement("div");
   addressDiv.className = "overlay-address";
 
-  const { jibun, road } = getOverlayAddressParts(data, mode);
+  const { jibun, road, marker: markerAddr } = getOverlayAddressParts(data, mode);
 
-  const renderAddress = (jibunAddr: string, roadAddr: string) => {
+  const renderAddress = (jibunAddr: string, roadAddr: string, markerAddress = "") => {
     let html = "";
     if (jibunAddr) {
       html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibunAddr, mode))}</span>`;
     }
     if (roadAddr) {
-      html += `<span class="jibun-addr" style="display:block;margin-top:2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
+      html += `<span class="jibun-addr" style="display:block;margin-top:2px;">(신주소) ${escapeHtml(roadAddr)}</span>`;
+    }
+    if (markerAddress) {
+      html += `<span class="jibun-addr" style="display:block;margin-top:2px;">(마커주소) ${escapeHtml(markerAddress)}</span>`;
     }
     if (!jibunAddr && !roadAddr)
       html = '<span class="road-addr">주소 없음</span>';
@@ -595,7 +603,7 @@ export function createCaptureLabelContent(
   };
 
   if (jibun || road) {
-    renderAddress(jibun, road);
+    renderAddress(jibun, road, markerAddr);
   } else {
     addressDiv.innerHTML = '<span class="road-addr">주소 조회 중...</span>';
     if (window.kakao?.maps?.services?.Geocoder) {

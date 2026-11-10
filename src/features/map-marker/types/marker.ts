@@ -39,8 +39,12 @@ export interface FacilityRecord {
 }
 
 export interface EquipmentMarker extends BaseMarker {
+  /** 엑셀에서 올린 도로명(신) 주소 */
   roadAddress: string;
+  /** 엑셀에서 올린 지번 주소 */
   jibunAddress: string;
+  /** 마커 좌표의 주소(도로명 우선). 위치를 저장하거나 옮길 때 구한다. 엑셀 주소와 다를 수 있다 */
+  markerAddress?: string;
   facilityCode: string;
   projectCode: string;
   facilityYear: string;
@@ -139,7 +143,7 @@ export interface StagedErpRow {
 export interface StagedErpSkippedRow {
   name: string;
   address: string;
-  reason: "코드 없음" | "주소 없음";
+  reason: "코드 없음" | "주소 없음" | "지난 사업연도";
 }
 
 /**

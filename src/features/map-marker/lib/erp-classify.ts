@@ -22,6 +22,33 @@ export interface ExistingMarkerRef {
   facility_code: string | null;
   lat: unknown;
   lng: unknown;
+  /** 마커의 공정 정보(`information`)에 적힌 시설연도들. 모르면 비워 둔다 */
+  facility_years?: string[];
+}
+
+/** 마커 목록에 공정 정보(`information`)의 시설연도를 붙인다. 연도가 빈 행은 모르는 것으로 본다. */
+export function withFacilityYears(
+  markers: ExistingMarkerRef[],
+  infoRows: Array<{ marker_id: string; facility_year: string | null }>,
+): ExistingMarkerRef[] {
+  const yearsByMarker = new Map<string, Set<string>>();
+  for (const info of infoRows) {
+    const year = String(info.facility_year ?? "").trim();
+    if (!year) continue;
+    const years = yearsByMarker.get(info.marker_id) ?? new Set<string>();
+    years.add(year);
+    yearsByMarker.set(info.marker_id, years);
+  }
+  return markers.map((marker) => ({
+    ...marker,
+    facility_years: [...(yearsByMarker.get(marker.id) ?? [])],
+  }));
+}
+
+/** 올해 또는 미래의 사업연도면 시설을 진행하는 건이다. 빈 값·해석할 수 없는 값은 아니다. */
+export function isActiveFacilityYear(year: string, currentYear: number): boolean {
+  const trimmed = year.trim();
+  return /^\d{4}$/.test(trimmed) && Number(trimmed) >= currentYear;
 }
 
 export interface ClassifiedErpRow {
@@ -34,10 +61,17 @@ export interface ClassifiedErpRow {
 
 type Coords = { lat: number; lng: number };
 
-/** 통합시설코드로 행을 신규·기존으로 나눈다. 코드나 주소가 없는 행은 저장 대상이 아니다. */
+/**
+ * 통합시설코드와 사업연도로 행을 신규·기존으로 나눈다. 코드나 주소가 없는 행은 저장 대상이 아니다.
+ *
+ * 같은 통합시설코드라도 사업연도가 올해 이상이면 다른 시설 공사이므로, 같은 연도의 마커에만
+ * 연결하고 없으면 새 마커(`erp_코드_연도`)로 만든다. 지난 사업연도·빈 값은 예전처럼 코드로 연결하되,
+ * 진행 중인 마커만 있는 코드면 그 정보를 덮어쓰지 않도록 저장하지 않는다.
+ */
 export function classifyErpRows(
   rows: ErpParsedRow[],
   existing: ExistingMarkerRef[],
+  currentYear: number = new Date().getFullYear(),
 ): {
   classified: ClassifiedErpRow[];
   skippedRows: StagedErpSkippedRow[];
@@ -75,9 +109,29 @@ export function classifyErpRows(
       continue;
     }
 
-    const preferredId = `erp_${code}`;
-    const candidates = [...(byCode.get(code) ?? [])];
-    const byPreferredId = byId.get(preferredId);
+    const year = row.facilityYear.trim();
+    const isActive = isActiveFacilityYear(year, currentYear);
+    const sameCode = byCode.get(code) ?? [];
+    const yearsOf = (marker: ExistingMarkerRef) => marker.facility_years ?? [];
+    const hasActiveYear = (marker: ExistingMarkerRef) =>
+      yearsOf(marker).some((value) => isActiveFacilityYear(value, currentYear));
+    const candidates = sameCode.filter((marker) =>
+      isActive
+        ? // 올해 이상: 같은 연도이거나 연도를 모르는 마커(중복을 만들지 않으려고)에만 연결한다.
+          yearsOf(marker).length === 0 || yearsOf(marker).includes(year)
+        : // 지난 연도·빈 값: 진행 중인 마커는 덮어쓰지 않는다.
+          !hasActiveYear(marker) || yearsOf(marker).includes(year),
+    );
+
+    if (!isActive && year && sameCode.length > 0 && candidates.length === 0) {
+      skippedRows.push({ name: row.name, address: row.address, reason: "지난 사업연도" });
+      continue;
+    }
+
+    // 연도가 맞는 마커가 하나라도 있으면 이 행은 그 마커의 같은 공사(중복 행)로 본다.
+    const hasSameYearMarker = candidates.length > 0;
+    const plainId = `erp_${code}`;
+    const byPreferredId = byId.get(plainId);
     if (byPreferredId && !String(byPreferredId.facility_code ?? "").trim()) {
       candidates.push(byPreferredId);
     }
@@ -96,6 +150,9 @@ export function classifyErpRows(
       continue;
     }
 
+    // 같은 코드의 마커가 모두 다른 연도인 올해 이상의 행은 연도를 붙여 구분한다.
+    const preferredId =
+      isActive && sameCode.length > 0 && !hasSameYearMarker ? `${plainId}_${year}` : plainId;
     let id = preferredId;
     for (let n = 1; usedIds.has(id) || byId.has(id); n += 1) {
       id = `${preferredId}_${n}`;

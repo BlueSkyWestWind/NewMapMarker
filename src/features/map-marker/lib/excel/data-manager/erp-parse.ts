@@ -4,6 +4,7 @@ import {
   ERP_DATE_COLUMNS,
   ERP_END_MARKER,
   ERP_SHEET_NAME_PREFERENCE,
+  ERP_YEAR_COLUMN,
 } from './erp-columns';
 
 /**
@@ -112,7 +113,7 @@ export function extractYearFromProjectCode(projectCode: string): string {
 
 /**
  * 시설연도(=사업연도) 추출 우선순위:
- * 1) 시설연도/시설년도/연도 열
+ * 1) 사업연도(A열)·시설연도/시설년도/연도 열
  * 2) 프로젝트 코드 두 번째 구간 YY
  * 3) 국소명 `26Y_` 접두
  * 4) ACTA 구축완료일
@@ -122,7 +123,11 @@ export function resolveFacilityYear(
   name: string,
 ): string {
   const explicit =
-    raw['시설연도'] || raw['시설년도'] || raw['연도'] || raw['시설 연도'];
+    raw[ERP_YEAR_COLUMN] ||
+    raw['시설연도'] ||
+    raw['시설년도'] ||
+    raw['연도'] ||
+    raw['시설 연도'];
   if (explicit) {
     const fromExplicit =
       normalizeYearToken(explicit) || extractYearFromDateLike(explicit);
@@ -217,6 +222,10 @@ export function parseErpSheet(file: File): Promise<ErpParsedRow[]> {
         const { rows, headerIndex } = picked;
         const headerRow = rows[headerIndex] ?? [];
         const headers = headerRow.map(normalizeHeader);
+        // A열 헤더가 비어 있으면 사업연도 열이다(양식에 헤더 이름이 없다).
+        if (headers.length > 0 && headers[0] === '' && !headers.includes(ERP_YEAR_COLUMN)) {
+          headers[0] = ERP_YEAR_COLUMN;
+        }
         const colOf = (label: string) => headers.indexOf(label);
 
         const idxFacility = colOf(HEADER_KEY);

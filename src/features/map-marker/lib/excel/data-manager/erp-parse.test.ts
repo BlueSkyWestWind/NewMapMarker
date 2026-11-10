@@ -55,3 +55,48 @@ describe("pickDateByColumns", () => {
     expect(pickDateByColumns(raw, ERP_DATE_COLUMNS.openDate)).toBe("2026-05-02");
   });
 });
+
+describe("parseErpSheet — 사업연도(A열)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const parse = async (aoa: unknown[][]) => {
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        onload: ((event: { target: { result: unknown } }) => void) | null = null;
+        readAsArrayBuffer(file: { data: ArrayBuffer }) {
+          this.onload?.({ target: { result: file.data } });
+        }
+      },
+    );
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(aoa), "일정관리");
+    const data = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    return parseErpSheet({ data } as unknown as File);
+  };
+
+  it("헤더가 빈 A열을 사업연도로 읽고 프로젝트 코드보다 우선한다", async () => {
+    const rows = await parse([
+      ["", "프로젝트", "통합시설코드", "국소명-최종", "주소(전체)"],
+      [2027, "AR.261.55.Z6ID", "A", "국소A", "광주 북구 운암동 1"],
+    ]);
+    expect(rows[0].facilityYear).toBe("2027");
+    expect(rows[0].raw["사업연도"]).toBe("2027");
+  });
+
+  it("A열이 비어 있으면 예전 규칙(프로젝트 코드)으로 연도를 구한다", async () => {
+    const rows = await parse([
+      ["", "프로젝트", "통합시설코드", "국소명-최종", "주소(전체)"],
+      [null, "AR.261.55.Z6ID", "A", "국소A", "광주 북구 운암동 1"],
+    ]);
+    expect(rows[0].facilityYear).toBe("2026");
+  });
+
+  it("A열 헤더가 이미 있으면 그 이름을 그대로 쓴다", async () => {
+    const rows = await parse([
+      ["비고", "프로젝트", "통합시설코드", "국소명-최종", "주소(전체)"],
+      ["2027", "AR.261.55.Z6ID", "A", "국소A", "광주 북구 운암동 1"],
+    ]);
+    expect(rows[0].facilityYear).toBe("2026");
+  });
+});

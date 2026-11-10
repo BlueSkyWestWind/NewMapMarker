@@ -936,7 +936,9 @@ export function MarkerDetailModal() {
             <div className="space-y-3 rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">위치 정보</h4>
               <div>
-                <label className="text-[10px] font-medium text-slate-500">주소 (지번)</label>
+                <label className="text-[10px] font-medium text-slate-500">
+                  {mode === 'equipment' ? '지번' : '주소'}
+                </label>
                 <div className="mt-0.5 text-xs text-slate-200">
                   {mode === 'equipment'
                     ? equipmentMarker?.jibunAddress || '주소 정보 없음'
@@ -945,8 +947,16 @@ export function MarkerDetailModal() {
               </div>
               {mode === 'equipment' && equipmentMarker?.roadAddress ? (
                 <div>
-                  <label className="text-[10px] font-medium text-slate-500">도로명 주소</label>
+                  <label className="text-[10px] font-medium text-slate-500">신주소</label>
                   <div className="mt-0.5 text-xs text-slate-300">{equipmentMarker.roadAddress}</div>
+                </div>
+              ) : null}
+              {mode === 'equipment' ? (
+                <div>
+                  <label className="text-[10px] font-medium text-slate-500">마커주소</label>
+                  <div className="mt-0.5 text-xs text-slate-300">
+                    {equipmentMarker?.markerAddress || '저장된 마커주소 없음'}
+                  </div>
                 </div>
               ) : null}
               <div>

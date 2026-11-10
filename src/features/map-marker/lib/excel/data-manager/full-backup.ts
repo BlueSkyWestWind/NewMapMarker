@@ -192,6 +192,8 @@ const TABLE_COLUMNS: Record<FullBackupTableName, readonly string[]> = {
     'facility_code',
     'road_address',
     'jibun_address',
+    // 마커 좌표의 주소. 20261117000000_marker_address.sql 적용 후에만 DB에 있다.
+    'marker_address',
     'parent_marker_id',
     'group_role',
     'group_key',

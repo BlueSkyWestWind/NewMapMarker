@@ -180,6 +180,7 @@ export async function fetchMapMarkers(
       facilityTeam: row.facility_team ?? '',
       roadAddress: row.road_address ?? '',
       jibunAddress: row.jibun_address ?? '',
+      markerAddress: row.marker_address ?? '',
       facilityCode:
         row.facility_code ?? repInfo?.facility_code ?? '',
       projectCode: repInfo?.project_code ?? '',

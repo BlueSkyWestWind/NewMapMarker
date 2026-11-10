@@ -22,5 +22,11 @@ export const ERP_SHEET_NAME_PREFERENCE: RegExp[] = [/^일정관리/];
 /** `주소(전체)` 열에서 주소가 없다는 뜻으로 쓰는 값. 이런 행은 마커로 등록하지 않는다 */
 export const ERP_NO_ADDRESS_VALUES: readonly string[] = ['불필요', '미확정'];
 
+/**
+ * 사업연도 열 이름. 공정_일정관리.xlsb 는 A열에 사업연도가 있지만 헤더 칸이 비어 있어,
+ * 첫 열의 헤더가 비어 있으면 이 이름으로 읽는다.
+ */
+export const ERP_YEAR_COLUMN = '사업연도';
+
 /** 통합시설코드 열에 이 값이 있는 행이 데이터의 끝이다(공정_일정관리.xlsb 123행) */
 export const ERP_END_MARKER = '끝';
