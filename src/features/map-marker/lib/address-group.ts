@@ -262,21 +262,37 @@ export async function applyMarkerRolesFromStoredGroupRole(
 
   const updates: RoleUpdate[] = [];
 
-  // 수동으로 '단독' 지정한 마커는 그룹에서 제외하고 단독 유지(재업로드에도 보존)
-  const groups = new Map<string, MarkerParentRow[]>();
+  // 번지 키(또는 group_key)별로 모은다. 단독도 일단 같은 주소끼리 모아 둔다.
+  const addressGroups = new Map<string, MarkerParentRow[]>();
   for (const row of rows) {
-    if (normalizeGroupRole(row.group_role) === GROUP_ROLE_STANDALONE) {
-      updates.push({
-        id: row.id,
-        parent_marker_id: null,
-        group_role: GROUP_ROLE_STANDALONE,
-      });
-      continue;
-    }
     const key = getEffectiveGroupKey(row) || `__solo__${row.id}`;
-    const list = groups.get(key) ?? [];
+    const list = addressGroups.get(key) ?? [];
     list.push(row);
-    groups.set(key, list);
+    addressGroups.set(key, list);
+  }
+
+  // 대표·SUB가 이미 있는 주소의 '단독'은 직접 분리한 것으로 보고 그룹에서 제외해 단독을 유지한다
+  // (재업로드에도 보존). 대표가 없고 단독뿐인 주소는 혼자일 때 자동으로 붙은 단독이므로,
+  // 같은 주소 마커가 새로 들어오면 함께 묶는다.
+  const groups = new Map<string, MarkerParentRow[]>();
+  for (const [key, members] of addressGroups) {
+    const hasExistingGroup = members.some((row) => {
+      const role = normalizeGroupRole(row.group_role);
+      return role === GROUP_ROLE_REPRESENTATIVE || role === GROUP_ROLE_SUB;
+    });
+    const joinable: MarkerParentRow[] = [];
+    for (const row of members) {
+      if (hasExistingGroup && normalizeGroupRole(row.group_role) === GROUP_ROLE_STANDALONE) {
+        updates.push({
+          id: row.id,
+          parent_marker_id: null,
+          group_role: GROUP_ROLE_STANDALONE,
+        });
+        continue;
+      }
+      joinable.push(row);
+    }
+    if (joinable.length > 0) groups.set(key, joinable);
   }
 
   for (const group of groups.values()) {
