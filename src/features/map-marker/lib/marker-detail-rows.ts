@@ -124,6 +124,35 @@ export function getAddressGroupMates(
   return mates.length > 0 ? mates : [target];
 }
 
+/** 정렬용 연도 값. 4자리 숫자가 아니면 -1이라 맨 뒤로 간다. */
+function yearSortValue(year: string | undefined): number {
+  const trimmed = (year ?? '').trim();
+  return /^\d{4}$/.test(trimmed) ? Number(trimmed) : -1;
+}
+
+/**
+ * 연관 상세 장비 목록(동일 번지 전체) 정렬 비교 함수.
+ * 시설연도 내림차순(2027 → 2026)이 가장 먼저이고, 같은 연도 안에서는 대표 → 동 → 이름순이다.
+ */
+export function compareRelatedMarkers(
+  a: EquipmentMarker,
+  b: EquipmentMarker,
+): number {
+  const yearDiff = yearSortValue(b.facilityYear) - yearSortValue(a.facilityYear);
+  if (yearDiff !== 0) return yearDiff;
+
+  const aIsRep = storedGroupRoleOf(a) === GROUP_ROLE_REPRESENTATIVE;
+  const bIsRep = storedGroupRoleOf(b) === GROUP_ROLE_REPRESENTATIVE;
+  if (aIsRep !== bIsRep) return aIsRep ? -1 : 1;
+
+  const dongCmp = getMarkerDongLabel(a).localeCompare(getMarkerDongLabel(b), 'ko');
+  if (dongCmp !== 0) return dongCmp;
+  return (a.finalStationName || a.name).localeCompare(
+    b.finalStationName || b.name,
+    'ko',
+  );
+}
+
 /** 같은 번지에서 다음 대표 후보(이름·id 순). */
 export function pickNextAddressRepresentative(
   candidates: EquipmentMarker[],

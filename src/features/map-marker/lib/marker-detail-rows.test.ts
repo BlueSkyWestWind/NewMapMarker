@@ -5,6 +5,7 @@ import {
   BASEMENT_LABEL,
   ETC_DONG_LABEL,
   buildEquipmentDetailRows,
+  compareRelatedMarkers,
   dbErrorMessage,
   dongSortKey,
   getAddressGroupMates,
@@ -215,5 +216,54 @@ describe("dbErrorMessage", () => {
     expect(dbErrorMessage({ message: "boom" }, "저장 실패")).toBe("저장 실패 (boom)");
     expect(dbErrorMessage({}, "저장 실패")).toBe("저장 실패");
     expect(dbErrorMessage(null, "저장 실패")).toBe("저장 실패");
+  });
+});
+
+describe("compareRelatedMarkers — 연관 상세 장비 목록 정렬", () => {
+  const sorted = (markers: EquipmentMarker[]) =>
+    [...markers].sort(compareRelatedMarkers).map((item) => item.id);
+
+  it("시설연도가 큰 쪽이 먼저다(2027 → 2026)", () => {
+    const markers = [
+      marker({ id: "y2026", facilityYear: "2026", name: "가" }),
+      marker({ id: "y2027", facilityYear: "2027", name: "나" }),
+      marker({ id: "y2025", facilityYear: "2025", name: "다" }),
+    ];
+    expect(sorted(markers)).toEqual(["y2027", "y2026", "y2025"]);
+  });
+
+  it("연도가 대표보다 우선이다 — 2026 대표도 2027 SUB 뒤로 간다", () => {
+    const markers = [
+      marker({ id: "rep2026", facilityYear: "2026", groupRole: "대표" }),
+      marker({ id: "sub2027", facilityYear: "2027", groupRole: "SUB", parentMarkerId: "rep2026" }),
+    ];
+    expect(sorted(markers)).toEqual(["sub2027", "rep2026"]);
+  });
+
+  it("같은 연도 안에서는 대표가 먼저다", () => {
+    const markers = [
+      marker({ id: "sub", facilityYear: "2026", groupRole: "SUB", parentMarkerId: "rep" }),
+      marker({ id: "rep", facilityYear: "2026", groupRole: "대표" }),
+    ];
+    expect(sorted(markers)).toEqual(["rep", "sub"]);
+  });
+
+  it("같은 연도·같은 구분이면 동 라벨 → 이름순이다", () => {
+    const markers = [
+      marker({ id: "b", facilityYear: "2026", finalStationName: "106동 나" }),
+      marker({ id: "a2", facilityYear: "2026", finalStationName: "102동 라" }),
+      marker({ id: "a1", facilityYear: "2026", finalStationName: "102동 가" }),
+    ];
+    expect(sorted(markers)).toEqual(["a1", "a2", "b"]);
+  });
+
+  it("연도가 비었거나 4자리가 아니면 맨 뒤다", () => {
+    const markers = [
+      marker({ id: "blank", facilityYear: "", name: "가" }),
+      marker({ id: "text", facilityYear: "미정", name: "나" }),
+      marker({ id: "y2026", facilityYear: "2026", name: "다" }),
+    ];
+    expect(sorted(markers)[0]).toBe("y2026");
+    expect(sorted(markers).slice(1).sort()).toEqual(["blank", "text"]);
   });
 });

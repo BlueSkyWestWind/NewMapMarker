@@ -46,6 +46,7 @@ import {
 import {
   buildEquipmentDetailRows,
   dbErrorMessage,
+  compareRelatedMarkers,
   dongSortKey,
   getAddressGroupMates,
   getMarkerDongLabel,
@@ -475,31 +476,8 @@ export function MarkerDetailModal() {
       ? [...byId.values()].filter((m) => getMarkerEffectiveKey(m) === selfKey)
       : [...byId.values()];
 
-    return scoped.sort((a, b) => {
-      const roleA = storedGroupRoleOf(a);
-      const roleB = storedGroupRoleOf(b);
-      if (
-        roleA === GROUP_ROLE_REPRESENTATIVE &&
-        roleB !== GROUP_ROLE_REPRESENTATIVE
-      ) {
-        return -1;
-      }
-      if (
-        roleB === GROUP_ROLE_REPRESENTATIVE &&
-        roleA !== GROUP_ROLE_REPRESENTATIVE
-      ) {
-        return 1;
-      }
-      const dongCmp = getMarkerDongLabel(a).localeCompare(
-        getMarkerDongLabel(b),
-        'ko',
-      );
-      if (dongCmp !== 0) return dongCmp;
-      return (a.finalStationName || a.name).localeCompare(
-        b.finalStationName || b.name,
-        'ko',
-      );
-    });
+    // 시설연도 내림차순(2027 → 2026)이 먼저, 같은 연도 안에서 대표 → 동 → 이름순.
+    return scoped.sort(compareRelatedMarkers);
   }, [mode, equipmentMarker, markers]);
 
   /** 연관 상세 표 = 동일 번지 전체(동 개별 표시와 무관). */
