@@ -1,4 +1,5 @@
 import { DEFAULT_MARKER_COLOR } from "@/features/map-marker/constants/facility-teams";
+import { isActiveFacilityYear } from "@/features/map-marker/lib/facility-status";
 import { hasStoredCoordinates } from "@/features/map-marker/lib/excel-upload-helpers";
 import {
   ERP_DATE_COLUMNS,
@@ -45,11 +46,7 @@ export function withFacilityYears(
   }));
 }
 
-/** 올해 또는 미래의 사업연도면 시설을 진행하는 건이다. 빈 값·해석할 수 없는 값은 아니다. */
-export function isActiveFacilityYear(year: string, currentYear: number): boolean {
-  const trimmed = year.trim();
-  return /^\d{4}$/.test(trimmed) && Number(trimmed) >= currentYear;
-}
+export { isActiveFacilityYear };
 
 export interface ClassifiedErpRow {
   row: ErpParsedRow;

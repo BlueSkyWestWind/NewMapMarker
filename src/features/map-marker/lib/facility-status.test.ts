@@ -133,3 +133,38 @@ describe("computeFacilityStatuses", () => {
     expect(result[0].facilityStatus).toBe("개통완료");
   });
 });
+
+describe("computeFacilityStatuses — 올해 이상(미래) 연도도 진행 대상이다", () => {
+  it("올해는 개통완료여도 미래 연도 장비가 미시설이면 미시설이다", () => {
+    const markers = [
+      marker("a", [rec("2026", "2026-03-01", "2026-04-01"), rec("2027")]),
+    ];
+    expect(statusOf(markers, "a")).toBe("미시설");
+  });
+
+  it("미래 연도 장비만 있어도 올해 대상 없음이 아니라 그 장비로 판정한다", () => {
+    expect(statusOf([marker("a", [rec("2027")])], "a")).toBe("미시설");
+    expect(statusOf([marker("b", [rec("2027", "2027-03-01")])], "b")).toBe("시설");
+    expect(
+      statusOf([marker("c", [rec("2027", "2027-03-01", "2027-04-01")])], "c"),
+    ).toBe("개통완료");
+  });
+
+  it("대표는 숨은 SUB의 미래 연도 장비까지 합쳐 판정한다", () => {
+    const markers = [
+      marker("rep", [rec("2026", "2026-03-01", "2026-04-01")]),
+      marker("sub", [rec("2027")], { parentMarkerId: "rep" }),
+    ];
+    expect(statusOf(markers, "rep")).toBe("미시설");
+  });
+
+  it("지난 연도 장비는 여전히 판정에서 뺀다", () => {
+    const markers = [marker("a", [rec("2025"), rec("2026", "2026-03-01", "2026-04-01")])];
+    expect(statusOf(markers, "a")).toBe("개통완료");
+    expect(statusOf([marker("b", [rec("2025")])], "b")).toBe("올해 대상 없음");
+  });
+
+  it("4자리 연도가 아닌 값은 진행 대상이 아니다", () => {
+    expect(statusOf([marker("a", [rec("미정")])], "a")).toBe("올해 대상 없음");
+  });
+});

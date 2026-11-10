@@ -14,6 +14,15 @@ export const FACILITY_STATUS_ORDER: FacilityStatus[] = [
 /** 처음 화면에서 보이는 상태. 개통완료·대상 없음은 필터에서 고르면 나타난다. */
 export const DEFAULT_FACILITY_STATUSES: FacilityStatus[] = ["미시설", "시설"];
 
+/**
+ * 올해 또는 미래의 연도면 시설을 진행하는 건이다. 빈 값·4자리가 아닌 값은 아니다.
+ * 위치등록(`erp-classify.ts`)과 상태 판정이 같은 기준을 쓴다.
+ */
+export function isActiveFacilityYear(year: string, currentYear: number): boolean {
+  const trimmed = year.trim();
+  return /^\d{4}$/.test(trimmed) && Number(trimmed) >= currentYear;
+}
+
 function isBlank(value: string | null | undefined) {
   return !value || !value.trim();
 }
@@ -31,14 +40,14 @@ export function judgeFacilityStatus(records: FacilityRecord[]): FacilityStatus {
 
 /**
  * 연도·상태를 마커마다 채운다. 대표는 자기 + **숨은 SUB**의 장비를 합쳐 판정하고,
- * 개별 표시(`detachedVisible`) SUB는 자기 장비만 쓴다. 기준 연도는 인자로 받아
- * 연도별 판정으로 넓힐 때 호출부만 바꾸면 된다.
+ * 개별 표시(`detachedVisible`) SUB는 자기 장비만 쓴다.
+ * 상태는 기준 연도 **이상**(올해·미래) 장비로 판정한다 — 올해는 개통완료여도 내년 장비가
+ * 아직 미시설이면 시설을 진행하는 건이다. 지난 연도 장비는 판정에서 뺀다.
  */
 export function computeFacilityStatuses(
   markers: EquipmentMarker[],
   year: number,
 ): EquipmentMarker[] {
-  const targetYear = String(year);
   const hiddenSubsByParent = new Map<string, EquipmentMarker[]>();
 
   markers.forEach((marker) => {
@@ -66,7 +75,7 @@ export function computeFacilityStatuses(
       ...marker,
       groupYears: years,
       facilityStatus: judgeFacilityStatus(
-        merged.filter((record) => record.year.trim() === targetYear),
+        merged.filter((record) => isActiveFacilityYear(record.year, year)),
       ),
     };
   });

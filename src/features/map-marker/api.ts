@@ -207,7 +207,7 @@ export async function fetchMapMarkers(
     };
   });
 
-  // 기준 연도는 올해. 연도별 판정으로 넓힐 때 이 인자만 바꾼다.
+  // 기준 연도는 올해. 상태는 이 연도 이상(올해·미래) 장비로 판정한다.
   const equipmentMarkers = computeFacilityStatuses(
     equipmentBase,
     new Date().getFullYear(),
