@@ -5,6 +5,11 @@
   "compatibility_date": "2025-12-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 
+  // wrangler 번들러(esbuild)가 함수 이름을 보존하려고 함수 안에 `__name(...)` 호출을 끼워 넣는다.
+  // next-themes는 테마 스크립트를 함수 소스(toString)로 HTML에 그대로 넣으므로 그 호출도 브라우저로 나가
+  // `ReferenceError: __name is not defined`가 난다. 이 앱은 함수 이름에 기대는 코드가 없어 끈다.
+  "keep_names": false,
+
   // 대시보드에서 추가한 Plaintext 변수를 배포 때 지우지 않는다.
   // 기본값(false)이면 아래 vars 블록이 대시보드 변수를 통째로 대체해서,
   // 대시보드에만 넣어 둔 값이 git push → 자동 배포 시 사라진다.
