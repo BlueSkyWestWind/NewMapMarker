@@ -58,6 +58,7 @@ import {
   type TextColor,
 } from "@/features/schedule/types";
 import { useToast } from "@/hooks/use-toast";
+import { ScheduleBulkResultDialog } from "./schedule-bulk-result-dialog";
 import { RESULT_DOT_CLASS, ScheduleResultDialog } from "./schedule-result-dialog";
 import { StationSearchAdd } from "./station-search-add";
 import { StationSuggestionList } from "./station-suggestion-list";
@@ -191,6 +192,14 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   const [resultCellId, setResultCellId] = useState<string | null>(null);
   const resultOf = (id: string | null) =>
     id === null ? null : (cells.find((candidate) => candidate.id === id)?.result ?? null);
+  // 일괄 결과 창. 목록에 있는 저장된 칸만 대상이다(새로 추가한 줄은 저장 뒤에 기록한다).
+  const [isBulkResultOpen, setBulkResultOpen] = useState(false);
+  // 결과 버튼 자리. 수정 권한이 있거나 결과가 기록된 줄이 있으면 모든 줄에 자리를 둔다.
+  const showResultSlot = canEdit || drafts.some((draft) => resultOf(draft.id) !== null);
+  const savedDraftCells = drafts.flatMap((draft) => {
+    const saved = draft.id === null ? undefined : cells.find((candidate) => candidate.id === draft.id);
+    return saved ? [saved] : [];
+  });
 
   const sortedColumns = [...columns].sort((a, b) => a.sortOrder - b.sortOrder);
   const teamName =
@@ -619,6 +628,17 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
             </span>
             {canEdit ? (
               <div className="flex items-center gap-1.5">
+                {savedDraftCells.length > 1 ? (
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    title="저장된 국소 여러 건에 시행 결과를 한 번에 기록합니다. 한 건씩은 줄의 결과 버튼을 쓰세요"
+                    className="flex h-6 items-center gap-1 whitespace-nowrap rounded-md border border-slate-700 px-2 text-[11px] hover:bg-slate-800 disabled:opacity-50"
+                    onClick={() => setBulkResultOpen(true)}
+                  >
+                    결과 일괄
+                  </button>
+                ) : null}
                 {drafts.length > 0 || companions.입회.enabled || companions.신호수.enabled ? (
                   <button
                     type="button"
@@ -737,23 +757,28 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                       입회·신호수 대상
                     </label>
                   ) : null}
-                  {draft.id !== null && (canEdit || resultOf(draft.id)) ? (
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      title="당일 시행 결과 기록 (완료 / 일부완료 / 미시설)"
-                      aria-label="시행 결과"
-                      className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-700 px-2 text-[11px] hover:bg-slate-800 disabled:opacity-50"
-                      onClick={() => setResultCellId(draft.id)}
-                    >
-                      {resultOf(draft.id) ? (
-                        <span
-                          className={cn("inline-block h-2 w-2 rounded-full", RESULT_DOT_CLASS[resultOf(draft.id)!.status])}
-                          aria-hidden
-                        />
+                  {showResultSlot ? (
+                    // 저장 전인 줄에도 같은 폭의 자리를 둬서 줄마다 입력칸 폭이 같게 한다.
+                    <div className="flex h-8 w-[4.75rem] shrink-0 items-center justify-center">
+                      {draft.id !== null && (canEdit || resultOf(draft.id)) ? (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          title="당일 시행 결과 기록 (완료 / 일부완료 / 미시설)"
+                          aria-label="시행 결과"
+                          className="flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-slate-700 px-2 text-[11px] hover:bg-slate-800 disabled:opacity-50"
+                          onClick={() => setResultCellId(draft.id)}
+                        >
+                          {resultOf(draft.id) ? (
+                            <span
+                              className={cn("inline-block h-2 w-2 rounded-full", RESULT_DOT_CLASS[resultOf(draft.id)!.status])}
+                              aria-hidden
+                            />
+                          ) : null}
+                          {resultOf(draft.id) ? resultLabel(resultOf(draft.id)!.status) : "결과"}
+                        </button>
                       ) : null}
-                      {resultOf(draft.id) ? resultLabel(resultOf(draft.id)!.status) : "결과"}
-                    </button>
+                    </div>
                   ) : null}
                   {canEdit ? (
                     <button
@@ -979,6 +1004,13 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         cell={cells.find((candidate) => candidate.id === resultCellId) ?? null}
         canEdit={canEdit}
         onClose={() => setResultCellId(null)}
+        onSaved={onSaved}
+      />
+      <ScheduleBulkResultDialog
+        cells={savedDraftCells}
+        open={isBulkResultOpen}
+        canEdit={canEdit}
+        onClose={() => setBulkResultOpen(false)}
         onSaved={onSaved}
       />
     </DialogContent>

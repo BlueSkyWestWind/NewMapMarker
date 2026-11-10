@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScheduleCell } from "@/features/schedule/types";
-import { planReschedule, resultSummary, validateResult } from "./cell-result";
+import { cellsToReschedule, planReschedule, resultSummary, validateResult } from "./cell-result";
 
 const SOURCE: ScheduleCell = {
   id: "s1",
@@ -127,5 +127,29 @@ describe("planReschedule 입회·신호수 불필요", () => {
     const plan = planReschedule([], { ...source, companionTarget: false }, "2026-11-12");
     const text = "text" in plan ? plan.text : null;
     expect(text !== null && "companionTarget" in text).toBe(false);
+  });
+});
+
+describe("cellsToReschedule", () => {
+  const withResult = (id: string, rescheduledTo: string | null): ScheduleCell => ({
+    ...cellAt("2026-11-07", "c1", 0),
+    id,
+    result: { status: "undone", reason: "우천", rescheduledTo },
+  });
+
+  it("다시 잡을 날짜가 없으면 복사할 칸이 없다", () => {
+    expect(cellsToReschedule([cellAt("2026-11-07", "c1", 0)], null)).toEqual([]);
+  });
+
+  it("날짜가 있으면 모든 칸을 복사 대상으로 한다", () => {
+    const cells = [cellAt("2026-11-07", "c1", 0), cellAt("2026-11-07", "c1", 1)];
+    expect(cellsToReschedule(cells, "2026-11-09")).toEqual(cells);
+  });
+
+  it("이미 그 날짜로 복사해 둔 칸은 다시 복사하지 않는다", () => {
+    const done = withResult("a", "2026-11-09");
+    const other = withResult("b", "2026-11-10");
+    const fresh = cellAt("2026-11-07", "c1", 2);
+    expect(cellsToReschedule([done, other, fresh], "2026-11-09")).toEqual([other, fresh]);
   });
 });

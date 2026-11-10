@@ -77,6 +77,15 @@ export function planReschedule(
   };
 }
 
+/**
+ * 일괄 기록에서 다시 잡을 날짜(`target`)로 복사해야 하는 칸. 날짜가 없으면 없다.
+ * 이미 그 날짜로 복사해 둔 칸은 다시 복사하지 않는다(개별 기록과 같은 규칙).
+ */
+export function cellsToReschedule(cells: ScheduleCell[], target: string | null): ScheduleCell[] {
+  if (target === null) return [];
+  return cells.filter((cell) => cell.result?.rescheduledTo !== target);
+}
+
 /** 표 셀 툴팁에 붙일 한 줄 요약. 예: `미시설: 우천 → 11-12 재일정` */
 export function resultSummary(result: CellResult): string {
   const parts = [result.reason ? `${resultLabel(result.status)}: ${result.reason}` : resultLabel(result.status)];

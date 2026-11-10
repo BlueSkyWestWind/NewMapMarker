@@ -1,39 +1,22 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { copyCellToDate, updateScheduleCellResult } from "@/features/schedule/api";
-import {
-  REASON_MAX_LENGTH,
-  validateResult,
-} from "@/features/schedule/lib/cell-result";
+import { REASON_MAX_LENGTH, validateResult } from "@/features/schedule/lib/cell-result";
+import { ScheduleResultFields } from "@/features/schedule/components/schedule-result-fields";
 import { weekdayLabel } from "@/features/schedule/lib/week";
-import {
-  RESULT_STATUSES,
-  resultLabel,
-  type ResultStatus,
-  type ScheduleCell,
-} from "@/features/schedule/types";
+import { type ResultStatus, type ScheduleCell } from "@/features/schedule/types";
 import { useToast } from "@/hooks/use-toast";
 
-const FIELD_CLASS = "h-8 border-slate-700 bg-slate-900 text-xs";
-
-/** 표 셀의 점과 이 창의 선택 버튼이 같은 색을 쓴다. */
-export const RESULT_DOT_CLASS: Record<ResultStatus, string> = {
-  done: "bg-emerald-400",
-  partial: "bg-amber-400",
-  undone: "bg-rose-400",
-};
+export { RESULT_DOT_CLASS } from "@/features/schedule/components/schedule-result-fields";
 
 const ERROR_TEXT = {
   reason: "일부완료·미시설은 사유를 적어 주세요.",
@@ -78,7 +61,6 @@ function ResultForm({
   const [isSaving, setIsSaving] = useState(false);
 
   const disabled = !canEdit || isSaving;
-  const needsReason = status === "partial" || status === "undone";
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -123,69 +105,16 @@ function ResultForm({
         {cell.mainText}
       </DialogDescription>
       <form className="flex flex-col gap-3 text-xs" onSubmit={handleSave}>
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            disabled={disabled}
-            aria-pressed={status === null}
-            onClick={() => setStatus(null)}
-            className={cn(
-              "h-7 whitespace-nowrap rounded-md border px-2.5 text-[11px] disabled:opacity-60",
-              status === null ? "border-indigo-400 bg-indigo-500/20" : "border-slate-700 hover:bg-slate-800",
-            )}
-          >
-            기록 안 함
-          </button>
-          {RESULT_STATUSES.map((value) => (
-            <button
-              key={value}
-              type="button"
-              disabled={disabled}
-              aria-pressed={status === value}
-              onClick={() => setStatus(value)}
-              className={cn(
-                "flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-[11px] disabled:opacity-60",
-                status === value ? "border-indigo-400 bg-indigo-500/20" : "border-slate-700 hover:bg-slate-800",
-              )}
-            >
-              <span className={cn("inline-block h-2 w-2 rounded-full", RESULT_DOT_CLASS[value])} aria-hidden />
-              {resultLabel(value)}
-            </button>
-          ))}
-        </div>
-
-        {needsReason ? (
-          <>
-            <label className="flex flex-col gap-1">
-              <span className="text-slate-300">사유 (필수)</span>
-              <Input
-                value={reason}
-                maxLength={REASON_MAX_LENGTH}
-                disabled={disabled}
-                autoFocus
-                placeholder="왜 못했는지 적어 주세요"
-                onChange={(event) => setReason(event.target.value)}
-                className={FIELD_CLASS}
-              />
-            </label>
-            <div className="flex flex-col gap-1">
-              <span className="text-slate-300">다시 잡을 날짜 (선택)</span>
-              <DatePicker
-                value={rescheduledTo}
-                disabled={disabled}
-                allowClear
-                placeholder="날짜 선택"
-                ariaLabel="다시 잡을 날짜 (선택)"
-                onChange={setRescheduledTo}
-                className={FIELD_CLASS}
-              />
-              <span className="text-[11px] text-slate-400">
-                날짜를 넣고 저장하면 이 국소 정보가 그 날짜의 같은 팀 첫 빈 행에 추가됩니다. 날짜를 바꿔 저장하면
-                새 날짜에 한 번 더 추가되고, 이전 날짜의 칸은 그대로 남습니다.
-              </span>
-            </div>
-          </>
-        ) : null}
+        <ScheduleResultFields
+          status={status}
+          reason={reason}
+          rescheduledTo={rescheduledTo}
+          disabled={disabled}
+          onStatusChange={setStatus}
+          onReasonChange={setReason}
+          onRescheduledToChange={setRescheduledTo}
+          rescheduleHint="날짜를 넣고 저장하면 이 국소 정보가 그 날짜의 같은 팀 첫 빈 행에 추가됩니다. 날짜를 바꿔 저장하면 새 날짜에 한 번 더 추가되고, 이전 날짜의 칸은 그대로 남습니다."
+        />
 
         {notice ? <p className="text-[11px] text-amber-400">{notice}</p> : null}
 
