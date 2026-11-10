@@ -18,3 +18,54 @@ export async function saveMarkerAddress(
     .eq("id", markerId);
   return !error;
 }
+
+export interface MarkerAddressDisplay {
+  text: string;
+  /** 어디서 온 주소인지. 저장된 값 / 등록 주소와 같은 곳이라 등록 주소 / 좌표의 실제 주소 / 없음 */
+  source: "stored" | "registered" | "actual" | "none";
+}
+
+/**
+ * 상세 화면에 보여 줄 마커주소를 고른다(DB에 쓰지 않는다).
+ * 저장된 값이 우선이다. 없으면 좌표의 주소(`actual`)를 보고, 등록 주소와 같은 곳이면(`isSame`)
+ * 등록 주소(지번 우선, 없으면 도로명)를 그대로 보여 주고, 다른 곳이면 좌표의 실제 주소를 보여 준다.
+ */
+export function pickMarkerAddressDisplay(input: {
+  stored: string;
+  registered: { jibunAddress: string; roadAddress: string };
+  actual: { address: string } | null;
+  isSame: boolean;
+}): MarkerAddressDisplay {
+  const stored = input.stored.trim();
+  if (stored) return { text: stored, source: "stored" };
+  if (!input.actual) return { text: "", source: "none" };
+
+  if (input.isSame) {
+    const registered = input.registered.jibunAddress.trim() || input.registered.roadAddress.trim();
+    if (registered) return { text: registered, source: "registered" };
+  }
+  return { text: input.actual.address, source: "actual" };
+}
+
+export interface RoadAddressDisplay {
+  text: string;
+  /** 저장된 값 / 마커 좌표의 도로명 주소 / 없음 */
+  source: "stored" | "actual" | "none";
+}
+
+/**
+ * 상세 화면에 보여 줄 도로명 주소를 고른다(DB에 쓰지 않는다).
+ * 저장된 값이 우선이다. 없으면 마커가 등록 주소와 같은 곳(`isSame`)일 때만 좌표의 도로명 주소를 쓴다 —
+ * 다른 곳으로 옮긴 마커의 도로명 주소는 이 국소의 것이 아니기 때문이다.
+ */
+export function pickRoadAddressDisplay(input: {
+  stored: string;
+  actual: { roadAddress: string } | null;
+  isSame: boolean;
+}): RoadAddressDisplay {
+  const stored = input.stored.trim();
+  if (stored) return { text: stored, source: "stored" };
+  const actual = input.actual?.roadAddress.trim() ?? "";
+  if (input.isSame && actual) return { text: actual, source: "actual" };
+  return { text: "", source: "none" };
+}

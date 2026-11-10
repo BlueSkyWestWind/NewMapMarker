@@ -324,7 +324,7 @@ export function createOverlayContent(
       html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibun, mode))}</span>`;
     }
     if (road) {
-      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(신주소) ${escapeHtml(road)}</span>`;
+      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(road)}</span>`;
     }
     if (markerAddr) {
       html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(마커주소) ${escapeHtml(markerAddr)}</span>`;
@@ -358,7 +358,7 @@ export function createOverlayContent(
               html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibunAddr, mode))}</span>`;
             }
             if (roadAddr) {
-              html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(신주소) ${escapeHtml(roadAddr)}</span>`;
+              html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
             }
             if (!roadAddr && !jibunAddr) {
               html = '<span class="road-addr">주소 없음</span>';
@@ -592,7 +592,7 @@ export function createCaptureLabelContent(
       html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibunAddr, mode))}</span>`;
     }
     if (roadAddr) {
-      html += `<span class="jibun-addr" style="display:block;margin-top:2px;">(신주소) ${escapeHtml(roadAddr)}</span>`;
+      html += `<span class="jibun-addr" style="display:block;margin-top:2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
     }
     if (markerAddress) {
       html += `<span class="jibun-addr" style="display:block;margin-top:2px;">(마커주소) ${escapeHtml(markerAddress)}</span>`;

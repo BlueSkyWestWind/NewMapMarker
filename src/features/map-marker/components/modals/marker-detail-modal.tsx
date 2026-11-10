@@ -16,6 +16,7 @@ import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useMarkerAddressDisplay } from '@/features/map-marker/hooks/use-marker-address-display';
 import {
   Copy,
   Check,
@@ -45,8 +46,8 @@ import {
 } from '@/features/map-marker/lib/address-group';
 import {
   buildEquipmentDetailRows,
-  dbErrorMessage,
   compareRelatedMarkers,
+  dbErrorMessage,
   dongSortKey,
   getAddressGroupMates,
   getMarkerDongLabel,
@@ -118,6 +119,8 @@ export function MarkerDetailModal() {
     mode === 'equipment' ? (marker as EquipmentMarker | undefined) : undefined;
   const batteryMarker =
     mode === 'battery' ? (marker as BatteryMarker | undefined) : undefined;
+  // 저장된 마커주소가 없으면 좌표를 주소로 바꿔 보여 준다(등록 주소와 같은 곳이면 그 주소).
+  const markerAddressDisplay = useMarkerAddressDisplay(equipmentMarker);
 
   const [detailedInfo, setDetailedInfo] = useState<InfoRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -923,17 +926,23 @@ export function MarkerDetailModal() {
                     : batteryMarker?.address || '주소 정보 없음'}
                 </div>
               </div>
-              {mode === 'equipment' && equipmentMarker?.roadAddress ? (
+              {mode === 'equipment' ? (
                 <div>
-                  <label className="text-[10px] font-medium text-slate-500">신주소</label>
-                  <div className="mt-0.5 text-xs text-slate-300">{equipmentMarker.roadAddress}</div>
+                  <label className="text-[10px] font-medium text-slate-500">도로명</label>
+                  <div className="mt-0.5 text-xs text-slate-300">
+                    {markerAddressDisplay.isLoading
+                      ? '확인 중…'
+                      : markerAddressDisplay.roadText || '도로명 주소 없음'}
+                  </div>
                 </div>
               ) : null}
               {mode === 'equipment' ? (
                 <div>
                   <label className="text-[10px] font-medium text-slate-500">마커주소</label>
                   <div className="mt-0.5 text-xs text-slate-300">
-                    {equipmentMarker?.markerAddress || '저장된 마커주소 없음'}
+                    {markerAddressDisplay.isLoading
+                      ? '확인 중…'
+                      : markerAddressDisplay.text || '저장된 마커주소 없음'}
                   </div>
                 </div>
               ) : null}
