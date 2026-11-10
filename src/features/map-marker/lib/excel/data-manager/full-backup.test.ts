@@ -1,6 +1,11 @@
 import * as XLSX from 'xlsx';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { buildFullBackupSheetRows, fullBackupMethods, type FullBackupTables } from './full-backup';
+import {
+  buildFullBackupSheetRows,
+  fullBackupMethods,
+  parseErpStyleBackupToTables,
+  type FullBackupTables,
+} from './full-backup';
 
 type Methods = {
   exportFullBackupToExcel: (t: FullBackupTables, name?: string) => unknown;
@@ -68,5 +73,42 @@ describe('전체 백업 시트 분리', () => {
     expect(restored.battery_markers[0].name).toBe('축전지국소');
     expect(restored.battery_specs).toHaveLength(1);
     expect(restored.battery_specs[0].quantity).toBe(1);
+  });
+});
+
+describe('공정관리 형식 백업 — 주소를 지번/도로명 칸으로 나눠 저장한다', () => {
+  async function parse(addresses: string[]) {
+    const aoa = [
+      ['통합시설코드', '국소명-최종', '주소(전체)'],
+      ...addresses.map((address, index) => [`C${index}`, `국소${index}`, address]),
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(aoa), '일정관리');
+    const data = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    return parseErpStyleBackupToTables(new File([data], 'erp.xlsx'));
+  }
+
+  it('지번 주소는 jibun_address 칸에 넣고 road_address는 비운다', async () => {
+    const { markers } = await parse(['전남광주통합특별시 북구 삼각동 700번지']);
+    expect(markers[0]).toMatchObject({
+      jibun_address: '전남광주통합특별시 북구 삼각동 700번지',
+      road_address: '',
+    });
+  });
+
+  it('도로명 주소는 road_address 칸에 넣고 jibun_address는 비운다', async () => {
+    const { markers } = await parse(['광주광역시 북구 첨단과기로 123']);
+    expect(markers[0]).toMatchObject({
+      road_address: '광주광역시 북구 첨단과기로 123',
+      jibun_address: '',
+    });
+  });
+
+  it('산 번지 표기도 지번으로 본다', async () => {
+    const { markers } = await parse(['전남광주통합특별시 화순군 춘양면 우봉리 산30-1']);
+    expect(markers[0]).toMatchObject({
+      jibun_address: '전남광주통합특별시 화순군 춘양면 우봉리 산30-1',
+      road_address: '',
+    });
   });
 });

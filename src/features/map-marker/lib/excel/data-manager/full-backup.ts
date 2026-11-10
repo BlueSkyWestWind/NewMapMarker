@@ -10,6 +10,7 @@ import {
   GROUP_ROLE_SUB,
   normalizeGroupRole,
 } from '@/features/map-marker/lib/address-group';
+import { splitAddressFields } from '@/features/map-marker/lib/geocode';
 import { extractYearFromProjectCode, parseErpSheet } from './erp-parse';
 import {
   FULL_BACKUP_TABLE_NAMES,
@@ -662,7 +663,8 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
     }
     usedIds.add(uniqueId);
 
-    const address = row.address || '';
+    // 주소 종류를 판별해 지번/도로명 칸에 나눠 넣는다(예전에는 전부 road_address에 넣어 지번이 도로명으로 보였다).
+    const { roadAddress, jibunAddress } = splitAddressFields({ address: row.address || '' });
     tables.markers.push({
       id: uniqueId,
       name: row.name,
@@ -673,8 +675,8 @@ export async function parseErpStyleBackupToTables(file: File): Promise<FullBacku
       color: extras?.color || DEFAULT_MARKER_COLOR,
       facility_team: '',
       facility_code: row.facilityCode || null,
-      road_address: address,
-      jibun_address: '',
+      road_address: roadAddress,
+      jibun_address: jibunAddress,
       group_role: extras?.groupRole || '',
       created_at: extras?.createdAt || nowIso,
     });
