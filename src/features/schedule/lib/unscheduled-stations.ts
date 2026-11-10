@@ -79,6 +79,18 @@ export function findUnscheduledStations(
   return result.sort((a, b) => a.label.localeCompare(b.label, "ko"));
 }
 
+/**
+ * 업체(협력사)가 `partner`와 같은 국소만 남긴다(원래 순서 유지). 앞뒤 공백은 무시하고 이름 전체가 같아야 한다.
+ * 업체 정보가 없거나 비어 있는 국소는 어느 업체인지 알 수 없어 뺀다.
+ */
+export function filterByPartner<T extends { partner?: string }>(
+  stations: readonly T[],
+  partner: string,
+): T[] {
+  const wanted = partner.trim();
+  return stations.filter((station) => (station.partner ?? "").trim() === wanted);
+}
+
 /** 칸에서 이미 쓰는 행 번호(`usedRows`) 다음부터 `count`개의 빈 행 번호. 행 수 상한(`maxRows`)을 넘기지 않는다. */
 export function nextFreeRows(usedRows: readonly number[], count: number, maxRows: number): number[] {
   const start = usedRows.length === 0 ? 0 : Math.max(...usedRows) + 1;

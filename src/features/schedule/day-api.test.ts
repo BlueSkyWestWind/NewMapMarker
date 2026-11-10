@@ -7,6 +7,7 @@ import {
   fetchArchive,
   fetchDayDetails,
   fetchErpRefs,
+  fetchErpStationInfo,
   fetchLatestArchive,
   fetchOptionLists,
   saveArchiveRows,
@@ -442,5 +443,57 @@ describe("fetchLatestArchive / deleteArchiveRows", () => {
     const { client, calls } = stubClient();
     await deleteArchiveRows(client, []);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("fetchErpStationInfo", () => {
+  const infoRow = (id: number | string, stationFinal: unknown, method: unknown, partner: unknown) => ({
+    id,
+    station_final: stationFinal,
+    method,
+    partner,
+  });
+
+  it("같은 국소가 여러 행이면 id가 가장 큰 행의 방식·업체를 쓴다", async () => {
+    const { client } = stubClient(() => ({
+      data: [infoRow(5, "여수 봉산", "예전방식", "전통"), infoRow(9, "여수 봉산", "최근방식", "남양")],
+      count: 2,
+    }));
+    const info = await fetchErpStationInfo(client, ["여수 봉산"]);
+    expect(info.get("여수봉산")).toEqual({ method: "최근방식", partner: "남양" });
+  });
+
+  it("방식과 업체 열을 함께 요청한다", async () => {
+    const { client, calls } = stubClient(() => ({ data: [], count: 0 }));
+    await fetchErpStationInfo(client, ["A"]);
+    expect(String(stepArgs(calls[0], "select")?.[0])).toMatch(/method/);
+    expect(String(stepArgs(calls[0], "select")?.[0])).toMatch(/partner/);
+  });
+
+  it("방식이 비어 있어도 업체가 있으면 담고, 둘 다 비면 담지 않는다", async () => {
+    const { client } = stubClient(() => ({
+      data: [infoRow(1, "A", "", "남양"), infoRow(2, "B", "  ", "  "), infoRow(3, "C", null, null)],
+      count: 3,
+    }));
+    const info = await fetchErpStationInfo(client, ["A", "B", "C"]);
+    expect(info.get("a")).toEqual({ method: "", partner: "남양" });
+    expect(info.has("b")).toBe(false);
+    expect(info.has("c")).toBe(false);
+  });
+
+  it("값의 앞뒤 공백을 지운다", async () => {
+    const { client } = stubClient(() => ({ data: [infoRow(1, "A", " 기지국 ", " 남양 ")], count: 1 }));
+    expect((await fetchErpStationInfo(client, ["A"])).get("a")).toEqual({ method: "기지국", partner: "남양" });
+  });
+
+  it("조회할 국소가 없으면 DB를 부르지 않는다", async () => {
+    const { client, calls } = stubClient();
+    expect((await fetchErpStationInfo(client, ["", " "])).size).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("오류는 그대로 던진다", async () => {
+    const { client } = stubClient(() => ({ error: { message: "boom" } }));
+    await expect(fetchErpStationInfo(client, ["A"])).rejects.toBeTruthy();
   });
 });

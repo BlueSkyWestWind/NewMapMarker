@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { createScheduleCell, fetchScheduleCells } from "@/features/schedule/api";
 import { MAX_ROWS } from "@/features/schedule/lib/cell-grid";
-import { useUnscheduledStations } from "@/features/schedule/hooks/use-unscheduled-stations";
+import {
+  UNSCHEDULED_PARTNER,
+  useUnscheduledStations,
+} from "@/features/schedule/hooks/use-unscheduled-stations";
 import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
 import { nextFreeRows } from "@/features/schedule/lib/unscheduled-stations";
 import { isValidIso } from "@/features/schedule/lib/week";
@@ -41,7 +44,7 @@ export function ScheduleUnscheduledDialog({
 }: ScheduleUnscheduledDialogProps) {
   const { supabase } = useAuthSession();
   const { toast } = useToast();
-  const { stations, isLoading, isMethodsLoading, error } = useUnscheduledStations(open);
+  const { stations, isLoading, error } = useUnscheduledStations(open);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [date, setDate] = useState(defaultDate);
@@ -142,7 +145,7 @@ export function ScheduleUnscheduledDialog({
       <DialogContent className="flex max-h-[90vh] w-[min(1400px,96vw)] max-w-none flex-col gap-3 p-5">
         <DialogTitle className="text-base">미배정 국소</DialogTitle>
         <DialogDescription className="text-xs text-slate-400">
-          시설일이 없고 오늘 이후 시설일정에도 없는 장비 국소입니다. 체크한 국소를 아래에서 고른 날짜·팀 칸에 추가합니다.
+          시설일이 없고 오늘 이후 시설일정에도 없는 장비 국소입니다(업체: {UNSCHEDULED_PARTNER}). 체크한 국소를 아래에서 고른 날짜·팀 칸에 추가합니다.
         </DialogDescription>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -156,7 +159,6 @@ export function ScheduleUnscheduledDialog({
           />
           <span className="whitespace-nowrap text-xs text-slate-300">
             {shown.length}건{query.trim() ? ` (전체 ${stations.length}건)` : ""} · 선택 {pickedShown.length}건
-            {isMethodsLoading ? " · 방식 불러오는 중…" : ""}
           </span>
         </div>
 

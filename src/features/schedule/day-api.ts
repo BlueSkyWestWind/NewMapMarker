@@ -76,36 +76,50 @@ export async function fetchErpRefs(
 /** 한 번에 `in` 조건으로 보내는 국소 수(URL이 길어지지 않게 나눠 보낸다). */
 const ERP_NAME_CHUNK = 100;
 
+/** 공정관리(`erp_details`)에서 국소별로 읽는 `방식`과 업체(`협력사`). 값이 없으면 빈 글. */
+export interface ErpStationInfo {
+  method: string;
+  partner: string;
+}
+
+/** 값이 글이면 앞뒤 공백을 지운 글, 아니면 빈 글. */
+function trimmedText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 /**
- * 국소 이름(`erp_details.station_final`)별 `방식`(erp_details.method). 키는 `stationKey`.
- * 같은 국소가 여러 행이면 id가 가장 큰(최근 등록) 행을 쓴다. 방식이 비어 있으면 넣지 않는다.
+ * 국소 이름(`erp_details.station_final`)별 `방식`(method)과 업체(`partner`, 협력사). 키는 `stationKey`.
+ * 같은 국소가 여러 행이면 id가 가장 큰(최근 등록) 행을 쓴다. 방식·업체가 모두 비어 있는 행은 넣지 않는다.
  */
-export async function fetchErpMethods(
+export async function fetchErpStationInfo(
   supabase: SupabaseBrowserClient,
   sites: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, ErpStationInfo>> {
   const names = [...new Set(sites.map((site) => site.trim()).filter((site) => site !== ""))];
-  const newest = new Map<string, { id: number; method: string }>();
+  const newest = new Map<string, { id: number } & ErpStationInfo>();
   for (let start = 0; start < names.length; start += ERP_NAME_CHUNK) {
     const chunk = names.slice(start, start + ERP_NAME_CHUNK);
     const rows = await fetchAllRows<Row>(
       (from, to) =>
         supabase
           .from("erp_details")
-          .select("id, station_final, method", { count: "exact" })
+          .select("id, station_final, method, partner", { count: "exact" })
           .in("station_final", chunk)
           .order("id")
           .range(from, to) as unknown as PromiseLike<FetchPageResult<Row>>,
     );
     for (const row of rows) {
-      if (typeof row.station_final !== "string" || typeof row.method !== "string" || row.method.trim() === "") continue;
+      if (typeof row.station_final !== "string") continue;
+      const method = trimmedText(row.method);
+      const partner = trimmedText(row.partner);
+      if (method === "" && partner === "") continue;
       const key = stationKey(row.station_final);
       const id = Number(row.id);
       const current = newest.get(key);
-      if (!current || id > current.id) newest.set(key, { id, method: row.method.trim() });
+      if (!current || id > current.id) newest.set(key, { id, method, partner });
     }
   }
-  return new Map([...newest].map(([key, { method }]) => [key, method]));
+  return new Map([...newest].map(([key, { method, partner }]) => [key, { method, partner }]));
 }
 
 // ---------------------------------------------------------------------

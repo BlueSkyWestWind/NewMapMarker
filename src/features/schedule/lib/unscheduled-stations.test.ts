@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterByPartner,
   findUnscheduledStations,
   hasNoInstallDate,
   nextFreeRows,
@@ -70,5 +71,24 @@ describe("nextFreeRows", () => {
     expect(nextFreeRows([0, 1, 4], 3, 30)).toEqual([5, 6, 7]);
     expect(nextFreeRows([], 2, 30)).toEqual([0, 1]);
     expect(nextFreeRows([27], 5, 30)).toEqual([28, 29]);
+  });
+});
+
+describe("filterByPartner", () => {
+  const station = (id: string, partner?: string) => ({ id, partner });
+
+  it("업체가 지정한 이름인 국소만 남기고 원래 순서를 지킨다", () => {
+    const list = [station("a", "남양"), station("b", "전통"), station("c", "남양"), station("d", "미주")];
+    expect(filterByPartner(list, "남양").map((item) => item.id)).toEqual(["a", "c"]);
+  });
+
+  it("업체 정보가 없거나 비어 있으면 뺀다", () => {
+    const list = [station("a"), station("b", ""), station("c", "  "), station("d", "남양")];
+    expect(filterByPartner(list, "남양").map((item) => item.id)).toEqual(["d"]);
+  });
+
+  it("앞뒤 공백은 무시하고 이름 전체가 같아야 한다(부분 일치는 아니다)", () => {
+    const list = [station("a", " 남양 "), station("b", "남양건설"), station("c", "남양")];
+    expect(filterByPartner(list, "남양").map((item) => item.id)).toEqual(["a", "c"]);
   });
 });
