@@ -44,7 +44,7 @@ export function AccountAuditDialog({ open, onOpenChange }: AccountAuditDialogPro
           </p>
         ) : query.data && !query.data.available ? (
           <p className="rounded-md border border-amber-900/50 bg-amber-950/30 p-3 text-xs text-amber-300">
-            작업 기록이 아직 적용되지 않았습니다. Supabase SQL Editor에서 20261115000000_admin_audit_log.sql을
+            작업 기록이 아직 적용되지 않았습니다. Supabase SQL Editor에서 04_admin_accounts.sql을
             실행해 주세요.
           </p>
         ) : entries.length === 0 ? (

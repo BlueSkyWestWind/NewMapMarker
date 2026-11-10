@@ -116,7 +116,7 @@ export function SiteListsPanel({ markers }: { markers: MarkerRecord[] }) {
       <PanelSection title="국소 목록">
         <p className="text-xs leading-relaxed text-amber-300">
           DB 변경이 아직 적용되지 않았습니다. Supabase SQL Editor에서
-          20261107000000_site_lists.sql을 실행해 주세요.
+          02_site_lists_and_permissions.sql을 실행해 주세요.
         </p>
       </PanelSection>
     );

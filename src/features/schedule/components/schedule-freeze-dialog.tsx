@@ -157,7 +157,7 @@ function FreezeForm({ canEdit, onClose }: { canEdit: boolean; onClose: () => voi
       {isTableMissing ? (
         <div className="flex flex-col items-start gap-2">
           <p className="text-xs text-amber-400">
-            DB에 작업금지 테이블이 없습니다. 마이그레이션(20261110000000_schedule_freezes.sql)을 Supabase에 적용해 주세요.
+            DB에 작업금지 테이블이 없습니다. 마이그레이션(03_facility_schedule.sql)을 Supabase에 적용해 주세요.
           </p>
           <Button
             type="button"

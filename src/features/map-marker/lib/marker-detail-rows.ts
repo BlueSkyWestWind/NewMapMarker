@@ -39,7 +39,7 @@ export function dbErrorMessage(err: unknown, fallback: string): string {
     e?.code === 'PGRST204' ||
     e?.code === '42703';
   if (missingColumn) {
-    return "DB에 'detached_visible' 컬럼이 아직 없습니다. 마이그레이션(20260722000000_add_detached_visible.sql)을 Supabase에 적용해 주세요.";
+    return "DB에 'detached_visible' 컬럼이 아직 없습니다. 마이그레이션(01_markers_core.sql)을 Supabase에 적용해 주세요.";
   }
   return `${fallback}${detail ? ` (${detail})` : ''}`;
 }

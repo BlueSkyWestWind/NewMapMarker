@@ -2,16 +2,26 @@
 
 이 폴더가 **현재 스키마의 정식 소스**입니다. (`001.MapMarker/sql/`는 과거 참조용)
 
-## 신규 · 초기화 DB (권장)
+## 신규 · 초기화 DB
 
-Supabase 대시보드 → **SQL Editor** 에 아래 한 파일만 붙여넣고 **Run** 하면 전체 테이블 + 인덱스 + RLS가 한 번에 구성됩니다.
+Supabase 대시보드 → **SQL Editor** 에서 아래 파일을 **번호 순서대로** 한 파일씩 붙여넣고 **Run** 합니다.
+`01`~`04`는 예전 마이그레이션 29개를 순서대로 이어 붙인 것이고(내용은 원본 그대로, 구분선 주석만 추가),
+`2026…` 파일은 그 뒤에 새로 만든 개별 파일입니다.
 
 ```
-20260718120000_recreate_full_schema_with_erp.sql
+01_markers_core.sql
+02_site_lists_and_permissions.sql
+03_facility_schedule.sql
+04_admin_accounts.sql
+20261116000100_kma_api_usage.sql
+20261116000200_kma_forecast_cache.sql
+20261116000300_kma_prefetch_cron.sql   ← pg_cron·pg_net·Secret·vault 준비 후(파일 머리말 참고)
 ```
 
-- 모든 `CREATE`가 `IF NOT EXISTS`, 컬럼 추가는 `ADD COLUMN IF NOT EXISTS`라 **기존 DB에 재실행해도 안전**합니다.
-- 실행 후 `NOTIFY pgrst, 'reload schema'`로 PostgREST 캐시가 즉시 갱신됩니다.
+- **이미 운영 중인 DB에는 `01`~`04`를 다시 실행하지 않는다.** 이미 적용된 내용이고, 일부는 다시 실행하면 안 된다
+  (`03`의 일자별 상세는 사용자가 지운 처음 목록 값을 되살리고, 칸 맞바꾸기 함수는 마지막에 고친 정의로 끝나야 한다).
+- 앞으로 추가하는 마이그레이션은 `2026…` 타임스탬프 개별 파일로 만든다. 적용 전 파일을 한눈에 찾기 위해서다.
+  적용이 끝나 안정되면 같은 방식으로 영역별 번호 파일에 합친다.
 
 ## 생성되는 테이블
 
@@ -29,45 +39,33 @@ Supabase 대시보드 → **SQL Editor** 에 아래 한 파일만 붙여넣고 *
 
 - **조회·조작(SELECT/INSERT/UPDATE/DELETE) 전부**: `authenticated`(로그인)만 허용 → 비로그인(anon)은 마커를 읽지도 쓰지도 못한다
 
-> 위 정책은 `20261017000000_require_login_for_marker_read.sql` 적용 후의 상태다. 정식 스키마 파일(`20260718120000_…`)은 anon 조회를 여는 정책을 만들므로, **새 DB를 만들 때는 두 파일을 순서대로 모두 실행**해야 한다.
+> 위 정책은 `01_markers_core.sql` 맨 끝(구 `20261017000000_require_login_for_marker_read`) 적용 후의 상태다. 같은 파일 앞쪽에서 anon 조회를 여는 정책을 만들었다가 뒤에서 닫으므로 **파일 전체를 순서대로** 실행해야 한다. 삭제(DELETE)는 `02`의 마지막 구간에서 관리자 전용으로 다시 좁힌다.
 
 ## 파일 목록
 
-| 파일 | 역할 |
-| --- | --- |
-| `20261112000000_fix_schedule_unused_indexes.sql` | **Advisor 정리.** `schedule_cells`·`schedule_marks`의 미사용 `column_id` 일반 인덱스를 `column_id` 선두 고유 제약(`UNIQUE`)으로 교체해 `unused_index`·`unindexed_foreign_keys` 모두 해소 |
-| `20261111000000_schedule_day_details.sql` | **시설일정 일자별 상세·목록·누적.** `schedule_day_details`(날짜·국소별 사용자 입력)·`schedule_option_lists`(드롭다운 목록, 처음 값 8개 목록 71건 포함)·`schedule_archive_rows`(누적) 3개 테이블. 조회는 로그인 사용자·쓰기는 관리자(`is_app_admin()`). 누적을 다시 저장하면 `saved_by`·`saved_at`을 트리거가 새로 고친다. 다시 실행하면 사용자가 지운 처음 목록 값이 다시 들어간다. `20261108000000_facility_schedule.sql` **다음에** 실행 |
-| `20261110000000_schedule_freezes.sql` | **시설일정 작업금지(프리징) 기간.** `schedule_freezes`(시작·종료 시각 + 사유) 테이블. 조회는 로그인 사용자, 추가·삭제는 관리자(`is_app_admin()`). 일정표에 표시만 한다. `20261107000000_site_lists.sql`(`is_app_admin`) **다음에** 실행 |
-| `20261113000000_restrict_marker_delete_to_admin.sql` | **장비·축전지 삭제 권한 제한.** `markers`·`information`·`erp_details`·`battery_markers`·`battery_specs`의 `FOR ALL` 정책을 지우고 조회·등록·수정은 로그인 사용자, 삭제는 관리자(`is_app_admin()`)만 허용. 적용하면 일반 계정은 삭제·위치등록 저장·기존 마커 수정 저장·전체 복원이 막힌다. 다시 실행해도 안전 |
-| `20261115000000_schedule_cells_companion_target.sql` | **시설일정 입회·신호수 대상 표시.** `20261114000000`이 만든 `no_companion`(불필요)을 `companion_target`(대상)으로 이름·의미를 바꾼다. 이미 체크한 값은 그대로 "대상"이 된다. 그 팀·날짜에 대상 표시가 하나도 없으면 모든 국소에 입회·신호수가 붙는다. 일정표 행은 대상 국소 → 입회 → 신호수 → 나머지 순으로 정리된다. 적용 전에도 일정표는 정상이고 표시만 저장되지 않는다. 엑셀 가져오기는 그 기간의 칸을 다시 만들므로 표시가 초기화된다. 이 파일만으로 컬럼이 만들어지므로 `20261114000000`은 건너뛰어도 된다. `20261108000000_facility_schedule.sql` **다음에** 실행 |
-| `20261116000000_fix_move_schedule_cell_deferred.sql` | **칸 맞바꾸기 함수 수정.** `schedule_cells`의 위치 UNIQUE 제약이 2개인데 운영 DB의 `move_schedule_cell`이 하나만 미뤄, 칸을 맞바꾸면 `duplicate key … schedule_cells_column_position_key`로 409가 난다(드래그 맞바꾸기·입회·신호수 자동 정리 실패). 함수를 `SET CONSTRAINTS ALL DEFERRED`로 다시 만든다. 다시 실행해도 안전하고, **적용 뒤에는 `20261108000000`을 다시 실행하지 않는다**(함수가 옛 정의로 돌아간다) |
-| `20261109000000_schedule_result.sql` | **시설일정 시행 결과.** `schedule_cells`에 `result_status`(완료/일부완료/미시설)·`result_reason`(일부완료·미시설은 필수)·`rescheduled_to` 컬럼 추가. 권한은 기존 RLS 그대로. 엑셀 가져오기는 그 기간의 결과를 지운다. `20261108000000_facility_schedule.sql` **다음에** 실행 |
-| `20261108000000_facility_schedule.sql` | **시설일정.** `schedule_columns`·`schedule_cells`·`schedule_days`·`schedule_marks` 4개 테이블, 조회는 로그인 사용자·쓰기는 관리자(`is_app_admin()`)만 허용하는 RLS, 칸 이동(맞바꾸기)·날짜 범위 교체 함수(`move_schedule_cell`·`replace_schedule_cells`). 팀장 이름은 넣지 않는다. `20261107000000_site_lists.sql`(`is_app_admin`) **다음에** 실행 |
-| `20261107000400_drop_erp_schema.sql` | **정리.** 삭제된 앱의 `erp` 스키마 제거. 되돌릴 수 없음 |
-| `20261107000300_drop_unused_public_indexes.sql` | **Advisor 정리.** 쓰지 않는 public 인덱스 4개 삭제 |
-| `20261107000200_wrap_auth_role_in_marker_policies.sql` | **Advisor 정리.** 마커 5개 테이블 정책의 `auth.role()`을 쿼리당 한 번만 계산. 권한 변화 없음 |
-| `20261107000100_site_lists_invoker_functions.sql` | **Advisor 정리.** 국소 목록 권한 함수를 SECURITY INVOKER로 변경 |
-| `20261107000000_site_lists.sql` | **국소 목록.** `app_admins`, `site_lists`, `site_list_members`와 RLS |
-| `20261021000000_fix_erp_schema_lint_warnings.sql` | **Advisor 정리.** `erp` 스키마(다른 앱 소유)의 `set_updated_at` search_path 고정 + `*_auth_all` 정책 경고 해소. 동작은 그대로(권한 강화 아님). 해당 스키마가 없으면 아무 일도 안 한다 |
-| `20261017000000_require_login_for_marker_read.sql` | **보안.** anon 조회·쓰기 정책 삭제 → 로그인 사용자만 마커 접근. 정식 스키마 파일 **다음에** 실행 |
-| `20260718120000_recreate_full_schema_with_erp.sql` | **정식 스키마.** 전체 스키마(+ERP, `parent_marker_id`, `group_role`) + RLS(초기 상태는 anon 조회 허용) |
-| `20260627000001_enable_rls_and_policies.sql` | (구) RLS 활성화·정책. 위 파일에 통합되어 대체됨 |
-| `20260627000000_disable_rls_battery_tables.sql` | (구) 축전지 RLS 임시 비활성 핫픽스. 위 파일에서 정상 RLS로 복구됨 |
-| `20260626000000_map_marker_schema_reference.sql` | 스키마 요약 주석(참조용) |
+| 파일 | 합쳐진 원본 | 역할 |
+| --- | --- | --- |
+| `01_markers_core.sql` | `20260626` 참조 주석 · `20260627` RLS 핫픽스·정책(구) · `20260718` 정식 스키마 · `20260722` `detached_visible` · `20260723` `group_key` · `20260727` 날씨 컬럼 · `20260817` anon 등록 허용 · `20260826` 파란 마커 기본색 · `20261017` 로그인 필수 · `20261021` erp 린트 | 장비·축전지·ERP 테이블과 RLS. 앞쪽에서 anon 조회를 열었다가 `20261017` 구간에서 닫는다 |
+| `02_site_lists_and_permissions.sql` | `20261107000000`~`000400` · `20261113` 마커 삭제 제한 | 국소 목록(`app_admins`·`site_lists`·`site_list_members`)·`is_app_admin()`, Advisor 정리(INVOKER 함수·`auth.role()` 래핑·미사용 인덱스), `erp` 스키마 제거(되돌릴 수 없음), 장비·축전지 삭제를 관리자 전용으로 제한 |
+| `03_facility_schedule.sql` | `20261108`~`20261110` · `20261111` · `20261112`×2 · `20261114` · `20261115` · `20261116000000` | 시설일정 전체: 4개 테이블·칸 이동·날짜 범위 교체 함수, 시행 결과, 작업금지, 일자별 상세·목록·누적, 수동 행, 인덱스 정리, 입회·신호수 대상, 칸 맞바꾸기 수정. `01`·`02`(`is_app_admin`) **다음에** 실행 |
+| `04_admin_accounts.sql` | `20261113` 접속 세션 · `20261114` 접속 기록 · `20261115` 작업 감사 기록 | 관리자 계정설정의 `admin_user_sessions`·`admin_user_login_history`·`admin_audit_log`. `02`(`is_app_admin`) **다음에** 실행 |
+| `20261116000100_kma_api_usage.sql` | — | 기상청 호출 횟수를 시간대별로 집계(`kma_api_usage`·`record_kma_call()`). 읽기는 관리자만 |
+| `20261116000200_kma_forecast_cache.sql` | — | 기상청 예보를 기준시각별로 저장(`kma_forecast_cache`, 서비스 키 전용). 적용 전에도 날씨는 실시간으로 동작 |
+| `20261116000300_kma_prefetch_cron.sql` | — | `pg_cron`으로 KST 07~17시 사전 수집 + 매일 정리. 파일 머리말의 준비 사항 필요 |
 
-> Supabase CLI(`supabase db push`)로 순서대로 적용하면 위 3·4번째의 (구) RLS 파일이 먼저 실행됐다가 최신 파일이 최종 상태로 덮어씁니다. **SQL Editor 수동 실행 시에는 `20260718120000_…` → `20261017000000_…` 두 파일만** 순서대로 실행하면 됩니다.
+세부 사유(예: 칸 맞바꾸기 409 원인, 미시설 필수 사유)는 각 구간의 원본 주석에 그대로 남아 있다.
 
 ## 기존 `001.MapMarker` DB 재사용
 
-이미 구축된 DB가 있으면 `.env`만 연결하면 됩니다. 다만 이 앱은 `erp_details` 테이블과 `markers.parent_marker_id` / `group_role` 컬럼을 사용하므로, 없으면 위 최신 파일을 재실행해 **누락분만 추가**하세요(재실행 안전).
+이미 구축된 DB가 있으면 `.env`만 연결하면 됩니다. 다만 이 앱은 `erp_details` 테이블과 `markers.parent_marker_id` / `group_role` 컬럼을 사용하므로, 없으면 `01_markers_core.sql`을 재실행해 **누락분만 추가**하세요(`IF NOT EXISTS`라 재실행 안전).
 
 ## Security Advisor 경고 정리 (2026-10-21, 22건)
 
 | 경고 | 건수 | 해결 |
 | --- | --- | --- |
-| `public.markers/information/erp_details` 의 `*_insert_anon`·`*_update_anon` (RLS Policy Always True) | 6 | `20261017000000_require_login_for_marker_read.sql` |
-| `erp.*_auth_all` (RLS Policy Always True) | 14 | `20261021000000_fix_erp_schema_lint_warnings.sql` (경고 해소, 권한은 동일) |
-| `erp.set_updated_at` (Function Search Path Mutable) | 1 | `20261021000000_fix_erp_schema_lint_warnings.sql` |
+| `public.markers/information/erp_details` 의 `*_insert_anon`·`*_update_anon` (RLS Policy Always True) | 6 | `01_markers_core.sql`(구 `20261017000000`) |
+| `erp.*_auth_all` (RLS Policy Always True) | 14 | `01_markers_core.sql`(구 `20261021000000`) (경고 해소, 권한은 동일) |
+| `erp.set_updated_at` (Function Search Path Mutable) | 1 | `01_markers_core.sql`(구 `20261021000000`) |
 | Leaked Password Protection Disabled | 1 | SQL 아님. 대시보드 **Authentication → Sign In / Providers → Email → Prevent use of leaked passwords** 켜기 (Pro 플랜 이상에서 제공) |
 
 > **가입 차단 확인**: 이 앱의 `authenticated` 는 "이 Supabase 프로젝트에 가입된 누구나"다. 앱 화면에는 가입 UI가 없지만,

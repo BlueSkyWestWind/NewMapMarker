@@ -75,7 +75,7 @@ export function AccountHistoryDialog({ user, open, onOpenChange }: AccountHistor
         ) : query.data && !query.data.available ? (
           <p className="rounded-md border border-amber-900/50 bg-amber-950/30 p-3 text-xs text-amber-300">
             접속 기록 조회가 아직 적용되지 않았습니다. Supabase SQL Editor에서
-            20261114000000_admin_user_login_history.sql을 실행해 주세요.
+            04_admin_accounts.sql을 실행해 주세요.
           </p>
         ) : events.length === 0 ? (
           <p className="p-4 text-sm text-slate-400">

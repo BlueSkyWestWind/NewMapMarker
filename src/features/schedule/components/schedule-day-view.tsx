@@ -24,7 +24,7 @@ import { addDays, isValidIso, todayIso } from "@/features/schedule/lib/week";
 import { useToast } from "@/hooks/use-toast";
 
 const TABLE_MISSING_MESSAGE =
-  "DB에 일자별 상세 테이블이 없습니다. 마이그레이션(20261111000000_schedule_day_details.sql)을 Supabase에 적용해 주세요.";
+  "DB에 일자별 상세 테이블이 없습니다. 마이그레이션(03_facility_schedule.sql)을 Supabase에 적용해 주세요.";
 const EMPTY_MESSAGE =
   "이 날짜의 일정에 국소가 없습니다. 먼저 주간 보기에서 일정을 입력하거나 일정표를 가져오세요.";
 

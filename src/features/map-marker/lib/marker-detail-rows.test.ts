@@ -205,7 +205,7 @@ describe("상세 표 행 만들기", () => {
 describe("dbErrorMessage", () => {
   it("detached_visible 컬럼이 없다는 오류는 마이그레이션 안내", () => {
     expect(dbErrorMessage({ message: "column detached_visible does not exist" }, "저장 실패")).toContain(
-      "20260722000000_add_detached_visible.sql",
+      "01_markers_core.sql",
     );
     expect(dbErrorMessage({ code: "PGRST204" }, "저장 실패")).toContain("detached_visible");
     expect(dbErrorMessage({ code: "42703" }, "저장 실패")).toContain("detached_visible");

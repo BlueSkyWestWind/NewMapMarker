@@ -81,7 +81,7 @@ function OptionListsForm({ canEdit, onClose }: { canEdit: boolean; onClose: () =
 
       {isTableMissing ? (
         <p className="text-xs text-amber-400">
-          DB에 목록 테이블이 없습니다. 마이그레이션(20261111000000_schedule_day_details.sql)을 Supabase에 적용해 주세요.
+          DB에 목록 테이블이 없습니다. 마이그레이션(03_facility_schedule.sql)을 Supabase에 적용해 주세요.
           지금은 처음 값만 보이며 고칠 수 없습니다.
         </p>
       ) : null}

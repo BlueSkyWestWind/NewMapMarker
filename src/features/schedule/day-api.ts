@@ -114,7 +114,7 @@ export async function fetchErpMethods(
 
 const DETAIL_COLUMNS_BASE =
   "work_date, station_key, site, work_category, level_label, work_time, work_type, equipment, work_content, work_detail, worker, witness, signaler, overrides";
-/** `is_manual`은 20261112000000_schedule_day_manual_rows.sql 이후에만 있다. */
+/** `is_manual`은 03_facility_schedule.sql 이후에만 있다. */
 const DETAIL_COLUMNS = `${DETAIL_COLUMNS_BASE}, is_manual`;
 
 /** jsonb `overrides`에서 참조 열 이름에 글 값인 것만 남긴다. */

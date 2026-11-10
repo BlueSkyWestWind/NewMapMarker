@@ -65,7 +65,7 @@ src/
   features/cctv/               # 도로 CCTV 조회 — ITS를 브라우저에서 직접 호출 (13파일)
   features/barcode/            # 사진 바코드 인식 · QR 생성 · 엑셀 후보 검색 (15파일)
 docs/                          # Ver_3.0(현재 계획·구현 문서) · 이전버젼/(Ver_1.0 ~ Ver_2.3 문서 세트)
-supabase/migrations/           # DB 마이그레이션 32개 + README(적용 순서·RLS 정책)
+supabase/migrations/           # DB 마이그레이션 SQL 7개(번호 4 + 기상청 3) + README(적용 순서·RLS 정책)
 e2e/                           # Playwright 스모크 테스트
 ```
 
@@ -155,7 +155,7 @@ e2e/                           # Playwright 스모크 테스트
 - `exceljs`(서식 있는 엑셀 쓰기·글자색 읽기)는 내려받기·가져오기 때만 불러와 홈 번들에 영향이 없습니다.
 - **대시보드 마커창 펼침** — 대시보드를 열면 오늘의 작업 국소 전체의 마커창(날씨 카드)을 지도에 자동으로 펼치고 지도를 모두 보이게 맞춥니다. 직접 닫은 국소는 다시 펼치지 않습니다. 같은 자리에 핀이 몰려 있어도 마커창은 지도 양쪽 가장자리에 세로로 쌓여(많으면 카드를 조금 줄여서) 서로 겹치지 않고 연결선으로 핀과 이어집니다(직접 끌어 옮긴 창은 그대로, `마커창 전체 표시`를 다시 눌러도 같은 배치).
 - **대시보드 연동** — 오늘 일정의 국소 중 등록된 장비 국소와 이름이 같은 것을 대시보드 `오늘의 작업 국소`(날씨 판정)에 자동으로 담고 `일정` 배지를 붙입니다. 직접 담은 국소는 건드리지 않고, 날짜가 바뀌면 지난 자동 등록분을 정리하며, 같은 날 직접 뺀 국소는 다시 넣지 않습니다.
-- DB 마이그레이션(`20261108000000_facility_schedule.sql` 외)을 적용하기 전에는 일정표에 적용 안내만 표시됩니다.
+- DB 마이그레이션(`03_facility_schedule.sql`)을 적용하기 전에는 일정표에 적용 안내만 표시됩니다.
 
 #### 일자별 상세 · 누적 · 메일양식
 
@@ -170,7 +170,7 @@ e2e/                           # Playwright 스모크 테스트
 - **업무 메일 양식** — 일일일정 작업 상세 데이터를 기반으로 당일/익일 현장 작업 보고용 표준 이메일 텍스트를 원클릭으로 자동 생성하고 클립보드에 복사합니다.
 - **표 복사 / 엑셀 내려받기** — 표 복사는 머리글 없이 탭 구분으로 엑셀에 바로 붙여 넣습니다. 엑셀 내려받기는 원본(`시설일정_수정3`) 서식·열 너비·드롭다운(숨김 `목록` 시트)을 따릅니다.
 - **누적** — 복사·내려받기 때 오늘 이후 날짜는 자동으로 누적에 저장되고 `누적 저장` 버튼으로 직접 저장할 수도 있습니다. **지난 날짜는 자동 저장하지 않으며**, 직접 저장 시 확인창이 뜹니다. 누적 보기에서 기간·검색으로 찾고 삭제·엑셀 내려받기를 할 수 있습니다.
-- DB 마이그레이션(`20261111000000_schedule_day_details.sql` 외)을 적용하기 전에는 일자별·누적에 적용 안내만 표시됩니다.
+- DB 마이그레이션(`03_facility_schedule.sql`)을 적용하기 전에는 일자별·누적에 적용 안내만 표시됩니다.
 
 ### 계정관리 & 보안 (Ver_3.0 신규)
 
@@ -269,28 +269,15 @@ npx tsc --noEmit     # 타입 검사 — 커밋 전 필수
 
 | 마이그레이션 | 내용 |
 |------|------|
-| `20260718120000_recreate_full_schema_with_erp.sql` | 전체 정식 스키마(`markers`·`information`·`erp_details`·`battery_markers`·`battery_specs`) 생성 |
-| `20260722000000_add_detached_visible.sql` | `markers.detached_visible` — 같은 번지 SUB를 지도에 개별 핀으로 표시 |
-| `20260723000000_add_group_key.sql` | `markers.group_key` — 번지 하위 동/구역 실제 그룹 분리 키 |
-| `20260727000000_add_worksite_weather_columns.sql` | `markers`·`battery_markers`에 `site_alias`(검색 별칭) · `work_type`(지상/고소) |
-| `20261017000000_require_login_for_marker_read.sql` | 비로그인(anon) 조회·쓰기 정책 제거 — 로그인 사용자만 마커 접근 |
-| `20261107000000_site_lists.sql` | 위치 메뉴 국소 목록(`app_admins`·`site_lists`·`site_list_members`) 및 RLS 정책 |
-| `20261107000100_site_lists_invoker_functions.sql` ~ `000400` | 국소 목록 권한 함수 `SECURITY INVOKER` 전환 및 Advisor·미사용 인덱스/스키마 정리 |
-| `20261108000000_facility_schedule.sql` | 시설일정(`schedule_columns`·`schedule_cells`·`schedule_days`·`schedule_marks`) 4개 테이블, 관리자만 쓰는 RLS, 칸 이동(맞바꾸기)·날짜 범위 교체 함수 |
-| `20261109000000_schedule_result.sql` | `schedule_cells`에 `result_status`·`result_reason`·`rescheduled_to` 컬럼 추가(일정 시행 결과) |
-| `20261110000000_schedule_freezes.sql` | `schedule_freezes` 테이블 — 통신 작업금지(프리징) 기간 등록 및 관리 |
-| `20261111000000_schedule_day_details.sql` | 시설일정 일자별 상세(`schedule_day_details`·`schedule_option_lists`·`schedule_archive_rows`) 3개 테이블, 관리자만 쓰는 RLS, 누적 `saved_by`/`saved_at` 자동 기록 트리거 |
-| `20261112000000_schedule_day_manual_rows.sql` | `schedule_day_manual_rows` 테이블 — 일일일정 표에 직접 추가한 수동 행 보존 |
-| `20261112000000_fix_schedule_unused_indexes.sql` | 시설일정 테이블 미사용 인덱스 제거 및 UNIQUE 제약 최적화 |
-| `20261113000000_admin_user_sessions.sql` | `admin_user_sessions` 테이블 — 관리자 계정설정 화면의 접속 세션(IP·기기·최근 활동 시각) 관리 |
-| `20261113000000_restrict_marker_delete_to_admin.sql` | 장비·축전지 5개 테이블의 삭제(DELETE)를 관리자 전용으로 제한 — 등록·수정은 로그인 사용자 그대로. 적용하면 일반 계정은 삭제·위치등록 저장·기존 마커의 수정 저장·전체 복원이 막힌다(새 마커 등록은 가능) |
-| `20261114000000_admin_user_login_history.sql` | `admin_user_login_history` 테이블 — 사용자 로그인 성공/실패 접속 이력 |
-| `20261115000000_schedule_cells_companion_target.sql` | `schedule_cells.companion_target` — 국소별 "입회·신호수 대상" 표시(`20261114000000`의 `no_companion`을 이름·의미를 바꿔 이어받음). 그 팀·날짜에 표시가 없으면 모든 국소에 붙음. 적용 전에도 일정표는 정상, 표시만 저장되지 않음 |
-| `20261115000000_admin_audit_log.sql` | `admin_audit_log` 테이블 — 관리자의 계정 생성·삭제·권한 변경 감사 기록 |
-| `20261116000000_fix_move_schedule_cell_deferred.sql` | 칸 맞바꾸기 함수 `move_schedule_cell`이 위치 UNIQUE 제약 2개를 모두 미루도록 다시 만든다(안 하면 칸 이동이 409로 실패). 적용 후 `20261108000000`을 다시 실행하지 말 것 |
+| `01_markers_core.sql` | 마커 핵심 스키마(`markers`·`information`·`erp_details`·`battery_markers`·`battery_specs`)와 RLS. `detached_visible`·`group_key`·`site_alias`·`work_type` 컬럼, 로그인 사용자만 마커 접근 |
+| `02_site_lists_and_permissions.sql` | 위치 메뉴 국소 목록(`app_admins`·`site_lists`·`site_list_members`)·`is_app_admin()`, Advisor 정리, 장비·축전지 삭제를 관리자 전용으로 제한 |
+| `03_facility_schedule.sql` | 시설일정 전체(일정표·시행 결과·작업금지·일자별 상세·목록·누적·수동 행·입회/신호수 대상·칸 맞바꾸기 함수) |
+| `04_admin_accounts.sql` | 계정설정의 접속 세션·접속 기록·관리자 작업 감사 기록 테이블 |
 | `20261116000100_kma_api_usage.sql` | `kma_api_usage` 테이블·`record_kma_call()` 함수 — 기상청 호출 횟수를 시간대별로 집계 |
 | `20261116000200_kma_forecast_cache.sql` | `kma_forecast_cache` 테이블 — 기상청 예보를 기준시각별로 저장(서비스 키 전용, 정책 없음). 적용 전에도 날씨는 실시간으로 동작 |
 | `20261116000300_kma_prefetch_cron.sql` | `pg_cron`으로 KST 07~17시 사전 수집 호출 + 매일 정리. **먼저** `pg_cron`·`pg_net` 활성화, `KMA_PREFETCH_TOKEN` Secret, vault 2개 등록 필요(파일 머리말 참고) |
+
+> `01`~`04`는 예전 개별 마이그레이션을 순서대로 이어 붙인 파일이다. **이미 운영 중인 DB에는 다시 실행하지 않는다**(새 DB를 만들 때만).
 
 > 마이그레이션 미적용 상태에서도 기존 지도·마커 조회는 깨지지 않습니다(신규 컬럼을 optional로 읽고, 국소 목록 테이블이 없으면 위치 목록 패널에만, 시설일정 테이블이 없으면 일정표 화면에만 안내를 표시).
 

@@ -398,7 +398,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       );
       if (usesFlag && !(await isCompanionTargetSupported(supabase))) {
         setNotice(
-          "입회·신호수 대상 표시를 저장하려면 DB 마이그레이션(20261115000000_schedule_cells_companion_target.sql)을 먼저 적용해 주세요. 아무것도 저장하지 않았습니다.",
+          "입회·신호수 대상 표시를 저장하려면 DB 마이그레이션(03_facility_schedule.sql)을 먼저 적용해 주세요. 아무것도 저장하지 않았습니다.",
         );
         return;
       }
@@ -571,7 +571,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
         skippedText === "" ? null : `함께 등록하지 못한 항목 — ${skippedText}`,
         arrangeError === null
           ? null
-          : `행 순서 정리에 실패했습니다(${arrangeError}). 칸은 저장됐습니다. DB 마이그레이션 20261116000000_fix_move_schedule_cell_deferred.sql 적용 여부를 확인해 주세요.`,
+          : `행 순서 정리에 실패했습니다(${arrangeError}). 칸은 저장됐습니다. DB 마이그레이션 03_facility_schedule.sql 적용 여부를 확인해 주세요.`,
       ].filter((note): note is string => note !== null);
       toast(
         notes.length === 0

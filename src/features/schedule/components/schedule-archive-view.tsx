@@ -17,7 +17,7 @@ import { isValidIso, todayIso } from "@/features/schedule/lib/week";
 import { useToast } from "@/hooks/use-toast";
 
 const TABLE_MISSING_MESSAGE =
-  "DB에 일자별 상세 테이블이 없습니다. 마이그레이션(20261111000000_schedule_day_details.sql)을 Supabase에 적용해 주세요.";
+  "DB에 일자별 상세 테이블이 없습니다. 마이그레이션(03_facility_schedule.sql)을 Supabase에 적용해 주세요.";
 const EMPTY_MESSAGE = "쌓인 상세가 없습니다. 일자별 보기에서 누적 저장을 누르거나 표를 복사하면 쌓입니다.";
 const EMPTY_FILTERED_MESSAGE = "조건에 맞는 상세가 없습니다.";
 

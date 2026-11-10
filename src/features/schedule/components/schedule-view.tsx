@@ -61,7 +61,7 @@ const FACILITY_VIEW_KINDS: readonly ScheduleViewKind[] = ["week", "month"];
 const DAILY_VIEW_KINDS: readonly ScheduleViewKind[] = ["day", "archive"];
 
 const TABLE_MISSING_MESSAGE =
-  "DB에 시설일정 테이블이 없습니다. 마이그레이션(20261108000000_facility_schedule.sql)을 Supabase에 적용해 주세요.";
+  "DB에 시설일정 테이블이 없습니다. 마이그레이션(03_facility_schedule.sql)을 Supabase에 적용해 주세요.";
 
 /**
  * 시설일정 화면. 지도 자리(오른쪽 전체)를 차지한다. 주간(관리자 수정)과 월간(월 달력, 조회 전용)을 전환한다.
