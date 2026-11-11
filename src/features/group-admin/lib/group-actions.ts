@@ -180,6 +180,18 @@ export function planAssignGroup(
   return { ops, rep };
 }
 
+/**
+ * 단독으로 떼어 낸 마커에 그 마커만의 group_key를 주는 변경.
+ * 키가 없으면 같은 번지 마커끼리 한 묶음으로 보이고, 재정리 때 다시 합쳐질 수 있다.
+ */
+export function planDetachKey(marker: EquipmentMarker): MarkerOp {
+  return {
+    type: "update",
+    ids: [marker.id],
+    patch: { group_key: buildSplitGroupKey(lotKeyOf(marker) || "lot", "단독", marker.id) },
+  };
+}
+
 /** 마커의 번지 키(도로명 → 지번 순). 주소가 없으면 빈 문자열. */
 function lotKeyOf(marker: EquipmentMarker): string {
   return getLotAddressKey(marker.roadAddress || marker.jibunAddress || "");

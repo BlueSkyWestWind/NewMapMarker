@@ -68,13 +68,17 @@ export function getEffectiveGroupKey(row: {
   return getLotAddressKey(resolveMarkerAddress(row));
 }
 
-/** 번지 하위 분리용 안정 group_key 생성. 예) `광주 … 695-6번지#103동#a1b2c3d4`. */
+/**
+ * 번지 하위 분리용 안정 group_key 생성. 예) `광주 … 695-6번지#103동#erp_202631040`.
+ * 시드 ID는 자르지 않고 전체를 쓴다. 공정 마커 ID(`erp_2026…`)는 앞 8자가 모두 같아서
+ * 잘라 쓰면 서로 다른 묶음이 같은 키를 가져 한 묶음으로 합쳐진다.
+ */
 export function buildSplitGroupKey(
   lotKey: string,
   label: string,
   seedId: string,
 ): string {
-  return `${lotKey}#${label}#${seedId.slice(0, 8)}`;
+  return `${lotKey}#${label}#${seedId}`;
 }
 
 export function normalizeGroupRole(value: unknown): GroupRole | '' {

@@ -3,6 +3,7 @@ import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   applyMarkerRolesFromStoredGroupRole,
   assignMarkerParentsByLotAddress,
+  buildSplitGroupKey,
 } from "./address-group";
 
 const SERVER_PAGE_LIMIT = 1000;
@@ -161,5 +162,18 @@ describe("저장된 단독의 재정리 — 그룹이 이미 있는 주소의 �
 
     expect(updates.get("keyed")).toMatchObject({ group_role: "단독", parent_marker_id: null });
     expect(updates.get("plain")).toMatchObject({ group_role: "단독", parent_marker_id: null });
+  });
+});
+
+describe("buildSplitGroupKey", () => {
+  it("공정 마커 ID(erp_코드)처럼 앞부분이 같은 ID여도 서로 다른 키를 만든다", () => {
+    const lot = "전남 광양시 금호동 631번지";
+    expect(buildSplitGroupKey(lot, "기타", "erp_202631040")).not.toBe(
+      buildSplitGroupKey(lot, "기타", "erp_202631092"),
+    );
+  });
+
+  it("번지·라벨·시드 ID를 #로 이어 붙인다", () => {
+    expect(buildSplitGroupKey("번지", "103동", "a1")).toBe("번지#103동#a1");
   });
 });

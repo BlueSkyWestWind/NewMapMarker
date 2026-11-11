@@ -28,6 +28,7 @@ import {
   planDeleteSelected,
   planSeparateSelected,
   planStandaloneSelected,
+  planSubSelected,
 } from "../lib/selection-actions";
 import type { SaveResult } from "../lib/save-draft";
 import type { GroupFilters, MarkerGroup, MarkerOp } from "../types";
@@ -197,11 +198,22 @@ export function GroupManageDialog() {
     const plan = planRoleChange(target, GROUP_ROLE_REPRESENTATIVE, allWorking);
     queueWithNotice(plan.ops, plan.notice);
   };
+  const doSub = () => {
+    const plan = planSubSelected(selectedMarkers, allWorking);
+    queueWithNotice(plan.ops, plan.notice);
+  };
   const doStandalone = () => {
     const plan = planStandaloneSelected(selectedMarkers, allWorking);
     queueWithNotice(plan.ops, plan.notice);
   };
   const doSeparate = () => {
+    // 묶음 전체를 고르면 같은 마커들로 새 묶음을 하나 더 만들 뿐이라 달라지는 게 없다.
+    if (edit.workingMarkers.length > 0 && selectedMarkers.length === edit.workingMarkers.length) {
+      setNotice(
+        "묶음 전체를 선택했습니다. [분리]는 일부를 새 묶음으로 떼어 내는 기능입니다. 각각 따로(단독) 두려면 [단독으로]를 누르세요.",
+      );
+      return;
+    }
     const plan = planSeparateSelected(selectedMarkers, allWorking);
     queueWithNotice(
       plan.ops,
@@ -472,6 +484,7 @@ export function GroupManageDialog() {
                 mergePickCount={mergePicks.size}
                 disabled={isSaving}
                 onRepresentative={doRepresentative}
+                onSub={doSub}
                 onStandalone={doStandalone}
                 onSeparate={doSeparate}
                 onDelete={askDelete}

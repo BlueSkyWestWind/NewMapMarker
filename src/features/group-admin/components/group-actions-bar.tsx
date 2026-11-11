@@ -10,6 +10,7 @@ interface GroupActionsBarProps {
   mergePickCount: number;
   disabled: boolean;
   onRepresentative: () => void;
+  onSub: () => void;
   onStandalone: () => void;
   onSeparate: () => void;
   onDelete: () => void;
@@ -26,6 +27,7 @@ export function GroupActionsBar({
   mergePickCount,
   disabled,
   onRepresentative,
+  onSub,
   onStandalone,
   onSeparate,
   onDelete,
@@ -40,10 +42,13 @@ export function GroupActionsBar({
       <Button type="button" variant="outline" className={BTN} disabled={disabled || selectedCount !== 1} onClick={onRepresentative}>
         대표로 지정
       </Button>
-      <Button type="button" variant="outline" className={BTN} disabled={disabled || selectedCount === 0} onClick={onStandalone}>
+      <Button type="button" variant="outline" className={BTN} disabled={disabled || selectedCount === 0} onClick={onSub} title="체크한 마커를 현재 대표 아래 SUB로 바꿉니다">
+        SUB로
+      </Button>
+      <Button type="button" variant="outline" className={BTN} disabled={disabled || selectedCount === 0} onClick={onStandalone} title="체크한 마커를 각각 단독으로 떼어 냅니다. 목록에도 각각 한 줄로 나옵니다">
         단독으로
       </Button>
-      <Button type="button" variant="outline" className={BTN} disabled={disabled || selectedCount === 0} onClick={onSeparate}>
+      <Button type="button" variant="outline" className={BTN} disabled={disabled || selectedCount === 0} onClick={onSeparate} title="체크한 마커들을 같은 번지 안의 새 묶음(대표+SUB)으로 떼어 냅니다. 각각 따로 두려면 [단독으로]">
         분리
       </Button>
       <Button type="button" variant="outline" className={BTN} disabled={disabled || mergePickCount === 0} onClick={onMerge}>
