@@ -36,6 +36,38 @@ export async function deleteRowsGuarded(
   }
 }
 
+/** PostgREST `or` 필터의 따옴표 값. 따옴표·역슬래시만 이스케이프한다. */
+const quoteFilterValue = (value: string) =>
+  `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
+/**
+ * 한 마커에서 `projectColumn`이 `project`인 행(과 프로젝트가 빈 옛 행)만 지우고,
+ * 정말 지워졌는지 확인한다. 같은 마커의 다른 프로젝트 행(예: 신설과 부대장비증설)은 남긴다.
+ */
+export async function deleteProjectRowsGuarded(
+  supabase: SupabaseBrowserClient,
+  table: string,
+  projectColumn: string,
+  markerId: string,
+  project: string,
+): Promise<void> {
+  const filter = [
+    `${projectColumn}.eq.${quoteFilterValue(project)}`,
+    `${projectColumn}.is.null`,
+    `${projectColumn}.eq.""`,
+  ].join(",");
+  const { error } = await supabase.from(table).delete().eq("marker_id", markerId).or(filter);
+  if (error) throw error;
+
+  const { count, error: countError } = await supabase
+    .from(table)
+    .select("marker_id", { count: "exact", head: true })
+    .eq("marker_id", markerId)
+    .or(filter);
+  if (countError) throw countError;
+  if (count && count > 0) throw new DeletePermissionError(table);
+}
+
 /**
  * 테이블을 통째로 비운 뒤 정말 비었는지 확인한다(전체 복원용).
  * RLS가 삭제를 거르면 오류 없이 0행만 지워져, 이어지는 insert가 기존 행과 섞이거나 중복된다.

@@ -229,7 +229,7 @@ export function useDataBackupActions() {
             );
           }
           // 복원하는 행(좌표 있음)은 확인할 필요가 없고, 코드·주소 없는 행도 이미 복원된다.
-          stagedUpload = { ...staged, existingRows: [], skippedRows: [] };
+          stagedUpload = { ...staged, existingRows: [], addonRows: [], skippedRows: [] };
         }
 
         const markers = tables.markers;

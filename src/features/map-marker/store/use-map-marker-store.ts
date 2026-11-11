@@ -3,7 +3,10 @@
 import { match } from "ts-pattern";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { isStagedReviewMarker } from "@/features/map-marker/lib/erp-review";
+import {
+  isStagedReviewMarker,
+  moveGroupedPendingMarkers,
+} from "@/features/map-marker/lib/erp-review";
 import type { ClusterIconStyle } from "@/features/map-marker/lib/cluster-pie";
 import type { PlaceSearchResult } from "@/features/map-marker/lib/parcel-boundary";
 import type { GpsLookupResult } from "@/features/gpsmap/lib/lookup";
@@ -155,6 +158,8 @@ interface MapMarkerUiState {
     id: string,
     updates: Partial<MarkerRecord>,
   ) => void;
+  /** 위치등록 대기 마커를 옮긴다. 같은 그룹(대표·SUB)의 마커도 같은 이동량으로 함께 옮긴다. */
+  moveStagedGroup: (id: string, coords: { lat: number; lng: number }) => void;
   toggleFilterValue: (
     type: "year" | "business" | "status" | "color" | "tag",
     value: string,
@@ -527,6 +532,15 @@ export const useMapMarkerStore = create<MapMarkerUiState>()(
             ),
           };
         }),
+      moveStagedGroup: (id, coords) =>
+        set((state) => ({
+          pendingEquipmentMarkers: moveGroupedPendingMarkers(
+            state.pendingEquipmentMarkers,
+            state.stagedErpUpload?.reviewRows ?? [],
+            id,
+            coords,
+          ),
+        })),
       toggleFilterValue: (type, value) => {
         const filters = get().filters;
         const keyMap = {

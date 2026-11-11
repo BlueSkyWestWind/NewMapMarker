@@ -151,3 +151,81 @@ describe("withFacilityYears", () => {
     expect(result.map((marker) => marker.facility_years)).toEqual([["2026", "2027"], [], []]);
   });
 });
+
+const rowWithProject = (code: string, year: string, project: string, businessType = "부대장비증설"): ErpParsedRow => ({
+  ...row(code, year),
+  projectCode: project,
+  businessType,
+});
+
+const markerWithProjects = (id: string, code: string, projects: string[]): ExistingMarkerRef => ({
+  ...marker(id, code, ["2026"]),
+  project_codes: projects,
+});
+
+describe("classifyErpRows — 같은 코드·같은 연도의 추가 사업", () => {
+  it("프로젝트코드가 기존 마커와 다르면 같은 마커에 붙는 추가 건(addon)이다", () => {
+    const { classified } = classifyErpRows(
+      [rowWithProject("A1", "2026", "P-EXT")],
+      [markerWithProjects("erp_A1", "A1", ["P-NEW"])],
+      NOW_YEAR,
+    );
+    expect(classified.map((item) => [item.id, item.kind])).toEqual([["erp_A1", "addon"]]);
+    expect(classified[0].lat).toBe(35.1);
+  });
+
+  it("프로젝트코드가 같으면 지금처럼 기존 건이다", () => {
+    const { classified } = classifyErpRows(
+      [rowWithProject("A1", "2026", "P-NEW")],
+      [markerWithProjects("erp_A1", "A1", ["P-NEW"])],
+      NOW_YEAR,
+    );
+    expect(classified.map((item) => item.kind)).toEqual(["existing"]);
+  });
+
+  it("기존 마커의 프로젝트코드를 모르거나 행의 프로젝트코드가 비면 추가 건으로 보지 않는다", () => {
+    expect(
+      classifyErpRows([rowWithProject("A1", "2026", "P-EXT")], [markerWithProjects("erp_A1", "A1", [])], NOW_YEAR)
+        .classified.map((item) => item.kind),
+    ).toEqual(["existing"]);
+    expect(
+      classifyErpRows([rowWithProject("A1", "2026", "")], [markerWithProjects("erp_A1", "A1", ["P-NEW"])], NOW_YEAR)
+        .classified.map((item) => item.kind),
+    ).toEqual(["existing"]);
+  });
+
+  it("같은 파일에 기존 사업 행과 추가 사업 행이 함께 있어도 새 마커를 만들지 않는다", () => {
+    const { classified } = classifyErpRows(
+      [rowWithProject("A1", "2026", "P-NEW"), rowWithProject("A1", "2026", "P-EXT")],
+      [markerWithProjects("erp_A1", "A1", ["P-NEW"])],
+      NOW_YEAR,
+    );
+    expect(classified.map((item) => [item.id, item.kind])).toEqual([
+      ["erp_A1", "existing"],
+      ["erp_A1", "addon"],
+    ]);
+  });
+
+  it("추가 건도 좌표 없는 마커에 붙으면 addon이다(마커 위치 확인과 별개)", () => {
+    const { classified } = classifyErpRows(
+      [rowWithProject("A1", "2026", "P-EXT")],
+      [{ ...markerWithProjects("erp_A1", "A1", ["P-NEW"]), lat: null, lng: null }],
+      NOW_YEAR,
+    );
+    expect(classified.map((item) => item.kind)).toEqual(["addon"]);
+  });
+});
+
+describe("withFacilityYears — 프로젝트코드", () => {
+  it("마커마다 공정 정보의 프로젝트코드도 모은다", () => {
+    const result = withFacilityYears(
+      [{ id: "m1", facility_code: "A", lat: 1, lng: 1 }],
+      [
+        { marker_id: "m1", facility_year: "2026", project_code: " P1 " },
+        { marker_id: "m1", facility_year: "2026", project_code: "P1" },
+        { marker_id: "m1", facility_year: "2026", project_code: null },
+      ],
+    );
+    expect(result[0].project_codes).toEqual(["P1"]);
+  });
+});

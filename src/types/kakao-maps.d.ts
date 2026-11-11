@@ -148,6 +148,7 @@ declare global {
     getPosition: () => KakaoLatLng;
     setPosition: (latlng: KakaoLatLng) => void;
     setDraggable: (flag: boolean) => void;
+    setZIndex: (zIndex: number) => void;
     markerId?: string;
     markerColor?: string;
     _clickHandler?: () => void;

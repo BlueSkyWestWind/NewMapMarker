@@ -69,7 +69,9 @@ export function useStagedErpDraft() {
               const latest = store.getState().stagedErpUpload;
               if (!latest) return;
               store.getState().setStagedErpUpload(
-                latest.reviewRows.length === 0 && latest.existingRows.length === 0
+                latest.reviewRows.length === 0 &&
+                  latest.existingRows.length === 0 &&
+                  (latest.addonRows ?? []).length === 0
                   ? null
                   : { ...latest, needsRegroup: false },
               );

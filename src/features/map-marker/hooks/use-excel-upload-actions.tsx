@@ -10,6 +10,7 @@ import {
 } from "@/features/map-marker/constants/facility-teams";
 import { MAP_MARKER_QUERY_KEY } from "@/features/map-marker/constants/map-config";
 import { fetchAllRows } from "@/features/map-marker/api";
+import { reviewGroupMemberIds } from "@/features/map-marker/lib/erp-review";
 import { savePendingBattery, savePendingEquipment } from "@/features/map-marker/lib/save-pending";
 import type { ExistingMarkerRef } from "@/features/map-marker/lib/erp-classify";
 import {
@@ -442,16 +443,24 @@ export function useExcelUploadActions() {
       const existingMarkers = await fetchAllRows<ExistingMarkerRef>((from, to) =>
         supabase
           .from("markers")
-          .select("id, facility_code, lat, lng", { count: "exact" })
+          .select("id, name, facility_code, lat, lng", { count: "exact" })
           .order("id")
           .range(from, to),
       );
       // 같은 통합시설코드라도 사업연도가 올해 이상이면 새 마커로 보므로 기존 마커의 시설연도가 필요하다.
-      const infoYears = await fetchAllRows<{ marker_id: string; facility_year: string | null }>(
+      // 같은 코드·연도의 다른 사업을 가리는 데 연도·프로젝트코드가, 변경 내용 미리보기에 나머지 칸이 필요하다.
+      const infoYears = await fetchAllRows<{
+        marker_id: string;
+        facility_year: string | null;
+        project_code: string | null;
+      }>(
         (from, to) =>
           supabase
             .from("information")
-            .select("marker_id, facility_year", { count: "exact" })
+            .select(
+              "marker_id, facility_year, project_code, business_type, final_station_name, eq_class, eq_type, install_date, open_date",
+              { count: "exact" },
+            )
             .order("id")
             .range(from, to),
       );
@@ -508,6 +517,8 @@ export function useExcelUploadActions() {
         setStagedErpUpload(upload);
 
         let summary = `위치등록 파일을 불러왔습니다. 확인 대기 ${upload.reviewRows.length}건 · 기존 ${upload.existingRows.length}건`;
+        const addonCount = (upload.addonRows ?? []).length;
+        if (addonCount > 0) summary += ` · 추가 사업 ${addonCount}건`;
         if (upload.skippedRows.length > 0) {
           summary += ` · 저장 안 함 ${upload.skippedRows.length}건(코드·주소 없음)`;
         }
@@ -555,7 +566,12 @@ export function useExcelUploadActions() {
   // 남은 건이 없으면 재정리 후 대기 데이터를 닫는다.
   const closeReviewIfDone = useCallback(async () => {
     const staged = useMapMarkerStore.getState().stagedErpUpload;
-    if (!staged || staged.reviewRows.length > 0 || staged.existingRows.length > 0) {
+    if (
+      !staged ||
+      staged.reviewRows.length > 0 ||
+      staged.existingRows.length > 0 ||
+      (staged.addonRows ?? []).length > 0
+    ) {
       return;
     }
     try {
@@ -585,17 +601,37 @@ export function useExcelUploadActions() {
   }, [runPendingRegroup, setStagedErpUpload, setFilters, toast]);
 
   /**
-   * 확인한 한 건을 저장한다. 마커 위치의 주소가 엑셀 주소와 다르면 저장하지 않고 알려 준다.
+   * 확인한 건을 저장한다. 묶은 그룹(대표·SUB)은 그룹 전체를 한 번에 저장한다.
+   * 마커 위치의 주소가 엑셀 주소와 다르면 저장하지 않고 알려 준다(누른 행 기준 한 번만 대조).
    * 사용자가 그래도 저장하기로 하면 `force`로 다시 부른다.
    */
   const confirmStagedMarker = useCallback(
     async (id: string, force = false): Promise<StagedConfirmResult> => {
       const state = useMapMarkerStore.getState();
-      const row = state.stagedErpUpload?.reviewRows.find((item) => item.id === id);
+      const staged = state.stagedErpUpload;
+      const row = staged?.reviewRows.find((item) => item.id === id);
       const marker = state.pendingEquipmentMarkers.find((item) => item.id === id);
-      if (!row || !marker || !supabase) return { status: "skipped" };
+      if (!staged || !row || !marker || !supabase) return { status: "skipped" };
+
+      const targets = reviewGroupMemberIds(staged.reviewRows, id).flatMap((memberId) => {
+        const memberRow = staged.reviewRows.find((item) => item.id === memberId);
+        const memberMarker = state.pendingEquipmentMarkers.find((item) => item.id === memberId);
+        return memberRow && memberMarker
+          ? [{ row: memberRow, coords: { lat: memberMarker.lat, lng: memberMarker.lng } }]
+          : [];
+      });
+      if (targets.length === 0) return { status: "skipped" };
+      if (targets.length < reviewGroupMemberIds(staged.reviewRows, id).length) {
+        toast({
+          variant: "destructive",
+          description:
+            "묶음에 위치가 없는 행이 있어 저장하지 않았습니다. 지도에서 위치를 찍은 뒤 다시 확인하세요.",
+        });
+        return { status: "skipped" };
+      }
 
       const coords = { lat: marker.lat, lng: marker.lng };
+      const savedIds: string[] = [];
       setIsUploading(true);
       try {
         // 마커 위치의 주소는 엑셀 주소와 같든 다르든 마커주소로 저장하므로 항상 구한다.
@@ -616,44 +652,63 @@ export function useExcelUploadActions() {
           };
         }
 
-        setStatusText(`"${row.name}" 저장 중...`);
         const [{ saveReviewRow }, { saveMarkerAddress }] = await Promise.all([
           import("@/features/map-marker/lib/erp-review-save"),
           import("@/features/map-marker/lib/marker-address"),
         ]);
-        await saveReviewRow(supabase, row, coords);
-        // 주소를 못 구했으면 마커주소는 비워 둔다. 컬럼이 없는 DB면 저장만 건너뛰고 아래에서 알린다.
-        const isAddressSaved = actual
-          ? await saveMarkerAddress(supabase, id, actual.address)
-          : true;
-        await invalidateMarkers();
-
-        const latest = useMapMarkerStore.getState().stagedErpUpload;
-        const remaining = (latest?.reviewRows ?? []).filter(
-          (item) => item.id !== id,
-        );
-        removePendingMarkers("equipment", [id]);
-        if (latest) {
-          setStagedErpUpload({
-            ...latest,
-            reviewRows: remaining,
-            needsRegroup: true,
-          });
+        let isAddressSaved = true;
+        try {
+          for (const [index, target] of targets.entries()) {
+            setStatusText(
+              targets.length > 1
+                ? `묶음 저장 중... (${index + 1}/${targets.length})`
+                : `"${target.row.name}" 저장 중...`,
+            );
+            await saveReviewRow(supabase, target.row, target.coords);
+            // 주소를 못 구했으면 마커주소는 비워 둔다. 컬럼이 없는 DB면 저장만 건너뛰고 아래에서 알린다.
+            // 묶음은 함께 옮긴 같은 자리이므로 누른 행의 마커주소를 모두에 쓴다.
+            if (actual && !(await saveMarkerAddress(supabase, target.row.id, actual.address))) {
+              isAddressSaved = false;
+            }
+            savedIds.push(target.row.id);
+          }
+        } finally {
+          // 도중에 실패해도 저장된 건은 목록에서 빼고 나머지는 남겨 다시 확인하게 한다.
+          if (savedIds.length > 0) {
+            await invalidateMarkers();
+            removePendingMarkers("equipment", savedIds);
+            const latest = useMapMarkerStore.getState().stagedErpUpload;
+            if (latest) {
+              setStagedErpUpload({
+                ...latest,
+                reviewRows: latest.reviewRows.filter((item) => !savedIds.includes(item.id)),
+                needsRegroup: true,
+              });
+            }
+          }
         }
+
+        const remaining = useMapMarkerStore.getState().stagedErpUpload?.reviewRows ?? [];
         const next = remaining.find((item) => item.lat !== null);
         useMapMarkerStore.getState().setSelectedMarkerId(next?.id ?? null);
 
+        const label =
+          targets.length > 1 ? `"${row.name}" 외 묶음 ${targets.length - 1}건` : `"${row.name}"`;
         toast({
           description: isAddressSaved
-            ? `"${row.name}" 위치를 저장했습니다.`
-            : `"${row.name}" 위치를 저장했습니다. 마커주소는 저장하지 못했습니다(마이그레이션 20261117000000_marker_address.sql 적용 필요).`,
+            ? `${label} 위치를 저장했습니다.`
+            : `${label} 위치를 저장했습니다. 마커주소는 저장하지 못했습니다(마이그레이션 20261117000000_marker_address.sql 적용 필요).`,
         });
         await closeReviewIfDone();
         return { status: "saved" };
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "알 수 없는 오류";
-        toast({ variant: "destructive", description: `저장 실패: ${message}` });
+        const partial =
+          savedIds.length > 0
+            ? ` (묶음 ${targets.length}건 중 ${savedIds.length}건은 저장됨, 나머지는 목록에 남아 있습니다)`
+            : "";
+        toast({ variant: "destructive", description: `저장 실패: ${message}${partial}` });
         return { status: "skipped" };
       } finally {
         setIsUploading(false);
@@ -692,6 +747,32 @@ export function useExcelUploadActions() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "알 수 없는 오류";
       toast({ variant: "destructive", description: `갱신 실패: ${message}` });
+    } finally {
+      setIsUploading(false);
+      setStatusText(null);
+    }
+  }, [supabase, invalidateMarkers, setStagedErpUpload, closeReviewIfDone, toast]);
+
+  // 같은 코드·연도의 다른 사업(추가 건)을 같은 마커의 상세 행으로 덧붙인다. 기존 행은 지우지 않는다.
+  const addStagedAddons = useCallback(async () => {
+    const rows = useMapMarkerStore.getState().stagedErpUpload?.addonRows ?? [];
+    if (!supabase || rows.length === 0) return;
+
+    setIsUploading(true);
+    setStatusText(`추가 사업 ${rows.length}건 반영 중...`);
+    try {
+      const { addAddonRows } = await import("@/features/map-marker/lib/erp-review-save");
+      await addAddonRows(supabase, rows);
+      await invalidateMarkers();
+      const latest = useMapMarkerStore.getState().stagedErpUpload;
+      if (latest) {
+        setStagedErpUpload({ ...latest, addonRows: [] });
+      }
+      toast({ description: `추가 사업 ${rows.length}건을 연관 상세 장비 목록에 추가했습니다.` });
+      await closeReviewIfDone();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "알 수 없는 오류";
+      toast({ variant: "destructive", description: `추가 실패: ${message}` });
     } finally {
       setIsUploading(false);
       setStatusText(null);
@@ -1154,6 +1235,7 @@ export function useExcelUploadActions() {
     prepareErpUpload,
     confirmStagedMarker,
     refreshStagedExisting,
+    addStagedAddons,
     deferStagedReview,
     cancelStagedErp,
     excludeStagedMarker,

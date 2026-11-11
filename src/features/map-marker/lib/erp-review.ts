@@ -75,3 +75,33 @@ export function parseErpDraft(text: string): StagedErpUpload | null {
     return null;
   }
 }
+
+/** 같은 그룹(대표·SUB)의 행 ID. 묶이지 않았으면 자신뿐이다. */
+export function reviewGroupMemberIds(rows: StagedErpRow[], id: string): string[] {
+  const key = rows.find((row) => row.id === id)?.group?.key;
+  if (!key) return [id];
+  return rows.filter((row) => row.group?.key === key).map((row) => row.id);
+}
+
+/**
+ * 대기 마커 하나를 옮기면 같은 그룹의 마커도 같은 이동량만큼 옮긴다(상대 위치 유지).
+ * 묶이지 않은 마커는 자기만 옮기고, 옮길 마커가 대기 목록에 없으면 그대로 돌려준다.
+ */
+export function moveGroupedPendingMarkers<T extends { id: string; lat: number; lng: number }>(
+  markers: T[],
+  rows: StagedErpRow[],
+  id: string,
+  next: Coords,
+): T[] {
+  const moved = markers.find((marker) => marker.id === id);
+  if (!moved) return markers;
+  const dLat = next.lat - moved.lat;
+  const dLng = next.lng - moved.lng;
+  const members = new Set(reviewGroupMemberIds(rows, id));
+  return markers.map((marker) => {
+    if (marker.id === id) return { ...marker, lat: next.lat, lng: next.lng };
+    return members.has(marker.id)
+      ? { ...marker, lat: marker.lat + dLat, lng: marker.lng + dLng }
+      : marker;
+  });
+}

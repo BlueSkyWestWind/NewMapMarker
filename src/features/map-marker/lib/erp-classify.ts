@@ -20,29 +20,56 @@ import type {
 
 export interface ExistingMarkerRef {
   id: string;
+  /** DB의 현재 국소명. 변경 내용 미리보기에 쓴다 */
+  name?: string;
+  /** DB의 현재 상세(`information`) 행들. 변경 내용 미리보기에 쓴다 */
+  info_rows?: Array<Record<string, unknown>>;
   facility_code: string | null;
   lat: unknown;
   lng: unknown;
   /** 마커의 공정 정보(`information`)에 적힌 시설연도들. 모르면 비워 둔다 */
   facility_years?: string[];
+  /** 마커의 공정 정보에 적힌 프로젝트코드들. 같은 코드·연도의 다른 사업(추가 건)을 가려낸다 */
+  project_codes?: string[];
 }
 
-/** 마커 목록에 공정 정보(`information`)의 시설연도를 붙인다. 연도가 빈 행은 모르는 것으로 본다. */
+/**
+ * 마커 목록에 공정 정보(`information`)의 시설연도·프로젝트코드를 붙인다.
+ * 빈 값은 모르는 것으로 본다.
+ */
 export function withFacilityYears(
   markers: ExistingMarkerRef[],
-  infoRows: Array<{ marker_id: string; facility_year: string | null }>,
+  infoRows: Array<{
+    marker_id: string;
+    facility_year: string | null;
+    project_code?: string | null;
+    [column: string]: unknown;
+  }>,
 ): ExistingMarkerRef[] {
-  const yearsByMarker = new Map<string, Set<string>>();
+  const rowsByMarker = new Map<string, Array<Record<string, unknown>>>();
   for (const info of infoRows) {
-    const year = String(info.facility_year ?? "").trim();
-    if (!year) continue;
-    const years = yearsByMarker.get(info.marker_id) ?? new Set<string>();
-    years.add(year);
-    yearsByMarker.set(info.marker_id, years);
+    const list = rowsByMarker.get(info.marker_id) ?? [];
+    list.push(info);
+    rowsByMarker.set(info.marker_id, list);
+  }
+  const yearsByMarker = new Map<string, Set<string>>();
+  const projectsByMarker = new Map<string, Set<string>>();
+  const collect = (map: Map<string, Set<string>>, markerId: string, raw: unknown) => {
+    const value = String(raw ?? "").trim();
+    if (!value) return;
+    const values = map.get(markerId) ?? new Set<string>();
+    values.add(value);
+    map.set(markerId, values);
+  };
+  for (const info of infoRows) {
+    collect(yearsByMarker, info.marker_id, info.facility_year);
+    collect(projectsByMarker, info.marker_id, info.project_code);
   }
   return markers.map((marker) => ({
     ...marker,
     facility_years: [...(yearsByMarker.get(marker.id) ?? [])],
+    project_codes: [...(projectsByMarker.get(marker.id) ?? [])],
+    info_rows: rowsByMarker.get(marker.id) ?? [],
   }));
 }
 
@@ -82,6 +109,7 @@ export function classifyErpRows(
   }
 
   const usedIds = new Set<string>();
+  const projectsByMarker = new Map<string, Set<string>>();
   const classified: ClassifiedErpRow[] = [];
   const skippedRows: StagedErpSkippedRow[] = [];
 
@@ -132,10 +160,45 @@ export function classifyErpRows(
     if (byPreferredId && !String(byPreferredId.facility_code ?? "").trim()) {
       candidates.push(byPreferredId);
     }
-    const match = candidates.find((marker) => !usedIds.has(marker.id));
+    const project = row.projectCode.trim();
+    const projectsOf = (marker: ExistingMarkerRef) => {
+      let set = projectsByMarker.get(marker.id);
+      if (!set) {
+        set = new Set((marker.project_codes ?? []).map((value) => value.trim()).filter(Boolean));
+        projectsByMarker.set(marker.id, set);
+      }
+      return set;
+    };
+    // 올해 이상 행은 마커의 프로젝트코드가 같거나 모를 때만 같은 공사로 본다.
+    const match = candidates.find(
+      (marker) =>
+        !usedIds.has(marker.id) &&
+        (!isActive || !project || projectsOf(marker).size === 0 || projectsOf(marker).has(project)),
+    );
+
+    if (!match && isActive && project) {
+      // 같은 코드·같은 연도지만 프로젝트코드가 다른 사업(예: 신설 뒤의 부대장비증설)은
+      // 기존 정보를 덮어쓰지 않고 같은 마커에 상세 행으로만 추가한다.
+      const host = candidates.find(
+        (marker) => projectsOf(marker).size > 0 && !projectsOf(marker).has(project),
+      );
+      if (host) {
+        projectsOf(host).add(project);
+        const hasCoords = hasStoredCoordinates(host.lat, host.lng);
+        classified.push({
+          row,
+          id: host.id,
+          kind: "addon",
+          lat: hasCoords ? Number(host.lat) : null,
+          lng: hasCoords ? Number(host.lng) : null,
+        });
+        continue;
+      }
+    }
 
     if (match) {
       usedIds.add(match.id);
+      if (project) projectsOf(match).add(project);
       const hasCoords = hasStoredCoordinates(match.lat, match.lng);
       classified.push({
         row,

@@ -14,6 +14,8 @@ export const WORK_PANEL_WIDTH_PX = 380;
 export const GROUP_MANAGE_DIALOG_MAX_WIDTH_PX = 1680;
 /** 관리 창 왼쪽 묶음 목록 폭. */
 export const GROUP_MANAGE_LIST_WIDTH_PX = 260;
+/** 위치등록 확인 목록 큰 창 최대 폭. 국소명·주소가 잘리지 않게 넓힌다(가로 스크롤 금지). */
+export const ERP_REVIEW_DIALOG_MAX_WIDTH_PX = 1400;
 /** 그룹관리 일괄 수정 창 최대 폭. */
 export const GROUP_BULK_DIALOG_MAX_WIDTH_PX = 880;
 /** 일정 수정(칸 편집) 창 최대 폭. 국소 목록·입회신호수·함께 등록할 팀을 한 화면에 보이려고 넓혔다. */

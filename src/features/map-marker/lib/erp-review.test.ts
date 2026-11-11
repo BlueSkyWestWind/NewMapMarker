@@ -8,7 +8,9 @@ import {
 } from "./erp-classify";
 import {
   isStagedReviewMarker,
+  moveGroupedPendingMarkers,
   parseErpDraft,
+  reviewGroupMemberIds,
   serializeErpDraft,
   withPreviousCoords,
 } from "./erp-review";
@@ -261,5 +263,49 @@ describe("임시 저장", () => {
     expect(parseErpDraft("{깨짐")).toBeNull();
     expect(parseErpDraft(JSON.stringify({ version: 999, reviewRows: [] }))).toBeNull();
     expect(parseErpDraft(JSON.stringify({ version: 1 }))).toBeNull();
+  });
+});
+
+describe("reviewGroupMemberIds / moveGroupedPendingMarkers", () => {
+  const grouped = (id: string, key?: string): StagedErpRow => ({
+    ...reviewRow(id),
+    ...(key ? { group: { key, role: "SUB" as const } } : {}),
+  });
+  const rows = [grouped("a", "k1"), grouped("b", "k1"), grouped("c", "k2"), grouped("d")];
+  const pending = [
+    { id: "a", lat: 35, lng: 126 },
+    { id: "b", lat: 35.001, lng: 126.002 },
+    { id: "c", lat: 36, lng: 127 },
+    { id: "d", lat: 37, lng: 128 },
+  ];
+
+  it("같은 그룹의 행 ID를 돌려주고, 묶이지 않았으면 자신뿐이다", () => {
+    expect(reviewGroupMemberIds(rows, "a").sort()).toEqual(["a", "b"]);
+    expect(reviewGroupMemberIds(rows, "d")).toEqual(["d"]);
+    expect(reviewGroupMemberIds(rows, "없음")).toEqual(["없음"]);
+  });
+
+  it("마커 하나를 옮기면 같은 그룹 마커도 같은 이동량으로 옮겨 상대 위치를 유지한다", () => {
+    const moved = moveGroupedPendingMarkers(pending, rows, "a", { lat: 35.01, lng: 126.02 });
+    const by = (id: string) => moved.find((item) => item.id === id)!;
+    expect(by("a")).toMatchObject({ lat: 35.01, lng: 126.02 });
+    expect(by("b").lat).toBeCloseTo(35.011, 9);
+    expect(by("b").lng).toBeCloseTo(126.022, 9);
+  });
+
+  it("다른 그룹과 묶이지 않은 마커는 움직이지 않는다", () => {
+    const moved = moveGroupedPendingMarkers(pending, rows, "a", { lat: 35.01, lng: 126.02 });
+    expect(moved.find((item) => item.id === "c")).toEqual(pending[2]);
+    expect(moved.find((item) => item.id === "d")).toEqual(pending[3]);
+  });
+
+  it("묶이지 않은 마커는 자기만 옮긴다", () => {
+    const moved = moveGroupedPendingMarkers(pending, rows, "d", { lat: 38, lng: 129 });
+    expect(moved.find((item) => item.id === "d")).toMatchObject({ lat: 38, lng: 129 });
+    expect(moved.filter((item) => item.id !== "d")).toEqual(pending.filter((item) => item.id !== "d"));
+  });
+
+  it("옮길 마커가 대기 목록에 없으면 그대로 돌려준다", () => {
+    expect(moveGroupedPendingMarkers(pending, rows, "없음", { lat: 1, lng: 1 })).toEqual(pending);
   });
 });

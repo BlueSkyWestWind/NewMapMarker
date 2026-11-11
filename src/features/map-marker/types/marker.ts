@@ -122,8 +122,23 @@ export interface MapMarkersPayload {
   batteryMarkers: BatteryMarker[];
 }
 
-/** 신규 / DB에 있지만 좌표 없음 / DB에 있고 좌표 있음 */
-export type StagedErpRowKind = "new" | "missingCoords" | "existing";
+/**
+ * 신규 / DB에 있지만 좌표 없음 / DB에 있고 좌표 있음 /
+ * 같은 마커에 상세 행만 덧붙이는 추가 사업(같은 코드·연도, 다른 프로젝트코드)
+ */
+export type StagedErpRowKind = "new" | "missingCoords" | "existing" | "addon";
+
+/** 갱신·추가 전에 보여 줄 한 행의 변경 내용. 화면용이며 저장하지 않는다. */
+export interface ErpRowPreview {
+  /** update: 기존 건 갱신(바뀌는 칸만), add: 추가 사업(새로 들어갈 값) */
+  kind: "update" | "add";
+  /** 화면에 보일 현재 국소명 */
+  currentName: string;
+  /** 갱신이면 `이전 → 이후`, 추가면 이전이 빈 값인 새 값 목록 */
+  changes: Array<{ label: string; before: string; after: string }>;
+  /** 반영하면 시설 상태가 바뀔 수 있을 때의 안내. 없으면 빈 문자열 */
+  warning: string;
+}
 
 /** 위치등록 파일의 한 행. 저장할 markers·information·erp_details 내용을 담는다. */
 export interface StagedErpRow {
@@ -137,6 +152,10 @@ export interface StagedErpRow {
   marker: Record<string, unknown>;
   info: Record<string, unknown>;
   erp: Record<string, unknown>;
+  /** 확인 목록에서 직접 묶은 대표/SUB 그룹. 저장할 마커 행에도 같은 값이 실려 있다 */
+  group?: { key: string; role: "대표" | "SUB" };
+  /** 기존 건 갱신·추가 사업의 변경 내용 미리보기. 확인 목록(new)에는 없다 */
+  preview?: ErpRowPreview;
 }
 
 /** 위치등록 파일에서 저장하지 않는 행 */
@@ -153,6 +172,8 @@ export interface StagedErpSkippedRow {
 export interface StagedErpUpload {
   reviewRows: StagedErpRow[];
   existingRows: StagedErpRow[];
+  /** 같은 마커에 상세 행으로 덧붙일 추가 사업. 없으면 비어 있는 것으로 본다 */
+  addonRows?: StagedErpRow[];
   /** 코드나 주소가 없어 저장하지 않는 행 */
   skippedRows: StagedErpSkippedRow[];
   /** 저장한 건이 있어 대표/SUB 재정리가 남아 있는지 */

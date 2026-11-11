@@ -36,7 +36,10 @@ import {
 } from "@/features/map-marker/lib/overlay-content";
 import { useKakaoMapSdk } from "@/features/map-marker/hooks/use-kakao-map-sdk";
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
-import { isStagedReviewMarker } from "@/features/map-marker/lib/erp-review";
+import {
+  isStagedReviewMarker,
+  reviewGroupMemberIds,
+} from "@/features/map-marker/lib/erp-review";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useRouteStore } from "@/features/route/store/use-route-store";
 import { useRouteMarkerPool } from "@/features/route/hooks/use-route-marker-pool";
@@ -90,6 +93,9 @@ interface KakaoMapCanvasProps {
 
 /** CCTV 마커 아이콘. 국소 핀과 구분되도록 청록 원형 카메라로 그린다. */
 /** 지도 맞춤 뒤 idle 이벤트가 오지 않을 때 정보창 배치를 시작하는 대기 시간(ms) */
+/** 일반 마커 / 선택한 마커의 지도 쌓임 순서. 선택한 것이 항상 위에 온다. */
+const MARKER_Z_INDEX = 3;
+const SELECTED_MARKER_Z_INDEX = 100;
 const OVERLAY_ARRANGE_FALLBACK_MS = 700;
 
 const CCTV_MARKER_IMAGE =
@@ -228,6 +234,7 @@ export function KakaoMapCanvas({
   const updatePendingMarker = useMapMarkerStore(
     (state) => state.updatePendingMarker,
   );
+  const moveStagedGroup = useMapMarkerStore((state) => state.moveStagedGroup);
   const setSelectedMarkerId = useMapMarkerStore(
     (state) => state.setSelectedMarkerId,
   );
@@ -610,7 +617,7 @@ export function KakaoMapCanvas({
           position,
           title: data.name,
           image: markerImage,
-          zIndex: 3,
+          zIndex: MARKER_Z_INDEX,
           draggable: !useCaptureDot,
         });
         marker.markerId = data.id;
@@ -670,10 +677,25 @@ export function KakaoMapCanvas({
 
           if (confirmMove) {
             if (data.isPending) {
-              updatePendingMarker(mode, data.id, { lat: newLat, lng: newLng });
-              toast({
-                description: `"${data.name}" 대기 마커의 임시 위치가 변경되었습니다.`,
-              });
+              if (mode === "equipment") {
+                // 묶은 그룹은 한 덩어리로 같이 옮긴다.
+                const groupSize = reviewGroupMemberIds(
+                  useMapMarkerStore.getState().stagedErpUpload?.reviewRows ?? [],
+                  data.id,
+                ).length;
+                moveStagedGroup(data.id, { lat: newLat, lng: newLng });
+                toast({
+                  description:
+                    groupSize > 1
+                      ? `"${data.name}" 그룹 ${groupSize}건의 임시 위치가 함께 변경되었습니다.`
+                      : `"${data.name}" 대기 마커의 임시 위치가 변경되었습니다.`,
+                });
+              } else {
+                updatePendingMarker(mode, data.id, { lat: newLat, lng: newLng });
+                toast({
+                  description: `"${data.name}" 대기 마커의 임시 위치가 변경되었습니다.`,
+                });
+              }
             } else {
               try {
                 if (!supabase) {
@@ -809,6 +831,7 @@ export function KakaoMapCanvas({
     setSelectedMarkerId,
     toggleSelectedMarkerId,
     updatePendingMarker,
+    moveStagedGroup,
   ]);
 
   useEffect(() => {
@@ -1014,6 +1037,27 @@ export function KakaoMapCanvas({
   // 캡처는 평상시 정보창 모양 그대로 촬영한다(확대 없음).
   // capture-readable 을 적용하지 않으므로 미리보기 크기 = 캡처 크기가 되어
   // 드래그한 위치가 그대로 유지된다.
+
+  // 선택한 마커를 맨 위로 올린다. 같은 지번은 좌표가 같아 마커가 한 점에 겹치는데,
+  // 목록에서 고른 마커가 아래에 깔리면 지도에서 끌 때 맨 위의 다른 마커가 잡힌다.
+  useEffect(() => {
+    const selected = new Set(selectedMarkerIds);
+    for (const marker of markersRef.current) {
+      marker.setZIndex(
+        marker.markerId && selected.has(marker.markerId)
+          ? SELECTED_MARKER_Z_INDEX
+          : MARKER_Z_INDEX,
+      );
+    }
+  }, [
+    selectedMarkerIds,
+    markers,
+    mode,
+    filters,
+    isMarkersVisible,
+    isInfoWindowCaptureMode,
+    isClusteringEnabled,
+  ]);
 
   useEffect(() => {
     if (

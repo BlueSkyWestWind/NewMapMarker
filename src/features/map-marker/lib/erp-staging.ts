@@ -1,4 +1,5 @@
 import { withPreviousCoords } from "@/features/map-marker/lib/erp-review";
+import { previewAddonRow, previewExistingRow } from "@/features/map-marker/lib/erp-preview";
 import { buildStagedErpRow, classifyErpRows, type ExistingMarkerRef } from "@/features/map-marker/lib/erp-classify";
 import type { ErpParsedRow } from "@/features/map-marker/lib/excel/data-manager/erp-parse";
 import { formatFailedAddresses } from "@/features/map-marker/lib/excel-upload-helpers";
@@ -27,7 +28,9 @@ export async function stageErpRows({
   const { classified, skippedRows } = classifyErpRows(rows, existing);
 
   const geocodeTargets = classified
-    .filter((item) => item.kind !== "existing" && !previous.has(item.id))
+    .filter(
+      (item) => item.kind !== "existing" && item.kind !== "addon" && !previous.has(item.id),
+    )
     .map((item) => ({
       id: item.id,
       name: item.row.name,
@@ -47,15 +50,23 @@ export async function stageErpRows({
     failedAddresses = formatFailedAddresses(geocoded.failedItems);
   }
 
-  const stagedRows = classified.map((item) =>
-    buildStagedErpRow(item, coordsById.get(item.id) ?? null),
-  );
+  const existingById = new Map(existing.map((marker) => [marker.id, marker]));
+  const stagedRows = classified.map((item) => {
+    const staged = buildStagedErpRow(item, coordsById.get(item.id) ?? null);
+    // 기존 건 갱신·추가 사업은 반영 전에 무엇이 바뀌는지 보여 줄 미리보기를 붙인다.
+    if (staged.kind === "existing") {
+      return { ...staged, preview: previewExistingRow(staged, existingById.get(staged.id)) };
+    }
+    if (staged.kind === "addon") return { ...staged, preview: previewAddonRow(staged) };
+    return staged;
+  });
   return {
     reviewRows: withPreviousCoords(
-      stagedRows.filter((row) => row.kind !== "existing"),
+      stagedRows.filter((row) => row.kind !== "existing" && row.kind !== "addon"),
       previous,
     ),
     existingRows: stagedRows.filter((row) => row.kind === "existing"),
+    addonRows: stagedRows.filter((row) => row.kind === "addon"),
     skippedRows,
     needsRegroup,
     geocodeFailedAddresses: failedAddresses,
