@@ -99,7 +99,7 @@ export function ErpReviewDialog({
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded border border-slate-800">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-sm border border-slate-800">
           <table className="w-full table-fixed border-collapse">
             <colgroup>
               <col style={{ width: 32 }} />

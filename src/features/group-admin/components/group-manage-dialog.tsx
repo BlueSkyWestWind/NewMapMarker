@@ -452,7 +452,7 @@ export function GroupManageDialog() {
                         {itemHead.name || "이름 없음"}
                       </span>
                       {hasStoredRepresentative ? (
-                        <span className="shrink-0 rounded bg-indigo-500/20 px-1 text-[10px] text-indigo-200">
+                        <span className="shrink-0 rounded-sm bg-indigo-500/20 px-1 text-[11px] text-indigo-200">
                           대표
                         </span>
                       ) : null}

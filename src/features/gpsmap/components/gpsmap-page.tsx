@@ -328,7 +328,7 @@ export function GpsMapPage() {
       }}
       placeholder={placeholder}
       inputMode="decimal"
-      className={`h-7 ${widthClass} shrink-0 rounded border border-slate-700 bg-slate-900/60 text-center text-[11px] text-slate-100 outline-none focus:border-slate-500`}
+      className={`h-7 ${widthClass} shrink-0 rounded-sm border border-slate-700 bg-slate-900/60 text-center text-[11px] text-slate-100 outline-none focus:border-slate-500`}
     />
   );
 
@@ -344,11 +344,11 @@ export function GpsMapPage() {
   if (!isAuthenticated) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center bg-slate-950 p-6 text-slate-100">
-        <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-center">
+        <div className="flex max-w-sm flex-col items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-8 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800">
             <Lock className="h-6 w-6 text-slate-400" />
           </div>
-          <h1 className="text-base font-bold">로그인이 필요합니다</h1>
+          <h1 className="text-base font-semibold">로그인이 필요합니다</h1>
           <p className="text-[13px] leading-relaxed text-slate-400">
             주소/좌표 통합 변환기는 로그인한 사용자만 이용할 수 있습니다.
             지도로 돌아가 로그인해 주세요.
@@ -376,7 +376,7 @@ export function GpsMapPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <h1 className="text-sm font-bold">주소/좌표 통합 변환기</h1>
+          <h1 className="text-sm font-semibold">주소/좌표 통합 변환기</h1>
         </div>
 
         <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1">
@@ -477,12 +477,12 @@ export function GpsMapPage() {
               ) : null}
             </div>
             {batchRows.length > 0 ? (
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[11px] text-slate-500">
                 진행 {doneCount + errorCount}/{batchRows.length}
                 {errorCount > 0 ? ` · 실패 ${errorCount}` : ''}
               </p>
             ) : (
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[11px] text-slate-500">
                 여러 건을 순차 조회한 뒤 엑셀로 내려받을 수 있습니다.
               </p>
             )}
@@ -494,12 +494,12 @@ export function GpsMapPage() {
             <Crosshair className="h-3 w-3" /> GPS 좌표(도분초) 강제 이동
           </div>
           <div className="flex flex-nowrap items-center gap-0.5">
-            <span className="shrink-0 text-[10px] text-slate-500">위도</span>
+            <span className="shrink-0 text-[11px] text-slate-500">위도</span>
             {dmsCell('latD', '37', 'w-8')}
             {dmsCell('latM', '34')}
             {dmsCell('latS', '46')}
             {dmsCell('latCS', '08')}
-            <span className="ml-1 shrink-0 text-[10px] text-slate-500">경도</span>
+            <span className="ml-1 shrink-0 text-[11px] text-slate-500">경도</span>
             {dmsCell('lonD', '126', 'w-9')}
             {dmsCell('lonM', '58')}
             {dmsCell('lonS', '43')}
@@ -520,7 +520,7 @@ export function GpsMapPage() {
 
         {workMode === 'batch' && batchRows.length > 0 ? (
           <div className="max-h-48 overflow-auto rounded-lg border border-slate-800">
-            <table className="w-full text-[10px]">
+            <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-slate-950 text-slate-400">
                 <tr>
                   <th className="p-1.5 text-left">#</th>
@@ -585,7 +585,7 @@ export function GpsMapPage() {
                       onClick={() => showBatchResult(batchViewIdx - 1)}
                       disabled={batchViewIdx <= 0}
                       title="이전 결과"
-                      className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
+                      className="flex h-6 w-6 items-center justify-center rounded-sm border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
                     >
                       <ChevronLeft className="h-3.5 w-3.5" />
                     </button>
@@ -597,7 +597,7 @@ export function GpsMapPage() {
                       onClick={() => showBatchResult(batchViewIdx + 1)}
                       disabled={batchViewIdx >= doneRows.length - 1}
                       title="다음 결과"
-                      className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
+                      className="flex h-6 w-6 items-center justify-center rounded-sm border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
                     >
                       <ChevronRight className="h-3.5 w-3.5" />
                     </button>
@@ -619,11 +619,11 @@ export function GpsMapPage() {
             <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md bg-slate-950/80 px-2.5 py-1 text-[11px] shadow">
               {roadviewMode ? (
                 <span className="text-amber-300">
-                  🚶 파란 도로 위를 클릭하면 로드뷰가 열립니다
+                  파란 도로 위를 클릭하면 로드뷰가 열립니다
                 </span>
               ) : (
                 <span className="text-slate-300">
-                  🟨 카카오 위성 · 클릭하면 해당 지점을 조회합니다
+                  <span aria-hidden className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-yellow-400" />카카오 위성 · 클릭하면 해당 지점을 조회합니다
                 </span>
               )}
             </div>

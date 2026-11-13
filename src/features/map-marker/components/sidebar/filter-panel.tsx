@@ -69,14 +69,14 @@ function FilterGroup({
           <div className="flex gap-1 p-1">
             <button
               type="button"
-              className="flex-1 rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-700"
+              className="flex-1 rounded-sm bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
               onClick={() => onSetAll(values)}
             >
               전체 선택
             </button>
             <button
               type="button"
-              className="flex-1 rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-700"
+              className="flex-1 rounded-sm bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
               onClick={() => onSetAll([])}
             >
               전체 해제

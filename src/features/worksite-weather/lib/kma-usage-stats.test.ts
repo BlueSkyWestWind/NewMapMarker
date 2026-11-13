@@ -4,6 +4,7 @@ import {
   buildTodayHours,
   buildUsageReport,
   isOverWarn,
+  isPrefetchStalled,
   kstDateKey,
   kstHourStartIso,
   usageRatio,
@@ -44,7 +45,7 @@ describe("buildTodayHours", () => {
   it("행이 없어도 0~23시 24칸이 모두 나온다", () => {
     const hours = buildTodayHours([], "2026-11-09");
     expect(hours).toHaveLength(24);
-    expect(hours.every((h) => h.user === 0 && h.prefetch === 0 && h.errors === 0)).toBe(true);
+    expect(hours.every((h) => h.user === 0 && h.prefetch === 0 && h.manual === 0 && h.errors === 0)).toBe(true);
     expect(hours[0].hour).toBe(0);
     expect(hours[23].hour).toBe(23);
   });
@@ -57,7 +58,7 @@ describe("buildTodayHours", () => {
       ],
       "2026-11-09",
     );
-    expect(hours[14]).toEqual({ hour: 14, user: 3, prefetch: 2, errors: 1 });
+    expect(hours[14]).toEqual({ hour: 14, user: 3, prefetch: 2, manual: 0, errors: 1 });
     expect(hours[13].user).toBe(0);
   });
 
@@ -86,7 +87,7 @@ describe("buildDailyTotals", () => {
       "2026-11-09",
       7,
     );
-    expect(days[6]).toEqual({ date: "2026-11-09", user: 4, prefetch: 6, total: 10, errors: 2 });
+    expect(days[6]).toEqual({ date: "2026-11-09", user: 4, prefetch: 6, manual: 0, total: 10, errors: 2 });
     expect(days[4].total).toBe(5);
   });
 });
@@ -132,5 +133,46 @@ describe("buildUsageReport", () => {
     expect(report.todayTotal).toBe(0);
     expect(report.warn).toBe(false);
     expect(report.available).toBe(true);
+  });
+});
+
+describe("manual(수동 갱신) 출처", () => {
+  it("시간대별·일별 집계가 manual을 user·prefetch와 따로 센다", () => {
+    const rows = [
+      row({ source: "user", calls: 3 }),
+      row({ source: "prefetch", calls: 2 }),
+      row({ source: "manual", calls: 5 }),
+    ];
+    expect(buildTodayHours(rows, "2026-11-09")[14]).toEqual({ hour: 14, user: 3, prefetch: 2, manual: 5, errors: 0 });
+    const days = buildDailyTotals(rows, "2026-11-09", 7);
+    expect(days[6]).toMatchObject({ user: 3, prefetch: 2, manual: 5, total: 10 });
+  });
+
+  it("오늘 합계와 사용률이 manual을 포함한다", () => {
+    const report = buildUsageReport([row({ source: "manual", calls: 2500 })], new Date("2026-11-09T05:37:12Z"), 10000);
+    expect(report.todayTotal).toBe(2500);
+    expect(report.ratio).toBeCloseTo(0.25);
+  });
+});
+
+describe("isPrefetchStalled", () => {
+  const hoursWith = (prefetch: number) =>
+    buildTodayHours([row({ source: "prefetch", calls: prefetch, hourKst: "2026-11-09T10:00:00+09:00" })], "2026-11-09");
+  const kst = (hhmm: string) => new Date(`2026-11-09T${hhmm}:00+09:00`);
+
+  it("KST 07:30 이후 17시 전인데 오늘 prefetch가 0이면 true", () => {
+    expect(isPrefetchStalled(hoursWith(0), kst("07:30"))).toBe(true);
+    expect(isPrefetchStalled(hoursWith(0), kst("12:00"))).toBe(true);
+    expect(isPrefetchStalled(hoursWith(0), kst("17:59"))).toBe(true);
+  });
+
+  it("07:30 전이거나 18시 이후는 수집 시간대가 아니므로 false", () => {
+    expect(isPrefetchStalled(hoursWith(0), kst("07:29"))).toBe(false);
+    expect(isPrefetchStalled(hoursWith(0), kst("18:00"))).toBe(false);
+    expect(isPrefetchStalled(hoursWith(0), kst("23:00"))).toBe(false);
+  });
+
+  it("prefetch가 1건이라도 있으면 false", () => {
+    expect(isPrefetchStalled(hoursWith(1), kst("12:00"))).toBe(false);
   });
 });

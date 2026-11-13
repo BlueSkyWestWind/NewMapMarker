@@ -422,7 +422,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                       if (element) element.indeterminate = selectedCount > 0 && selectedCount < rows.length;
                     }}
                     onChange={toggleAll}
-                    className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                    className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
                   />
                 </th>
                 {orderedColumns.map((column) => (
@@ -474,7 +474,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                       aria-label={`${row.site} 선택`}
                       checked={selected.has(row.stationKey)}
                       onChange={() => toggleRow(row.stationKey)}
-                      className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                      className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
                     />
                   </td>
                   {orderedColumns.map((column) => {

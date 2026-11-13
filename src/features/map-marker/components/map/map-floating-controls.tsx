@@ -149,7 +149,7 @@ export function MapFloatingControls({
         variant="secondary"
         className={
           isCadastralMode
-            ? "h-9 w-9 border border-indigo-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+            ? "h-9 w-9 border border-indigo-500/50 bg-slate-800 text-slate-100"
             : "h-9 w-9 bg-slate-900/90 text-slate-100"
         }
         onClick={() => setCadastralMode(!isCadastralMode)}
@@ -164,7 +164,7 @@ export function MapFloatingControls({
         variant="secondary"
         className={
           isMarkersVisible
-            ? "h-9 w-9 border border-indigo-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+            ? "h-9 w-9 border border-indigo-500/50 bg-slate-800 text-slate-100"
             : "h-9 w-9 bg-slate-900/90 text-slate-100"
         }
         onClick={toggleMarkersVisible}
@@ -185,14 +185,14 @@ export function MapFloatingControls({
           variant="secondary"
           className={
             isCctvVisible
-              ? "relative h-9 w-9 border border-teal-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+              ? "relative h-9 w-9 border border-teal-500/50 bg-slate-800 text-slate-100"
               : "relative h-9 w-9 bg-slate-900/90 text-slate-100"
           }
           onClick={toggleCctvVisible}
           title={`도로 CCTV ${cctvMarkers.length}대 ${isCctvVisible ? "숨기기" : "표시"}`}
         >
           <Video className={isCctvVisible ? "h-4 w-4 text-teal-300" : "h-4 w-4"} />
-          <span className="absolute -right-1 -top-1 rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-4 text-white">
+          <span className="absolute -right-1 -top-1 rounded-full bg-teal-600 px-1 text-[11px] font-semibold leading-4 text-white">
             {cctvMarkers.length > 999 ? "999+" : cctvMarkers.length}
           </span>
         </Button>
@@ -204,7 +204,7 @@ export function MapFloatingControls({
           variant="secondary"
           className={
             isClusteringEnabled
-              ? "h-9 w-9 border border-indigo-500/50 bg-slate-900/90 text-slate-100 shadow-glow"
+              ? "h-9 w-9 border border-indigo-500/50 bg-slate-800 text-slate-100"
               : "h-9 w-9 bg-slate-900/90 text-slate-100"
           }
           onClick={() => setClusteringEnabled(!isClusteringEnabled)}
@@ -278,7 +278,7 @@ export function MapFloatingControls({
         </Button>
 
         <span
-          className="mt-0.5 text-[10px] font-semibold tabular-nums text-slate-300"
+          className="mt-0.5 text-[11px] font-semibold tabular-nums text-slate-300"
           title={`현재 줌 레벨 ${zoomLevel} (작을수록 확대)`}
         >
           Lv {zoomLevel}

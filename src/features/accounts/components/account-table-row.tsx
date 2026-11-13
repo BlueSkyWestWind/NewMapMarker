@@ -68,7 +68,7 @@ export function AccountTableRow({
         <div className="flex items-center gap-1.5">
           <span>{user.email}</span>
           {isCurrent && (
-            <span className="rounded bg-sky-950 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400 border border-sky-800/60">
+            <span className="rounded-sm bg-sky-950 px-1.5 py-0.5 text-[11px] font-semibold text-sky-400 border border-sky-800/60">
               나
             </span>
           )}
@@ -103,7 +103,7 @@ export function AccountTableRow({
               className="peer sr-only"
             />
             <div
-              className={`h-4 w-7 rounded-full bg-slate-700 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-3 after:w-3 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-3 peer-focus:outline-none ${
+              className={`h-4 w-7 rounded-full bg-slate-700 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-3 after:w-3 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-3 peer-focus:outline-none ${
                 disabled || isCurrent ? "cursor-not-allowed opacity-50" : ""
               }`}
             />
@@ -132,7 +132,7 @@ export function AccountTableRow({
           onClick={() => onShowHistory(user)}
           title="접속 기록 보기"
           aria-label={`${user.email} 접속 기록`}
-          className="mr-1 inline-flex items-center justify-center rounded p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+          className="mr-1 inline-flex items-center justify-center rounded-sm p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
         >
           <History className="h-3.5 w-3.5" />
         </button>
@@ -142,7 +142,7 @@ export function AccountTableRow({
           disabled={disabled || isCurrent}
           title={isCurrent ? "본인 계정은 삭제할 수 없습니다" : "계정 삭제"}
           aria-label={`${user.email} 삭제`}
-          className={`inline-flex items-center justify-center rounded p-1 text-slate-400 transition-colors hover:bg-rose-950/50 hover:text-rose-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-500 ${
+          className={`inline-flex items-center justify-center rounded-sm p-1 text-slate-400 transition-colors hover:bg-rose-950/50 hover:text-rose-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-500 ${
             disabled || isCurrent ? "cursor-not-allowed opacity-30 hover:bg-transparent hover:text-slate-400" : ""
           }`}
         >

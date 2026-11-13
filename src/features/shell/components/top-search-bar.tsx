@@ -66,14 +66,14 @@ export function TopSearchBar({ showMapPickControls }: TopSearchBarProps) {
           aria-label="전역 장소 검색"
           className="h-8 border-slate-700 bg-slate-900/60 pl-8 pr-16 text-xs"
         />
-        <span className="pointer-events-none absolute right-2 top-1.5 rounded border border-slate-700 px-1 text-[10px] leading-5 text-slate-500">
+        <span className="pointer-events-none absolute right-2 top-1.5 rounded-sm border border-slate-700 px-1 text-[11px] leading-5 text-slate-500">
           Ctrl K
         </span>
       </div>
 
       {status ? (
         <p
-          className={`min-w-0 truncate text-[10px] ${isError ? "text-rose-400" : "text-slate-400"}`}
+          className={`min-w-0 truncate text-[11px] ${isError ? "text-rose-400" : "text-slate-400"}`}
           title={status}
         >
           {isSearching ? "검색 중..." : status}
@@ -85,7 +85,7 @@ export function TopSearchBar({ showMapPickControls }: TopSearchBarProps) {
           type="button"
           onClick={clearSearch}
           title="경계 지우기"
-          className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="shrink-0 rounded-sm p-1 text-slate-400 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
           <X className="h-3.5 w-3.5" />
         </button>

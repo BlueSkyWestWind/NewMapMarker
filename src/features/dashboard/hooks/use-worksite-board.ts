@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
-import { fetchWorksiteWeather } from "@/features/worksite-weather/lib/worksite-weather-api";
+import {
+  fetchWorksiteWeather,
+  refreshWorksiteWeather,
+  type RefreshSummary,
+} from "@/features/worksite-weather/lib/worksite-weather-api";
 import type {
   SiteMatch,
   WorksiteWeatherResponse,
@@ -35,6 +39,9 @@ export function useWorksiteBoard() {
     Record<string, { data?: WorksiteWeatherResponse; error?: string }>
   >({});
   const [loadingIds, setLoadingIds] = useState<string[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   // 언마운트 후 setState 방지. 대시보드는 메뉴 전환으로 자주 사라진다.
   const aliveRef = useRef(true);
@@ -105,6 +112,35 @@ export function useWorksiteBoard() {
     [savedWeatherSites, load],
   );
 
+  /**
+   * [현재 데이터로 갱신]: 기상청에서 새로 받아 저장한 뒤 모든 국소를 다시 읽는다.
+   * 같은 격자는 서버가 5분 안에 다시 받지 않으므로 여러 번 눌러도 호출이 늘지 않는다.
+   */
+  const refreshAll = useCallback(async (): Promise<RefreshSummary | null> => {
+    if (savedWeatherSites.length === 0) return null;
+    setIsRefreshing(true);
+    setRefreshError(null);
+    setProgress({ done: 0, total: savedWeatherSites.length });
+    try {
+      const summary = await refreshWorksiteWeather(savedWeatherSites, (done, total) => {
+        if (aliveRef.current) setProgress({ done, total });
+      });
+      if (aliveRef.current) {
+        setResultById({});
+        void load(savedWeatherSites);
+      }
+      return summary;
+    } catch (err) {
+      if (aliveRef.current) setRefreshError(err instanceof Error ? err.message : "갱신하지 못했습니다.");
+      return null;
+    } finally {
+      if (aliveRef.current) {
+        setIsRefreshing(false);
+        setProgress(null);
+      }
+    }
+  }, [savedWeatherSites, load]);
+
   const rows = useMemo<BoardRow[]>(
     () =>
       savedWeatherSites.map((site) => {
@@ -120,5 +156,5 @@ export function useWorksiteBoard() {
     [savedWeatherSites, resultById, loadingIds],
   );
 
-  return { rows, retry };
+  return { rows, retry, refreshAll, isRefreshing, progress, refreshError };
 }

@@ -61,6 +61,30 @@ describe("kma-client 호출 집계", () => {
     expect(recordKmaCall).toHaveBeenCalledTimes(1);
   });
 
+  it("fresh면 캐시가 있어도 요청을 보내고 manual 출처로 기록한다", async () => {
+    // 호출마다 새 Response가 필요하다(본문은 한 번만 읽을 수 있다)
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(okBody), { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchUltraSrtNcst(query);
+    await fetchUltraSrtNcst(query, { source: "manual", fresh: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(recordKmaCall).toHaveBeenLastCalledWith(expect.objectContaining({ source: "manual" }));
+  });
+
+  it("fresh로 받은 결과는 캐시에 다시 쓴다(이후 일반 호출은 요청을 보내지 않는다)", async () => {
+    const fetchMock = mockFetchJson(okBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchUltraSrtNcst(query, { fresh: true });
+    await fetchUltraSrtNcst(query);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("사전 수집 출처를 구분해 기록한다", async () => {
     vi.stubGlobal("fetch", mockFetchJson(okBody));
 

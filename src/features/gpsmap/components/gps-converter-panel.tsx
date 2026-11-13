@@ -388,9 +388,9 @@ export function GpsConverterPanel() {
           </Button>
 
           <div className="rounded-md border border-slate-800 bg-slate-900/40 p-2">
-            <p className="mb-1.5 text-[10px] text-slate-400">GPS 좌표(도분초) 강제 이동</p>
+            <p className="mb-1.5 text-[11px] text-slate-400">GPS 좌표(도분초) 강제 이동</p>
             <div className="flex items-center gap-1">
-              <span className="w-6 shrink-0 text-[10px] text-slate-500">위도</span>
+              <span className="w-6 shrink-0 text-[11px] text-slate-500">위도</span>
               {(["latD", "latM", "latS", "latCS"] as const).map((key, idx) => (
                 <Input
                   key={key}
@@ -403,7 +403,7 @@ export function GpsConverterPanel() {
               ))}
             </div>
             <div className="mt-1 flex items-center gap-1">
-              <span className="w-6 shrink-0 text-[10px] text-slate-500">경도</span>
+              <span className="w-6 shrink-0 text-[11px] text-slate-500">경도</span>
               {(["lonD", "lonM", "lonS", "lonCS"] as const).map((key, idx) => (
                 <Input
                   key={key}
@@ -473,12 +473,12 @@ export function GpsConverterPanel() {
           </div>
 
           {rows.length > 0 ? (
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[11px] text-slate-500">
               진행 {doneCount + errorCount}/{rows.length}
               {errorCount > 0 ? ` · 실패 ${errorCount}` : ""}
             </p>
           ) : (
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[11px] text-slate-500">
               여러 건을 순차 조회한 뒤 엑셀로 내려받을 수 있습니다.
             </p>
           )}
@@ -561,7 +561,7 @@ export function GpsConverterPanel() {
                         onClick={() => showBatchResult(batchViewIdx - 1)}
                         disabled={batchViewIdx <= 0}
                         title="이전 결과"
-                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                        className="flex h-6 w-6 items-center justify-center rounded-sm border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
                       >
                         <ChevronLeft className="h-3.5 w-3.5" />
                       </button>
@@ -573,7 +573,7 @@ export function GpsConverterPanel() {
                         onClick={() => showBatchResult(batchViewIdx + 1)}
                         disabled={batchViewIdx >= doneRows.length - 1}
                         title="다음 결과"
-                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                        className="flex h-6 w-6 items-center justify-center rounded-sm border border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
                       >
                         <ChevronRight className="h-3.5 w-3.5" />
                       </button>

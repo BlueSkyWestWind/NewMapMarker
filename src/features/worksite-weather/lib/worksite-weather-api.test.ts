@@ -4,6 +4,7 @@ import {
   buildWorksiteWeatherQuery,
   clearWorksiteWeatherCache,
   fetchWorksiteWeather,
+  refreshWorksiteWeather,
   worksiteWeatherKey,
 } from "./worksite-weather-api";
 
@@ -114,5 +115,86 @@ describe("fetchWorksiteWeather — 캐시·중복제거", () => {
 
     await expect(fetchWorksiteWeather(site())).rejects.toThrow(/서버 응답 500/);
     await expect(fetchWorksiteWeather(site())).rejects.not.toThrow(/Unexpected token/);
+  });
+});
+
+describe("refreshWorksiteWeather", () => {
+  // 서로 다른 격자 6곳(5km 이상 떨어짐) + 첫 곳과 같은 좌표 1곳
+  const SPOTS: [number, number][] = [
+    [34.95, 127.48],
+    [35.15, 126.85],
+    [37.56, 126.97],
+    [35.87, 128.6],
+    [35.17, 129.07],
+    [33.5, 126.53],
+  ];
+  const sites = [...SPOTS, SPOTS[0]].map(([lat, lng], i) => site({ id: `s${i}`, lat, lng }));
+
+  function mockRefreshFetch() {
+    return vi.fn((url: string, init?: RequestInit) => {
+      if (String(url).includes("/refresh")) {
+        const body = JSON.parse(String(init?.body)) as { sites: unknown[] };
+        const results = body.sites.map((_, i) => ({
+          nx: i,
+          ny: i,
+          status: i === 0 ? "recent" : "refreshed",
+          saved: i !== 1,
+        }));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ results, alertsRefreshed: true })),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(okBody) } as Response);
+    });
+  }
+
+  beforeEach(() => clearWorksiteWeatherCache());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("격자를 중복 없이 5개씩 나눠 순서대로 POST하고 진행 상황을 알린다", async () => {
+    const fetchMock = mockRefreshFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const progress: [number, number][] = [];
+
+    await refreshWorksiteWeather(sites, (done, total) => progress.push([done, total]));
+
+    const posts = fetchMock.mock.calls.filter(([url]) => String(url).includes("/refresh"));
+    expect(posts).toHaveLength(2);
+    expect((JSON.parse(String(posts[0][1]?.body)) as { sites: unknown[] }).sites).toHaveLength(5);
+    expect((JSON.parse(String(posts[1][1]?.body)) as { sites: unknown[] }).sites).toHaveLength(1);
+    expect(posts[0][1]?.method).toBe("POST");
+    expect(progress).toEqual([
+      [5, 6],
+      [6, 6],
+    ]);
+  });
+
+  it("결과를 합산한다(건너뜀·갱신·저장 못 함)", async () => {
+    vi.stubGlobal("fetch", mockRefreshFetch());
+    const summary = await refreshWorksiteWeather(sites);
+    // 첫 묶음 5개: recent 1, refreshed 4(그중 saved:false 1). 둘째 묶음 1개: recent 1
+    expect(summary).toEqual({ refreshed: 4, recent: 2, failed: 0, unsaved: 1, alertsRefreshed: true });
+  });
+
+  it("끝나면 모듈 캐시를 비워 다음 조회가 서버를 다시 부른다", async () => {
+    const fetchMock = mockRefreshFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const s = site();
+
+    await fetchWorksiteWeather(s);
+    await fetchWorksiteWeather(s); // 캐시
+    const gets = () => fetchMock.mock.calls.filter(([url]) => String(url).includes("/api/worksite-weather?")).length;
+    expect(gets()).toBe(1);
+
+    await refreshWorksiteWeather([s]);
+    await fetchWorksiteWeather(s);
+    expect(gets()).toBe(2);
+  });
+
+  it("서버가 오류를 돌려주면 던진다", async () => {
+    vi.stubGlobal("fetch", mockFetch(JSON.stringify({ error: "갱신하지 못했습니다." }), 502));
+    await expect(refreshWorksiteWeather([site()])).rejects.toThrow("갱신하지 못했습니다.");
   });
 });

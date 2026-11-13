@@ -15,10 +15,10 @@ export function MapPickHint() {
   return (
     <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-md border border-slate-700 bg-slate-950/85 px-3 py-1.5 text-[11px] text-slate-200 shadow-lg">
       {mapPickMode === "roadview"
-        ? "🚶 파란 도로 위를 클릭하면 로드뷰가 열립니다"
+        ? "파란 도로 위를 클릭하면 로드뷰가 열립니다"
         : mapPickMode === "place"
-          ? "📍 마커를 놓을 위치를 클릭하세요"
-          : "🟨 클릭하면 해당 지점을 조회합니다"}
+          ? "마커를 놓을 위치를 클릭하세요"
+          : "클릭하면 해당 지점을 조회합니다"}
     </div>
   );
 }

@@ -181,7 +181,7 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
           </button>
         ) : null}
         <div className="min-w-0 flex-1">
-          <h1 className="text-[17px] font-bold leading-tight">{title}</h1>
+          <h1 className="text-[17px] font-semibold leading-tight">{title}</h1>
           {description ? (
             <p className="mt-0.5 truncate text-xs text-slate-400">{description}</p>
           ) : null}
@@ -245,7 +245,7 @@ export function MobileSheet({ countSummary, segmentCounts, ...bodyProps }: Mobil
                   <span className="min-w-0 flex-1">{label}</span>
                   {locked ? <Lock className="h-4 w-4 shrink-0" aria-hidden /> : null}
                   {count !== undefined ? (
-                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold">
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold">
                       {count}
                     </span>
                   ) : null}

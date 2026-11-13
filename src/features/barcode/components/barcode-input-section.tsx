@@ -104,11 +104,11 @@ export function BarcodeInputSection({
             if (files && files.length > 0) void processPhotos(Array.from(files));
           }}
         />
-        <span className="text-[10px] text-slate-500">
+        <span className="text-[11px] text-slate-500">
           또는 사진 여러 장을 여기로 끌어다 놓으세요
         </span>
         {statusText ? (
-          <span className="font-mono text-[10px] text-slate-400">{statusText}</span>
+          <span className="font-mono text-[11px] text-slate-400">{statusText}</span>
         ) : null}
       </div>
 
@@ -143,7 +143,7 @@ export function BarcodeInputSection({
       </span>
 
       {itemCount > 150 ? (
-        <p className="text-[10px] text-slate-500">항목이 많아 생성에 몇 초 걸릴 수 있어요.</p>
+        <p className="text-[11px] text-slate-500">항목이 많아 생성에 몇 초 걸릴 수 있어요.</p>
       ) : null}
     </div>
   );

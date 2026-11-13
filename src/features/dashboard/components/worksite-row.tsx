@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, TriangleAlert, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   VERDICT_ICON,
@@ -8,6 +8,7 @@ import {
   VERDICT_TONE,
 } from "@/features/worksite-weather/types/weather";
 import type { BoardRow } from "@/features/dashboard/hooks/use-worksite-board";
+import { formatDataInfoLabel } from "@/features/worksite-weather/lib/data-info-label";
 import type { HazardSummary } from "@/features/worksite-weather/types/weather";
 
 interface WorksiteRowProps {
@@ -25,6 +26,19 @@ function hazardHeadline(summary: HazardSummary): string {
     .map((entry) => entry.note)
     .slice(0, 2)
     .join(" · ");
+}
+
+/** 어떤 시각의 저장분인가. 저장분이 없으면 갱신 버튼을 안내한다 */
+function DataInfoLine({ info }: { info: NonNullable<BoardRow["data"]>["dataInfo"] }) {
+  const label = formatDataInfoLabel(info, new Date());
+  return (
+    <p
+      className={cn("mt-0.5 truncate text-[11px]", label.isStale || label.isMissing ? "text-amber-400" : "text-slate-500")}
+      title={label.text}
+    >
+      {label.isMissing ? "저장된 자료 없음 — 위의 [현재 데이터로 갱신]을 눌러 주세요" : label.text}
+    </p>
+  );
 }
 
 export function WorksiteRow({
@@ -61,7 +75,7 @@ export function WorksiteRow({
             </span>
             {site.scheduleDate ? (
               <span
-                className="shrink-0 rounded border border-indigo-500/40 bg-indigo-950/50 px-1 text-[10px] leading-4 text-indigo-200"
+                className="shrink-0 rounded-sm border border-indigo-500/40 bg-indigo-950/50 px-1 text-[11px] leading-4 text-indigo-200"
                 title="시설일정에서 자동으로 담은 국소"
               >
                 일정
@@ -70,7 +84,7 @@ export function WorksiteRow({
             {status === "ok" && data ? (
               <span
                 className={cn(
-                  "shrink-0 rounded border px-1 text-[10px] leading-4",
+                  "shrink-0 rounded-sm border px-1 text-[11px] leading-4",
                   VERDICT_TONE[data.overall],
                 )}
               >
@@ -102,12 +116,13 @@ export function WorksiteRow({
                       .join(", ")}`
                   : "권장 시간대 없음"}
               </p>
+              {data.dataInfo ? <DataInfoLine info={data.dataInfo} /> : null}
             </>
           ) : null}
 
           {status === "error" ? (
             <p className="mt-0.5 truncate text-[11px] text-amber-400" title={error}>
-              ⚠️ 조회 실패
+              <TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />조회 실패
             </p>
           ) : null}
         </button>
@@ -117,7 +132,7 @@ export function WorksiteRow({
             type="button"
             onClick={onRemove}
             title="작업 국소에서 빼기"
-            className="rounded p-0.5 text-slate-500 hover:text-rose-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="rounded-sm p-0.5 text-slate-500 hover:text-rose-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -126,7 +141,7 @@ export function WorksiteRow({
               type="button"
               onClick={onRetry}
               title="다시 시도"
-              className="rounded p-0.5 text-amber-400 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="rounded-sm p-0.5 text-amber-400 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>

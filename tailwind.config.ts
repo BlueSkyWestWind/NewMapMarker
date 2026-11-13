@@ -110,9 +110,6 @@ const config = {
         badges: 'var(--radius-badges)',
       },
       boxShadow: {
-        // 섀도 대신 브랜드 글로우로 엘리베이션 표현 (활성·선택·포커스·플로팅 UI, 다크 기본)
-        glow: '0 0 0 1px #3a4cd1, 0 0 18px -2px rgba(58,76,209,0.45)',
-        'glow-sm': '0 0 14px -4px rgba(58,76,209,0.5)',
         // 라이트 카드용 3단 섀도(Ver 2.1) — Calendly DESIGN.md 구조 채택.
         'elevation-sm': 'var(--shadow-elevation-sm)',
         'elevation-md': 'var(--shadow-elevation-md)',

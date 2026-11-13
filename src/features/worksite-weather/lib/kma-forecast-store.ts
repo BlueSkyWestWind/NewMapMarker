@@ -1,5 +1,4 @@
 import "server-only";
-import { keepAlive } from "@/features/worksite-weather/lib/keep-alive";
 import {
   FORECAST_KINDS,
   type CurrentBases,
@@ -7,6 +6,7 @@ import {
   type GridKey,
   type StoredKey,
 } from "@/features/worksite-weather/lib/kma-prefetch-plan";
+import type { KmaBase } from "@/features/worksite-weather/lib/kma-base-time";
 import type { KmaItem } from "@/features/worksite-weather/lib/merge-sources";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -15,6 +15,16 @@ const CONFLICT_KEY = "nx,ny,kind,base_date,base_time";
 /** PostgREST 기본 최대 행 수 */
 const PAGE_SIZE = 1000;
 
+/** 저장소에서 읽은 한 종류의 최신 예보 */
+export interface StoredForecast {
+  kind: ForecastKind;
+  items: KmaItem[];
+  base: KmaBase;
+  /** 저장된 시각(ISO) */
+  fetchedAt: string;
+  source: "user" | "prefetch" | "manual";
+}
+
 export interface ForecastRow {
   nx: number;
   ny: number;
@@ -22,7 +32,7 @@ export interface ForecastRow {
   baseDate: string;
   baseTime: string;
   items: KmaItem[];
-  source: "user" | "prefetch";
+  source: "user" | "prefetch" | "manual";
 }
 
 /** 현재 기준시각 세 종류 중 하나와 일치하는 행만 고르는 PostgREST `or` 조건 */
@@ -33,32 +43,53 @@ function basesFilter(bases: CurrentBases): string {
 }
 
 /**
- * 한 격자의 저장분을 **한 번의 조회**로 찾는다. 기준시각이 현재와 정확히 같은 행만 돌려준다.
- * 마이그레이션 미적용·DB 오류에서도 던지지 않고 빈 결과를 돌려 실시간 호출로 넘어가게 한다.
+ * 한 격자의 종류별 **가장 최근 저장분**을 읽는다(기준시각이 지금과 달라도 쓴다).
+ * 종류마다 `base_date`·`base_time` 내림차순 1행을 병렬로 조회한다(payload가 큰 행을 한꺼번에 읽지 않는다).
+ * 마이그레이션 미적용·DB 오류에서도 던지지 않고 빈 결과를 돌려준다.
  */
-export async function readStoredForecast(
-  grid: GridKey,
-  bases: CurrentBases,
-): Promise<Partial<Record<ForecastKind, KmaItem[]>>> {
+export async function readLatestForecast(grid: GridKey): Promise<Partial<Record<ForecastKind, StoredForecast>>> {
   try {
-    const { data, error } = await getSupabaseAdminClient()
-      .from(TABLE)
-      .select("kind, payload")
-      .eq("nx", grid.nx)
-      .eq("ny", grid.ny)
-      .or(basesFilter(bases));
-    if (error) return {};
+    const admin = getSupabaseAdminClient();
+    const results = await Promise.all(
+      FORECAST_KINDS.map((kind) =>
+        admin
+          .from(TABLE)
+          .select("kind, base_date, base_time, payload, fetched_at, source")
+          .eq("nx", grid.nx)
+          .eq("ny", grid.ny)
+          .eq("kind", kind)
+          .order("base_date", { ascending: false })
+          .order("base_time", { ascending: false })
+          .limit(1),
+      ),
+    );
 
-    const found: Partial<Record<ForecastKind, KmaItem[]>> = {};
-    for (const row of (data ?? []) as { kind: ForecastKind; payload: unknown }[]) {
-      if (FORECAST_KINDS.includes(row.kind) && Array.isArray(row.payload)) {
-        found[row.kind] = row.payload as KmaItem[];
+    const found: Partial<Record<ForecastKind, StoredForecast>> = {};
+    FORECAST_KINDS.forEach((kind, i) => {
+      const { data, error } = results[i];
+      const row = error ? undefined : ((data ?? [])[0] as LatestRow | undefined);
+      if (row && Array.isArray(row.payload)) {
+        found[kind] = {
+          kind,
+          items: row.payload as KmaItem[],
+          base: { baseDate: row.base_date, baseTime: row.base_time },
+          fetchedAt: row.fetched_at,
+          source: row.source,
+        };
       }
-    }
+    });
     return found;
   } catch {
     return {};
   }
+}
+
+interface LatestRow {
+  base_date: string;
+  base_time: string;
+  payload: unknown;
+  fetched_at: string;
+  source: StoredForecast["source"];
 }
 
 /**
@@ -105,12 +136,4 @@ export async function saveForecast(rows: ForecastRow[]): Promise<void> {
       { onConflict: CONFLICT_KEY },
     );
   if (error) throw new Error("예보를 저장하지 못했습니다.");
-}
-
-/** 사용자 조회가 실시간으로 받은 값을 채운다. 응답을 막지 않고, 실패해도 던지지 않는다. */
-export function saveForecastInBackground(rows: ForecastRow[]): void {
-  const pending = saveForecast(rows).catch((err: unknown) => {
-    console.warn("[kma-forecast] 저장을 건너뜁니다:", err instanceof Error ? err.message : "알 수 없음");
-  });
-  keepAlive(pending);
 }

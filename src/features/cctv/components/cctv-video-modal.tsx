@@ -121,8 +121,8 @@ export function CctvVideoModal({ cctv, onClose }: CctvVideoModalProps) {
       >
         <header className="flex items-start justify-between gap-2 border-b border-slate-800 px-3 py-2">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-bold text-slate-100">{cctv.name}</h3>
-            <p className="truncate text-[10px] text-slate-500">
+            <h3 className="truncate text-sm font-semibold text-slate-100">{cctv.name}</h3>
+            <p className="truncate text-[11px] text-slate-500">
               {roadTypeLabel(cctv.roadType)} · {cctv.lat.toFixed(5)}, {cctv.lng.toFixed(5)}
             </p>
           </div>
@@ -161,7 +161,7 @@ export function CctvVideoModal({ cctv, onClose }: CctvVideoModalProps) {
           ) : null}
         </div>
 
-        <footer className="border-t border-slate-800 px-3 py-2 text-[10px] leading-relaxed text-slate-500">
+        <footer className="border-t border-slate-800 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
           ITS 국가교통정보센터 제공. 스트림 주소는 발급 후 약 2시간 뒤 만료되므로,
           재생이 끊기면 CCTV를 다시 조회하세요.
         </footer>

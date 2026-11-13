@@ -7,12 +7,10 @@ import {
   fetchWeatherAlerts,
   KmaError,
 } from "@/features/worksite-weather/lib/kma-client";
-import { loadForecastItems } from "@/features/worksite-weather/lib/kma-forecast-source";
+import { loadStoredForecast } from "@/features/worksite-weather/lib/kma-forecast-source";
 import {
   baseToIsoKst,
   currentKstHhmm,
-  getUltraNcstBase,
-  getVilageBaseForToday,
   isoDateKst,
   ymdKst,
 } from "@/features/worksite-weather/lib/kma-base-time";
@@ -77,16 +75,14 @@ export async function GET(request: NextRequest) {
   const workType = parseWorkType(params.get("workType"));
   const now = new Date();
   const targetDate = ymdKst(now);
-  const vilageBase = getVilageBaseForToday(now);
-  const ncstBase = getUltraNcstBase(now);
   const region = params.get("region") ?? "";
   const stnId = resolveWarnStnId(region);
 
   try {
-    // 예보 3종은 저장분(기준시각이 같은 것)을 먼저 쓰고 빠진 것만 실시간으로 받는다.
-    // 동시 외부 연결 6개 제한에 여유를 두기 위해 예보 묶음과 특보 2건으로 묶는다.
-    const [{ vilage: vilageItems, ncst: ncstItems, ufcst: ultraItems }, alertResult] = await Promise.all([
-      loadForecastItems({ nx: grid.nx, ny: grid.ny, now }),
+    // 예보 3종은 **저장된 가장 최근 값**만 읽는다(기상청을 부르지 않는다). 저장은 자동 수집(매시)과
+    // [현재 데이터로 갱신] 버튼이 한다. 특보는 안전 판정에 쓰이므로 지금처럼 실시간(캐시 10분)이다.
+    const [{ items: forecast, bases, info: dataInfo }, alertResult] = await Promise.all([
+      loadStoredForecast({ nx: grid.nx, ny: grid.ny }),
       fetchWeatherAlerts(stnId, targetDate, ymdKst(now, -1), region).catch(() => ({
         alerts: [],
         parsed: false,
@@ -94,18 +90,26 @@ export async function GET(request: NextRequest) {
     ]);
 
     const nowHhmm = currentKstHhmm(now);
-    const timeline = buildTimeline({
-      targetDate,
-      vilage: collectForecastSlots(vilageItems, targetDate),
-      ultra: collectForecastSlots(ultraItems, targetDate),
-      observation: collectObservation(ncstItems),
-      observationTime: ncstBase.baseTime,
-      nowHhmm,
-      workType,
-    });
+    // 단기예보 저장분이 없으면 판정할 근거가 없다. 지어내지 않고 빈 시간표로 알린다.
+    const hasForecast = !dataInfo.missing.includes("vilage");
+    const timeline = hasForecast
+      ? buildTimeline({
+          targetDate,
+          vilage: collectForecastSlots(forecast.vilage, targetDate),
+          ultra: collectForecastSlots(forecast.ufcst, targetDate),
+          observation: collectObservation(forecast.ncst),
+          // 관측 시각은 지금 계산한 기준시각이 아니라 저장분의 기준시각이다
+          observationTime: bases.ncst?.baseTime ?? "",
+          nowHhmm,
+          workType,
+        })
+      : [];
 
     const warnings: string[] = [];
-    const missingCount = countMissingSlots(timeline);
+    if (!hasForecast) {
+      warnings.push("저장된 예보가 없습니다. [현재 데이터로 갱신]을 눌러 주세요.");
+    }
+    const missingCount = hasForecast ? countMissingSlots(timeline) : 0;
     if (missingCount > 0) {
       warnings.push(
         `${missingCount}개 시간대의 예보가 결측되어 판정할 수 없습니다. 추정값을 채우지 않았습니다.`,
@@ -120,16 +124,15 @@ export async function GET(request: NextRequest) {
     const typhoon = buildTyphoonFromAlerts(alertResult.alerts);
 
     // 특보는 종류별로 반영 강도가 다르다 (폭염경보를 일괄 중지로 보면 여름 내내 ⛔가 된다)
-    let overall: Verdict = worstVerdict(
-      overallVerdict(timeline),
-      alertsVerdict(alertResult.alerts),
-    );
+    let overall: Verdict = hasForecast
+      ? worstVerdict(overallVerdict(timeline), alertsVerdict(alertResult.alerts))
+      : "unknown";
     if (typhoon) overall = "stop";
 
     const payload: WorksiteWeatherResponse = {
       site: { lat, lng, grid, workType },
       date: isoDateKst(now),
-      issuedAt: baseToIsoKst(vilageBase),
+      issuedAt: bases.vilage ? baseToIsoKst(bases.vilage) : "",
       overall,
       recommendedWindows: typhoon ? [] : findRecommendedWindows(timeline, nowHhmm),
       timeline,
@@ -138,12 +141,13 @@ export async function GET(request: NextRequest) {
       typhoon,
       warnings,
       disclaimer: DISCLAIMER,
+      dataInfo,
     };
 
     return NextResponse.json(payload, {
       headers: {
-        // 단기예보는 3시간마다 갱신되므로 브라우저 재조회를 그만큼 억제한다
-        "Cache-Control": "private, max-age=600",
+        // 저장분은 갱신 버튼으로 바뀐다. 브라우저가 옛 응답을 돌려주지 않게 한다(DB 읽기라 부담이 작다)
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (error) {

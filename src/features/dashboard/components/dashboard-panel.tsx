@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookmarkPlus, FileSpreadsheet, MapPin, Satellite, Wind } from "lucide-react";
+import { BookmarkPlus, FileSpreadsheet, MapPin, RefreshCw, Satellite, TriangleAlert, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
@@ -16,6 +16,7 @@ import { useAutoOpenWorksites } from "@/features/dashboard/hooks/use-auto-open-w
 import { useScheduleWorksites } from "@/features/dashboard/hooks/use-schedule-worksites";
 import { useWorksiteBoard } from "@/features/dashboard/hooks/use-worksite-board";
 import { HazardSummaryList } from "@/features/worksite-weather/components/hazard-summary-list";
+import { formatRefreshSummary } from "@/features/worksite-weather/lib/refresh-message";
 import { TyphoonBanner } from "@/features/worksite-weather/components/typhoon-banner";
 import { TyphoonModal } from "@/features/worksite-weather/components/typhoon-modal";
 import { WeatherSatelliteModal } from "@/features/worksite-weather/components/weather-satellite-modal";
@@ -34,7 +35,8 @@ import {
  * 되돌아가던 문제가 있었다.
  */
 export function DashboardPanel() {
-  const { rows, retry } = useWorksiteBoard();
+  const { rows, retry, refreshAll, isRefreshing, progress, refreshError } = useWorksiteBoard();
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   // 시설일정의 오늘 국소를 작업 국소에 자동으로 담는다(목록은 위 useWorksiteBoard가 저장소에서 읽는다).
   const scheduleSummary = useScheduleWorksites();
   const setActiveNav = useMapMarkerStore((state) => state.setActiveNav);
@@ -90,12 +92,35 @@ export function DashboardPanel() {
     setSelectedMarkerId(siteId);
   };
 
+  const handleRefresh = async () => {
+    setRefreshMessage(null);
+    const summary = await refreshAll();
+    if (summary) setRefreshMessage(formatRefreshSummary(summary));
+  };
+
+  const refreshBar = (
+    <div className="space-y-1">
+      <Button
+        type="button"
+        size="sm"
+        disabled={isRefreshing || rows.length === 0}
+        className="h-8 w-full border border-indigo-500/40 bg-indigo-950/40 text-[11px] text-indigo-200"
+        onClick={() => void handleRefresh()}
+      >
+        <RefreshCw className={`mr-1 h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} aria-hidden />
+        {isRefreshing ? `갱신 중 ${progress?.done ?? 0}/${progress?.total ?? rows.length}` : "현재 데이터로 갱신"}
+      </Button>
+      {refreshError ? <p className="text-[11px] text-rose-400">{refreshError}</p> : null}
+      {!refreshError && refreshMessage ? <p className="text-[11px] text-slate-400">{refreshMessage}</p> : null}
+    </div>
+  );
+
   const weatherButtons = (
     <div className="grid grid-cols-2 gap-1.5">
       <Button
         type="button"
         size="sm"
-        className="h-8 border border-sky-500/40 bg-gradient-to-r from-sky-600/20 to-indigo-600/20 text-[11px] text-sky-200"
+        className="h-8 border border-sky-500/40 bg-sky-600/15 text-[11px] text-sky-200"
         onClick={() => setIsSatelliteOpen(true)}
       >
         <Satellite className="mr-1 h-3.5 w-3.5" aria-hidden />
@@ -152,7 +177,7 @@ export function DashboardPanel() {
       <button
         type="button"
         className={cn(
-          "flex-1 rounded px-2 py-1 text-[11px] font-semibold transition-colors",
+          "flex-1 rounded-sm px-2 py-1 text-[11px] font-semibold transition-colors",
           activeTab === "weather"
             ? "bg-slate-700 text-slate-100"
             : "text-slate-400 hover:text-slate-200",
@@ -164,7 +189,7 @@ export function DashboardPanel() {
       <button
         type="button"
         className={cn(
-          "flex-1 rounded px-2 py-1 text-[11px] font-semibold transition-colors",
+          "flex-1 rounded-sm px-2 py-1 text-[11px] font-semibold transition-colors",
           activeTab === "route"
             ? "bg-slate-700 text-slate-100"
             : "text-slate-400 hover:text-slate-200",
@@ -222,6 +247,7 @@ export function DashboardPanel() {
   return (
     <div className="space-y-3">
       {tabBar}
+      {refreshBar}
       {weatherButtons}
       <ScheduleWorksiteNotice summary={scheduleSummary} />
 
@@ -263,7 +289,7 @@ export function DashboardPanel() {
                   OVERALL_TONE[data.overall],
                 )}
               >
-                <p className="text-sm font-bold">
+                <p className="text-sm font-semibold">
                   <span aria-hidden>{VERDICT_ICON[data.overall]}</span>{" "}
                   {VERDICT_LABEL[data.overall]}
                 </p>
@@ -282,15 +308,15 @@ export function DashboardPanel() {
               {data.warnings.length > 0 ? (
                 <ul className="space-y-0.5">
                   {data.warnings.map((warning) => (
-                    <li key={warning} className="text-[10px] text-amber-400">
-                      ⚠️ {warning}
+                    <li key={warning} className="text-[11px] text-amber-400">
+                      <TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />{warning}
                     </li>
                   ))}
                 </ul>
               ) : null}
 
-              <p className="text-[10px] leading-relaxed text-slate-500">
-                ⚠️ {data.disclaimer}
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                <TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />{data.disclaimer}
               </p>
             </>
           ) : null}

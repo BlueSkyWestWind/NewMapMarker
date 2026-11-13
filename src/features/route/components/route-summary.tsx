@@ -14,7 +14,7 @@ export function RouteSummary({ result }: { result: NormalizedRouteResult }) {
 
   return (
     <div className="space-y-1.5 rounded-lg border border-emerald-600/40 bg-emerald-950/20 p-2.5">
-      <p className="text-center text-sm font-bold text-emerald-200">
+      <p className="text-center text-sm font-semibold text-emerald-200">
         총 {formatDistance(result.totalDistance)} · {formatDuration(result.totalDuration)} ·{" "}
         {formatToll(result.totalToll)}
       </p>
@@ -36,7 +36,7 @@ export function RouteSummary({ result }: { result: NormalizedRouteResult }) {
 
             return (
               <div key={leg.type} className="space-y-1">
-                <p className="text-[10px] font-semibold text-emerald-300">
+                <p className="text-[11px] font-semibold text-emerald-300">
                   {LEG_LABEL[leg.type]} 구간 · {formatDistance(leg.distance)} · {formatDuration(leg.duration)} ·{" "}
                   {formatToll(leg.toll)}
                 </p>
@@ -48,7 +48,7 @@ export function RouteSummary({ result }: { result: NormalizedRouteResult }) {
                     return (
                       <li
                         key={index}
-                        className="truncate text-[10px] text-slate-400"
+                        className="truncate text-[11px] text-slate-400"
                         title={label}
                       >
                         {label} · {formatDistance(section.distance)} · {formatDuration(section.duration)}

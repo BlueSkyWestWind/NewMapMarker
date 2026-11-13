@@ -120,7 +120,7 @@ export function MarkersListPanel({
                   key={marker.id}
                   className={
                     marker.id === selectedMarkerId
-                      ? "flex cursor-pointer items-start gap-2 border-l-2 border-indigo-500 bg-indigo-500/10 px-3 py-2 text-xs shadow-glow-sm"
+                      ? "flex cursor-pointer items-start gap-2 border-l-2 border-indigo-500 bg-indigo-500/10 px-3 py-2 text-xs"
                       : "flex cursor-pointer items-start gap-2 border-l-2 border-transparent px-3 py-2 text-xs hover:bg-slate-800/50"
                   }
                   onClick={() => {

@@ -1,6 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { summarizeLoginHistory } from "./login-history";
+import { toLoginEvents, summarizeLoginHistory } from "./login-history";
 import type { LoginEvent } from "../types";
+
+describe("toLoginEvents", () => {
+  const row = (when: string, action: string, ip: string | null, ua: string | null) => ({
+    occurred_at: when,
+    action,
+    ip,
+    user_agent: ua,
+  });
+
+  it("login 행을 이벤트로 바꾸고 userAgent를 담는다", () => {
+    expect(toLoginEvents([row("2026-11-10T00:00:00Z", "login", "1.1.1.1", "UA")])).toEqual([
+      { at: "2026-11-10T00:00:00Z", action: "login", ip: "1.1.1.1", userAgent: "UA" },
+    ]);
+  });
+
+  it("알 수 없는 action 행은 버린다", () => {
+    expect(toLoginEvents([row("2026-11-10T00:00:00Z", "refresh", "1.1.1.1", null)])).toEqual([]);
+  });
+
+  it("ip·user_agent가 null이면 null로 보존한다", () => {
+    const [event] = toLoginEvents([row("2026-11-10T00:00:00Z", "logout", null, null)]);
+    expect(event).toMatchObject({ action: "logout", ip: null, userAgent: null });
+  });
+
+  it("최근 순으로 정렬한다", () => {
+    const events = toLoginEvents([
+      row("2026-11-09T00:00:00Z", "login", "1.1.1.1", null),
+      row("2026-11-10T00:00:00Z", "login", "2.2.2.2", null),
+    ]);
+    expect(events.map((e) => e.ip)).toEqual(["2.2.2.2", "1.1.1.1"]);
+  });
+});
 
 const at = (day: number, hour: number, minute = 0) => new Date(2026, 10, day, hour, minute).toISOString();
 const event = (when: string, action: LoginEvent["action"], ip: string | null): LoginEvent => ({ at: when, action, ip });

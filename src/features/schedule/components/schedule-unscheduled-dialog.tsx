@@ -192,7 +192,7 @@ export function ScheduleUnscheduledDialog({
                       aria-label="보이는 국소 전체 선택"
                       checked={allShownPicked}
                       onChange={toggleAllShown}
-                      className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                      className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
                     />,
                     "국소명",
                     "통합시설코드",
@@ -225,7 +225,7 @@ export function ScheduleUnscheduledDialog({
                         checked={picked.has(station.id)}
                         onChange={() => toggle(station.id)}
                         onClick={(event) => event.stopPropagation()}
-                        className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                        className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
                       />
                     </td>
                     {[

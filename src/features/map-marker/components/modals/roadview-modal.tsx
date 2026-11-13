@@ -222,7 +222,7 @@ export function RoadviewModal() {
     <Dialog open={isRoadviewOpen} onOpenChange={(open) => !open && closeRoadview()}>
       <DialogContent className="max-w-[95vw] md:max-w-[1400px] w-full bg-slate-900 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl rounded-2xl">
         <DialogHeader className="p-4 border-b border-slate-800 flex flex-row items-center justify-between">
-          <DialogTitle className="text-base font-bold bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+          <DialogTitle className="text-base font-semibold text-slate-100">
             {roadviewPosition?.name ? `${roadviewPosition.name} - 현장 로드뷰` : '현장 로드뷰'}
           </DialogTitle>
         </DialogHeader>
@@ -253,7 +253,7 @@ export function RoadviewModal() {
               <select
                 value={currentPanoId || ''}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="bg-slate-800 text-slate-100 text-xs border border-slate-700 rounded px-2 py-1 outline-none cursor-pointer focus:border-emerald-500"
+                className="bg-slate-800 text-slate-100 text-xs border border-slate-700 rounded-sm px-2 py-1 outline-none cursor-pointer focus:border-emerald-500"
               >
                 {dates.map((item) => (
                   <option key={item.panoId} value={item.panoId}>

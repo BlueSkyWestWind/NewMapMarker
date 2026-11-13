@@ -75,7 +75,7 @@ export function WorkPanel({ countSummary, segmentCounts, ...bodyProps }: WorkPan
                 </button>
               </>
             ) : null}
-            <h1 className="text-lg font-bold leading-tight">{title}</h1>
+            <h1 className="text-lg font-semibold leading-tight">{title}</h1>
             {description ? (
               <p className="mt-1 text-xs leading-snug text-slate-400">{description}</p>
             ) : null}
@@ -133,7 +133,7 @@ export function WorkPanel({ countSummary, segmentCounts, ...bodyProps }: WorkPan
                 <span className="min-w-0 flex-1 whitespace-nowrap">{label}</span>
                 {locked ? <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
                 {count !== undefined ? (
-                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold">
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold">
                     {count}
                   </span>
                 ) : null}

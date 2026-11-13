@@ -103,11 +103,11 @@ export function RoutePanel() {
       </div>
 
       {!canCompute && disabledReason ? (
-        <p className="text-[10px] text-slate-500">{disabledReason}</p>
+        <p className="text-[11px] text-slate-500">{disabledReason}</p>
       ) : null}
 
       {warning ? (
-        <p className="flex items-start gap-1 text-[10px] text-amber-400">
+        <p className="flex items-start gap-1 text-[11px] text-amber-400">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
           {warning}
         </p>

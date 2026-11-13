@@ -182,7 +182,7 @@ export function WeatherSatelliteModal({
                 height: `${size.height}px`,
               }
         }
-        className="pointer-events-auto absolute flex flex-col rounded-xl border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-md transition-shadow duration-150"
+        className="pointer-events-auto absolute flex flex-col rounded-lg border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-md transition-shadow duration-150"
       >
         {/* 헤더 바 (드래그 영역) */}
         <div
@@ -197,9 +197,9 @@ export function WeatherSatelliteModal({
               <Satellite className="h-3.5 w-3.5" />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+              <h3 className="text-xs font-semibold text-slate-100 flex items-center gap-1.5">
                 실시간 위성 / 레이더 날씨 지도
-                <span className="text-[10px] font-normal text-slate-400">
+                <span className="text-[11px] font-normal text-slate-400">
                   (드래그로 이동 가능)
                 </span>
               </h3>
@@ -310,7 +310,7 @@ export function WeatherSatelliteModal({
             href={getSourceUrl()}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 px-1.5 text-[10px] text-slate-400 hover:text-sky-300 hover:underline"
+            className="flex items-center gap-1 px-1.5 text-[11px] text-slate-400 hover:text-sky-300 hover:underline"
           >
             기상청 원본 ↗
           </a>
@@ -331,7 +331,7 @@ export function WeatherSatelliteModal({
         </div>
 
         {/* 하단 바 & 리사이즈 핸들 */}
-        <div className="relative flex items-center justify-between border-t border-slate-800 bg-slate-900/80 px-2.5 py-1 text-[10px] text-slate-400">
+        <div className="relative flex items-center justify-between border-t border-slate-800 bg-slate-900/80 px-2.5 py-1 text-[11px] text-slate-400">
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             기상청(KMA) 천리안 2A호 위성 & 레이더 정보

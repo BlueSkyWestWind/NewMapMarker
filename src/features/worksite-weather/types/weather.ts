@@ -154,6 +154,21 @@ export interface WorksiteWeatherSite {
   workType: WorkType;
 }
 
+/** 저장분의 출처: auto=자동 수집, manual=현재 데이터로 갱신 버튼, screen=화면 조회가 채운 값(2단계 방식) */
+export type DataSource = "auto" | "manual" | "screen";
+
+/** 화면에 보여 줄 "어떤 시각의 자료인가" 정보 */
+export interface WeatherDataInfo {
+  /** 단기예보·초단기실황·초단기예보 각각의 기준시각 ISO(KST). 저장분이 없으면 null */
+  bases: Record<"vilage" | "ncst" | "ufcst", string | null>;
+  /** 가장 최근 저장 시각 ISO */
+  collectedAt: string | null;
+  /** 가장 최근 저장분의 출처 */
+  collectedBy: DataSource | null;
+  /** 저장분이 없는 종류 */
+  missing: ("vilage" | "ncst" | "ufcst")[];
+}
+
 export interface WorksiteWeatherResponse {
   site: WorksiteWeatherSite;
   /** "YYYY-MM-DD" (KST) */
@@ -170,6 +185,8 @@ export interface WorksiteWeatherResponse {
   /** 특보 본문 파싱에 실패했거나 일부 소스가 누락된 경우의 경고 문구 */
   warnings: string[];
   disclaimer: string;
+  /** 어떤 시각의 저장분인가(기준시각·수집 시각·출처). 저장분이 없으면 missing에 종류가 담긴다 */
+  dataInfo: WeatherDataInfo;
 }
 
 /** 국소 검색 결과 — 좌표 해석은 클라이언트 책임 (CR-004 §5.1) */

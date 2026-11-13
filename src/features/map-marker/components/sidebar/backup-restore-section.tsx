@@ -73,7 +73,7 @@ export function BackupRestoreSection({ mode, batteryCount }: BackupRestoreSectio
             <Trash2 className="mr-1 h-3 w-3" />
             등록 데이터 일괄 삭제
           </Button>
-          <p className="text-[10px] leading-relaxed text-rose-300/80">
+          <p className="text-[11px] leading-relaxed text-rose-300/80">
             {typeof batteryCount === 'number'
               ? `축전지 ${batteryCount}건이 모두 지워집니다. 되돌릴 수 없습니다.`
               : '되돌릴 수 없습니다. 먼저 전체 백업을 받아 두세요.'}

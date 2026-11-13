@@ -173,7 +173,7 @@ export const VworldMapPane = forwardRef<VworldMapHandle, Props>(
       <div className="relative h-full w-full">
         <div ref={containerRef} className="h-full w-full" />
         <div className="pointer-events-none absolute left-3 top-3 z-[600] rounded-md bg-slate-950/80 px-2.5 py-1 text-[11px] text-slate-300 shadow">
-          🟩 브이월드 지적도
+          <span aria-hidden className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-green-500" />브이월드 지적도
         </div>
         <button
           type="button"

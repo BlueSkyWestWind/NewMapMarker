@@ -149,10 +149,10 @@ export function TimePicker({
                 aria-label={ariaLabel ?? "시각 선택"}
                 style={{ top: pos.top, bottom: pos.bottom, left: pos.left }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="fixed z-[101] w-[320px] select-none rounded-xl border border-slate-800 bg-slate-900 text-slate-100 shadow-elevation-lg"
+                className="fixed z-[101] w-[320px] select-none rounded-lg border border-slate-800 bg-slate-900 text-slate-100 shadow-elevation-lg"
               >
                 <div className="p-4">
-                  <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-4">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-4">
                     <div className="mb-3 rounded-md bg-slate-950 py-1.5 text-center text-sm font-medium">
                       {pad(draft.hour)}:{pad(draft.minute)}
                     </div>

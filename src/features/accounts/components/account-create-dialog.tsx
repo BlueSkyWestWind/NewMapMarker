@@ -149,7 +149,7 @@ export function AccountCreateDialog({
                 checked={isAdmin}
                 onChange={(e) => setIsAdmin(e.target.checked)}
                 disabled={isLoading}
-                className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500"
+                className="h-4 w-4 rounded-sm border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500"
               />
               <Label htmlFor="account-is-admin" className="cursor-pointer text-xs font-normal text-slate-200">
                 관리자 권한 부여 (국소 수정, 계정 관리 등 관리자 권한 활성화)
@@ -157,7 +157,7 @@ export function AccountCreateDialog({
             </div>
 
             {errorMessage && (
-              <p className="rounded bg-rose-950/60 p-2 text-xs text-rose-300 border border-rose-800/50">
+              <p className="rounded-sm bg-rose-950/60 p-2 text-xs text-rose-300 border border-rose-800/50">
                 {errorMessage}
               </p>
             )}

@@ -7,16 +7,10 @@ vi.mock("@/lib/supabase/admin", () => ({
   getSupabaseAdminClient: () => getAdmin(),
 }));
 
-const getCloudflareContext = vi.fn();
-vi.mock("@opennextjs/cloudflare", () => ({
-  getCloudflareContext: () => getCloudflareContext(),
-}));
-
 import {
   listStoredKeys,
-  readStoredForecast,
+  readLatestForecast,
   saveForecast,
-  saveForecastInBackground,
   type ForecastRow,
 } from "./kma-forecast-store";
 import { currentBases } from "./kma-prefetch-plan";
@@ -31,7 +25,7 @@ function makeQuery(results: Result[]) {
   const queue = [...results];
   const calls: { method: string; args: unknown[] }[] = [];
   const query: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "or", "range", "order"]) {
+  for (const method of ["select", "eq", "or", "range", "order", "limit"]) {
     query[method] = (...args: unknown[]) => {
       calls.push({ method, args });
       return query;
@@ -46,65 +40,85 @@ const items = [{ category: "T1H", obsrValue: "10" }];
 
 beforeEach(() => {
   getAdmin.mockReset();
-  getCloudflareContext.mockReset();
-  getCloudflareContext.mockImplementation(() => {
-    throw new Error("no cloudflare context");
-  });
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
-describe("readStoredForecast", () => {
-  it("한 번의 조회로 찾은 kind들을 돌려준다", async () => {
-    const { query, calls } = makeQuery([
-      {
-        data: [
-          { kind: "vilage", payload: items },
-          { kind: "ncst", payload: items },
-        ],
-        error: null,
-      },
+describe("readLatestForecast", () => {
+  const row = (kind: string, baseDate: string, baseTime: string, source = "prefetch") => ({
+    kind,
+    base_date: baseDate,
+    base_time: baseTime,
+    payload: items,
+    fetched_at: "2026-11-13T07:04:00Z",
+    source,
+  });
+
+  /** from() 호출 순서(단기예보→초단기실황→초단기예보)마다 다른 결과를 돌려준다 */
+  function threeQueries(results: Result[]) {
+    const made = results.map((r) => makeQuery([r]));
+    let i = 0;
+    getAdmin.mockReturnValue({ from: () => made[i++].query });
+    return made.map((m) => m.calls);
+  }
+
+  it("종류마다 기준일·기준시각 내림차순 1행을 읽어 기준시각과 출처까지 돌려준다", async () => {
+    const calls = threeQueries([
+      { data: [row("vilage", "20261113", "0500")], error: null },
+      { data: [row("ncst", "20261113", "1600", "manual")], error: null },
+      { data: [row("ufcst", "20261113", "1630")], error: null },
     ]);
-    getAdmin.mockReturnValue({ from: () => query });
 
-    const stored = await readStoredForecast({ nx: 60, ny: 127 }, bases);
+    const latest = await readLatestForecast({ nx: 60, ny: 127 });
 
-    expect(stored).toEqual({ vilage: items, ncst: items });
-    expect(calls.filter((c) => c.method === "or")).toHaveLength(1);
-  });
-
-  it("조회 조건에 현재 기준시각 세 종류가 모두 들어간다", async () => {
-    const { query, calls } = makeQuery([{ data: [], error: null }]);
-    getAdmin.mockReturnValue({ from: () => query });
-
-    await readStoredForecast({ nx: 60, ny: 127 }, bases);
-
-    const filter = String(calls.find((c) => c.method === "or")?.args[0]);
-    expect(filter).toContain(`base_date.eq.${bases.vilage.baseDate}`);
-    expect(filter).toContain(`base_time.eq.${bases.vilage.baseTime}`);
-    expect(filter).toContain(`base_time.eq.${bases.ncst.baseTime}`);
-    expect(filter).toContain(`base_time.eq.${bases.ufcst.baseTime}`);
-  });
-
-  it("payload가 배열이 아니면 그 kind는 없는 것으로 본다", async () => {
-    const { query } = makeQuery([{ data: [{ kind: "ncst", payload: "oops" }], error: null }]);
-    getAdmin.mockReturnValue({ from: () => query });
-
-    expect(await readStoredForecast({ nx: 1, ny: 1 }, bases)).toEqual({});
-  });
-
-  it("조회 오류면 빈 객체(던지지 않음)", async () => {
-    const { query } = makeQuery([{ data: null, error: { message: "relation does not exist" } }]);
-    getAdmin.mockReturnValue({ from: () => query });
-
-    expect(await readStoredForecast({ nx: 1, ny: 1 }, bases)).toEqual({});
-  });
-
-  it("서비스 키가 없어 클라이언트를 못 만들어도 빈 객체", async () => {
-    getAdmin.mockImplementation(() => {
-      throw new Error("no key");
+    expect(latest.vilage).toEqual({
+      kind: "vilage",
+      items,
+      base: { baseDate: "20261113", baseTime: "0500" },
+      fetchedAt: "2026-11-13T07:04:00Z",
+      source: "prefetch",
     });
+    expect(latest.ncst?.source).toBe("manual");
+    expect(latest.ufcst?.base).toEqual({ baseDate: "20261113", baseTime: "1630" });
+    expect(calls[0]).toContainEqual({ method: "eq", args: ["kind", "vilage"] });
+    expect(calls[1]).toContainEqual({ method: "eq", args: ["kind", "ncst"] });
+    expect(calls[0]).toContainEqual({ method: "order", args: ["base_date", { ascending: false }] });
+    expect(calls[0]).toContainEqual({ method: "order", args: ["base_time", { ascending: false }] });
+    expect(calls[0]).toContainEqual({ method: "limit", args: [1] });
+  });
 
-    expect(await readStoredForecast({ nx: 1, ny: 1 }, bases)).toEqual({});
+  it("행이 없는 종류는 결과에서 빠진다", async () => {
+    threeQueries([
+      { data: [], error: null },
+      { data: [row("ncst", "20261113", "1600")], error: null },
+      { data: [], error: null },
+    ]);
+    const latest = await readLatestForecast({ nx: 1, ny: 1 });
+    expect(Object.keys(latest)).toEqual(["ncst"]);
+  });
+
+  it("payload가 배열이 아닌 행은 없는 것으로 본다", async () => {
+    threeQueries([
+      { data: [{ ...row("vilage", "20261113", "0500"), payload: "oops" }], error: null },
+      { data: [], error: null },
+      { data: [], error: null },
+    ]);
+    expect(await readLatestForecast({ nx: 1, ny: 1 })).toEqual({});
+  });
+
+  it("DB 오류면 빈 객체(던지지 않음)", async () => {
+    threeQueries([
+      { data: null, error: { message: "relation does not exist" } },
+      { data: null, error: { message: "relation does not exist" } },
+      { data: null, error: { message: "relation does not exist" } },
+    ]);
+    expect(await readLatestForecast({ nx: 1, ny: 1 })).toEqual({});
+  });
+
+  it("클라이언트를 못 만들어도 빈 객체", async () => {
+    getAdmin.mockImplementation(() => {
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY 없음");
+    });
+    expect(await readLatestForecast({ nx: 1, ny: 1 })).toEqual({});
   });
 });
 
@@ -150,32 +164,6 @@ describe("saveForecast", () => {
     getAdmin.mockReturnValue({ from: () => ({ upsert: vi.fn().mockResolvedValue({ error: { message: "boom" } }) }) });
 
     await expect(saveForecast([row])).rejects.toThrow();
-  });
-});
-
-describe("saveForecastInBackground", () => {
-  it("저장이 실패해도 던지지 않는다", async () => {
-    getAdmin.mockReturnValue({ from: () => ({ upsert: vi.fn().mockRejectedValue(new Error("down")) }) });
-
-    expect(() =>
-      saveForecastInBackground([
-        { nx: 1, ny: 1, kind: "ncst", baseDate: "20261109", baseTime: "0900", items, source: "user" },
-      ]),
-    ).not.toThrow();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-
-  it("Cloudflare 컨텍스트가 있으면 waitUntil에 맡긴다", async () => {
-    const waitUntil = vi.fn();
-    getCloudflareContext.mockReturnValue({ ctx: { waitUntil } });
-    getAdmin.mockReturnValue({ from: () => ({ upsert: vi.fn().mockResolvedValue({ error: null }) }) });
-
-    saveForecastInBackground([
-      { nx: 1, ny: 1, kind: "ncst", baseDate: "20261109", baseTime: "0900", items, source: "user" },
-    ]);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(waitUntil).toHaveBeenCalledTimes(1);
   });
 });
 

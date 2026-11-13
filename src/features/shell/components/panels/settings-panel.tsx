@@ -26,7 +26,7 @@ function ToggleRow({ label, hint, isOn, onToggle }: ToggleRowProps) {
       <span className="min-w-0">
         <span className="block truncate text-[11px] text-slate-200">{label}</span>
         {hint ? (
-          <span className="block truncate text-[10px] text-slate-500">{hint}</span>
+          <span className="block truncate text-[11px] text-slate-500">{hint}</span>
         ) : null}
       </span>
       <span
@@ -137,7 +137,7 @@ export function SettingsPanel() {
         ) : null}
 
         {mode !== "equipment" ? (
-          <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
             지금 보고 있는 모드에는 클러스터가 적용되지 않는다. 지도에서 장비 세그먼트를 고르면 반영된다.
           </p>
         ) : null}

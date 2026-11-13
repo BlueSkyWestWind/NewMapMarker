@@ -1,6 +1,6 @@
 "use client";
 
-import { Wind } from "lucide-react";
+import { OctagonX, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TyphoonInfo } from "@/features/worksite-weather/types/weather";
 
@@ -20,16 +20,14 @@ export function TyphoonBanner({ typhoon, onOpenDetail }: TyphoonBannerProps) {
   return (
     <section className="rounded-lg border border-rose-500/60 bg-rose-950/60 px-3 py-2.5 text-rose-100 shadow-md">
       <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-xs font-bold text-rose-200">
-          <span className="text-sm" aria-hidden>
-            🌀
-          </span>
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold text-rose-200">
+          <Wind className="h-3.5 w-3.5" aria-hidden />
           태풍{typhoon.alertLevel} 발효
         </h3>
         <Button
           type="button"
           size="sm"
-          className="h-6 border border-rose-400/50 bg-rose-900/80 px-2 text-[10px] font-semibold text-white hover:bg-rose-800"
+          className="h-6 border border-rose-400/50 bg-rose-900/80 px-2 text-[11px] font-semibold text-white hover:bg-rose-800"
           onClick={onOpenDetail}
         >
           <Wind className="mr-1 h-3 w-3 text-rose-300" />
@@ -38,7 +36,7 @@ export function TyphoonBanner({ typhoon, onOpenDetail }: TyphoonBannerProps) {
       </div>
 
       {typhoon.detail ? (
-        <dl className="mt-1.5 space-y-0.5 text-[10px] leading-relaxed text-rose-200/90">
+        <dl className="mt-1.5 space-y-0.5 text-[11px] leading-relaxed text-rose-200/90">
           <div>
             제{typhoon.detail.number}호 태풍 {typhoon.detail.name}
           </div>
@@ -50,12 +48,15 @@ export function TyphoonBanner({ typhoon, onOpenDetail }: TyphoonBannerProps) {
           <div>예상 진로 {typhoon.detail.forecast}</div>
         </dl>
       ) : (
-        <p className="mt-1 text-[10px] leading-relaxed text-rose-200/90">
+        <p className="mt-1 text-[11px] leading-relaxed text-rose-200/90">
           {typhoon.region ? `${typhoon.region} · ` : ""}
           기상청 태풍 분석 진로도 및 통보문을 확인하세요.
         </p>
       )}
-      <p className="mt-1.5 text-[11px] font-semibold text-rose-300">⛔ 작업 연기 권고</p>
+      <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-rose-300">
+        <OctagonX className="h-3.5 w-3.5 shrink-0" />
+        작업 연기 권고
+      </p>
     </section>
   );
 }

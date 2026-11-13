@@ -301,7 +301,7 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
                         if (element) element.indeterminate = selectedCount > 0 && selectedCount < rows.length;
                       }}
                       onChange={toggleAll}
-                      className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                      className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
                     />
                   </th>
                 ) : null}
@@ -347,7 +347,7 @@ export function ScheduleArchiveView({ canEdit }: ScheduleArchiveViewProps) {
                           checked={selectedIds.has(id)}
                           disabled={isStale}
                           onChange={() => toggleRow(id)}
-                          className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                          className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
                         />
                       </td>
                     ) : null}

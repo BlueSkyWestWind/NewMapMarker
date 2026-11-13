@@ -2,13 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const readStoredForecast = vi.fn();
-const saveForecastInBackground = vi.fn();
+const readLatestForecast = vi.fn();
 vi.mock("./kma-forecast-store", () => ({
-  readStoredForecast: (...args: unknown[]) => readStoredForecast(...args),
-  saveForecastInBackground: (...args: unknown[]) => saveForecastInBackground(...args),
+  readLatestForecast: (...args: unknown[]) => readLatestForecast(...args),
 }));
 
+// 읽기 경로는 기상청을 부르지 않는다. 불리면 아래 목이 실패로 잡는다.
 const fetchVilageFcst = vi.fn();
 const fetchUltraSrtNcst = vi.fn();
 const fetchUltraSrtFcst = vi.fn();
@@ -18,95 +17,67 @@ vi.mock("./kma-client", () => ({
   fetchUltraSrtFcst: (...args: unknown[]) => fetchUltraSrtFcst(...args),
 }));
 
-import { loadForecastItems } from "./kma-forecast-source";
-import { currentBases } from "./kma-prefetch-plan";
+import { loadStoredForecast } from "./kma-forecast-source";
 
-const now = new Date("2026-11-09T01:20:00Z"); // KST 10:20
-const bases = currentBases(now);
+const grid = { nx: 60, ny: 127 };
 const items = [{ category: "T1H", obsrValue: "10" }];
-const liveItems = [{ category: "T1H", obsrValue: "99" }];
+
+function row(kind: "vilage" | "ncst" | "ufcst", baseDate: string, baseTime: string) {
+  return { kind, items, base: { baseDate, baseTime }, fetchedAt: "2026-11-13T07:04:00Z", source: "prefetch" as const };
+}
 
 beforeEach(() => {
-  readStoredForecast.mockReset();
-  saveForecastInBackground.mockReset();
+  readLatestForecast.mockReset();
   fetchVilageFcst.mockReset();
   fetchUltraSrtNcst.mockReset();
   fetchUltraSrtFcst.mockReset();
-  fetchVilageFcst.mockResolvedValue(liveItems);
-  fetchUltraSrtNcst.mockResolvedValue(liveItems);
-  fetchUltraSrtFcst.mockResolvedValue(liveItems);
 });
 
-describe("loadForecastItems", () => {
-  it("저장분이 세 kind 모두 있으면 기상청을 부르지 않는다", async () => {
-    readStoredForecast.mockResolvedValue({ vilage: items, ncst: items, ufcst: items });
+describe("loadStoredForecast", () => {
+  it("저장분이 모두 있으면 기상청을 한 번도 부르지 않고 items·기준시각·수집 정보를 돌려준다", async () => {
+    readLatestForecast.mockResolvedValue({
+      vilage: row("vilage", "20261113", "0500"),
+      ncst: row("ncst", "20261113", "1600"),
+      ufcst: row("ufcst", "20261113", "1630"),
+    });
 
-    const result = await loadForecastItems({ nx: 60, ny: 127, now });
+    const result = await loadStoredForecast(grid);
 
-    expect(result).toEqual({ vilage: items, ncst: items, ufcst: items });
+    expect(result.items).toEqual({ vilage: items, ncst: items, ufcst: items });
+    expect(result.bases.ncst).toEqual({ baseDate: "20261113", baseTime: "1600" });
+    expect(result.info.missing).toEqual([]);
+    expect(result.info.collectedBy).toBe("auto");
     expect(fetchVilageFcst).not.toHaveBeenCalled();
     expect(fetchUltraSrtNcst).not.toHaveBeenCalled();
     expect(fetchUltraSrtFcst).not.toHaveBeenCalled();
-    expect(saveForecastInBackground).not.toHaveBeenCalled();
+    expect(readLatestForecast).toHaveBeenCalledWith(grid);
   });
 
-  it("현재 기준시각으로 저장분을 찾는다", async () => {
-    readStoredForecast.mockResolvedValue({ vilage: items, ncst: items, ufcst: items });
+  it("저장분이 전혀 없으면 세 배열이 모두 비어 있고 missing이 세 종류다(기상청 호출 0건)", async () => {
+    readLatestForecast.mockResolvedValue({});
 
-    await loadForecastItems({ nx: 60, ny: 127, now });
+    const result = await loadStoredForecast(grid);
 
-    expect(readStoredForecast).toHaveBeenCalledWith({ nx: 60, ny: 127 }, bases);
-  });
-
-  it("빠진 kind만 실시간(사용자 출처)으로 받고, 받은 것만 채운다", async () => {
-    readStoredForecast.mockResolvedValue({ vilage: items, ufcst: items });
-
-    const result = await loadForecastItems({ nx: 60, ny: 127, now });
-
-    expect(result).toEqual({ vilage: items, ncst: liveItems, ufcst: items });
+    expect(result.items).toEqual({ vilage: [], ncst: [], ufcst: [] });
+    expect(result.info.missing).toEqual(["vilage", "ncst", "ufcst"]);
+    expect(result.bases).toEqual({});
     expect(fetchVilageFcst).not.toHaveBeenCalled();
-    expect(fetchUltraSrtNcst).toHaveBeenCalledWith(
-      { nx: 60, ny: 127, base: bases.ncst },
-      { source: "user" },
-    );
-    const rows = saveForecastInBackground.mock.calls[0][0];
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      nx: 60,
-      ny: 127,
-      kind: "ncst",
-      baseDate: bases.ncst.baseDate,
-      baseTime: bases.ncst.baseTime,
-      source: "user",
-      items: liveItems,
-    });
+    expect(fetchUltraSrtNcst).not.toHaveBeenCalled();
+    expect(fetchUltraSrtFcst).not.toHaveBeenCalled();
   });
 
-  it("실시간 결과가 비어 있으면 저장하지 않는다", async () => {
-    readStoredForecast.mockResolvedValue({ vilage: items, ufcst: items });
-    fetchUltraSrtNcst.mockResolvedValue([]);
+  it("기준시각이 지금 계산한 것과 달라도(어제 것) 쓴다", async () => {
+    readLatestForecast.mockResolvedValue({ vilage: row("vilage", "20261112", "2300") });
 
-    const result = await loadForecastItems({ nx: 60, ny: 127, now });
+    const result = await loadStoredForecast(grid);
 
-    expect(result.ncst).toEqual([]);
-    expect(saveForecastInBackground).not.toHaveBeenCalled();
+    expect(result.items.vilage).toEqual(items);
+    expect(result.bases.vilage).toEqual({ baseDate: "20261112", baseTime: "2300" });
+    expect(result.info.missing).toEqual(["ncst", "ufcst"]);
   });
 
-  it("단기예보 실시간이 실패하면 던진다", async () => {
-    readStoredForecast.mockResolvedValue({});
-    fetchVilageFcst.mockRejectedValue(new Error("kma down"));
-
-    await expect(loadForecastItems({ nx: 60, ny: 127, now })).rejects.toThrow("kma down");
-  });
-
-  it("초단기 실시간이 실패하면 빈 배열로 계속한다", async () => {
-    readStoredForecast.mockResolvedValue({ vilage: items });
-    fetchUltraSrtNcst.mockRejectedValue(new Error("x"));
-    fetchUltraSrtFcst.mockRejectedValue(new Error("y"));
-
-    const result = await loadForecastItems({ nx: 60, ny: 127, now });
-
-    expect(result).toEqual({ vilage: items, ncst: [], ufcst: [] });
-    expect(saveForecastInBackground).not.toHaveBeenCalled();
+  it("저장소 조회가 실패해도(빈 결과) 던지지 않는다", async () => {
+    readLatestForecast.mockResolvedValue({});
+    await expect(loadStoredForecast(grid)).resolves.toBeDefined();
   });
 });

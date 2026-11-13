@@ -156,15 +156,15 @@ export function AuthFormCard({ onSuccess, isModal = false }: AuthFormCardProps) 
     >
       <div className="flex flex-col items-center space-y-2 text-center">
         <div className="flex items-center justify-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md">
             <MapPin className="h-5 w-5" aria-hidden />
           </div>
           {isModal ? (
-            <DialogTitle className="text-2xl font-extrabold tracking-tight text-slate-100">
+            <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-100">
               MapMarker
             </DialogTitle>
           ) : (
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-100">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-100">
               MapMarker
             </h1>
           )}
@@ -199,7 +199,7 @@ export function AuthFormCard({ onSuccess, isModal = false }: AuthFormCardProps) 
               onKeyDown={handleKeyDown}
               autoComplete="email"
               placeholder="아이디 또는 이메일"
-              className="h-12 rounded-xl border-slate-700/90 bg-slate-950/70 px-4 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
+              className="h-12 rounded-lg border-slate-700/90 bg-slate-950/70 px-4 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
             />
           </div>
 
@@ -216,12 +216,12 @@ export function AuthFormCard({ onSuccess, isModal = false }: AuthFormCardProps) 
               onKeyDown={handleKeyDown}
               autoComplete="current-password"
               placeholder="비밀번호"
-              className="h-12 rounded-xl border-slate-700/90 bg-slate-950/70 pl-4 pr-14 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
+              className="h-12 rounded-lg border-slate-700/90 bg-slate-950/70 pl-4 pr-14 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded px-1.5 py-1 text-xs font-medium text-slate-400 transition-colors hover:text-slate-200"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-sm px-1.5 py-1 text-xs font-medium text-slate-400 transition-colors hover:text-slate-200"
             >
               {showPassword ? '숨김' : '표기'}
             </button>
@@ -264,7 +264,7 @@ export function AuthFormCard({ onSuccess, isModal = false }: AuthFormCardProps) 
               disabled={isSubmitting}
               onClick={handleSignIn}
               className={cn(
-                'h-12 w-full rounded-xl text-sm font-semibold transition-colors',
+                'h-12 w-full rounded-lg text-sm font-semibold transition-colors',
                 canSubmitLogin
                   ? 'bg-indigo-600 text-white hover:bg-indigo-500'
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200',
@@ -299,7 +299,7 @@ export function AuthFormCard({ onSuccess, isModal = false }: AuthFormCardProps) 
               onKeyDown={handleKeyDown}
               autoComplete="email"
               placeholder="가입한 이메일 주소"
-              className="h-12 rounded-xl border-slate-700/90 bg-slate-950/70 px-4 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
+              className="h-12 rounded-lg border-slate-700/90 bg-slate-950/70 px-4 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
             />
           </div>
 
@@ -308,7 +308,7 @@ export function AuthFormCard({ onSuccess, isModal = false }: AuthFormCardProps) 
             disabled={isSubmitting}
             onClick={handleResetPassword}
             className={cn(
-              'h-12 w-full rounded-xl text-sm font-semibold transition-colors',
+              'h-12 w-full rounded-lg text-sm font-semibold transition-colors',
               canSubmitReset
                 ? 'bg-indigo-600 text-white hover:bg-indigo-500'
                 : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200',

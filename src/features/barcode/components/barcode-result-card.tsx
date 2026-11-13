@@ -67,7 +67,7 @@ export function BarcodeResultCard({ value, size, photoUrl, onOpenPhoto }: Barcod
 
         <span
           className={cn(
-            "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+            "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
             isFifteen
               ? "border-amber-600/60 bg-amber-950/40 text-amber-300"
               : "border-slate-700 bg-slate-800 text-slate-400",

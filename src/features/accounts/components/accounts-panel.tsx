@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Activity, ClipboardList, Loader2, Plus, RefreshCw, Search, Users } from "lucide-react";
+import { Activity, ClipboardList, Loader2, Plus, RefreshCw, Search, TriangleAlert, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminUsers } from "../hooks/use-admin-users";
@@ -190,17 +190,17 @@ export function AccountsPanel() {
         ) : error ? (
           <div className="m-4 rounded-lg border border-amber-800/60 bg-amber-950/30 p-4 text-xs text-amber-200">
             <div className="flex items-center gap-2 font-semibold text-amber-300">
-              <span>⚠️ 데이터베이스 연결 설정 필요</span>
+              <span><TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />데이터베이스 연결 설정 필요</span>
             </div>
             <p className="mt-2 text-slate-300">
               Supabase 사용자 계정 관리(목록 조회·생성·삭제)는 보안 정책상 관리자 전용 시크릿 키가 필요합니다.
             </p>
-            <div className="mt-3 rounded bg-slate-950/80 p-3 font-mono text-[11px] text-slate-300 border border-slate-800 space-y-1.5">
+            <div className="mt-3 rounded-sm bg-slate-950/80 p-3 font-mono text-[11px] text-slate-300 border border-slate-800 space-y-1.5">
               <p className="text-slate-400 font-sans font-medium">설정 방법:</p>
               <p>1. Supabase 대시보드 → Project Settings → API 로 이동합니다.</p>
               <p>2. 화면에 표시된 <span className="text-amber-400">SUPABASE_SECRET_KEY</span> (또는 service_role) 값을 복사합니다.</p>
               <p>3. 로컬 프로젝트의 <span className="text-indigo-400">.env.local</span> 파일에 아래와 같이 추가합니다:</p>
-              <div className="rounded bg-slate-900 p-2 text-indigo-300 select-all">
+              <div className="rounded-sm bg-slate-900 p-2 text-indigo-300 select-all">
                 SUPABASE_SECRET_KEY=&lt;복사한_sb_secret_키&gt;
               </div>
               <p className="text-slate-400">4. 추가 후 개발 서버(npm run dev)를 재시작하고 상단의 [새로고침]을 누르세요.</p>

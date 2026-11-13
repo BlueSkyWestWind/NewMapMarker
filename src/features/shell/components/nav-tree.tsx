@@ -133,7 +133,7 @@ export function NavTree({ activeNav, segment, segmentCounts }: NavTreeProps) {
                           {count !== undefined ? (
                             <span
                               className={cn(
-                                "rounded-full px-1.5 py-0.5 text-[11px] font-bold",
+                                "rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
                                 isChildActive ? "bg-black/30" : "bg-slate-800",
                               )}
                             >

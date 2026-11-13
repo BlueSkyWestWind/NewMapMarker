@@ -72,7 +72,7 @@ export function MarkerEditModal() {
     <Dialog open={isEditOpen && isAuthenticated} onOpenChange={(open) => !open && closeAllModals()}>
       <DialogContent className="max-w-[95vw] md:max-w-[1000px] w-full bg-slate-900 border-slate-800 text-slate-100 p-6 overflow-hidden shadow-2xl rounded-2xl">
         <DialogHeader className="border-b border-slate-800 pb-4">
-          <DialogTitle className="text-lg font-bold text-slate-100 flex items-center justify-between">
+          <DialogTitle className="text-lg font-semibold text-slate-100 flex items-center justify-between">
             <span>{selectedMarkerId ? '마커 정보 수정' : '위치 마커 등록'}</span>
             {!isAuthenticated && (
               <span className="text-xs text-rose-400 font-normal flex items-center gap-1">
@@ -86,7 +86,7 @@ export function MarkerEditModal() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-4 max-h-[50vh] overflow-y-auto px-2">
           {/* 기본 입력 폼 */}
           <div className="space-y-4">
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">기본 마커 설정</h4>
+            <h4 className="text-xs font-medium text-slate-400">기본 마커 설정</h4>
             
             <div className="space-y-2">
               <Label htmlFor="marker-name" className="text-xs text-slate-300">장소 이름 *</Label>
@@ -168,7 +168,7 @@ export function MarkerEditModal() {
 
           {/* 상세 스펙 폼 (모드 분기) */}
           <div className="space-y-4">
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <h4 className="text-xs font-medium text-slate-400">
               {mode === 'equipment' ? '상세 장비 정보 (Supabase 연동)' : '축전지 다중 사양 편집'}
             </h4>
 

@@ -3,7 +3,7 @@ import { keepAlive } from "@/features/worksite-weather/lib/keep-alive";
 import { kstHourStartIso } from "@/features/worksite-weather/lib/kma-usage-stats";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
-export type UsageSource = "user" | "prefetch";
+export type UsageSource = "user" | "prefetch" | "manual";
 export type UsageProvider = "apihub" | "datago";
 
 interface RecordInput {

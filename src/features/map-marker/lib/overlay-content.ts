@@ -5,6 +5,7 @@ import type {
   MapMode,
   MarkerRecord,
 } from "@/features/map-marker/types/marker";
+import { formatDataInfoLabel } from "@/features/worksite-weather/lib/data-info-label";
 import { fetchWorksiteWeather } from "@/features/worksite-weather/lib/worksite-weather-api";
 import {
   VERDICT_ICON,
@@ -152,6 +153,7 @@ function renderWeatherBoxContent(
     ).values(),
   );
   const alertsText = alertItems.length > 0 ? alertItems.join(", ") : null;
+  const dataLabel = weather.dataInfo ? formatDataInfoLabel(weather.dataInfo, new Date()) : null;
 
   let slotText = "";
   if (currentSlot) {
@@ -172,7 +174,7 @@ function renderWeatherBoxContent(
 
     slotText = `
       <div class="rounded-lg bg-slate-900/90 p-2 border border-slate-700/70 shadow-inner space-y-1">
-        <div class="grid grid-cols-6 text-center text-[10px] font-semibold text-slate-400 pb-1 border-b border-slate-800">
+        <div class="grid grid-cols-6 text-center text-[11px] font-semibold text-slate-400 pb-1 border-b border-slate-800">
           <div>시각</div>
           <div>기온/체감</div>
           <div>습도</div>
@@ -181,10 +183,10 @@ function renderWeatherBoxContent(
           <div>판정</div>
         </div>
         <div class="grid grid-cols-6 text-center text-[11px] font-medium text-slate-100 items-center tabular-nums">
-          <div class="font-bold text-sky-300">${hourLabel}</div>
+          <div class="font-semibold text-sky-300">${hourLabel}</div>
           <div>${tempText}</div>
           <div>${humidityText}</div>
-          <div class="text-[10px]">${windText}</div>
+          <div class="text-[11px]">${windText}</div>
           <div>${rainText}</div>
           <div>${slotIcon}</div>
         </div>
@@ -197,18 +199,23 @@ function renderWeatherBoxContent(
   container.innerHTML = `
     ${slotText}
     <div class="rounded-lg border px-3 py-2 space-y-1.5 break-keep ${overallBg}">
-      <div class="flex items-center justify-between text-[11px] font-bold">
+      <div class="flex items-center justify-between text-[11px] font-semibold">
         <span class="flex items-center gap-1">${overallIcon} ${overallLabel}</span>
-        <span class="text-[10px] font-normal opacity-90">${escapeHtml(recText)}</span>
+        <span class="text-[11px] font-normal opacity-90">${escapeHtml(recText)}</span>
       </div>
       ${
         alertsText
-          ? `<div class="border-t border-slate-700/50 pt-1.5 text-[10px] leading-relaxed opacity-95 text-left break-keep">
+          ? `<div class="border-t border-slate-700/50 pt-1.5 text-[11px] leading-relaxed opacity-95 text-left break-keep">
               발효 특보: ${escapeHtml(alertsText)}
              </div>`
           : ""
       }
     </div>
+    ${
+      dataLabel
+        ? `<div class="text-[11px] ${dataLabel.isStale || dataLabel.isMissing ? "text-amber-300" : "text-slate-400"}">${escapeHtml(dataLabel.text)}</div>`
+        : ""
+    }
   `;
 }
 
@@ -276,7 +283,7 @@ export function createOverlayContent(
       .catch(() => {
         if (!isStillMounted()) return;
         weatherCard.innerHTML =
-          '<div class="text-[10px] text-slate-400 py-0.5">기상 정보를 불러오지 못했습니다.</div>';
+          '<div class="text-[11px] text-slate-400 py-0.5">기상 정보를 불러오지 못했습니다.</div>';
       });
   }
 
@@ -324,10 +331,10 @@ export function createOverlayContent(
       html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibun, mode))}</span>`;
     }
     if (road) {
-      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(road)}</span>`;
+      html += `<span class="jibun-addr text-[11px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(road)}</span>`;
     }
     if (markerAddr) {
-      html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(마커주소) ${escapeHtml(markerAddr)}</span>`;
+      html += `<span class="jibun-addr text-[11px] opacity-75" style="display: block; margin-top: 2px;">(마커주소) ${escapeHtml(markerAddr)}</span>`;
     }
     addressDiv.innerHTML = html;
   } else {
@@ -358,7 +365,7 @@ export function createOverlayContent(
               html += `<span class="road-addr font-medium">${escapeHtml(formatPrimaryAddress(jibunAddr, mode))}</span>`;
             }
             if (roadAddr) {
-              html += `<span class="jibun-addr text-[10px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
+              html += `<span class="jibun-addr text-[11px] opacity-75" style="display: block; margin-top: 2px;">(도로명) ${escapeHtml(roadAddr)}</span>`;
             }
             if (!roadAddr && !jibunAddr) {
               html = '<span class="road-addr">주소 없음</span>';
@@ -377,7 +384,7 @@ export function createOverlayContent(
     const bat = data as BatteryMarker;
     const specSummary = document.createElement("div");
     specSummary.className =
-      "text-[10px] text-emerald-400 mt-1 flex flex-col gap-0.5";
+      "text-[11px] text-emerald-400 mt-1 flex flex-col gap-0.5";
 
     if (bat.items && bat.items.length > 0) {
       const capGroups: { [key: number]: number } = {};
@@ -408,7 +415,7 @@ export function createOverlayContent(
 
     const teamSelectContainer = document.createElement("div");
     teamSelectContainer.className =
-      "flex items-center gap-1.5 mt-2 text-[10px] text-slate-300";
+      "flex items-center gap-1.5 mt-2 text-[11px] text-slate-300";
     teamSelectContainer.style.display = "flex";
     teamSelectContainer.style.alignItems = "center";
     teamSelectContainer.style.marginTop = "6px";
@@ -419,7 +426,7 @@ export function createOverlayContent(
 
     const select = document.createElement("select");
     select.className =
-      "bg-slate-800 text-slate-100 border border-slate-700 rounded px-1 py-0.5 text-[10px] focus:outline-none cursor-pointer";
+      "bg-slate-800 text-slate-100 border border-slate-700 rounded-sm px-1 py-0.5 text-[11px] focus:outline-none cursor-pointer";
     select.style.backgroundColor = "#1e293b";
     select.style.color = "#f1f5f9";
     select.style.border = "1px solid #334155";
@@ -675,7 +682,7 @@ export function createAddressLookupContent(params: {
   header.style.cssText =
     "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;";
   const title = document.createElement("span");
-  title.textContent = "📍 이 위치 주소";
+  title.textContent = "이 위치 주소";
   title.style.cssText = "font-weight:600;color:#f8fafc;";
   const closeBtn = document.createElement("span");
   closeBtn.textContent = "✕";

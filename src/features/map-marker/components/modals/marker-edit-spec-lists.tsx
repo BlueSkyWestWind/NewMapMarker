@@ -56,7 +56,7 @@ export function EquipmentSpecList({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-500">장비 사양 리스트</span>
+        <span className="text-[11px] text-slate-500">장비 사양 리스트</span>
         <Button
           type="button"
           onClick={onAdd}
@@ -84,11 +84,11 @@ export function EquipmentSpecList({
               </button>
             )}
 
-            <div className="text-[10px] font-bold text-slate-500">장비 #{idx + 1}</div>
+            <div className="text-[11px] font-semibold text-slate-500">장비 #{idx + 1}</div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">통합시설코드</Label>
+                <Label className="text-[11px] text-slate-400">통합시설코드</Label>
                 <Input
                   value={item.facilityCode}
                   onChange={(e) => onChange(item.id, "facilityCode", e.target.value)}
@@ -98,7 +98,7 @@ export function EquipmentSpecList({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">프로젝트코드</Label>
+                <Label className="text-[11px] text-slate-400">프로젝트코드</Label>
                 <Input
                   value={item.projectCode}
                   onChange={(e) => onChange(item.id, "projectCode", e.target.value)}
@@ -111,7 +111,7 @@ export function EquipmentSpecList({
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">시설연도</Label>
+                <Label className="text-[11px] text-slate-400">시설연도</Label>
                 <Input
                   value={item.facilityYear}
                   onChange={(e) => onChange(item.id, "facilityYear", e.target.value)}
@@ -121,7 +121,7 @@ export function EquipmentSpecList({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">사업구분</Label>
+                <Label className="text-[11px] text-slate-400">사업구분</Label>
                 <Input
                   value={item.businessType}
                   onChange={(e) => onChange(item.id, "businessType", e.target.value)}
@@ -133,7 +133,7 @@ export function EquipmentSpecList({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[10px] text-slate-400">국소명-최종</Label>
+              <Label className="text-[11px] text-slate-400">국소명-최종</Label>
               <Input
                 value={item.finalStationName}
                 onChange={(e) => onChange(item.id, "finalStationName", e.target.value)}
@@ -145,7 +145,7 @@ export function EquipmentSpecList({
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">장비분류</Label>
+                <Label className="text-[11px] text-slate-400">장비분류</Label>
                 <Input
                   value={item.eqClass}
                   onChange={(e) => onChange(item.id, "eqClass", e.target.value)}
@@ -155,7 +155,7 @@ export function EquipmentSpecList({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">장비타입</Label>
+                <Label className="text-[11px] text-slate-400">장비타입</Label>
                 <Input
                   value={item.eqType}
                   onChange={(e) => onChange(item.id, "eqType", e.target.value)}
@@ -168,7 +168,7 @@ export function EquipmentSpecList({
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">시설일</Label>
+                <Label className="text-[11px] text-slate-400">시설일</Label>
                 <DatePicker
                   value={item.installDate}
                   onChange={(val) => onChange(item.id, "installDate", val)}
@@ -180,7 +180,7 @@ export function EquipmentSpecList({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] text-slate-400">개통일</Label>
+                <Label className="text-[11px] text-slate-400">개통일</Label>
                 <DatePicker
                   value={item.openDate}
                   onChange={(val) => onChange(item.id, "openDate", val)}
@@ -209,7 +209,7 @@ export function BatterySpecList({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-500">배터리 사양 리스트</span>
+        <span className="text-[11px] text-slate-500">배터리 사양 리스트</span>
         <Button
           type="button"
           onClick={onAdd}
@@ -237,10 +237,10 @@ export function BatterySpecList({
               </button>
             )}
 
-            <div className="text-[10px] font-bold text-slate-500">사양 #{idx + 1}</div>
+            <div className="text-[11px] font-semibold text-slate-500">사양 #{idx + 1}</div>
 
             <div className="space-y-1">
-              <Label className="text-[9px] text-slate-400">ERP 통합시설코드/명칭</Label>
+              <Label className="text-[11px] text-slate-400">ERP 통합시설코드/명칭</Label>
               <Input
                 value={item.erpName}
                 onChange={(e) => onChange(item.id, "erpName", e.target.value)}
@@ -252,7 +252,7 @@ export function BatterySpecList({
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-[9px] text-slate-400">용량 (AH)</Label>
+                <Label className="text-[11px] text-slate-400">용량 (AH)</Label>
                 <Input
                   type="number"
                   value={item.capacity}
@@ -262,7 +262,7 @@ export function BatterySpecList({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[9px] text-slate-400">수량 (Cell)</Label>
+                <Label className="text-[11px] text-slate-400">수량 (Cell)</Label>
                 <Input
                   type="number"
                   value={item.quantity}
@@ -274,7 +274,7 @@ export function BatterySpecList({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[9px] text-slate-400">창고/국소/국사명</Label>
+              <Label className="text-[11px] text-slate-400">창고/국소/국사명</Label>
               <Input
                 value={item.stationName}
                 onChange={(e) => onChange(item.id, "stationName", e.target.value)}

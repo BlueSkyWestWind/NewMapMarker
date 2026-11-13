@@ -1,5 +1,6 @@
 "use client";
 
+import { TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CctvSurvey } from "@/features/cctv/types/cctv";
 
@@ -33,7 +34,7 @@ export function CctvSurveySummary({ survey }: CctvSurveySummaryProps) {
           수집 <span className="tabular-nums text-sky-300">{survey.total.toLocaleString()}</span>대
         </p>
         {survey.byRoadType.length > 0 ? (
-          <p className="mt-0.5 text-[10px] text-slate-400">
+          <p className="mt-0.5 text-[11px] text-slate-400">
             {survey.byRoadType
               .map((t) => `${t.label} ${t.count.toLocaleString()}대`)
               .join(" · ")}
@@ -44,7 +45,7 @@ export function CctvSurveySummary({ survey }: CctvSurveySummaryProps) {
       {/* 선결 확인 1 — roadsectionid 채움률 */}
       <div
         className={cn(
-          "rounded-md border px-2.5 py-2 text-[10px] leading-relaxed",
+          "rounded-md border px-2.5 py-2 text-[11px] leading-relaxed",
           VERDICT_TONE[survey.roadSectionVerdict],
         )}
       >
@@ -72,7 +73,7 @@ export function CctvSurveySummary({ survey }: CctvSurveySummaryProps) {
             <summary className="cursor-pointer opacity-90">
               실제 응답 필드 {survey.sampleFields.length}개 보기
             </summary>
-            <p className="mt-1 break-all font-mono text-[9px] opacity-80">
+            <p className="mt-1 break-all font-mono text-[11px] opacity-80">
               {survey.sampleFields.join(", ")}
             </p>
           </details>
@@ -82,7 +83,7 @@ export function CctvSurveySummary({ survey }: CctvSurveySummaryProps) {
       {/* 선결 확인 2 — 명칭 방향 표기 */}
       <div
         className={cn(
-          "rounded-md border px-2.5 py-2 text-[10px] leading-relaxed",
+          "rounded-md border px-2.5 py-2 text-[11px] leading-relaxed",
           survey.needsManualDirectionUi
             ? "border-orange-700/60 bg-orange-950/50 text-orange-200"
             : "border-slate-800 bg-slate-900/70 text-slate-300",
@@ -103,7 +104,7 @@ export function CctvSurveySummary({ survey }: CctvSurveySummaryProps) {
         </dl>
         {survey.needsManualDirectionUi ? (
           <p className="mt-1 font-semibold">
-            ⚠️ 30%를 넘습니다 — 수동 보정 화면을 계획에 포함해야 합니다
+            <TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />30%를 넘습니다 — 수동 보정 화면을 계획에 포함해야 합니다
           </p>
         ) : (
           <p className="mt-1 opacity-90">→ 파싱 자동화로 충분합니다</p>

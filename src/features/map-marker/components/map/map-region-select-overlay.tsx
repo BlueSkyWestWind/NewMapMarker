@@ -158,7 +158,7 @@ export function MapRegionSelectOverlay({
           <button
             type="button"
             data-region-select-action="true"
-            className="pointer-events-auto ml-3 rounded border border-sky-500 bg-sky-600/20 px-2 py-0.5 text-xs text-sky-200 hover:bg-sky-600/35"
+            className="pointer-events-auto ml-3 rounded-sm border border-sky-500 bg-sky-600/20 px-2 py-0.5 text-xs text-sky-200 hover:bg-sky-600/35"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={applySelection}
           >
@@ -168,7 +168,7 @@ export function MapRegionSelectOverlay({
         <button
           type="button"
           data-region-select-action="true"
-          className="pointer-events-auto ml-3 rounded border border-slate-600 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-800"
+          className="pointer-events-auto ml-3 rounded-sm border border-slate-600 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-800"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
             dragStartRef.current = null;

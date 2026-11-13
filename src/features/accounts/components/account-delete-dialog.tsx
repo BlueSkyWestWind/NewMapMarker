@@ -1,5 +1,6 @@
 "use client";
 
+import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,8 +51,8 @@ export function AccountDeleteDialog({
         </DialogHeader>
 
         <div className="py-2 text-xs text-slate-400 space-y-1.5">
-          <p className="rounded bg-rose-950/40 p-2.5 border border-rose-900/40 text-rose-300">
-            ⚠️ 계정을 삭제하면 로그인할 수 없으며, 부여된 관리자 권한도 함께 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+          <p className="rounded-sm bg-rose-950/40 p-2.5 border border-rose-900/40 text-rose-300">
+            <TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />계정을 삭제하면 로그인할 수 없으며, 부여된 관리자 권한도 함께 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
           </p>
         </div>
 

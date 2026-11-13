@@ -1,5 +1,6 @@
 "use client";
 
+import { OctagonX } from "lucide-react";
 import { useMemo, type DragEvent } from "react";
 import { cn } from "@/lib/utils";
 import { indexCells, positionKey, visibleRowCount } from "@/features/schedule/lib/cell-grid";
@@ -177,7 +178,7 @@ export function ScheduleGrid({
                         className="block truncate whitespace-nowrap text-[11px] font-semibold text-rose-300"
                         title={badge.title}
                       >
-                        {"⛔ "}
+                        <OctagonX aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                         {badge.reason} {badge.time}
                       </span>
                     ))}

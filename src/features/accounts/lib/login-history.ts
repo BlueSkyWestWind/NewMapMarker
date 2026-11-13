@@ -1,5 +1,26 @@
 import type { LoginEvent } from "../types";
 
+/** `public.login_history` 한 행(필요한 열만). */
+export interface LoginHistoryRow {
+  occurred_at: string;
+  action: string;
+  ip: string | null;
+  user_agent: string | null;
+}
+
+/** 테이블 행을 이벤트로 바꾼다. login·logout만 남기고 최근 순으로 돌려준다. */
+export function toLoginEvents(rows: readonly LoginHistoryRow[]): LoginEvent[] {
+  return rows
+    .filter((row) => row.action === "login" || row.action === "logout")
+    .map((row) => ({
+      at: row.occurred_at,
+      action: row.action as LoginEvent["action"],
+      ip: row.ip ?? null,
+      userAgent: row.user_agent ?? null,
+    }))
+    .sort((a, b) => b.at.localeCompare(a.at));
+}
+
 /** 접속 기록 요약(순수 함수): 날짜별·시간대별 로그인 횟수와 접속 IP. */
 
 export interface DaySummary {

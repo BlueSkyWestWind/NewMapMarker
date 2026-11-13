@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, GripHorizontal, Maximize2, Minimize2, RefreshCw, RotateCcw, ShieldAlert, Wind, X } from "lucide-react";
+import { AlertTriangle, ClipboardList, GripHorizontal, Maximize2, Minimize2, OctagonX, RefreshCw, RotateCcw, ShieldAlert, Wind, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TyphoonInfo } from "@/features/worksite-weather/types/weather";
 
@@ -193,7 +193,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
                 height: `${size.height}px`,
               }
         }
-        className="pointer-events-auto absolute flex flex-col rounded-xl border border-rose-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-md transition-shadow duration-150"
+        className="pointer-events-auto absolute flex flex-col rounded-lg border border-rose-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-md transition-shadow duration-150"
       >
         {/* 헤더 바 */}
         <div
@@ -205,17 +205,17 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
           <div className="flex items-center gap-2">
             <GripHorizontal className="h-4 w-4 text-rose-400" />
             <div className="flex h-7 w-7 items-center justify-center rounded-md border border-rose-500/40 bg-rose-900/40 text-rose-300">
-              <span className="text-base" aria-hidden>🌀</span>
+              <Wind className="h-4 w-4" aria-hidden />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-rose-100 flex items-center gap-2">
+              <h3 className="text-xs font-semibold text-rose-100 flex items-center gap-2">
                 기상청 실시간 태풍 기상 정보
                 {typhoon ? (
-                  <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="rounded-sm bg-rose-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
                     태풍{typhoon.alertLevel} 발효
                   </span>
                 ) : (
-                  <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">
+                  <span className="rounded-sm bg-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300">
                     실시간 태풍 감시
                   </span>
                 )}
@@ -288,7 +288,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
               }`}
               onClick={() => setActiveTab("windy")}
             >
-              🌐 Windy 실시간 태풍/바람 추적
+              Windy 실시간 태풍/바람 추적
             </Button>
 
             <Button
@@ -302,7 +302,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
               }`}
               onClick={() => setActiveTab("typ_map")}
             >
-              🌀 기상청 태풍 진로도
+              기상청 태풍 진로도
             </Button>
 
             <Button
@@ -316,7 +316,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
               }`}
               onClick={() => setActiveTab("typ_info")}
             >
-              📊 태풍 상세 통보문
+              태풍 상세 통보문
             </Button>
 
             <Button
@@ -330,7 +330,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
               }`}
               onClick={() => setActiveTab("safety_guide")}
             >
-              🛡️ 태풍 작업 안전수칙
+              태풍 작업 안전수칙
             </Button>
           </div>
 
@@ -344,7 +344,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
             }
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 px-1.5 text-[10px] text-rose-300 hover:underline"
+            className="flex items-center gap-1 px-1.5 text-[11px] text-rose-300 hover:underline"
           >
             {activeTab === "windy" ? "Windy 원본 ↗" : "기상청 원본 ↗"}
           </a>
@@ -360,7 +360,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
             <iframe
               key={`windy-${refreshKey}`}
               src={getWindyUrl()}
-              className="h-full w-full rounded border-0"
+              className="h-full w-full rounded-sm border-0"
               title="Windy 실시간 태풍 및 바람 회오리 추적 지도"
               allow="geolocation"
             />
@@ -368,7 +368,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
             <iframe
               key={`typ-map-${refreshKey}`}
               src={getSourceUrl()}
-              className="h-full w-full border-0 rounded"
+              className="h-full w-full border-0 rounded-sm"
               title="기상청 실시간 태풍 진로도"
               sandbox="allow-scripts allow-same-origin allow-popups"
             />
@@ -385,12 +385,12 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
                     {typhoon.detail.name}
                   </p>
                   <ul className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-slate-200 lg:grid-cols-3">
-                    <li>📍 위치: {typhoon.detail.position}</li>
-                    <li>💨 중심기압: {typhoon.detail.pressureHpa ?? "-"} hPa</li>
-                    <li>🌪️ 최대풍속: {typhoon.detail.maxWindMs ?? "-"} m/s</li>
-                    <li>🧭 진로: {typhoon.detail.forecast}</li>
-                    <li>📢 특보지역: {typhoon.region || "전국 태풍 영향권"}</li>
-                    <li>🕒 발령: {typhoon.issuedAt || "현재 유효"}</li>
+                    <li>위치: {typhoon.detail.position}</li>
+                    <li>중심기압: {typhoon.detail.pressureHpa ?? "-"} hPa</li>
+                    <li>최대풍속: {typhoon.detail.maxWindMs ?? "-"} m/s</li>
+                    <li>진로: {typhoon.detail.forecast}</li>
+                    <li>특보지역: {typhoon.region || "전국 태풍 영향권"}</li>
+                    <li>발령: {typhoon.issuedAt || "현재 유효"}</li>
                   </ul>
                 </div>
               ) : null}
@@ -398,35 +398,35 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
               <iframe
                 key={`typ-info-${refreshKey}`}
                 src={KMA_HAZARD_TYPHOON_URL}
-                className="min-h-0 w-full flex-1 rounded border-0"
+                className="min-h-0 w-full flex-1 rounded-sm border-0"
                 title="기상청 날씨누리 태풍정보"
                 sandbox="allow-scripts allow-same-origin allow-popups"
               />
             </div>
           ) : (
-            <div className="h-full overflow-y-auto rounded border border-amber-800/40 bg-slate-900/90 p-4 space-y-3 text-xs text-amber-100">
-              <h4 className="flex items-center gap-2 text-sm font-bold text-amber-300 border-b border-amber-800/60 pb-2">
+            <div className="h-full overflow-y-auto rounded-sm border border-amber-800/40 bg-slate-900/90 p-4 space-y-3 text-xs text-amber-100">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-amber-300 border-b border-amber-800/60 pb-2">
                 <ShieldAlert className="h-4 w-4 text-amber-400" />
                 태풍 내습 시 현장 작업 안전 수칙 (TBM 가이드)
               </h4>
 
               <div className="space-y-2 text-xs text-slate-200 leading-relaxed">
-                <div className="rounded border border-red-800/60 bg-red-950/50 p-2.5">
-                  <p className="font-bold text-red-200 text-xs">⛔ 1. 옥상 · 고소 · 철탑 작업 전면 중지</p>
+                <div className="rounded-sm border border-red-800/60 bg-red-950/50 p-2.5">
+                  <p className="flex items-center gap-1.5 font-semibold text-red-200 text-xs"><OctagonX className="h-3.5 w-3.5 shrink-0" />1. 옥상 · 고소 · 철탑 작업 전면 중지</p>
                   <p className="mt-0.5 text-[11px] text-red-300/90">
                     태풍 주의보/경보 및 강풍 특보 시 옥상, 철탑, 고소작업대에서의 제반 작업을 즉시 중지하고 안전 지역으로 대피합니다.
                   </p>
                 </div>
 
-                <div className="rounded border border-amber-800/60 bg-amber-950/50 p-2.5">
-                  <p className="font-bold text-amber-200 text-xs">⚠️ 2. 옥외 전선 및 침수 위험 지역 점검</p>
+                <div className="rounded-sm border border-amber-800/60 bg-amber-950/50 p-2.5">
+                  <p className="flex items-center gap-1.5 font-semibold text-amber-200 text-xs"><AlertTriangle className="h-3.5 w-3.5 shrink-0" />2. 옥외 전선 및 침수 위험 지역 점검</p>
                   <p className="mt-0.5 text-[11px] text-amber-300/90">
                     강우 및 누수로 인한 감전 사고 방지를 위해 전원 차단 상태를 점검하고, 지하/지상 전력설비 침수 대비 방수조치를 시행합니다.
                   </p>
                 </div>
 
-                <div className="rounded border border-sky-800/60 bg-sky-950/50 p-2.5">
-                  <p className="font-bold text-sky-200 text-xs">📋 3. 작업 전 TBM 엑셀 출력 및 안전교육 실시</p>
+                <div className="rounded-sm border border-sky-800/60 bg-sky-950/50 p-2.5">
+                  <p className="flex items-center gap-1.5 font-semibold text-sky-200 text-xs"><ClipboardList className="h-3.5 w-3.5 shrink-0" />3. 작업 전 TBM 엑셀 출력 및 안전교육 실시</p>
                   <p className="mt-0.5 text-[11px] text-sky-300/90">
                     당일 기상 상황을 TBM 엑셀 서식으로 출력하여 현장 작업자들에게 공유하고 비상 연락망을 재확인합니다.
                   </p>
@@ -437,7 +437,7 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
         </div>
 
         {/* 푸터 */}
-        <div className="relative flex items-center justify-between border-t border-rose-900/60 bg-rose-950/80 px-2.5 py-1 text-[10px] text-rose-200">
+        <div className="relative flex items-center justify-between border-t border-rose-900/60 bg-rose-950/80 px-2.5 py-1 text-[11px] text-rose-200">
           <span className="flex items-center gap-1.5">
             <AlertTriangle className="h-3 w-3 text-rose-400 animate-pulse" />
             기상청(KMA) 실시간 태풍 통보문 및 실황 데이터 연동

@@ -93,7 +93,7 @@ export function BarcodeLookupPanel({ onUse }: BarcodeLookupPanelProps) {
                 }}
               />
             </div>
-            <p className="font-mono text-[10px] text-slate-500">{status}</p>
+            <p className="font-mono text-[11px] text-slate-500">{status}</p>
 
             <input
               type="text"
@@ -126,7 +126,7 @@ export function BarcodeLookupPanel({ onUse }: BarcodeLookupPanelProps) {
                             <p className="truncate text-[11px] text-slate-300">
                               {name || "(품명 없음)"}
                             </p>
-                            <p className="truncate font-mono text-[10px] text-slate-500">
+                            <p className="truncate font-mono text-[11px] text-slate-500">
                               {materialCode ? `자재코드 ${materialCode} · ` : ""}
                               바코드{" "}
                               <strong className="font-semibold text-emerald-400">
@@ -138,7 +138,7 @@ export function BarcodeLookupPanel({ onUse }: BarcodeLookupPanelProps) {
                             <Button
                               type="button"
                               size="sm"
-                              className="h-6 shrink-0 text-[10px]"
+                              className="h-6 shrink-0 text-[11px]"
                               onClick={() => use(barcode)}
                             >
                               {usedBarcode === barcode ? "추가됨" : "이 값 사용"}
@@ -148,7 +148,7 @@ export function BarcodeLookupPanel({ onUse }: BarcodeLookupPanelProps) {
                       );
                     })}
                     {matches.length > MAX_RESULTS ? (
-                      <p className="px-1 py-1 text-[10px] text-slate-500">
+                      <p className="px-1 py-1 text-[11px] text-slate-500">
                         조각을 더 입력하면 후보가 좁혀져요 ({matches.length}건 중 {MAX_RESULTS}건
                         표시).
                       </p>

@@ -83,7 +83,7 @@ export function ErpChangesDialog({
         </div>
 
         {nothingToApply ? (
-          <div className="rounded border border-emerald-500/30 bg-emerald-500/5 px-4 py-6 text-center">
+          <div className="rounded-sm border border-emerald-500/30 bg-emerald-500/5 px-4 py-6 text-center">
             <p className="text-sm font-medium text-emerald-200">바뀌는 내용이 없습니다</p>
             <p className="mt-1 text-xs text-slate-400">
               파일의 {rows.length}건이 DB의 현재 값(국소명·프로젝트코드·사업연도·사업구분·장비타입·시설일·개통일)과
@@ -93,7 +93,7 @@ export function ErpChangesDialog({
         ) : null}
 
         <div
-          className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded border border-slate-800 ${
+          className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-sm border border-slate-800 ${
             nothingToApply ? "hidden" : ""
           }`}
         >

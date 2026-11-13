@@ -50,7 +50,7 @@ export function BarcodePanel() {
 
       <BarcodeLookupPanel onUse={(barcode) => appendAndGenerate([barcode])} />
 
-      <p className="border-t border-slate-800 pt-2 text-[10px] leading-relaxed text-slate-500">
+      <p className="border-t border-slate-800 pt-2 text-[11px] leading-relaxed text-slate-500">
         생성된 QR 코드는 오른쪽 화면에 표시됩니다.
       </p>
     </div>

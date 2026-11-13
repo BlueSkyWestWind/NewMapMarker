@@ -501,7 +501,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
                         return next;
                       })
                     }
-                    className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 accent-indigo-500"
+                    className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
                   />
                   <span>{column.teamLabel}</span>
                 </label>

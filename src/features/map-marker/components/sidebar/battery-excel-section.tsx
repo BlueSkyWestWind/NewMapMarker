@@ -85,18 +85,18 @@ export function BatteryExcelSection() {
             </Button>
           </div>
 
-          <div className="mt-2.5 max-h-48 overflow-y-auto rounded border border-amber-500/20 bg-amber-950/20 divide-y divide-amber-500/10">
+          <div className="mt-2.5 max-h-48 overflow-y-auto rounded-sm border border-amber-500/20 bg-amber-950/20 divide-y divide-amber-500/10">
             {pendingMarkers
               .filter((m) => m.isPending)
               .map((marker) => (
-                <div key={marker.id} className="p-1.5 flex items-center justify-between gap-1 text-[10px]">
+                <div key={marker.id} className="p-1.5 flex items-center justify-between gap-1 text-[11px]">
                   <div
                     className="flex-1 min-w-0 cursor-pointer hover:text-amber-300"
                     onClick={() => useMapMarkerStore.getState().setSelectedMarkerId(marker.id)}
                     title="지도로 위치 확인"
                   >
                     <p className="font-semibold truncate text-amber-200">{marker.name || '이름 없음'}</p>
-                    <p className="text-slate-400 truncate text-[9px]">
+                    <p className="text-slate-400 truncate text-[11px]">
                       {(marker as BatteryMarker).address || `${marker.lat.toFixed(5)}, ${marker.lng.toFixed(5)}`}
                     </p>
                   </div>

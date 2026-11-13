@@ -36,7 +36,7 @@ export function HazardSummaryList({ summary }: HazardSummaryListProps) {
               <span className="font-semibold text-slate-200">{label}</span>
               <span className="tabular-nums text-slate-400">{peak}</span>
             </div>
-            <p className="mt-0.5 pl-5 text-[10px] leading-relaxed text-slate-400">
+            <p className="mt-0.5 pl-5 text-[11px] leading-relaxed text-slate-400">
               {entry.note}
             </p>
           </li>

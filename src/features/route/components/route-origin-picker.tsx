@@ -102,7 +102,7 @@ export function RouteOriginPicker() {
           </div>
         </div>
       ) : (
-        <p className="text-[10px] text-slate-500">출발지를 지정하세요.</p>
+        <p className="text-[11px] text-slate-500">출발지를 지정하세요.</p>
       )}
 
       {savedOrigins.length > 0 ? (
@@ -110,7 +110,7 @@ export function RouteOriginPicker() {
           {savedOrigins.map((saved) => (
             <span
               key={saved.routePointId}
-              className="flex items-center gap-1 rounded-full border border-amber-600/40 bg-amber-950/30 py-0.5 pl-2 pr-1 text-[10px] text-amber-200"
+              className="flex items-center gap-1 rounded-full border border-amber-600/40 bg-amber-950/30 py-0.5 pl-2 pr-1 text-[11px] text-amber-200"
             >
               <button
                 type="button"
@@ -159,7 +159,7 @@ export function RouteOriginPicker() {
           <Search className="h-3 w-3" aria-hidden />
         </Button>
       </div>
-      {addressError ? <p className="text-[10px] text-rose-400">{addressError}</p> : null}
+      {addressError ? <p className="text-[11px] text-rose-400">{addressError}</p> : null}
 
       <div className="grid grid-cols-2 gap-1.5">
         <Button
@@ -185,7 +185,7 @@ export function RouteOriginPicker() {
       </div>
 
       {pickTarget === "origin" ? (
-        <p className="text-[10px] text-sky-400">지도에서 마커를 클릭해 출발지로 지정하세요.</p>
+        <p className="text-[11px] text-sky-400">지도에서 마커를 클릭해 출발지로 지정하세요.</p>
       ) : null}
 
       {isListOpen ? (
@@ -198,13 +198,13 @@ export function RouteOriginPicker() {
           />
           <div className="max-h-40 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="px-1 py-1 text-[10px] text-slate-500">검색 결과가 없습니다.</p>
+              <p className="px-1 py-1 text-[11px] text-slate-500">검색 결과가 없습니다.</p>
             ) : (
               filtered.map((marker) => (
                 <button
                   key={marker.id}
                   type="button"
-                  className="block w-full truncate rounded px-1.5 py-1 text-left text-[11px] text-slate-200 hover:bg-slate-800"
+                  className="block w-full truncate rounded-sm px-1.5 py-1 text-left text-[11px] text-slate-200 hover:bg-slate-800"
                   onClick={() => handlePick(marker)}
                 >
                   {marker.name}

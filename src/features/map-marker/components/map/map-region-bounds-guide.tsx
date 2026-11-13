@@ -334,7 +334,7 @@ export function MapRegionBoundsGuide({
         <>
           <button
             type="button"
-            className="pointer-events-auto absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-move rounded border border-amber-300 bg-slate-900/90 px-2 py-1 text-[10px] font-semibold text-amber-200 shadow-lg"
+            className="pointer-events-auto absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-move rounded-sm border border-amber-300 bg-slate-900/90 px-2 py-1 text-[11px] font-semibold text-amber-200 shadow-lg"
             style={{
               left: moveHandleLeft,
               top: moveHandleTop,
@@ -380,12 +380,12 @@ export function MapRegionBoundsGuide({
               : "absolute border-2 border-sky-400/90 bg-sky-400/15 transition-colors";
 
         const badgeClassName = isExcluded
-          ? "absolute left-1 top-1 rounded bg-slate-700/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300 line-through"
+          ? "absolute left-1 top-1 rounded-sm bg-slate-700/90 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 line-through"
           : isNext
-            ? "absolute left-1 top-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-950"
+            ? "absolute left-1 top-1 rounded-sm bg-amber-500/90 px-1.5 py-0.5 text-[11px] font-semibold text-slate-950"
             : isCaptured
-              ? "absolute left-1 top-1 rounded bg-emerald-600/90 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-              : "absolute left-1 top-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] font-semibold text-sky-100";
+              ? "absolute left-1 top-1 rounded-sm bg-emerald-600/90 px-1.5 py-0.5 text-[11px] font-semibold text-white"
+              : "absolute left-1 top-1 rounded-sm bg-slate-900/70 px-1.5 py-0.5 text-[11px] font-semibold text-sky-100";
 
         return (
           <div
@@ -426,7 +426,7 @@ export function MapRegionBoundsGuide({
               {cell.label}
             </button>
             {isExcluded ? (
-              <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-slate-400/60">
+              <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-slate-400/60">
                 ✕
               </span>
             ) : null}

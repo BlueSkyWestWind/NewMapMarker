@@ -157,7 +157,7 @@ function BulkForm({
           <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto rounded-md border border-slate-800 p-1.5">
             {cells.map((cell) => (
               <li key={cell.id}>
-                <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-slate-800/60">
+                <label className="flex cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1 hover:bg-slate-800/60">
                   <input
                     type="checkbox"
                     checked={selected.has(cell.id)}

@@ -10,7 +10,7 @@ export interface UsageRow {
   hourKst: string;
   provider: string;
   operation: string;
-  source: "user" | "prefetch";
+  source: "user" | "prefetch" | "manual";
   calls: number;
   errors: number;
 }
@@ -19,6 +19,8 @@ export interface HourUsage {
   hour: number;
   user: number;
   prefetch: number;
+  /** [현재 데이터로 갱신] 버튼이 받은 호출 */
+  manual: number;
   errors: number;
 }
 
@@ -26,6 +28,7 @@ export interface DayUsage {
   date: string;
   user: number;
   prefetch: number;
+  manual: number;
   total: number;
   errors: number;
 }
@@ -73,6 +76,7 @@ export function buildTodayHours(rows: UsageRow[], todayKey: string): HourUsage[]
     hour,
     user: 0,
     prefetch: 0,
+    manual: 0,
     errors: 0,
   }));
 
@@ -81,6 +85,7 @@ export function buildTodayHours(rows: UsageRow[], todayKey: string): HourUsage[]
     if (date !== todayKey) continue;
     const slot = hours[hour];
     if (r.source === "prefetch") slot.prefetch += r.calls;
+    else if (r.source === "manual") slot.manual += r.calls;
     else slot.user += r.calls;
     slot.errors += r.errors;
   }
@@ -96,6 +101,7 @@ export function buildDailyTotals(rows: UsageRow[], todayKey: string, days: numbe
       date: kstFields(todayMs - i * DAY_MS).date,
       user: 0,
       prefetch: 0,
+      manual: 0,
       total: 0,
       errors: 0,
     });
@@ -106,6 +112,7 @@ export function buildDailyTotals(rows: UsageRow[], todayKey: string, days: numbe
     const day = byDate.get(kstDateKey(r.hourKst));
     if (!day) continue;
     if (r.source === "prefetch") day.prefetch += r.calls;
+    else if (r.source === "manual") day.manual += r.calls;
     else day.user += r.calls;
     day.total += r.calls;
     day.errors += r.errors;
@@ -128,7 +135,18 @@ export function buildUsageReport(rows: UsageRow[], now: Date, limit: number): Km
   const todayKey = kstDateKey(now.toISOString());
   const hours = buildTodayHours(rows, todayKey);
   const days = buildDailyTotals(rows, todayKey, 7);
-  const todayTotal = hours.reduce((sum, h) => sum + h.user + h.prefetch, 0);
+  const todayTotal = hours.reduce((sum, h) => sum + h.user + h.prefetch + h.manual, 0);
   const ratio = usageRatio(todayTotal, limit);
   return { available: true, limit, todayTotal, ratio, warn: isOverWarn(ratio), hours, days };
+}
+
+/**
+ * 자동 수집이 돌고 있어야 할 시간(KST 07:30~17:59)인데 오늘 `prefetch` 호출이 0건인가.
+ * 수집 설정(vault 토큰·주소, pg_net)이 안 끝난 신호다. 수집 시간대 밖에서는 판단하지 않는다.
+ */
+export function isPrefetchStalled(todayHours: HourUsage[], now: Date): boolean {
+  const kst = new Date(now.getTime() + KST_OFFSET_MS);
+  const minutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  const inWindow = minutes >= 7 * 60 + 30 && kst.getUTCHours() < 18;
+  return inWindow && todayHours.every((h) => h.prefetch === 0);
 }

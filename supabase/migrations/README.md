@@ -16,6 +16,7 @@ Supabase 대시보드 → **SQL Editor** 에서 아래 파일을 **번호 순서
 20261116000100_kma_api_usage.sql
 20261116000200_kma_forecast_cache.sql
 20261116000300_kma_prefetch_cron.sql   ← pg_cron·pg_net·Secret·vault 준비 후(파일 머리말 참고)
+20261118000000_kma_manual_source.sql   ← 3단계: source 에 manual 허용(갱신 버튼의 저장·집계)
 ```
 
 - **이미 운영 중인 DB에는 `01`~`04`를 다시 실행하지 않는다.** 이미 적용된 내용이고, 일부는 다시 실행하면 안 된다
@@ -52,6 +53,8 @@ Supabase 대시보드 → **SQL Editor** 에서 아래 파일을 **번호 순서
 | `20261116000100_kma_api_usage.sql` | — | 기상청 호출 횟수를 시간대별로 집계(`kma_api_usage`·`record_kma_call()`). 읽기는 관리자만 |
 | `20261116000200_kma_forecast_cache.sql` | — | 기상청 예보를 기준시각별로 저장(`kma_forecast_cache`, 서비스 키 전용). 적용 전에도 날씨는 실시간으로 동작 |
 | `20261116000300_kma_prefetch_cron.sql` | — | `pg_cron`으로 KST 07~17시 사전 수집 + 매일 정리. 파일 머리말의 준비 사항 필요 |
+| `20261118000000_kma_manual_source.sql` | — | 3단계: 예보 저장소·호출 집계의 `source`에 `manual` 허용(현재 데이터로 갱신 버튼). 적용 전에는 갱신 결과의 저장만 실패 |
+| `20261119000000_login_history.sql` | — | 접속 기록 테이블 `login_history`와 `auth.sessions` 트리거(로그인·로그아웃·IP·브라우저), 기존 세션 백필, 1년 보관 cron. 적용 전에는 접속 기록 창이 "아직 없습니다"로 보인다 |
 
 세부 사유(예: 칸 맞바꾸기 409 원인, 미시설 필수 사유)는 각 구간의 원본 주석에 그대로 남아 있다.
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, Video } from "lucide-react";
+import { RefreshCw, TriangleAlert, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
@@ -51,7 +51,7 @@ export function CctvPanel() {
 
   return (
     <div className="space-y-2.5 pb-1">
-      <div className="rounded-md border border-slate-800 bg-slate-900/60 px-2.5 py-2 text-[10px] leading-relaxed text-slate-400">
+      <div className="rounded-md border border-slate-800 bg-slate-900/60 px-2.5 py-2 text-[11px] leading-relaxed text-slate-400">
         ITS 국가교통정보센터 공공 CCTV를 조회합니다. 조회 범위는 광주·전남 경계상자
         ({TARGET_SGG_COUNT}개 시군구 포함)이며, 사각형이라 인접 지역이 일부 섞입니다.
       </div>
@@ -98,7 +98,7 @@ export function CctvPanel() {
       </Button>
 
       {error ? (
-        <p className="text-[10px] leading-relaxed text-rose-400">
+        <p className="text-[11px] leading-relaxed text-rose-400">
           {error instanceof Error ? error.message : "CCTV 정보를 가져오지 못했습니다."}
         </p>
       ) : null}
@@ -106,17 +106,17 @@ export function CctvPanel() {
       {data ? (
         <>
           {data.items.length > 0 ? (
-            <p className="rounded-md border border-teal-800/50 bg-teal-950/40 px-2.5 py-2 text-[10px] leading-relaxed text-teal-200">
+            <p className="rounded-md border border-teal-800/50 bg-teal-950/40 px-2.5 py-2 text-[11px] leading-relaxed text-teal-200">
               지도에 <span className="font-semibold">{data.items.length.toLocaleString()}대</span>{" "}
               표시 중 · 마커 클릭 시 영상, 우하단 버튼으로 CCTV·마커 각각 켜고 끄기
             </p>
           ) : (
-            <p className="text-[10px] text-slate-500">조회된 CCTV가 없습니다.</p>
+            <p className="text-[11px] text-slate-500">조회된 CCTV가 없습니다.</p>
           )}
 
           {data.warnings.map((warning) => (
-            <p key={warning} className="text-[10px] leading-relaxed text-amber-400">
-              ⚠️ {warning}
+            <p key={warning} className="text-[11px] leading-relaxed text-amber-400">
+              <TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />{warning}
             </p>
           ))}
 
@@ -125,17 +125,17 @@ export function CctvPanel() {
             표준노드링크 갱신·ITS 스펙 변경 때 다시 봐야 하므로 접어서 남겨 둔다.
           */}
           <details className="rounded-md border border-slate-800 bg-slate-900/60">
-            <summary className="cursor-pointer px-2.5 py-1.5 text-[10px] text-slate-400 hover:text-slate-200">
+            <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-slate-400 hover:text-slate-200">
               사전조사 결과 (계획서 §10) 보기
             </summary>
             <div className="space-y-2 px-2 pb-2">
               <CctvSurveySummary survey={data.survey} />
-              <p className="text-[10px] leading-relaxed text-slate-500">⚠️ {data.notice}</p>
+              <p className="text-[11px] leading-relaxed text-slate-500"><TriangleAlert aria-hidden className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />{data.notice}</p>
             </div>
           </details>
         </>
       ) : (
-        <p className="text-[10px] leading-relaxed text-slate-500">
+        <p className="text-[11px] leading-relaxed text-slate-500">
           링크 매핑·시군구 귀속은 표준노드링크와 행정경계 데이터가 필요해 아직 제공하지 않습니다.
         </p>
       )}

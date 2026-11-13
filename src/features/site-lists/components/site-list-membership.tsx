@@ -10,7 +10,7 @@ export function SiteListMembership({ markerId }: { markerId: string }) {
   if (memberships.length === 0) return null;
 
   return (
-    <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-900/40 px-4 py-2.5">
+    <div className="mt-4 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-2.5">
       <p className="mb-1.5 text-xs font-semibold text-slate-300">소속 목록</p>
       <ul className="flex flex-wrap gap-1.5">
         {memberships.map((list) => (

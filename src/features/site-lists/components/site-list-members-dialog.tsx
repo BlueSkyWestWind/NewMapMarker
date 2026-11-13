@@ -142,7 +142,7 @@ export function SiteListMembersDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[90vh] w-[min(640px,95vw)] max-w-none flex-col gap-3 overflow-hidden border-slate-700 bg-slate-950 text-slate-100">
-        <DialogTitle className="flex items-center gap-2 text-base font-bold">
+        <DialogTitle className="flex items-center gap-2 text-base font-semibold">
           <span
             className="h-3 w-3 shrink-0 rounded-full"
             style={{ backgroundColor: list.color }}

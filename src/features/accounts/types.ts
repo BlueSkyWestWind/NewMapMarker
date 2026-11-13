@@ -7,11 +7,12 @@ export interface AdminSession {
   lastActiveAt: string;
 }
 
-/** 로그인·로그아웃 이벤트 하나(Supabase 감사 기록). 브라우저 정보는 없다. */
+/** 로그인·로그아웃 이벤트 하나(`public.login_history`). logout 행의 IP·브라우저는 세션이 만들어질 때의 값이다. */
 export interface LoginEvent {
   at: string;
   action: "login" | "logout";
   ip: string | null;
+  userAgent?: string | null;
 }
 
 export interface AdminUser {

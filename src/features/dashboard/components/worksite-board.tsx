@@ -41,7 +41,7 @@ export function WorksiteBoard({
             variant="ghost"
             size="sm"
             className={cn(
-              "h-6 px-1.5 text-[10px]",
+              "h-6 px-1.5 text-[11px]",
               isAllOverlaysOpen
                 ? "text-sky-300 hover:text-sky-200"
                 : "text-slate-400 hover:text-slate-200",
@@ -59,7 +59,7 @@ export function WorksiteBoard({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-[10px] text-rose-300 hover:text-rose-200"
+            className="h-6 px-2 text-[11px] text-rose-300 hover:text-rose-200"
             onClick={onClearAll}
           >
             전체 삭제

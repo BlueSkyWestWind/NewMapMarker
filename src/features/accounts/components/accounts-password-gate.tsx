@@ -49,7 +49,7 @@ export function AccountsPasswordGate({ onVerified }: AccountsPasswordGateProps) 
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950 p-4">
       <form
         onSubmit={(event) => void handleSubmit(event)}
-        className="flex w-full max-w-sm flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl"
+        className="flex w-full max-w-sm flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-6 shadow-2xl"
       >
         <div className="flex items-center gap-2 text-slate-100">
           <Lock className="h-4 w-4" aria-hidden />

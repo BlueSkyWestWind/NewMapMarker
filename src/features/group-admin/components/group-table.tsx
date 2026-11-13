@@ -162,7 +162,7 @@ export function GroupTable({
               >
                 <td className={CELL} />
                 <td className={CELL}>
-                  <span className="rounded bg-rose-500/20 px-1 text-[10px] text-rose-200 no-underline">
+                  <span className="rounded-sm bg-rose-500/20 px-1 text-[11px] text-rose-200 no-underline">
                     삭제 예정
                   </span>
                 </td>
@@ -237,7 +237,7 @@ export function GroupTable({
                 <td className={CELL}>
                   {first ? (
                     <span
-                      className={`rounded px-1 text-[10px] ${
+                      className={`rounded-sm px-1 text-[11px] ${
                         role === "대표"
                           ? "bg-indigo-500/20 text-indigo-200"
                           : "bg-slate-700/60 text-slate-300"

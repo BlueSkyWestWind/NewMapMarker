@@ -56,6 +56,8 @@ export class KmaError extends Error {
 /** 호출 출처. 기본은 사용자 요청이고, 사전 수집은 "prefetch"로 구분해 센다. */
 export interface KmaCallOptions {
   source?: UsageSource;
+  /** true면 isolate 캐시를 읽지 않고 기상청에서 새로 받는다(결과는 캐시에 다시 쓴다). 수동 갱신용 */
+  fresh?: boolean;
 }
 
 /**
@@ -308,7 +310,7 @@ export async function fetchVilageFcst(
 ): Promise<KmaItem[]> {
   const source = opts.source ?? "user";
   const cacheKey = `vilage:${query.nx}:${query.ny}:${query.base.baseDate}${query.base.baseTime}`;
-  const cached = readCache<KmaItem[]>(cacheKey);
+  const cached = opts.fresh ? undefined : readCache<KmaItem[]>(cacheKey);
   if (cached) return cached;
 
   const numOfRows = 1000;
@@ -354,7 +356,7 @@ export async function fetchUltraSrtNcst(
 ): Promise<KmaItem[]> {
   const source = opts.source ?? "user";
   const cacheKey = `ncst:${query.nx}:${query.ny}:${query.base.baseDate}${query.base.baseTime}`;
-  const cached = readCache<KmaItem[]>(cacheKey);
+  const cached = opts.fresh ? undefined : readCache<KmaItem[]>(cacheKey);
   if (cached) return cached;
 
   const body = await fetchJson(
@@ -381,7 +383,7 @@ export async function fetchUltraSrtFcst(
 ): Promise<KmaItem[]> {
   const source = opts.source ?? "user";
   const cacheKey = `ufcst:${query.nx}:${query.ny}:${query.base.baseDate}${query.base.baseTime}`;
-  const cached = readCache<KmaItem[]>(cacheKey);
+  const cached = opts.fresh ? undefined : readCache<KmaItem[]>(cacheKey);
   if (cached) return cached;
 
   const body = await fetchJson(
@@ -434,7 +436,7 @@ export async function fetchWeatherAlerts(
   const provider = resolveProvider();
   const bucket = Math.floor(Date.now() / CACHE_TTL_MS.warn);
   const cacheKey = `warn:${provider.authParam}:${stnId}:${normalizeRegionKey(address)}:${bucket}`;
-  const cached = readCache<ParsedAlerts>(cacheKey);
+  const cached = opts.fresh ? undefined : readCache<ParsedAlerts>(cacheKey);
   if (cached) return cached;
 
   const result =

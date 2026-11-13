@@ -880,7 +880,7 @@ export function MarkerDetailModal() {
         <div className="shrink-0 border-b border-slate-800 px-6 pb-4 pt-6 pr-12">
           <DialogHeader className="flex flex-row items-center gap-3 space-y-0 text-left">
             <div className="h-4 w-4 rounded-full" style={{ backgroundColor: color }} />
-            <DialogTitle className="text-lg font-bold text-slate-100">
+            <DialogTitle className="text-lg font-semibold text-slate-100">
               마커 상세 정보
             </DialogTitle>
           </DialogHeader>
@@ -889,24 +889,24 @@ export function MarkerDetailModal() {
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 [scrollbar-gutter:stable]">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* 기본 정보 */}
-            <div className="space-y-3 rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">기본 정보</h4>
+            <div className="space-y-3 rounded-lg border border-slate-800/80 bg-slate-950/40 p-4">
+              <h4 className="text-xs font-medium text-slate-400">기본 정보</h4>
               <div>
-                <label className="text-[10px] font-medium text-slate-500">장소 이름</label>
+                <label className="text-[11px] font-medium text-slate-500">장소 이름</label>
                 <div className="mt-0.5 text-sm font-semibold text-slate-200">{marker.name}</div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-medium text-slate-500">위도</label>
+                  <label className="text-[11px] font-medium text-slate-500">위도</label>
                   <div className="mt-0.5 font-mono text-xs">{marker.lat}</div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-medium text-slate-500">경도</label>
+                  <label className="text-[11px] font-medium text-slate-500">경도</label>
                   <div className="mt-0.5 font-mono text-xs">{marker.lng}</div>
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-medium text-slate-500">메모</label>
+                <label className="text-[11px] font-medium text-slate-500">메모</label>
                 <div className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-slate-300">
                   {marker.memo || '입력된 메모가 없습니다.'}
                 </div>
@@ -914,10 +914,10 @@ export function MarkerDetailModal() {
             </div>
 
             {/* 주소 및 부가정보 */}
-            <div className="space-y-3 rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">위치 정보</h4>
+            <div className="space-y-3 rounded-lg border border-slate-800/80 bg-slate-950/40 p-4">
+              <h4 className="text-xs font-medium text-slate-400">위치 정보</h4>
               <div>
-                <label className="text-[10px] font-medium text-slate-500">
+                <label className="text-[11px] font-medium text-slate-500">
                   {mode === 'equipment' ? '지번' : '주소'}
                 </label>
                 <div className="mt-0.5 text-xs text-slate-200">
@@ -928,7 +928,7 @@ export function MarkerDetailModal() {
               </div>
               {mode === 'equipment' ? (
                 <div>
-                  <label className="text-[10px] font-medium text-slate-500">도로명</label>
+                  <label className="text-[11px] font-medium text-slate-500">도로명</label>
                   <div className="mt-0.5 text-xs text-slate-300">
                     {markerAddressDisplay.isLoading
                       ? '확인 중…'
@@ -938,7 +938,7 @@ export function MarkerDetailModal() {
               ) : null}
               {mode === 'equipment' ? (
                 <div>
-                  <label className="text-[10px] font-medium text-slate-500">마커주소</label>
+                  <label className="text-[11px] font-medium text-slate-500">마커주소</label>
                   <div className="mt-0.5 text-xs text-slate-300">
                     {markerAddressDisplay.isLoading
                       ? '확인 중…'
@@ -947,13 +947,13 @@ export function MarkerDetailModal() {
                 </div>
               ) : null}
               <div>
-                <label className="text-[10px] font-medium text-slate-500">태그</label>
+                <label className="text-[11px] font-medium text-slate-500">태그</label>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {marker.tags && marker.tags.length > 0 ? (
                     marker.tags.map((tag, idx) => (
                       <span
                         key={idx}
-                        className="rounded-full border border-slate-700/55 bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-300"
+                        className="rounded-full border border-slate-700/55 bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300"
                       >
                         #{tag}
                       </span>
@@ -970,17 +970,17 @@ export function MarkerDetailModal() {
 
           {/* GPSMAP 좌표·주소 변환 + 건축물대장 — 하나의 펼치기·숨기기 */}
           {mode === 'equipment' ? (
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/40">
+            <div className="mt-4 overflow-hidden rounded-lg border border-slate-800/80 bg-slate-950/40">
               <button
                 type="button"
                 onClick={toggleGps}
                 className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-slate-900/40"
               >
-                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                   <MapPin className="h-3.5 w-3.5 text-emerald-400" />
                   좌표·주소 변환 · 건축물대장
                 </span>
-                <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                <span className="flex items-center gap-1 text-[11px] text-slate-500">
                   {gpsLoading && openGps ? '조회 중…' : openGps ? '숨기기' : '펼치기'}
                   {openGps ? (
                     <ChevronUp className="h-3.5 w-3.5" />
@@ -993,7 +993,7 @@ export function MarkerDetailModal() {
                 <div className="grid grid-cols-1 gap-4 border-t border-slate-800/80 px-4 pb-4 pt-3 md:grid-cols-2">
                   {/* 좌표·주소 변환 */}
                   <div className="space-y-2">
-                    <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    <h4 className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
                       <MapPin className="h-3 w-3 text-emerald-400" />
                       좌표·주소 변환
                     </h4>
@@ -1025,7 +1025,7 @@ export function MarkerDetailModal() {
 
                   {/* 건축물대장 */}
                   <div className="space-y-2">
-                    <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    <h4 className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
                       <Building2 className="h-3 w-3 text-emerald-400" />
                       건축물대장
                     </h4>
@@ -1060,7 +1060,7 @@ export function MarkerDetailModal() {
           {mode === 'equipment' && equipmentMarker ? (
             equipmentMarker.parentMarkerId ? (
               // 이 마커 자체가 개별 표시된 SUB
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-800/50 bg-emerald-950/20 p-4">
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-800/50 bg-emerald-950/20 p-4">
                 <div className="min-w-0 text-xs text-slate-300">
                   이 국소는 동의{' '}
                   <span className="font-semibold text-emerald-300">대표</span>로
@@ -1089,20 +1089,20 @@ export function MarkerDetailModal() {
               </div>
             ) : subCount > 0 ? (
               // 대표: 동일 번지 SUB 목록 + 개별 표시 토글 (펼치기/숨기기)
-              <div className="mt-4 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/40">
+              <div className="mt-4 overflow-hidden rounded-lg border border-slate-800/80 bg-slate-950/40">
                 <button
                   type="button"
                   onClick={() => setOpenSubList((v) => !v)}
                   className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-slate-900/40"
                 >
-                  <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                     <MapPin className="h-3.5 w-3.5 text-emerald-400" />
                     동일 번지 국소 개별 배치
                     <span className="font-normal normal-case text-slate-500">
                       ({subCount})
                     </span>
                   </span>
-                  <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500">
                     {openSubList ? '숨기기' : '펼치기'}
                     {openSubList ? (
                       <ChevronUp className="h-3.5 w-3.5" />
@@ -1131,7 +1131,7 @@ export function MarkerDetailModal() {
                           onClick={mergeSplitGroupToLot}
                           disabled={mergingSplit}
                           title="이 분리 그룹을 원래 번지 그룹으로 되돌립니다"
-                          className="shrink-0 rounded-lg border border-amber-600/50 bg-amber-600/20 px-2.5 py-1 text-[10px] font-medium text-amber-200 transition-colors hover:bg-amber-600/30 disabled:opacity-50"
+                          className="shrink-0 rounded-lg border border-amber-600/50 bg-amber-600/20 px-2.5 py-1 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-600/30 disabled:opacity-50"
                         >
                           {mergingSplit ? '합치는 중…' : '번지로 합치기'}
                         </button>
@@ -1171,7 +1171,7 @@ export function MarkerDetailModal() {
                                       onClick={() => separateLabelGroup(label)}
                                       disabled={busy}
                                       title={`'${label}' 국소를 번지에서 분리합니다`}
-                                      className="shrink-0 rounded-lg border border-sky-600/50 bg-sky-600/15 px-2.5 py-1 text-[10px] font-medium text-sky-200 transition-colors hover:bg-sky-600/25 disabled:opacity-50"
+                                      className="shrink-0 rounded-lg border border-sky-600/50 bg-sky-600/15 px-2.5 py-1 text-[11px] font-medium text-sky-200 transition-colors hover:bg-sky-600/25 disabled:opacity-50"
                                     >
                                       {busy ? '분리 중…' : '분리'}
                                     </button>
@@ -1184,7 +1184,7 @@ export function MarkerDetailModal() {
                                       }
                                       disabled={busy}
                                       title="대표로 지정할 국소를 고른 뒤 분리합니다"
-                                      className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+                                      className={`shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 ${
                                         picking
                                           ? 'border-slate-600 bg-slate-700 text-slate-100'
                                           : 'border-sky-600/50 bg-sky-600/15 text-sky-200 hover:bg-sky-600/25'
@@ -1200,7 +1200,7 @@ export function MarkerDetailModal() {
                                 </div>
                                 {picking && count > 1 ? (
                                   <div className="border-t border-slate-800/70 px-2.5 py-1.5">
-                                    <p className="mb-1 text-[10px] text-slate-500">
+                                    <p className="mb-1 text-[11px] text-slate-500">
                                       대표로 지정할 국소를 선택하면 분리됩니다.
                                     </p>
                                     <ul className="flex flex-col divide-y divide-slate-800/60">
@@ -1217,7 +1217,7 @@ export function MarkerDetailModal() {
                                               separateLabelGroup(label, m.id)
                                             }
                                             disabled={busy}
-                                            className="shrink-0 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-2.5 py-1 text-[10px] font-medium text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
+                                            className="shrink-0 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-2.5 py-1 text-[11px] font-medium text-emerald-300 transition-colors hover:bg-emerald-600/30 disabled:opacity-50"
                                           >
                                             대표로 분리
                                           </button>
@@ -1239,7 +1239,7 @@ export function MarkerDetailModal() {
                           onClick={mergeAllDetachedSubs}
                           disabled={merging}
                           title="개별 표시된 국소를 모두 다시 대표 1개로 합칩니다"
-                          className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-medium text-slate-200 transition-colors hover:bg-slate-700 disabled:opacity-50"
+                          className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-200 transition-colors hover:bg-slate-700 disabled:opacity-50"
                         >
                           {merging ? '합치는 중…' : `모두 합치기 (${detachedSubCount})`}
                         </button>
@@ -1276,7 +1276,7 @@ export function MarkerDetailModal() {
                                     ? `${group.label} 대표 핀을 지도에서 숨깁니다`
                                     : `${group.label} 대표 1국소만 지도에 표시합니다`
                                 }
-                                className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+                                className={`shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 ${
                                   group.isDongShown
                                     ? 'border-emerald-500/50 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30'
                                     : 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
@@ -1300,7 +1300,7 @@ export function MarkerDetailModal() {
                                     {sub.finalStationName || sub.name}
                                     {sub.id === group.mapRepId &&
                                     group.isDongShown ? (
-                                      <span className="ml-1.5 text-[10px] font-medium text-emerald-400">
+                                      <span className="ml-1.5 text-[11px] font-medium text-emerald-400">
                                         대표
                                       </span>
                                     ) : null}
@@ -1313,7 +1313,7 @@ export function MarkerDetailModal() {
                                       )
                                     }
                                     disabled={detachingId === sub.id}
-                                    className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+                                    className={`shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 ${
                                       sub.detachedVisible
                                         ? 'border-emerald-500/50 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30'
                                         : 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
@@ -1335,7 +1335,7 @@ export function MarkerDetailModal() {
               </div>
             ) : relatedIsSplit ? (
               // 분리된 단독 그룹(SUB 없음): 번지로 합치기만 제공
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-700/40 bg-amber-950/20 p-4">
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-amber-700/40 bg-amber-950/20 p-4">
                 <div className="min-w-0 text-xs text-amber-200/90">
                   이 국소는 번지에서{' '}
                   <span className="font-semibold">분리</span>된 독립 그룹입니다.
@@ -1366,7 +1366,7 @@ export function MarkerDetailModal() {
                     }`
                   : '연관 축전지 상세 사양'}
               </span>
-              <span className="hidden items-center gap-1 text-[10px] font-normal text-slate-500 sm:flex">
+              <span className="hidden items-center gap-1 text-[11px] font-normal text-slate-500 sm:flex">
                 <Lock className="h-2.5 w-2.5" />
                 셀 드래그 선택 후 복사 지원
               </span>
@@ -1375,7 +1375,7 @@ export function MarkerDetailModal() {
               {selectedCells.size > 0 && (
                 <button
                   onClick={handleCopySelected}
-                  className="flex items-center gap-1 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-2.5 py-1.5 text-[10px] font-medium text-emerald-300 transition-all hover:bg-emerald-600/30"
+                  className="flex items-center gap-1 rounded-lg border border-emerald-500/50 bg-emerald-600/20 px-2.5 py-1.5 text-[11px] font-medium text-emerald-300 transition-colors hover:bg-emerald-600/30"
                 >
                   <Check className="h-3 w-3" />
                   선택 셀 복사
@@ -1383,7 +1383,7 @@ export function MarkerDetailModal() {
               )}
               <button
                 onClick={handleCopyTable}
-                className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-[10px] font-medium text-slate-200 transition-all hover:bg-slate-700"
+                className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:bg-slate-700"
               >
                 <Copy className="h-3 w-3" />
                 표 전체 복사
@@ -1482,7 +1482,7 @@ export function MarkerDetailModal() {
                                         event.target.value as GroupRole,
                                       );
                                     }}
-                                    className="max-w-[5.5rem] rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] font-medium text-slate-100 outline-none focus:border-emerald-500/60 disabled:opacity-50"
+                                    className="max-w-[5.5rem] rounded-sm border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] font-medium text-slate-100 outline-none focus:border-emerald-500/60 disabled:opacity-50"
                                   >
                                     <option value={GROUP_ROLE_REPRESENTATIVE}>
                                       대표

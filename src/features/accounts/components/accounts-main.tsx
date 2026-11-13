@@ -14,7 +14,7 @@ export function AccountsMain() {
   if (!isVerified) return <AccountsPasswordGate onVerified={() => setVerified(true)} />;
   return (
     <div className="absolute inset-0 z-10 flex flex-col bg-slate-950 p-3 sm:p-6 overflow-hidden">
-      <div className="mx-auto w-full max-w-5xl flex-1 flex flex-col rounded-xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden">
+      <div className="mx-auto w-full max-w-5xl flex-1 flex flex-col rounded-lg border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden">
         <AccountsPanel />
       </div>
     </div>

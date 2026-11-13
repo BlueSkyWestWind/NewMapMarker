@@ -197,7 +197,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
       ) : null}
 
       {skippedRows.length > 0 ? (
-        <div className="max-h-24 overflow-y-auto rounded border border-slate-700 p-1.5 text-[10px] text-slate-400">
+        <div className="max-h-24 overflow-y-auto rounded-sm border border-slate-700 p-1.5 text-[11px] text-slate-400">
           <p className="font-medium text-slate-300">코드·주소 없음 (저장 안 함)</p>
           {skippedRows.map((row, index) => (
             <p key={`${row.name}-${index}`} className="truncate">
@@ -208,7 +208,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
       ) : null}
 
       {reviewRows.length > 0 ? (
-        <div className="space-y-1 rounded border border-slate-700 p-1.5 text-[10px] text-slate-300">
+        <div className="space-y-1 rounded-sm border border-slate-700 p-1.5 text-[11px] text-slate-300">
           <p className="text-slate-400">
             같은 지번의 여러 단지는 행을 체크하고 <strong>대표</strong>를 고른 뒤 묶으세요. 나머지 체크한 행은
             SUB가 됩니다. 묶지 않은 행은 번지 기준으로 자동 그룹됩니다.
@@ -218,7 +218,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
               type="button"
               size="sm"
               variant="outline"
-              className="h-6 shrink-0 border-slate-600 px-2 text-[10px] text-slate-200"
+              className="h-6 shrink-0 border-slate-600 px-2 text-[11px] text-slate-200"
               onClick={() => setIsWide(true)}
               title="국소명·주소가 잘리지 않는 넓은 창으로 봅니다"
             >
@@ -229,7 +229,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
             <Button
               type="button"
               size="sm"
-              className="h-6 flex-1 bg-sky-600 px-2 text-[10px] hover:bg-sky-500"
+              className="h-6 flex-1 bg-sky-600 px-2 text-[11px] hover:bg-sky-500"
               disabled={isUploading || groups.checkedIds.length < 2 || !groups.activeRepId}
               onClick={groups.group}
               title={groups.activeRepId ? "체크한 행을 대표 1개 + SUB로 묶습니다" : "대표로 둘 행을 먼저 고르세요"}
@@ -241,7 +241,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
               type="button"
               size="sm"
               variant="outline"
-              className="h-6 flex-1 border-slate-600 px-2 text-[10px] text-slate-200"
+              className="h-6 flex-1 border-slate-600 px-2 text-[11px] text-slate-200"
               disabled={isUploading || !groups.hasCheckedGroup}
               onClick={groups.ungroup}
               title="체크한 행이 속한 그룹을 통째로 풉니다"
@@ -254,7 +254,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
       ) : null}
 
       {reviewRows.length > 0 ? (
-        <div className="max-h-72 divide-y divide-amber-500/10 overflow-y-auto rounded border border-amber-500/20 bg-amber-950/20">
+        <div className="max-h-72 divide-y divide-amber-500/10 overflow-y-auto rounded-sm border border-amber-500/20 bg-amber-950/20">
           {reviewRows.map((row) => {
             const position = positions.get(row.id);
             const warning = warningOf(row);
@@ -262,7 +262,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
             return (
               <div
                 key={row.id}
-                className={`space-y-1 border-l-2 p-1.5 text-[10px] ${
+                className={`space-y-1 border-l-2 p-1.5 text-[11px] ${
                   groups.barClassOf(row)
                 } ${selectedMarkerId === row.id ? "bg-amber-500/10" : ""}`}
               >
@@ -284,17 +284,17 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
                       {row.name || "이름 없음"}
                       {row.kind === "missingCoords" ? " (기존·좌표 없음)" : ""}
                     </p>
-                    <p className="truncate text-[9px] text-slate-400">
+                    <p className="truncate text-[11px] text-slate-400">
                       {row.address || "주소 없음"}
                     </p>
                     {row.group ? (
-                      <p className="text-[9px] text-sky-300">
+                      <p className="text-[11px] text-sky-300">
                         묶음 {groups.groupNumbers.get(row.group.key)} · {row.group.role}
                       </p>
                     ) : null}
                   </div>
                   {groups.checked.has(row.id) ? (
-                    <label className="flex shrink-0 cursor-pointer items-center gap-0.5 text-[9px] text-sky-300">
+                    <label className="flex shrink-0 cursor-pointer items-center gap-0.5 text-[11px] text-sky-300">
                       <input
                         type="radio"
                         name="erp-group-rep"
@@ -342,7 +342,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
                         <Button
                           type="button"
                           size="sm"
-                          className="h-6 bg-amber-600 px-2 text-[10px] hover:bg-amber-500"
+                          className="h-6 bg-amber-600 px-2 text-[11px] hover:bg-amber-500"
                           disabled={isUploading}
                           onClick={() => void confirm(row.id)}
                           title="위치 주소를 엑셀 주소와 비교한 뒤 저장합니다"
@@ -356,7 +356,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-6 border-amber-500/40 px-2 text-[10px] text-amber-300"
+                        className="h-6 border-amber-500/40 px-2 text-[11px] text-amber-300"
                         disabled={isUploading}
                         aria-pressed={placingId === row.id}
                         onClick={() => startPlacing(row.id)}
@@ -380,7 +380,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
                 </div>
 
                 {warning ? (
-                  <div className="space-y-1 rounded border border-amber-500/40 bg-amber-500/10 p-1.5 text-slate-200">
+                  <div className="space-y-1 rounded-sm border border-amber-500/40 bg-amber-500/10 p-1.5 text-slate-200">
                     <p className="flex items-center gap-1 font-medium text-amber-300">
                       <AlertTriangle className="h-3 w-3 shrink-0" />
                       주소가 다릅니다. 저장하지 않았습니다.
@@ -393,7 +393,7 @@ export function ErpReviewPanel({ upload, isUploading, actions }: ErpReviewPanelP
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-6 w-full border-amber-500/40 text-[10px] text-amber-200"
+                      className="h-6 w-full border-amber-500/40 text-[11px] text-amber-200"
                       disabled={isUploading}
                       onClick={() => void confirm(row.id, true)}
                     >

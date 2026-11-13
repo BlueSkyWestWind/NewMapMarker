@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
 import { fetchLoginHistory } from "../api";
 import { formatClock, localDateKey, summarizeLoginHistory } from "../lib/login-history";
+import { describeUserAgent } from "../lib/session-info";
 import type { AdminUser } from "../types";
 
 /** 전체 이력 표에 보이는 최근 이벤트 수 */
@@ -29,7 +30,7 @@ function Stat({ label, value, title }: { label: string; value: string; title?: s
 
 /**
  * 계정의 접속 기록 창: 요약(로그인 횟수·접속 IP·마지막 로그인), 시간대별 로그인 분포,
- * 날짜별 요약, 최근 이벤트 이력(시각·이벤트·IP). 기록은 Supabase 감사 로그라 브라우저 정보는 없다.
+ * 날짜별 요약, 최근 이벤트 이력(시각·이벤트·IP·브라우저). 기록은 `public.login_history`(auth.sessions 트리거)다.
  */
 export function AccountHistoryDialog({ user, open, onOpenChange }: AccountHistoryDialogProps) {
   const { session } = useAuthSession();
@@ -74,12 +75,12 @@ export function AccountHistoryDialog({ user, open, onOpenChange }: AccountHistor
           </p>
         ) : query.data && !query.data.available ? (
           <p className="rounded-md border border-amber-900/50 bg-amber-950/30 p-3 text-xs text-amber-300">
-            접속 기록 조회가 아직 적용되지 않았습니다. Supabase SQL Editor에서
-            04_admin_accounts.sql을 실행해 주세요.
+            접속 기록 테이블이 아직 없습니다. Supabase SQL Editor에서
+            20261119000000_login_history.sql을 실행해 주세요.
           </p>
         ) : events.length === 0 ? (
           <p className="p-4 text-sm text-slate-400">
-            남아 있는 로그인·로그아웃 기록이 없습니다(Supabase 감사 기록이 꺼져 있거나 보관 기간이 지났을 수 있습니다).
+            저장된 접속 기록이 없습니다.
           </p>
         ) : (
           <>
@@ -104,7 +105,7 @@ export function AccountHistoryDialog({ user, open, onOpenChange }: AccountHistor
                         style={{ height: count > 0 ? `${Math.max(12, (count / maxHour) * 100)}%` : "4%" }}
                       />
                     </div>
-                    <span className="h-3 text-[10px] text-slate-500">{HOUR_LABELS.has(hour) ? hour : ""}</span>
+                    <span className="h-3 text-[11px] text-slate-500">{HOUR_LABELS.has(hour) ? hour : ""}</span>
                   </div>
                 ))}
               </div>
@@ -168,14 +169,19 @@ export function AccountHistoryDialog({ user, open, onOpenChange }: AccountHistor
                         >
                           {event.action === "login" ? "로그인" : "로그아웃"}
                         </td>
-                        <td className="truncate whitespace-nowrap px-2 py-1.5" title={event.ip ?? undefined}>
+                        <td
+                          className="truncate whitespace-nowrap px-2 py-1.5"
+                          title={`${event.ip ?? "-"} · ${describeUserAgent(event.userAgent)}`}
+                        >
                           {event.ip ?? "-"}
+                          <span className="ml-2 text-slate-500">{describeUserAgent(event.userAgent)}</span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <p className="text-[11px] text-slate-500">로그아웃 행의 IP·브라우저는 로그인 때 기록된 값입니다.</p>
             </section>
           </>
         )}

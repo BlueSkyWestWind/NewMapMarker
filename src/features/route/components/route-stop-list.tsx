@@ -53,7 +53,7 @@ export function RouteStopList() {
       <p className="text-[11px] font-semibold text-slate-300">방문 지점</p>
 
       {stops.length === 0 ? (
-        <p className="text-[10px] text-slate-500">방문 지점을 추가하세요.</p>
+        <p className="text-[11px] text-slate-500">방문 지점을 추가하세요.</p>
       ) : (
         <ul className="space-y-1">
           {stops.map((stop, index) => (
@@ -107,7 +107,7 @@ export function RouteStopList() {
       </div>
 
       {pickTarget === "stop" ? (
-        <p className="text-[10px] text-sky-400">지도에서 마커를 클릭해 방문 지점으로 추가하세요.</p>
+        <p className="text-[11px] text-sky-400">지도에서 마커를 클릭해 방문 지점으로 추가하세요.</p>
       ) : null}
 
       {isSearchOpen ? (
@@ -120,13 +120,13 @@ export function RouteStopList() {
           />
           <div className="max-h-40 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="px-1 py-1 text-[10px] text-slate-500">검색 결과가 없습니다.</p>
+              <p className="px-1 py-1 text-[11px] text-slate-500">검색 결과가 없습니다.</p>
             ) : (
               filtered.map((marker) => (
                 <button
                   key={marker.id}
                   type="button"
-                  className="block w-full truncate rounded px-1.5 py-1 text-left text-[11px] text-slate-200 hover:bg-slate-800"
+                  className="block w-full truncate rounded-sm px-1.5 py-1 text-left text-[11px] text-slate-200 hover:bg-slate-800"
                   onClick={() => handleAdd(marker)}
                 >
                   {marker.name}

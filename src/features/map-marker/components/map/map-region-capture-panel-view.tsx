@@ -101,7 +101,7 @@ export function CapturePanelView({
        * 지도 컨테이너 기준 절대배치다 — 좌측 셸 폭을 더하면 안 된다(지도 안쪽으로 밀린다).
        * 대신 좁은 화면에서 지도를 다 덮지 않도록 폭에 상한을 둔다.
        */
-      className="absolute left-4 top-4 z-20 max-h-[calc(100%-2rem)] w-[min(var(--panel-w),calc(100%-2rem))] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl"
+      className="absolute left-4 top-4 z-20 max-h-[calc(100%-2rem)] w-[min(var(--panel-w),calc(100%-2rem))] overflow-y-auto rounded-lg border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl"
       data-capture-hide="true"
     >
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -118,7 +118,7 @@ export function CapturePanelView({
         </div>
         <button
           type="button"
-          className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+          className="rounded-sm p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
           onClick={onClose}
           title="닫기"
           disabled={phase === "capturing"}
@@ -239,7 +239,7 @@ export function CapturePanelView({
         <span className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            className="rounded border border-amber-500/60 px-2 py-1 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 disabled:opacity-40"
+            className="rounded-sm border border-amber-500/60 px-2 py-1 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 disabled:opacity-40"
             disabled={isBusy}
             onClick={onEditRegion}
           >
@@ -260,7 +260,7 @@ export function CapturePanelView({
         <div className="mb-3 space-y-2">
           <div className="h-2 overflow-hidden rounded-full bg-slate-800">
             <div
-              className="h-full bg-sky-500 transition-all"
+              className="h-full bg-sky-500"
               style={{ width: `${progressRatio}%` }}
             />
           </div>

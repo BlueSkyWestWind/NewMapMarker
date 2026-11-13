@@ -733,7 +733,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
                     disabled={disabled}
                     title={`글자색: ${draft.textColor ? textColorLabel(draft.textColor) : "없음"} (눌러서 바꿉니다)`}
                     aria-label="글자색 바꾸기"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 text-xs font-bold hover:bg-slate-800 disabled:opacity-50"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 text-xs font-semibold hover:bg-slate-800 disabled:opacity-50"
                     style={
                       draft.textColor ? { color: TEXT_COLOR_DISPLAY[draft.textColor] } : undefined
                     }

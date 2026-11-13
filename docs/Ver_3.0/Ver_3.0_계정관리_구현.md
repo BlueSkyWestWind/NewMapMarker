@@ -139,3 +139,8 @@
   - `npx eslint . --max-warnings=0`
   - `npm test`
   - `npx next build` (First Load JS 295 kB 이하 유지 확인)
+
+## 8. 접속 기록 (2026-11-13 추가)
+
+- 계정별 접속 기록 창의 원본은 `public.login_history` 테이블이며, `auth.sessions`의 `INSERT`(`login`)·`DELETE`(`logout`) 트리거가 기록한다.
+- 상세 사양과 구현 내용은 [`Ver_3.0_접속기록_구현.md`](Ver_3.0_접속기록_구현.md)를 참조한다.
