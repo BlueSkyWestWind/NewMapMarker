@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 15, React 19, TypeScript(엄격), zustand, @tanstack/react-query, Supabase JS, Tailwind 3, vitest(`.ts`만 실행), Playwright(화면 확인).
 
-**Spec:** `docs/Ver_3.0/Ver_3.0_그룹관리_구현.md`
+**Spec:** `docs/Ver_3.0/그룹관리/Ver_3.0_그룹관리_구현.md`
 
 ## Global Constraints
 
@@ -300,7 +300,7 @@
 ### Task 14: 안내 문구와 문서 갱신
 
 **Files:**
-- Modify: `src/features/group-admin/components/group-manage-dialog.tsx`, `docs/Ver_3.0/Ver_3.0_계획.md`, `docs/Ver_3.0/Ver_3.0_그룹관리_구현.md`, `AGENTS.md`
+- Modify: `src/features/group-admin/components/group-manage-dialog.tsx`, `docs/Ver_3.0/Ver_3.0_계획.md`, `docs/Ver_3.0/그룹관리/Ver_3.0_그룹관리_구현.md`, `AGENTS.md`
 
 - [ ] **Step 1: 관리 창 상단에 안내를 넣는다.** "위치등록의 [기존 N건 갱신]은 국소명과 상세 정보를 파일 값으로 다시 씁니다. 여기서 고친 값이 다음 업로드 때 되돌아갈 수 있습니다."
 - [ ] **Step 2: 문서를 고친다.** 계획서 12장의 "아직 구현하지 않았다"를 구현 완료로 바꾸고, 구현 문서 상단 상태와 **스펙에서 줄인 부분(개별 표시 함수는 옮기지 않음)** 을 적는다. `AGENTS.md`의 features 목록에 `group-admin`을 더한다.

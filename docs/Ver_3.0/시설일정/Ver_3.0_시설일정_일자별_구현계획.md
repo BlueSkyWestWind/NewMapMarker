@@ -280,7 +280,7 @@
 
 ### Task 11: 문서와 전체 검증
 
-**Files:** Create `docs/Ver_3.0/Ver_3.0_시설일정_일자별_구현.md` · Modify `docs/Ver_3.0/Ver_3.0_계획.md`(§14 끝에 구현 완료 메모), `supabase/migrations/README.md`(Task 1에서 한 줄 추가했는지 확인)
+**Files:** Create `docs/Ver_3.0/시설일정/Ver_3.0_시설일정_일자별_구현.md` · Modify `docs/Ver_3.0/Ver_3.0_계획.md`(§14 끝에 구현 완료 메모), `supabase/migrations/README.md`(Task 1에서 한 줄 추가했는지 확인)
 
 - [ ] **Step 1: Write the implementation doc** — 파일 구조, 순수 함수 규칙(14.3~14.4 요약), 테이블 3개, 화면 흐름, 알려진 제한(`erp_details` 국소명이 정확히 일치해야 찾는다, 공정관리 데이터는 `위치등록`으로 올려야 채워진다, 누적은 관리자만 쌓는다), `일정표 가져오기는 상세·누적을 지우지 않는다`.
 - [ ] **Step 2: Verify everything** — `npx tsc --noEmit` · `npx eslint . --max-warnings=0` · `npm test` 모두 통과. `npx next build`(개발 서버를 멈추거나 임시 `distDir`로)에서 홈 First Load JS **295 kB 이하**이고 `exceljs`가 첫 묶음에 없는지 본다.

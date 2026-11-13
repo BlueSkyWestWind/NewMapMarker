@@ -1,5 +1,5 @@
 // 스타일 가드: 점검(2026-11-13)에서 걷어낸 슬롭이 다시 생기지 않게 막는다.
-// 설계: docs/Ver_3.0/Ver_3.0_스타일정리_설계.md §4.5
+// 설계: docs/Ver_3.0/스타일정리/Ver_3.0_스타일정리_설계.md §4.5
 //
 // - RULES: 금지 패턴. `glow`·`gradient`·`emoji`·`transitionAll`·`tracking`은 영구 규칙이다.
 //   `bold`·`tinyText`·`radius`는 정리가 끝나면 CLEAN_SCOPES를 비워 두는 임시 규칙이다(코드는 남긴다).

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 15 App Router · React 19 · TypeScript(strict) · `xlsx` · `zod`(^3) · `@tanstack/react-query` · Supabase · vitest · Tailwind/shadcn(기존 컴포넌트만).
 
-**Spec:** `docs/Ver_3.0/Ver_3.0_현장실사서_세부정리_설계.md` (이하 "설계 §N")
+**Spec:** `docs/Ver_3.0/현장실사서/Ver_3.0_현장실사서_세부정리_설계.md` (이하 "설계 §N")
 
 > **메뉴 위치 (사용자 확정 2026-11-11):** 사이드바에서 **일정관리 아래에 `공정관리`**, 그 하위에 **`현장실사서`**. 일정관리와 같은 방식(하위 메뉴 + 메인 영역 직접 그리기)이라 지도 세그먼트·마커 스토어는 건드리지 않는다(Task 11).
 
@@ -30,7 +30,7 @@
 - 프로젝트 규칙: 패키지 매니저 npm · strict TS(`strictNullChecks`·`noImplicitAny`) · ESLint가 미사용 import·변수를 오류로 잡는다(`npx eslint . --max-warnings=0`) · **vitest는 `.ts`만 실행한다(`.tsx` 테스트는 조용히 안 돈다)** → 로직은 `.ts`로 빼서 테스트한다 · 주석은 한국어 · 소스 파일은 **CRLF·UTF-8**(새 파일도 CRLF로 저장하고 한글이 깨지지 않았는지 확인) · shadcn 컴포넌트는 새로 쓰지 않는다(탭·체크박스는 기본 요소, 기존 `Dialog`·`Button`·`Input`만) · 표는 셀 줄바꿈 금지·가로 스크롤 금지(세로만).
 - **홈 번들 First Load JS는 늘리지 않는다**(이미 기준 295 kB를 넘은 297~298 kB). 화면과 `xlsx`는 `dynamic()`/동적 import로만 가져온다.
 - **커밋하지 않는다.** 이 프로젝트는 사용자가 "커밋"이라고 할 때만 커밋한다. 각 Task 끝의 "Commit" 자리에는 `git status`로 변경 파일만 확인한다.
-- 구현이 끝나면 `docs/Ver_3.0/Ver_3.0_현장실사서_세부정리_구현.md`(구현 문서)를 쓰고 설계 문서 §8.2를 채운다.
+- 구현이 끝나면 `docs/Ver_3.0/현장실사서/Ver_3.0_현장실사서_세부정리_구현.md`(구현 문서)를 쓰고 설계 문서 §8.2를 채운다.
 
 ## Review Focus
 

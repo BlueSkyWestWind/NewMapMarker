@@ -230,7 +230,7 @@ function scan(rule: RuleId, scopes: string[]): { file: string; line: number; tex
 
 ### Task 11: 마무리 검증과 문서
 
-**Files:** Modify `docs/Ver_3.0/Ver_3.0_계획.md`(§19 추가), Create `docs/Ver_3.0/Ver_3.0_스타일정리_구현.md`
+**Files:** Modify `docs/Ver_3.0/Ver_3.0_계획.md`(§19 추가), Create `docs/Ver_3.0/스타일정리/Ver_3.0_스타일정리_구현.md`
 
 - [ ] **Step 1: 전체 검증** — `npx tsc --noEmit`, `npx eslint src --max-warnings=0`, `npm test` 모두 통과. 임시 `distDir`로 `next build`해 홈 First Load JS가 **299 kB 이하**인지 확인.
 - [ ] **Step 2: 화면 전후 캡처** — 개발 서버(제가 띄운 포트만)로 로그인 화면 라이트·다크를 찍어 점검 때 캡처와 비교한다.

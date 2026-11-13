@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js(App Router, TS) · React · Supabase · vitest.
 
-**Spec:** `docs/Ver_3.0/Ver_3.0_시설일정_팀등록_입회불필요_설계.md`
+**Spec:** `docs/Ver_3.0/시설일정/Ver_3.0_시설일정_팀등록_입회불필요_설계.md`
 
 ## Global Constraints
 

@@ -15,8 +15,12 @@ Supabase 대시보드 → **SQL Editor** 에서 아래 파일을 **번호 순서
 04_admin_accounts.sql
 20261116000100_kma_api_usage.sql
 20261116000200_kma_forecast_cache.sql
-20261116000300_kma_prefetch_cron.sql   ← pg_cron·pg_net·Secret·vault 준비 후(파일 머리말 참고)
-20261118000000_kma_manual_source.sql   ← 3단계: source 에 manual 허용(갱신 버튼의 저장·집계)
+20261116000300_kma_prefetch_cron.sql             ← pg_cron·pg_net·Secret·vault 준비 후(파일 머리말 참고)
+20261117000000_marker_address.sql                ← 마커 좌표의 실제 주소(marker_address) 컬럼 추가
+20261117000100_split_jibun_from_road_address.sql ← road_address 에 섞인 지번 주소를 jibun_address 로 분리
+20261117000200_survey_settings.sql               ← 현장실사서 환경설정 테이블(survey_settings, 관리자만 수정)
+20261118000000_kma_manual_source.sql             ← 3단계: source 에 manual 허용(갱신 버튼의 저장·집계)
+20261119000000_login_history.sql                 ← 접속 기록 전용 테이블(login_history)·auth.sessions 트리거·1년 보관 cron
 ```
 
 - **이미 운영 중인 DB에는 `01`~`04`를 다시 실행하지 않는다.** 이미 적용된 내용이고, 일부는 다시 실행하면 안 된다
@@ -53,6 +57,9 @@ Supabase 대시보드 → **SQL Editor** 에서 아래 파일을 **번호 순서
 | `20261116000100_kma_api_usage.sql` | — | 기상청 호출 횟수를 시간대별로 집계(`kma_api_usage`·`record_kma_call()`). 읽기는 관리자만 |
 | `20261116000200_kma_forecast_cache.sql` | — | 기상청 예보를 기준시각별로 저장(`kma_forecast_cache`, 서비스 키 전용). 적용 전에도 날씨는 실시간으로 동작 |
 | `20261116000300_kma_prefetch_cron.sql` | — | `pg_cron`으로 KST 07~17시 사전 수집 + 매일 정리. 파일 머리말의 준비 사항 필요 |
+| `20261117000000_marker_address.sql` | — | `markers.marker_address` 컬럼 추가(마커 좌표의 도로명 우선 실제 주소) |
+| `20261117000100_split_jibun_from_road_address.sql` | — | 기존 `road_address`에 섞여 있던 지번 주소를 `jibun_address`로 분리 |
+| `20261117000200_survey_settings.sql` | — | 현장실사서 > 세부 시트 정리 환경설정 테이블(`survey_settings`), 조회는 로그인 전체·수정은 관리자만 |
 | `20261118000000_kma_manual_source.sql` | — | 3단계: 예보 저장소·호출 집계의 `source`에 `manual` 허용(현재 데이터로 갱신 버튼). 적용 전에는 갱신 결과의 저장만 실패 |
 | `20261119000000_login_history.sql` | — | 접속 기록 테이블 `login_history`와 `auth.sessions` 트리거(로그인·로그아웃·IP·브라우저), 기존 세션 백필, 1년 보관 cron. 적용 전에는 접속 기록 창이 "아직 없습니다"로 보인다 |
 

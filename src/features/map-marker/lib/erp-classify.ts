@@ -15,7 +15,7 @@ import type {
 
 /**
  * 위치등록 파일의 행 분류와 저장 행 생성. 업로드할 때만 필요해 지연 로딩한다.
- * 규칙은 `docs/Ver_3.0/Ver_3.0_위치등록_신규확인_구현.md`.
+ * 규칙은 `docs/Ver_3.0/위치/Ver_3.0_위치등록_신규확인_구현.md`.
  */
 
 export interface ExistingMarkerRef {
