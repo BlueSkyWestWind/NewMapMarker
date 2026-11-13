@@ -7,6 +7,7 @@ import {
   ScanBarcode,
   Settings,
   UserCog,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -16,6 +17,7 @@ export type NavKey =
   | "map"
   | "markers"
   | "schedule"
+  | "process"
   | "barcode"
   | "backup"
   | "settings"
@@ -39,6 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "map", label: "지도", icon: Map, auth: false, enabled: true },
   { key: "markers", label: "마커관리", icon: MapPin, auth: true, enabled: true },
   { key: "schedule", label: "일정관리", icon: CalendarDays, auth: true, enabled: true },
+  { key: "process", label: "공정관리", icon: Workflow, auth: true, enabled: true },
   { key: "barcode", label: "바코드/QR", icon: ScanBarcode, auth: true, enabled: true },
   { key: "backup", label: "데이터백업/복원", icon: Database, auth: true, enabled: true },
   { key: "settings", label: "설정", icon: Settings, auth: true, enabled: true },

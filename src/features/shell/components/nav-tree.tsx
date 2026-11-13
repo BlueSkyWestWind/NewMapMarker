@@ -109,7 +109,7 @@ export function NavTree({ activeNav, segment, segmentCounts }: NavTreeProps) {
                     const isChildActive =
                       isActive &&
                       isSubActive(item.key, key, segment, scheduleSegment) &&
-                      (item.key === "schedule" || panelStep === "detail");
+                      (item.key === "schedule" || item.key === "process" || panelStep === "detail");
                     const count = segmentCounts[key];
                     return (
                       <li key={key}>

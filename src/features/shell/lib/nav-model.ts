@@ -2,6 +2,7 @@ import {
   Battery,
   CalendarRange,
   ClipboardList,
+  FileSpreadsheet,
   Mail,
   Layers,
   MapPin,
@@ -27,12 +28,14 @@ export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }
   facility: { label: "시설일정", icon: CalendarRange },
   daily: { label: "일일일정", icon: ClipboardList },
   mail: { label: "메일양식", icon: Mail },
+  survey: { label: "현장실사서", icon: FileSpreadsheet },
 };
 
 const NAV_SEGMENTS: Partial<Record<NavKey, NavSubKey[]>> = {
   map: ["equipment", "battery", "location", "cctv", "converter"],
   markers: ["equipment", "battery", "groups"],
   schedule: ["facility", "daily", "mail"],
+  process: ["survey"],
 };
 
 /** 패널 첫 단계의 설명 문구 */
@@ -40,6 +43,7 @@ export const NAV_DESCRIPTIONS: Partial<Record<NavKey, string>> = {
   map: "표시할 데이터를 고르고 위치를 찾습니다",
   markers: "마커를 등록하고 목록을 관리합니다",
   schedule: "시설팀 일정표와 일일 작업 상세를 보고 메일 양식을 만듭니다",
+  process: "현장실사서 엑셀에서 세부 시트에 옮겨 적을 값을 만듭니다",
   accounts: "사용자 계정과 관리자 권한을 관리합니다",
 };
 
@@ -62,10 +66,10 @@ export function hasNavSegments(nav: NavKey, isAdmin = false): boolean {
 
 /**
  * 메뉴를 눌렀을 때 패널의 첫 단계. 하위 메뉴가 있으면 `root`(하위 메뉴 목록)지만,
- * 일정관리는 하위 화면이 하나뿐이고 화면 전체를 쓰므로 바로 `detail`이다.
+ * 일정관리·공정관리는 화면 전체를 쓰므로 바로 `detail`이다.
  */
 export function initialPanelStep(nav: NavKey): "root" | "detail" {
-  return hasNavSegments(nav) && nav !== "schedule" ? "root" : "detail";
+  return hasNavSegments(nav) && nav !== "schedule" && nav !== "process" ? "root" : "detail";
 }
 
 /**
@@ -79,7 +83,9 @@ export function isPanelVisible(input: {
   isTreeOpen: boolean;
   panelStep: "root" | "detail";
 }): boolean {
-  if (input.activeNav === "schedule" || input.activeNav === "accounts") return false;
+  if (input.activeNav === "schedule" || input.activeNav === "process" || input.activeNav === "accounts") {
+    return false;
+  }
   return (
     input.isSidebarOpen &&
     (!input.isTreeOpen || !hasNavSegments(input.activeNav) || input.panelStep === "detail")
@@ -109,6 +115,7 @@ export function isSubActive(
   scheduleSegment: ScheduleSegment = "facility",
 ): boolean {
   if (nav === "schedule") return key === scheduleSegment;
+  if (nav === "process") return key === "survey";
   return key === segment;
 }
 
@@ -118,6 +125,7 @@ export function subLabelOf(
   segment: MapSegment,
   scheduleSegment: ScheduleSegment = "facility",
 ): string {
+  if (nav === "process") return SEGMENT_META.survey.label;
   return nav === "schedule" ? SEGMENT_META[scheduleSegment].label : SEGMENT_META[segment].label;
 }
 
@@ -126,6 +134,7 @@ export function showsMarkerSummary(nav: NavKey, segment: MapSegment): boolean {
   return (
     hasNavSegments(nav) &&
     nav !== "schedule" &&
+    nav !== "process" &&
     segment !== "converter" &&
     segment !== "cctv" &&
     segment !== "groups"

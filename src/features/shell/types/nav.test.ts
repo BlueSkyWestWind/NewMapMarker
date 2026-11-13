@@ -34,9 +34,23 @@ describe("일정관리 메뉴", () => {
     expect(isNavAccessible("schedule", false, false)).toBe(false);
   });
 
-  it("마커관리 바로 다음, 바코드/QR 바로 앞에 있다", () => {
+  it("마커관리 바로 다음에 있다", () => {
     const keys = visibleNavItems(true, true).map((item) => item.key);
     expect(keys.indexOf("schedule")).toBe(keys.indexOf("markers") + 1);
-    expect(keys.indexOf("barcode")).toBe(keys.indexOf("schedule") + 1);
+  });
+});
+
+describe("공정관리 메뉴", () => {
+  it("로그인한 사용자에게만 보인다(관리자 전용이 아니다)", () => {
+    expect(visibleNavItems(true, false).some((item) => item.key === "process")).toBe(true);
+    expect(visibleNavItems(false).some((item) => item.key === "process")).toBe(false);
+    expect(isNavAccessible("process", false, false)).toBe(false);
+    expect(isNavAccessible("process", true, false)).toBe(true);
+  });
+
+  it("일정관리 바로 다음, 바코드/QR 바로 앞에 있다", () => {
+    const keys = visibleNavItems(true, true).map((item) => item.key);
+    expect(keys.indexOf("process")).toBe(keys.indexOf("schedule") + 1);
+    expect(keys.indexOf("barcode")).toBe(keys.indexOf("process") + 1);
   });
 });

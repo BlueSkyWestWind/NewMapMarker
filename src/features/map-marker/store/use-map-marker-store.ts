@@ -188,6 +188,7 @@ export const STORE_DEFAULT_SEGMENT: MapSegment = "equipment";
 /** 들어가면 지도의 일반 마커를 숨기고 시작하는 메뉴. 지도를 직접 쓰지 않는 화면들이다 */
 const NAVS_WITHOUT_MARKERS: NavKey[] = [
   "schedule",
+  "process",
   "barcode",
   "backup",
   "settings",

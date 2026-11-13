@@ -54,7 +54,7 @@ export function useShellNav() {
       setActiveNav(nav);
       // 일정관리의 하위 화면은 지도 모드·세그먼트를 바꾸지 않고 일정 화면만 고른다.
       if (nav === "schedule") {
-        if (!isMapSegment(segment)) setScheduleSegment(segment);
+        if (!isMapSegment(segment) && segment !== "survey") setScheduleSegment(segment);
       } else if (isMapSegment(segment)) {
         if (nav === "markers") {
           if (segment === "groups") {

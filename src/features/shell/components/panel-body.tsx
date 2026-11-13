@@ -91,6 +91,7 @@ export function PanelBody({
     ))
     // 일정관리와 계정설정은 패널 없이 메인 화면을 직접 그린다. 패널 내용은 없다.
     .with("schedule", () => null)
+    .with("process", () => null)
     .with("accounts", () => null)
     .with("barcode", () => <BarcodePanel />)
     .with("backup", () => (

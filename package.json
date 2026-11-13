@@ -18,6 +18,9 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
+    "@astryxdesign/cli": "^0.7.15",
+    "@astryxdesign/core": "^0.7.15",
+    "@astryxdesign/theme-neutral": "^0.7.15",
     "@opennextjs/cloudflare": "^1.20.1",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-dropdown-menu": "^2.1.1",
@@ -25,6 +28,7 @@
     "@radix-ui/react-select": "^2.1.4",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.6",
+    "@stylexjs/stylex": "^0.19.2",
     "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-query": "^5",
     "@undecaf/zbar-wasm": "^0.11.0",

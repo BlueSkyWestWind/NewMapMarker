@@ -40,16 +40,17 @@ describe("segmentsOfNav", () => {
 });
 
 describe("모바일 메뉴", () => {
-  it("로그인하면 탭 네 개와 더보기 항목 네 개로 모든 메뉴가 나뉜다", () => {
+  it("로그인하면 탭 네 개와 더보기 항목 다섯 개로 모든 메뉴가 나뉜다", () => {
     const tabs = mobileTabItems(true, true).map((item) => item.key);
     const more = mobileMoreItems(true, true).map((item) => item.key);
     expect(tabs).toEqual(["dashboard", "map", "markers", "schedule"]);
-    expect(more).toEqual(["barcode", "backup", "settings", "accounts"]);
+    expect(more).toEqual(["process", "barcode", "backup", "settings", "accounts"]);
     expect([...tabs, ...more].sort()).toEqual(NAV_ITEMS.map((item) => item.key).sort());
   });
 
   it("관리자가 아니면 더보기에 계정설정이 없다", () => {
     expect(mobileMoreItems(true, false).map((item) => item.key)).toEqual([
+      "process",
       "barcode",
       "backup",
       "settings",
@@ -126,6 +127,37 @@ describe("일정관리 하위 메뉴", () => {
   it("일정으로 검색하면 일정관리 노드가 하위 메뉴를 모두 가진다", () => {
     const node = filterNavTree(NAV_ITEMS, "일정").find((n) => n.item.key === "schedule");
     expect(node?.segments).toEqual(["facility", "daily", "mail"]);
+  });
+});
+
+describe("공정관리 하위 메뉴", () => {
+  it("현장실사서 하나를 가지고 초기 단계는 상세다", () => {
+    expect(segmentsOfNav("process")).toEqual(["survey"]);
+    expect(initialPanelStep("process")).toBe("detail");
+  });
+
+  it("패널 없이 메인 영역을 직접 쓴다", () => {
+    const base = { isSidebarOpen: true, isTreeOpen: false, panelStep: "root" as const };
+    expect(isPanelVisible({ ...base, activeNav: "process" })).toBe(false);
+    expect(isPanelVisible({ ...base, activeNav: "process", panelStep: "detail" })).toBe(false);
+    expect(isPanelVisible({ ...base, activeNav: "process", isTreeOpen: true, panelStep: "detail" })).toBe(false);
+  });
+
+  it("현장실사서가 활성이고 이름이 맞다", () => {
+    expect(isSubActive("process", "survey", "equipment")).toBe(true);
+    expect(subLabelOf("process", "equipment")).toBe("현장실사서");
+    expect(showsMarkerSummary("process", "equipment")).toBe(false);
+  });
+
+  it("실사서로 검색하면 공정관리와 현장실사서만 남는다", () => {
+    expect(filterNavTree(NAV_ITEMS, "실사서").map((n) => [n.item.key, n.segments])).toEqual([
+      ["process", ["survey"]],
+    ]);
+  });
+
+  it("공정으로 검색하면 공정관리 노드가 하위 메뉴를 모두 가진다", () => {
+    const node = filterNavTree(NAV_ITEMS, "공정").find((n) => n.item.key === "process");
+    expect(node?.segments).toEqual(["survey"]);
   });
 });
 
