@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
-import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
+import { useAuthSession } from '@/lib/auth/use-auth-session';
 import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-store';
 import {
   type FullBackupTables,

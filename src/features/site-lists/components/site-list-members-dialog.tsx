@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import type { EquipmentMarker } from "@/features/map-marker/types/marker";
 import { addSiteListMembers, removeSiteListMembers } from "@/features/site-lists/api";

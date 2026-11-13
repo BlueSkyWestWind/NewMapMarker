@@ -8,7 +8,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { copyCellToDate, updateScheduleCellResult } from "@/features/schedule/api";
 import { REASON_MAX_LENGTH, validateResult } from "@/features/schedule/lib/cell-result";
 import { ScheduleResultFields } from "@/features/schedule/components/schedule-result-fields";

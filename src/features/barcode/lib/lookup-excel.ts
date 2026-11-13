@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import type { LookupRow } from "@/features/barcode/types/barcode";
 
 /**
@@ -6,6 +5,8 @@ import type { LookupRow } from "@/features/barcode/types/barcode";
  * 헤더별 셀 값을 만든다. 파일은 브라우저 안에서만 처리하고 서버로 보내지 않는다.
  */
 export async function parseLookupExcel(file: File): Promise<LookupRow[]> {
+  // `xlsx`는 무거워 파일을 실제로 읽을 때만 불러온다.
+  const XLSX = await import("xlsx");
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type { MapMode } from "@/features/map-marker/types/marker";
 import { useHasMounted } from "@/hooks/use-has-mounted";

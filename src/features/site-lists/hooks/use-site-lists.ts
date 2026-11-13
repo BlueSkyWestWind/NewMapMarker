@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { fetchSiteListCount, fetchSiteListData } from "@/features/site-lists/api";
 import { isSiteListsTableMissing } from "@/features/site-lists/lib/site-list-view";
 import type { SiteList, SiteListMember } from "@/features/site-lists/types";

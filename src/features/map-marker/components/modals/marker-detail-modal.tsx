@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { useMapMarkerStore } from '@/features/map-marker/store/use-map-marker-st
 import { useMapMarkersQuery } from '@/features/map-marker/hooks/use-map-markers-query';
 import { useMarkerList } from '@/features/map-marker/hooks/use-marker-list';
 import { SiteListMembership } from '@/features/site-lists/components/site-list-membership';
-import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
+import { useAuthSession } from '@/lib/auth/use-auth-session';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -27,16 +27,18 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { MarkerDetailGpsCard } from '@/features/map-marker/components/modals/marker-detail-gps-card';
+import { useMarkerGpsInfo } from '@/features/map-marker/hooks/use-marker-gps-info';
+import { useMarkerGroupActions } from '@/features/map-marker/hooks/use-marker-group-actions';
+import { useTableCellSelection } from '@/features/map-marker/hooks/use-table-cell-selection';
 import {
-  MarkerOpsError,
-  applyMarkerOps,
-} from '@/features/group-admin/lib/group-ops';
-import {
-  planMergeSplitToLot,
-  planRoleChange,
-  planSeparate,
-} from '@/features/group-admin/lib/group-actions';
-import { runSingleLookup, type GpsLookupResult } from '@/features/gpsmap/lib/lookup';
+  BATTERY_TABLE_HEADERS,
+  EQUIPMENT_TABLE_HEADERS,
+  batteryCopyCells,
+  buildSelectionTsv,
+  buildTableTsv,
+  equipmentCopyCells,
+} from '@/features/map-marker/lib/table-tsv';
 import {
   GROUP_ROLE_REPRESENTATIVE,
   GROUP_ROLE_STANDALONE,
@@ -47,7 +49,6 @@ import {
 import {
   buildEquipmentDetailRows,
   compareRelatedMarkers,
-  dbErrorMessage,
   dongSortKey,
   getAddressGroupMates,
   getMarkerDongLabel,
@@ -71,28 +72,6 @@ const DETAIL_TABLE_TD =
   'whitespace-nowrap p-2 pr-3 border-r border-slate-800 transition-colors cursor-crosshair';
 const DETAIL_TABLE_TD_LAST =
   'whitespace-nowrap p-2 pr-5 transition-colors cursor-crosshair';
-
-/** GPSMAP 좌표·주소 변환 / 건축물대장 카드의 라벨-값 한 행. 조회 중이면 '…', 값 없으면 '-'. */
-function GpsInfoRow({
-  label,
-  value,
-  loading,
-}: {
-  label: string;
-  value?: string;
-  loading: boolean;
-}) {
-  return (
-    <tr className="border-b border-slate-800/60 last:border-0">
-      <th className="w-24 whitespace-nowrap py-1 pr-2 text-left align-top font-medium text-slate-500">
-        {label}
-      </th>
-      <td className="break-all py-1 text-slate-200">
-        {loading ? '…' : value || '-'}
-      </td>
-    </tr>
-  );
-}
 
 export function MarkerDetailModal() {
   const isDetailOpen = useMapMarkerStore((state) => state.isDetailOpen);
@@ -125,320 +104,23 @@ export function MarkerDetailModal() {
   const [detailedInfo, setDetailedInfo] = useState<InfoRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // GPSMAP 좌표·주소 변환 + 건축물대장 (버튼으로 각각 따로 열어 조회)
-  const [gpsInfo, setGpsInfo] = useState<GpsLookupResult | null>(null);
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsError, setGpsError] = useState<string | null>(null);
-  // 좌표·주소 변환 + 건축물대장을 하나로 묶은 펼침 여부
-  const [openGps, setOpenGps] = useState(false);
   // 동일 번지 국소 개별 배치 섹션 펼침 여부
   const [openSubList, setOpenSubList] = useState(false);
-  // 같은 좌표 재열람 시 재호출을 막는 좌표별 캐시
-  const gpsCacheRef = useRef<Map<string, GpsLookupResult>>(new Map());
+  const { gpsInfo, gpsLoading, gpsError, openGps, toggleGps } = useMarkerGpsInfo(marker, {
+    isDetailOpen,
+    selectedMarkerId,
+  });
 
-  // 셀 드래그 선택 상태
-  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
-  const dragStart = useRef<{ r: number; c: number } | null>(null);
-  const isDragging = useRef(false);
-
+  const {
+    selectedCells,
+    clearSelection,
+    handleMouseDown,
+    handleMouseOver,
+    handleMouseUp,
+  } = useTableCellSelection();
   const supabase = getSupabaseBrowserClient();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuthSession();
-  // 개별 표시(해제) 토글 진행 중인 마커 id
-  const [detachingId, setDetachingId] = useState<string | null>(null);
-  // "모두 합치기" 진행 중 여부
-  const [merging, setMerging] = useState(false);
-  // 동 단위 일괄 개별 표시/숨기기 진행 중인 동 라벨
-  const [detachingGroup, setDetachingGroup] = useState<string | null>(null);
-  // 구분(대표/단독/SUB) 변경 중인 마커 id
-  const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
-  // 번지에서 분리 진행 중인 라벨(동/지하/기타)
-  const [separatingLabel, setSeparatingLabel] = useState<string | null>(null);
-  // 대표 선택 UI가 열린 라벨(분리 실행 전 대표 고르기)
-  const [pickingSplitLabel, setPickingSplitLabel] = useState<string | null>(
-    null,
-  );
-  // 분리 그룹 → 번지로 합치기(원복) 진행 중 여부
-  const [mergingSplit, setMergingSplit] = useState(false);
-
-  /**
-   * 같은 번지 SUB의 지도 개별 표시 여부를 저장한다.
-   * 켤 때: 같은 동(棟)에서는 이 국소만 대표 핀으로 두고 형제 SUB 핀은 끈다.
-   */
-  const setMarkerDetached = async (markerId: string, detached: boolean) => {
-    if (!supabase) return;
-    if (!isAuthenticated) {
-      toast({ variant: 'destructive', description: '로그인이 필요합니다.' });
-      return;
-    }
-    setDetachingId(markerId);
-    try {
-      if (detached) {
-        const target = (markers as EquipmentMarker[]).find(
-          (item) => item.id === markerId,
-        );
-        const dongLabel = target ? getMarkerDongLabel(target) : null;
-        const sameDongIds = relatedEquipmentMarkers
-          .filter(
-            (item) =>
-              item.parentMarkerId &&
-              (!dongLabel || getMarkerDongLabel(item) === dongLabel),
-          )
-          .map((item) => item.id);
-
-        const hideIds = sameDongIds.filter((id) => id !== markerId);
-        if (hideIds.length > 0) {
-          const { error: hideError } = await supabase
-            .from('markers')
-            .update({ detached_visible: false })
-            .in('id', hideIds);
-          if (hideError) throw hideError;
-        }
-
-        const { error } = await supabase
-          .from('markers')
-          .update({ detached_visible: true })
-          .eq('id', markerId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('markers')
-          .update({ detached_visible: false })
-          .eq('id', markerId);
-        if (error) throw error;
-      }
-
-      await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
-      toast({
-        description: detached
-          ? '동 대표로 지도에 표시했습니다. 핀을 실제 위치로 드래그해 주세요.'
-          : '개별 표시를 해제했습니다.',
-      });
-      if (detached) closeAllModals();
-    } catch (err) {
-      console.error('개별 표시 저장 실패:', err);
-      toast({
-        variant: 'destructive',
-        description: dbErrorMessage(err, '개별 표시 변경에 실패했습니다.'),
-      });
-    } finally {
-      setDetachingId(null);
-    }
-  };
-
-  /** 현재 개별 표시된 동일 번지 SUB를 모두 다시 숨겨 대표 1개로 합친다. */
-  const mergeAllDetachedSubs = async () => {
-    if (!supabase) return;
-    if (!isAuthenticated) {
-      toast({ variant: 'destructive', description: '로그인이 필요합니다.' });
-      return;
-    }
-    const ids = relatedEquipmentMarkers
-      .filter((sub) => sub.parentMarkerId && sub.detachedVisible)
-      .map((sub) => sub.id);
-    if (!ids.length) return;
-
-    setMerging(true);
-    try {
-      const { error } = await supabase
-        .from('markers')
-        .update({ detached_visible: false })
-        .in('id', ids);
-      if (error) throw error;
-      await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
-      toast({ description: `${ids.length}개 국소를 대표로 합쳤습니다.` });
-    } catch (err) {
-      console.error('모두 합치기 실패:', err);
-      toast({
-        variant: 'destructive',
-        description: dbErrorMessage(err, '합치기에 실패했습니다.'),
-      });
-    } finally {
-      setMerging(false);
-    }
-  };
-
-  /**
-   * 동(棟) 단위로 지도 표시를 토글한다.
-   * 켤 때: 동 대표 1국소만 표시(나머지 SUB 핀 숨김). 끌 때: 동 전체 숨김.
-   */
-  const setGroupDetached = async (
-    dongLabel: string,
-    subs: EquipmentMarker[],
-    detached: boolean,
-  ) => {
-    const ids = subs.map((sub) => sub.id);
-    if (!supabase || ids.length === 0) return;
-    if (!isAuthenticated) {
-      toast({ variant: 'destructive', description: '로그인이 필요합니다.' });
-      return;
-    }
-    setDetachingGroup(dongLabel);
-    try {
-      if (detached) {
-        const rep = pickDongMapRepresentative(subs);
-        if (!rep) return;
-        const hideIds = ids.filter((id) => id !== rep.id);
-        if (hideIds.length > 0) {
-          const { error: hideError } = await supabase
-            .from('markers')
-            .update({ detached_visible: false })
-            .in('id', hideIds);
-          if (hideError) throw hideError;
-        }
-        const { error } = await supabase
-          .from('markers')
-          .update({ detached_visible: true })
-          .eq('id', rep.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('markers')
-          .update({ detached_visible: false })
-          .in('id', ids);
-        if (error) throw error;
-      }
-      await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
-      toast({
-        description: detached
-          ? `${dongLabel} 대표 1국소를 지도에 표시했습니다. 핀을 실제 위치로 드래그해 주세요.`
-          : `${dongLabel} 개별 표시를 해제했습니다.`,
-      });
-    } catch (err) {
-      console.error('동 단위 개별 표시 변경 실패:', err);
-      toast({
-        variant: 'destructive',
-        description: dbErrorMessage(err, '개별 표시 변경에 실패했습니다.'),
-      });
-    } finally {
-      setDetachingGroup(null);
-    }
-  };
-
-  /**
-   * 국소 구분(대표/단독/SUB)을 DB에 저장한다. 계획은 planRoleChange가 만든다.
-   */
-  const changeMarkerGroupRole = async (
-    markerId: string,
-    nextRole: GroupRole,
-  ) => {
-    if (!supabase) return;
-    if (!isAuthenticated) {
-      toast({ variant: 'destructive', description: '로그인이 필요합니다.' });
-      return;
-    }
-
-    const allEquipment = markers as EquipmentMarker[];
-    const target = allEquipment.find((item) => item.id === markerId);
-    if (!target) return;
-    if (storedGroupRoleOf(target) === nextRole) return;
-
-    setChangingRoleId(markerId);
-    try {
-      const { ops, notice } = planRoleChange(target, nextRole, allEquipment);
-      await applyMarkerOps(supabase, ops);
-      toast({ description: notice });
-      await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
-    } catch (err) {
-      console.error('구분 변경 실패:', err);
-      toast({
-        variant: 'destructive',
-        description: dbErrorMessage(
-          err instanceof MarkerOpsError ? err.cause : err,
-          '구분 변경에 실패했습니다.',
-        ),
-      });
-    } finally {
-      setChangingRoleId(null);
-    }
-  };
-
-  /**
-   * 라벨(동/지하/기타) 국소들을 번지 그룹에서 빼내 독립 그룹(대표+SUB)으로 분리한다.
-   * 계획은 planSeparate가 만든다(남은 번지 그룹 재승격 → 분리 그룹 순).
-   */
-  const separateLabelGroup = async (label: string, repId?: string) => {
-    if (!supabase) return;
-    if (!isAuthenticated) {
-      toast({ variant: 'destructive', description: '로그인이 필요합니다.' });
-      return;
-    }
-    const targets = relatedEquipmentMarkers.filter(
-      (m) => getMarkerDongLabel(m) === label,
-    );
-    if (targets.length === 0) return;
-    const remaining = relatedEquipmentMarkers.filter(
-      (m) => getMarkerDongLabel(m) !== label,
-    );
-
-    setSeparatingLabel(label);
-    try {
-      const { ops } = planSeparate(targets, remaining, label, repId);
-      await applyMarkerOps(supabase, ops);
-      setPickingSplitLabel(null);
-      await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
-      const repMarker = repId
-        ? targets.find((m) => m.id === repId)
-        : undefined;
-      toast({
-        description: `'${label}' ${targets.length}개 국소를 분리했습니다.${
-          repMarker
-            ? ` 대표: '${repMarker.finalStationName || repMarker.name}'.`
-            : ''
-        } 지도에서 새 대표 핀을 실제 위치로 드래그해 주세요.`,
-      });
-    } catch (err) {
-      console.error('분리 실패:', err);
-      toast({
-        variant: 'destructive',
-        description: dbErrorMessage(
-          err instanceof MarkerOpsError ? err.cause : err,
-          '분리에 실패했습니다.',
-        ),
-      });
-    } finally {
-      setSeparatingLabel(null);
-    }
-  };
-
-  /**
-   * 현재 보고 있는 분리 그룹(group_key)을 번지 그룹으로 되돌린다(원복).
-   * 계획은 planMergeSplitToLot이 만든다.
-   */
-  const mergeSplitGroupToLot = async () => {
-    if (!supabase) return;
-    if (!isAuthenticated) {
-      toast({ variant: 'destructive', description: '로그인이 필요합니다.' });
-      return;
-    }
-    const splitMembers = relatedEquipmentMarkers.filter((m) =>
-      (m.groupKey ?? '').trim(),
-    );
-    if (splitMembers.length === 0) return;
-
-    setMergingSplit(true);
-    try {
-      const { ops } = planMergeSplitToLot(
-        splitMembers,
-        markers as EquipmentMarker[],
-      );
-      await applyMarkerOps(supabase, ops);
-      await queryClient.invalidateQueries({ queryKey: MAP_MARKER_QUERY_KEY });
-      toast({ description: '분리를 해제하고 번지 그룹으로 합쳤습니다.' });
-    } catch (err) {
-      console.error('번지로 합치기 실패:', err);
-      toast({
-        variant: 'destructive',
-        description: dbErrorMessage(
-          err instanceof MarkerOpsError ? err.cause : err,
-          '번지로 합치기에 실패했습니다.',
-        ),
-      });
-    } finally {
-      setMergingSplit(false);
-    }
-  };
-
   /**
    * 동일 번지 장비 목록(연관 상세·동 배치 공통).
    * 부모-자식 그룹 + 같은 번지 메이트를 합친다. 상세 표는 동 필터 없이 이 전체 사용.
@@ -485,6 +167,23 @@ export function MarkerDetailModal() {
 
   /** 연관 상세 표 = 동일 번지 전체(동 개별 표시와 무관). */
   const detailEquipmentMarkers = relatedEquipmentMarkers;
+
+  const {
+    detachingId,
+    merging,
+    detachingGroup,
+    changingRoleId,
+    separatingLabel,
+    pickingSplitLabel,
+    setPickingSplitLabel,
+    mergingSplit,
+    setMarkerDetached,
+    mergeAllDetachedSubs,
+    setGroupDetached,
+    changeMarkerGroupRole,
+    separateLabelGroup,
+    mergeSplitGroupToLot,
+  } = useMarkerGroupActions({ markers, relatedEquipmentMarkers });
 
   const equipmentRows = useMemo(
     () => buildEquipmentDetailRows(detailEquipmentMarkers, detailedInfo),
@@ -549,8 +248,9 @@ export function MarkerDetailModal() {
     };
 
     fetchDetail();
-    setSelectedCells(new Set());
+    clearSelection();
   }, [
+    clearSelection,
     isDetailOpen,
     selectedMarkerId,
     mode,
@@ -559,56 +259,11 @@ export function MarkerDetailModal() {
     relatedEquipmentMarkers,
   ]);
 
-  // 마커/모달이 바뀌면 섹션을 접고 상태를 초기화(펼치기로 다시 연다). 좌표 캐시는 유지.
+  // 마커/모달이 바뀌면 섹션을 접는다(펼치기로 다시 연다).
   useEffect(() => {
-    setOpenGps(false);
     setOpenSubList(false);
     setPickingSplitLabel(null);
-    setGpsInfo(null);
-    setGpsError(null);
-    setGpsLoading(false);
-  }, [isDetailOpen, selectedMarkerId]);
-
-  // 버튼 클릭 시에만 좌표로 GPSMAP(역주소·PNU·필지·건축물대장) 조회. 같은 좌표는 캐시로 재호출 생략.
-  const loadGpsInfo = async () => {
-    if (!marker) return;
-    const { lat, lng } = marker;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      setGpsInfo(null);
-      setGpsError('좌표 정보가 없어 조회할 수 없습니다.');
-      return;
-    }
-    const key = `${lat},${lng}`;
-    const cached = gpsCacheRef.current.get(key);
-    if (cached) {
-      setGpsInfo(cached);
-      setGpsError(null);
-      setGpsLoading(false);
-      return;
-    }
-    setGpsLoading(true);
-    setGpsError(null);
-    setGpsInfo(null);
-    try {
-      const info = await runSingleLookup(`${lat}, ${lng}`);
-      gpsCacheRef.current.set(key, info);
-      setGpsInfo(info);
-    } catch {
-      setGpsInfo(null);
-      setGpsError('좌표·주소 변환 정보를 불러오지 못했습니다.');
-    } finally {
-      setGpsLoading(false);
-    }
-  };
-
-  // 펼치기/숨기기 토글: 펼칠 때 아직 조회 전이면 조회를 시작한다.
-  const toggleGps = () => {
-    const willOpen = !openGps;
-    setOpenGps(willOpen);
-    if (willOpen && !gpsInfo && !gpsLoading) {
-      void loadGpsInfo();
-    }
-  };
+  }, [isDetailOpen, selectedMarkerId, setPickingSplitLabel]);
 
   // 클립보드 복사 헬퍼
   const writeTsvToClipboard = async (tsvText: string, message: string) => {
@@ -630,157 +285,36 @@ export function MarkerDetailModal() {
 
   // 표 전체 복사
   const handleCopyTable = () => {
-    let headers: string[] = [];
-    let rowsData: string[][] = [];
-
-    if (mode === 'equipment') {
-      headers = [
-        '구분',
-        '시설연도',
-        '프로젝트코드',
-        '통합시설코드',
-        '사업구분',
-        '국소명-최종',
-        '장비타입',
-        '시설일',
-        '개통일',
-      ];
-
-      rowsData = equipmentRows.map((row) => [
-        resolveRowGroupRole(row),
-        row.facility_year || '',
-        row.project_code || '',
-        row.facility_code || '',
-        row.business_type || '',
-        row.final_station_name || '',
-        row.eq_type || '',
-        row.install_date ? row.install_date.split('T')[0] : '',
-        row.open_date ? row.open_date.split('T')[0] : '',
-      ]);
-    } else {
-      headers = ['ERP명', '주소', '용량(AH)', '수량(Cell)', '창고/국소/국사명', '등록일'];
-      const items = batteryMarker?.items || [];
-      rowsData = items.map((item: BatterySpecItem) => [
-        item.erpName || '',
-        item.address || '',
-        String(item.capacity || 0),
-        String(item.quantity || 0),
-        item.stationName || '',
-        item.createdAt ? item.createdAt.split('T')[0] : '',
-      ]);
-    }
-
-    const tsvContent = [
-      headers.join('\t'),
-      ...rowsData.map(row => row.join('\t'))
-    ].join('\n');
-
+    const tsvContent =
+      mode === 'equipment'
+        ? buildTableTsv(
+            EQUIPMENT_TABLE_HEADERS,
+            equipmentRows.map((row) => equipmentCopyCells(row, resolveRowGroupRole(row))),
+          )
+        : buildTableTsv(
+            BATTERY_TABLE_HEADERS,
+            (batteryMarker?.items || []).map(batteryCopyCells),
+          );
     writeTsvToClipboard(tsvContent, '표 전체 내용이 클립보드에 복사되었습니다.');
-  };
-
-  // 선택 셀 복사
-  const handleCopySelected = () => {
-    if (selectedCells.size === 0) return;
-
-    // 셀 좌표 정렬 및 추출
-    const coords = Array.from(selectedCells).map((key) => {
-      const [r, c] = key.split(',').map(Number);
-      return { r, c };
-    });
-
-    const minRow = Math.min(...coords.map((o) => o.r));
-    const maxRow = Math.max(...coords.map((o) => o.r));
-    const minCol = Math.min(...coords.map((o) => o.c));
-    const maxCol = Math.max(...coords.map((o) => o.c));
-
-    const grid: string[][] = [];
-    for (let r = minRow; r <= maxRow; r++) {
-      const rowArr: string[] = [];
-      for (let c = minCol; c <= maxCol; c++) {
-        const hasCell = coords.some((o) => o.r === r && o.c === c);
-        if (hasCell) {
-          rowArr.push(getCellValue(r, c));
-        } else {
-          rowArr.push('');
-        }
-      }
-      grid.push(rowArr);
-    }
-
-    const tsvContent = grid.map((row) => row.join('\t')).join('\n');
-    writeTsvToClipboard(tsvContent, '선택한 셀 내용이 클립보드에 복사되었습니다.');
   };
 
   const getCellValue = (r: number, c: number): string => {
     if (mode === 'equipment') {
       const row = equipmentRows[r];
-      if (!row) return '';
-      switch (c) {
-        case 0: return resolveRowGroupRole(row);
-        case 1: return row.facility_year || '';
-        case 2: return row.project_code || '';
-        case 3: return row.facility_code || '';
-        case 4: return row.business_type || '';
-        case 5: return row.final_station_name || '';
-        case 6: return row.eq_type || '';
-        case 7: return row.install_date ? row.install_date.split('T')[0] : '';
-        case 8: return row.open_date ? row.open_date.split('T')[0] : '';
-        default: return '';
-      }
-    } else {
-      const items = batteryMarker?.items || [];
-      const item = items[r];
-      if (!item) return '';
-      switch (c) {
-        case 0: return item.erpName || '';
-        case 1: return item.address || '';
-        case 2: return String(item.capacity || 0);
-        case 3: return String(item.quantity || 0);
-        case 4: return item.stationName || '';
-        case 5: return item.createdAt ? item.createdAt.split('T')[0] : '';
-        default: return '';
-      }
+      return row ? (equipmentCopyCells(row, resolveRowGroupRole(row))[c] ?? '') : '';
     }
+    const item = (batteryMarker?.items || [])[r];
+    return item ? (batteryCopyCells(item)[c] ?? '') : '';
   };
 
-  // 마우스 드래그 선택 이벤트 핸들러
-  const handleMouseDown = (r: number, c: number) => {
-    isDragging.current = true;
-    dragStart.current = { r, c };
-    setSelectedCells(new Set([`${r},${c}`]));
+  // 선택 셀 복사
+  const handleCopySelected = () => {
+    if (selectedCells.size === 0) return;
+    writeTsvToClipboard(
+      buildSelectionTsv(selectedCells, getCellValue),
+      '선택한 셀 내용이 클립보드에 복사되었습니다.',
+    );
   };
-
-  const handleMouseOver = (r: number, c: number) => {
-    if (!isDragging.current || !dragStart.current) return;
-    const start = dragStart.current;
-
-    const minRow = Math.min(start.r, r);
-    const maxRow = Math.max(start.r, r);
-    const minCol = Math.min(start.c, c);
-    const maxCol = Math.max(start.c, c);
-
-    const nextSet = new Set<string>();
-    for (let row = minRow; row <= maxRow; row++) {
-      for (let col = minCol; col <= maxCol; col++) {
-        nextSet.add(`${row},${col}`);
-      }
-    }
-    setSelectedCells(nextSet);
-  };
-
-  const handleMouseUp = () => {
-    isDragging.current = false;
-    dragStart.current = null;
-  };
-
-  useEffect(() => {
-    const globalMouseUp = () => {
-      isDragging.current = false;
-      dragStart.current = null;
-    };
-    window.addEventListener('mouseup', globalMouseUp);
-    return () => window.removeEventListener('mouseup', globalMouseUp);
-  }, []);
 
   // SUB 국소를 동(棟)별로 묶는다. 동당 지도 핀은 최대 1개.
   const dongGroups = useMemo(() => {
@@ -970,90 +504,13 @@ export function MarkerDetailModal() {
 
           {/* GPSMAP 좌표·주소 변환 + 건축물대장 — 하나의 펼치기·숨기기 */}
           {mode === 'equipment' ? (
-            <div className="mt-4 overflow-hidden rounded-lg border border-slate-800/80 bg-slate-950/40">
-              <button
-                type="button"
-                onClick={toggleGps}
-                className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-slate-900/40"
-              >
-                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
-                  <MapPin className="h-3.5 w-3.5 text-emerald-400" />
-                  좌표·주소 변환 · 건축물대장
-                </span>
-                <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                  {gpsLoading && openGps ? '조회 중…' : openGps ? '숨기기' : '펼치기'}
-                  {openGps ? (
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  )}
-                </span>
-              </button>
-              {openGps ? (
-                <div className="grid grid-cols-1 gap-4 border-t border-slate-800/80 px-4 pb-4 pt-3 md:grid-cols-2">
-                  {/* 좌표·주소 변환 */}
-                  <div className="space-y-2">
-                    <h4 className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                      <MapPin className="h-3 w-3 text-emerald-400" />
-                      좌표·주소 변환
-                    </h4>
-                    {gpsError ? (
-                      <p className="text-[11px] text-slate-500">{gpsError}</p>
-                    ) : (
-                      <table className="w-full text-[11px]">
-                        <tbody>
-                          <GpsInfoRow label="구 주소" value={gpsInfo?.oldAddress} loading={gpsLoading} />
-                          <GpsInfoRow label="신 주소" value={gpsInfo?.roadAddress} loading={gpsLoading} />
-                          <GpsInfoRow label="우편번호" value={gpsInfo?.zipcode} loading={gpsLoading} />
-                          <GpsInfoRow
-                            label="좌표"
-                            value={
-                              gpsInfo
-                                ? `${gpsInfo.center.lat.toFixed(6)}, ${gpsInfo.center.lng.toFixed(6)}`
-                                : undefined
-                            }
-                            loading={gpsLoading}
-                          />
-                          <GpsInfoRow label="위도(도분초)" value={gpsInfo?.latDms} loading={gpsLoading} />
-                          <GpsInfoRow label="경도(도분초)" value={gpsInfo?.lngDms} loading={gpsLoading} />
-                          <GpsInfoRow label="구글좌표" value={gpsInfo?.googleCoord} loading={gpsLoading} />
-                          <GpsInfoRow label="PNU" value={gpsInfo?.pnu} loading={gpsLoading} />
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-
-                  {/* 건축물대장 */}
-                  <div className="space-y-2">
-                    <h4 className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                      <Building2 className="h-3 w-3 text-emerald-400" />
-                      건축물대장
-                    </h4>
-                    {gpsError ? (
-                      <p className="text-[11px] text-slate-500">{gpsError}</p>
-                    ) : gpsLoading ? (
-                      <p className="text-[11px] text-slate-500">조회 중…</p>
-                    ) : gpsInfo?.building ? (
-                      <table className="w-full text-[11px]">
-                        <tbody>
-                          <GpsInfoRow label="건물명칭" value={gpsInfo.building.name} loading={false} />
-                          <GpsInfoRow label="동명칭" value={gpsInfo.building.dongName} loading={false} />
-                          <GpsInfoRow label="지상층수" value={gpsInfo.building.groundFloors} loading={false} />
-                          <GpsInfoRow label="지하층수" value={gpsInfo.building.basementFloors} loading={false} />
-                          <GpsInfoRow label="연면적" value={gpsInfo.building.totalArea} loading={false} />
-                          <GpsInfoRow label="대지면적" value={gpsInfo.building.platArea} loading={false} />
-                          <GpsInfoRow label="건축면적" value={gpsInfo.building.buildingArea} loading={false} />
-                          <GpsInfoRow label="주용도" value={gpsInfo.building.mainUse} loading={false} />
-                          <GpsInfoRow label="세부용도" value={gpsInfo.building.detailUse} loading={false} />
-                        </tbody>
-                      </table>
-                    ) : (
-                      <p className="text-[11px] text-slate-500">건축물대장 조회 결과가 없습니다.</p>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <MarkerDetailGpsCard
+              gpsInfo={gpsInfo}
+              gpsLoading={gpsLoading}
+              gpsError={gpsError}
+              open={openGps}
+              onToggle={toggleGps}
+            />
           ) : null}
 
           {/* 같은 번지 국소 개별 배치 (드래그로 실위치 지정) */}

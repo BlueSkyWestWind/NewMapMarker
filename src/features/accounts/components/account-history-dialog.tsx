@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { fetchLoginHistory } from "../api";
 import { formatClock, localDateKey, summarizeLoginHistory } from "../lib/login-history";
 import { describeUserAgent } from "../lib/session-info";

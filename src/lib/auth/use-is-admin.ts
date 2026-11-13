@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
-import { fetchIsAppAdmin } from "@/features/map-marker/lib/admin";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
+import { fetchIsAppAdmin } from "@/lib/auth/admin";
 
 const ADMIN_STALE_TIME_MS = 5 * 60 * 1000;
 

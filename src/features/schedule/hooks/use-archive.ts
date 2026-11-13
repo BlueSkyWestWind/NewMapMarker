@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { DAY_QUERY_KEY, deleteArchiveRows, fetchArchive } from "@/features/schedule/day-api";
 import type { ArchiveRow } from "@/features/schedule/lib/day-types";
 import { isScheduleTableMissing } from "@/features/schedule/lib/table-missing";

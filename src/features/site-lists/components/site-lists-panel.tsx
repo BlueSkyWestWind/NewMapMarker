@@ -5,7 +5,7 @@ import { ListPlus, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColorDisplayName } from "@/features/map-marker/constants/facility-teams";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type { EquipmentMarker, MarkerRecord } from "@/features/map-marker/types/marker";
 import { PanelSection } from "@/features/shell/components/panels/panel-section";

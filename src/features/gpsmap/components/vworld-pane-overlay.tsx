@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import type { VworldMapHandle } from "@/features/gpsmap/components/vworld-map-pane";
+import { leafletZoomFromKakaoLevel } from "@/features/gpsmap/lib/coords";
 
 /*
  * Leaflet은 window에 의존한다. 정적 프리렌더에 걸리지 않게 클라이언트에서만 받는다.
@@ -24,10 +25,6 @@ const VworldMapPane = dynamic(
     ),
   },
 );
-
-/** 카카오 레벨 → Leaflet 줌 (`/gpsmap`과 같은 환산식). */
-const leafletZoomFromKakaoLevel = (level: number) =>
-  Math.max(7, Math.min(20, 20 - Math.round(level || 3)));
 
 /**
  * 지도 영역 하단에 브이월드 지적도 화면을 띄운다.

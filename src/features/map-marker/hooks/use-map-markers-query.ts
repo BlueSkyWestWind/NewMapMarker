@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchMapMarkers } from '@/features/map-marker/api';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
-import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
+import { useAuthSession } from '@/lib/auth/use-auth-session';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 /**

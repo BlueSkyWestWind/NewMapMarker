@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { fetchScheduleFreezes } from "@/features/schedule/api";
 import type { Freeze } from "@/features/schedule/lib/freeze";
 import { isScheduleTableMissing } from "@/features/schedule/lib/table-missing";

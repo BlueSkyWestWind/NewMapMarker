@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import type * as XLSX from "xlsx";
 import type { Workbook } from "exceljs";
 import { parseScheduleRows, type ParsedSchedule } from "@/features/schedule/lib/schedule-excel";
 
@@ -16,10 +16,19 @@ export type ReadScheduleResult = { sheetName: string; parsed: ParsedSchedule } |
 
 type ColorAt = (rowIndex: number, colIndex: number) => string | null;
 
+/** 0부터 시작하는 행·열을 A1 주소로 바꾼다(`xlsx`의 `encode_cell`과 같은 결과, 런타임 import 없이). */
+export function encodeA1Cell(rowIndex: number, colIndex: number): string {
+  let column = "";
+  for (let n = colIndex + 1; n > 0; n = Math.floor((n - 1) / 26)) {
+    column = String.fromCharCode(65 + ((n - 1) % 26)) + column;
+  }
+  return `${column}${rowIndex + 1}`;
+}
+
 /** 셀 배경색을 6자리 대문자 RGB로. 채움이 없으면 null. 인덱스는 시트 기준 절대 좌표(0부터). */
 export function buildFillAt(sheet: XLSX.WorkSheet): ColorAt {
   return (rowIndex, colIndex) => {
-    const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
+    const cell = sheet[encodeA1Cell(rowIndex, colIndex)];
     const style = cell?.s;
     if (!style || style.patternType !== "solid") return null;
     const rgb = style.fgColor?.rgb;
@@ -56,12 +65,14 @@ function orderedSheetNames(workbook: XLSX.WorkBook): string[] {
 export async function parseWorkbookBuffer(
   data: ArrayBuffer | Uint8Array,
 ): Promise<ReadScheduleResult> {
-  const workbook = XLSX.read(data, { type: "array", cellStyles: true });
+  // `xlsx`는 무거워 일정 파일을 실제로 읽을 때만 불러온다.
+  const xlsx = await import("xlsx");
+  const workbook = xlsx.read(data, { type: "array", cellStyles: true });
 
   for (const sheetName of orderedSheetNames(workbook)) {
     const sheet = workbook.Sheets[sheetName];
-    const range = XLSX.utils.decode_range(sheet["!ref"] ?? "A1");
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    const range = xlsx.utils.decode_range(sheet["!ref"] ?? "A1");
+    const rows = xlsx.utils.sheet_to_json<unknown[]>(sheet, {
       header: 1,
       raw: false,
       defval: "",

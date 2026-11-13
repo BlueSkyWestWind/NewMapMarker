@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { updateScheduleColumn } from "@/features/schedule/api";
 import type { ScheduleColumn } from "@/features/schedule/types";
 import { useToast } from "@/hooks/use-toast";

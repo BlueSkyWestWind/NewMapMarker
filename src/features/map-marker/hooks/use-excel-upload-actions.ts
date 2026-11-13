@@ -1,16 +1,14 @@
 "use client";
 
-import { type ReactNode, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
-  DEFAULT_MARKER_COLOR,
   PENDING_MARKER_COLOR,
   TEMP_MARKER_COLOR,
 } from "@/features/map-marker/constants/facility-teams";
 import { MAP_MARKER_QUERY_KEY } from "@/features/map-marker/constants/map-config";
 import { fetchAllRows } from "@/features/map-marker/api";
-import { reviewGroupMemberIds } from "@/features/map-marker/lib/erp-review";
 import { savePendingBattery, savePendingEquipment } from "@/features/map-marker/lib/save-pending";
 import type { ExistingMarkerRef } from "@/features/map-marker/lib/erp-classify";
 import {
@@ -23,28 +21,37 @@ import {
   resolveWeatherSiteForLocation,
 } from "@/features/map-marker/lib/location-marker";
 import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
-import type { ErpParsedRow } from "@/features/map-marker/lib/excel/data-manager/erp-parse";
 import { applyMarkerRolesFromStoredGroupRole } from "@/features/map-marker/lib/address-group";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import {
   formatFailedAddresses,
   isValidCoordinate,
   parseErpSheet,
   resetFileInput,
-  resolveStoredMarkerColor,
   stagedMarkerRowToPending,
   toEquipmentMarker,
   type ParsedExcelRow,
 } from "@/features/map-marker/lib/excel-upload-helpers";
+import {
+  appendFailCount,
+  assertErpDateColumns,
+  collectReviewTargets,
+  emptyFilterSelection,
+  partitionByCoords,
+  summarizeStagedUpload,
+  toBatteryDbMarker,
+  toBatterySpecRows,
+  toEquipmentDbInfo,
+  toEquipmentDbMarker,
+} from "@/features/map-marker/lib/excel-upload-runners";
+import { buildUploadResultDescription } from "@/features/map-marker/components/sidebar/upload-result-toast";
 import type {
   BatteryMarker,
   EquipmentMarker,
   MarkerRecord,
   StagedErpUpload,
 } from "@/features/map-marker/types/marker";
-
-const FAILED_ADDRESS_DISPLAY_LIMIT = 10;
 
 /** [확인]의 결과. 주소가 다르면 저장하지 않고 두 주소를 보여 준다. */
 export type StagedConfirmResult =
@@ -56,47 +63,6 @@ export type StagedConfirmResult =
       /** 마커 위치의 주소. 찾지 못하면 null */
       actualAddress: string | null;
     };
-
-/** 옛 양식은 저장 전에 막는다. 그대로 저장하면 기존 시설일·개통일이 지워진다. */
-async function assertErpDateColumns(rows: ErpParsedRow[]) {
-  const { findMissingErpDateColumns } = await import(
-    "@/features/map-marker/lib/erp-classify"
-  );
-  const missing = findMissingErpDateColumns(rows);
-  if (missing.length > 0) {
-    throw new Error(
-      `새 양식의 ${missing.join("·")} 열을 찾지 못해 중단했습니다. 파일의 날짜 열을 확인하세요.`,
-    );
-  }
-}
-
-/**
- * 업로드 결과 토스트 본문. 실패 주소가 있으면 요약 아래에 목록으로 노출한다.
- */
-function buildUploadResultDescription(
-  summary: string,
-  failedAddresses: string[],
-): ReactNode {
-  if (failedAddresses.length === 0) return summary;
-
-  const shown = failedAddresses.slice(0, FAILED_ADDRESS_DISPLAY_LIMIT);
-  const rest = failedAddresses.length - shown.length;
-
-  return (
-    <div className="space-y-1">
-      <p>{summary}</p>
-      <div className="text-[11px] leading-snug opacity-90">
-        <p className="font-medium">주소 찾기 실패 {failedAddresses.length}종:</p>
-        <ul className="list-disc space-y-0.5 pl-4">
-          {shown.map((address) => (
-            <li key={address}>{address}</li>
-          ))}
-        </ul>
-        {rest > 0 ? <p className="pl-4">…외 {rest}종</p> : null}
-      </div>
-    </div>
-  );
-}
 
 export function useExcelUploadActions() {
   const { supabase, isAuthenticated } = useAuthSession();
@@ -162,12 +128,7 @@ export function useExcelUploadActions() {
         const parsedData = (await MapMarkerExcelManager.parseExcelOrCSV(
           file,
         )) as ParsedExcelRow[];
-        const withCoords = parsedData.filter(
-          (item) => item.lat !== undefined && item.lng !== undefined,
-        );
-        const needGeocoding = parsedData.filter(
-          (item) => item.lat === undefined || item.lng === undefined,
-        );
+        const { withCoords, needGeocoding } = partitionByCoords(parsedData);
 
         let geocodeResults: typeof parsedData = [];
         let failCount = 0;
@@ -206,10 +167,10 @@ export function useExcelUploadActions() {
         );
         addPendingMarkers("equipment", newMarkers);
 
-        let summary = `엑셀 위치 마킹 완료! 총 ${newMarkers.length}개 장소가 대기 중입니다.`;
-        if (failCount > 0) {
-          summary += ` (주소 찾기 실패: ${failCount}건)`;
-        }
+        const summary = appendFailCount(
+          `엑셀 위치 마킹 완료! 총 ${newMarkers.length}개 장소가 대기 중입니다.`,
+          failCount,
+        );
         toast({
           description: buildUploadResultDescription(
             summary,
@@ -258,12 +219,7 @@ export function useExcelUploadActions() {
             file,
           )) as ParsedExcelRow[];
         }
-        const withCoords = parsedData.filter(
-          (item) => item.lat !== undefined && item.lng !== undefined,
-        );
-        const needGeocoding = parsedData.filter(
-          (item) => item.lat === undefined || item.lng === undefined,
-        );
+        const { withCoords, needGeocoding } = partitionByCoords(parsedData);
 
         let geocodeResults: ParsedExcelRow[] = [];
         let failCount = 0;
@@ -313,10 +269,10 @@ export function useExcelUploadActions() {
           ),
         );
 
-        let summary = `위치 ${newMarkers.length}건이 지도와 대시보드에 표시되었습니다.`;
-        if (failCount > 0) {
-          summary += ` (주소 찾기 실패: ${failCount}건)`;
-        }
+        const summary = appendFailCount(
+          `위치 ${newMarkers.length}건이 지도와 대시보드에 표시되었습니다.`,
+          failCount,
+        );
         toast({
           description: buildUploadResultDescription(
             summary,
@@ -367,12 +323,9 @@ export function useExcelUploadActions() {
           throw new Error("가져올 수 있는 유효한 축전지 데이터가 없습니다.");
         }
 
-        const needGeocoding = parsed.filter(
-          (item) => item.lat === undefined || item.lng === undefined,
-        );
-        let results = parsed.filter(
-          (item) => item.lat !== undefined && item.lng !== undefined,
-        );
+        const partition = partitionByCoords(parsed);
+        const needGeocoding = partition.needGeocoding;
+        let results = partition.withCoords;
         let failCount = 0;
         let failedItems: ParsedExcelRow[] = [];
 
@@ -400,10 +353,10 @@ export function useExcelUploadActions() {
         })) as MarkerRecord[];
 
         addPendingMarkers("battery", pendingBatteryMarkers);
-        let batterySummary = `축전지 ${pendingBatteryMarkers.length}건이 대기 목록에 추가되었습니다. 전체 전송으로 DB에 저장하세요.`;
-        if (failCount > 0) {
-          batterySummary += ` (주소 찾기 실패: ${failCount}건)`;
-        }
+        const batterySummary = appendFailCount(
+          `축전지 ${pendingBatteryMarkers.length}건이 대기 목록에 추가되었습니다. 전체 전송으로 DB에 저장하세요.`,
+          failCount,
+        );
         toast({
           description: buildUploadResultDescription(
             batterySummary,
@@ -516,15 +469,9 @@ export function useExcelUploadActions() {
         );
         setStagedErpUpload(upload);
 
-        let summary = `위치등록 파일을 불러왔습니다. 확인 대기 ${upload.reviewRows.length}건 · 기존 ${upload.existingRows.length}건`;
-        const addonCount = (upload.addonRows ?? []).length;
-        if (addonCount > 0) summary += ` · 추가 사업 ${addonCount}건`;
-        if (upload.skippedRows.length > 0) {
-          summary += ` · 저장 안 함 ${upload.skippedRows.length}건(코드·주소 없음)`;
-        }
         toast({
           description: buildUploadResultDescription(
-            summary,
+            summarizeStagedUpload(upload),
             upload.geocodeFailedAddresses,
           ),
         });
@@ -587,16 +534,7 @@ export function useExcelUploadActions() {
     }
     setStagedErpUpload(null);
     // 저장한 마커가 필터에 가려지지 않도록 필터를 초기화한다.
-    setFilters({
-      selectedYears: new Set(),
-      selectedBusinesses: new Set(),
-      selectedStatuses: new Set(),
-      selectedColors: new Set(),
-      selectedTags: new Set(),
-      selectedCapacities: new Set(),
-      selectedQuantities: new Set(),
-      selectedStations: new Set(),
-    });
+    setFilters(emptyFilterSelection());
     toast({ description: "위치등록 작업을 모두 마쳤습니다." });
   }, [runPendingRegroup, setStagedErpUpload, setFilters, toast]);
 
@@ -613,15 +551,13 @@ export function useExcelUploadActions() {
       const marker = state.pendingEquipmentMarkers.find((item) => item.id === id);
       if (!staged || !row || !marker || !supabase) return { status: "skipped" };
 
-      const targets = reviewGroupMemberIds(staged.reviewRows, id).flatMap((memberId) => {
-        const memberRow = staged.reviewRows.find((item) => item.id === memberId);
-        const memberMarker = state.pendingEquipmentMarkers.find((item) => item.id === memberId);
-        return memberRow && memberMarker
-          ? [{ row: memberRow, coords: { lat: memberMarker.lat, lng: memberMarker.lng } }]
-          : [];
-      });
+      const { targets, memberCount } = collectReviewTargets(
+        staged.reviewRows,
+        state.pendingEquipmentMarkers,
+        id,
+      );
       if (targets.length === 0) return { status: "skipped" };
-      if (targets.length < reviewGroupMemberIds(staged.reviewRows, id).length) {
+      if (targets.length < memberCount) {
         toast({
           variant: "destructive",
           description:
@@ -954,99 +890,24 @@ export function useExcelUploadActions() {
             );
           }
 
-          const bulkMarkers = batteryPending.map((marker) => ({
-            id: marker.id,
-            name: marker.name,
-            lat: marker.lat,
-            lng: marker.lng,
-            address: marker.address ?? "",
-            memo: marker.memo ?? "",
-            tags: marker.tags ?? [],
-            color: resolveStoredMarkerColor(marker.color),
-            facility_team: marker.facilityTeam ?? "",
-            created_at: new Date().toISOString(),
-          }));
-
-          const bulkSpecs = batteryPending.flatMap((marker) => {
-            const specItems =
-              Array.isArray(marker.items) && marker.items.length > 0
-                ? marker.items
-                : [
-                    {
-                      erpName: marker.memo ?? marker.name,
-                      capacity: marker.capacity ?? 600,
-                      quantity: marker.quantity ?? 12,
-                      stationName: marker.stationName ?? marker.name,
-                      createdAt: marker.createdAt,
-                    },
-                  ];
-
-            return specItems.map((item) => ({
-              marker_id: marker.id,
-              erp_name: item.erpName || marker.memo || marker.name || "",
-              capacity: Number(item.capacity) || Number(marker.capacity) || 600,
-              quantity: Number(item.quantity) || Number(marker.quantity) || 12,
-              station_name:
-                item.stationName || marker.stationName || marker.name || "",
-              created_at: item.createdAt
-                ? new Date(item.createdAt).toISOString()
-                : new Date().toISOString(),
-            }));
-          });
+          const bulkMarkers = batteryPending.map(toBatteryDbMarker);
+          const bulkSpecs = batteryPending.flatMap(toBatterySpecRows);
 
           // 청크로 나눠 저장하고, 중간 실패 뒤 재시도해도 중복이 생기지 않는다.
           await savePendingBattery(supabase!, { markers: bulkMarkers, specs: bulkSpecs });
         } else {
           const equipmentPending = pendingMarkers as EquipmentMarker[];
-          const bulkMarkers = equipmentPending.map((marker) => ({
-            id: marker.id,
-            name: marker.name,
-            lat: marker.lat,
-            lng: marker.lng,
-            memo: marker.memo ?? "",
-            tags: marker.tags ?? [],
-            color: marker.color ?? DEFAULT_MARKER_COLOR,
-            facility_team: marker.facilityTeam ?? "",
-            facility_code: marker.facilityCode || null,
-            road_address: marker.roadAddress ?? "",
-            jibun_address: marker.jibunAddress ?? "",
-            created_at: new Date().toISOString(),
-          }));
+          const bulkMarkers = equipmentPending.map(toEquipmentDbMarker);
 
           const bulkInfo = equipmentPending
             .filter((marker) => marker.facilityCode)
-            .map((marker) => ({
-              marker_id: marker.id,
-              facility_code: marker.facilityCode,
-              place_name: marker.name,
-              facility_year: marker.facilityYear ?? "",
-              project_code: marker.projectCode ?? "",
-              business_type: marker.businessType ?? "",
-              final_station_name: marker.finalStationName ?? "",
-              eq_class: marker.eqClass ?? "",
-              eq_type: marker.eqType ?? "",
-              install_date: MapMarkerExcelManager.formatDateToYmd(
-                marker.installDate ?? "",
-              ),
-              open_date: MapMarkerExcelManager.formatDateToYmd(
-                marker.openDate ?? "",
-              ),
-            }));
+            .map((marker) => toEquipmentDbInfo(marker, MapMarkerExcelManager.formatDateToYmd));
 
           await savePendingEquipment(supabase!, { markers: bulkMarkers, info: bulkInfo });
         }
 
         clearPendingMarkers(mode);
-        setFilters({
-          selectedYears: new Set(),
-          selectedBusinesses: new Set(),
-          selectedStatuses: new Set(),
-          selectedColors: new Set(),
-          selectedTags: new Set(),
-          selectedCapacities: new Set(),
-          selectedQuantities: new Set(),
-          selectedStations: new Set(),
-        });
+        setFilters(emptyFilterSelection());
         await invalidateMarkers();
         toast({
           description: `성공적으로 ${pendingMarkers.length}개의 위치를 Supabase에 저장했습니다.`,
@@ -1102,47 +963,14 @@ export function useExcelUploadActions() {
             );
           }
 
-          const dbMarker = {
-            id: bat.id,
-            name: bat.name,
-            lat: bat.lat,
-            lng: bat.lng,
-            address: bat.address ?? "",
-            memo: bat.memo ?? "",
-            tags: bat.tags ?? [],
-            color: resolveStoredMarkerColor(bat.color),
-            facility_team: bat.facilityTeam ?? "",
-            created_at: new Date().toISOString(),
-          };
+          const dbMarker = toBatteryDbMarker(bat);
 
           const { error } = await supabase
             .from("battery_markers")
             .insert(dbMarker);
           if (error) throw error;
 
-          const specItems =
-            Array.isArray(bat.items) && bat.items.length > 0
-              ? bat.items
-              : [
-                  {
-                    erpName: bat.memo ?? bat.name,
-                    capacity: bat.capacity ?? 600,
-                    quantity: bat.quantity ?? 12,
-                    stationName: bat.stationName ?? bat.name,
-                    createdAt: bat.createdAt,
-                  },
-                ];
-
-          const dbSpecs = specItems.map((item) => ({
-            marker_id: bat.id,
-            erp_name: item.erpName || bat.memo || bat.name || "",
-            capacity: Number(item.capacity) || Number(bat.capacity) || 600,
-            quantity: Number(item.quantity) || Number(bat.quantity) || 12,
-            station_name: item.stationName || bat.stationName || bat.name || "",
-            created_at: item.createdAt
-              ? new Date(item.createdAt).toISOString()
-              : new Date().toISOString(),
-          }));
+          const dbSpecs = toBatterySpecRows(bat);
 
           const { error: specsError } = await supabase
             .from("battery_specs")
@@ -1150,20 +978,7 @@ export function useExcelUploadActions() {
           if (specsError) throw specsError;
         } else {
           const eq = marker as EquipmentMarker;
-          const dbMarker = {
-            id: eq.id,
-            name: eq.name,
-            lat: eq.lat,
-            lng: eq.lng,
-            memo: eq.memo ?? "",
-            tags: eq.tags ?? [],
-            color: eq.color ?? DEFAULT_MARKER_COLOR,
-            facility_team: eq.facilityTeam ?? "",
-            facility_code: eq.facilityCode || null,
-            road_address: eq.roadAddress ?? "",
-            jibun_address: eq.jibunAddress ?? "",
-            created_at: new Date().toISOString(),
-          };
+          const dbMarker = toEquipmentDbMarker(eq);
 
           const { error: markerError } = await supabase
             .from("markers")
@@ -1171,23 +986,7 @@ export function useExcelUploadActions() {
           if (markerError) throw markerError;
 
           if (eq.facilityCode) {
-            const dbInfo = {
-              marker_id: eq.id,
-              facility_code: eq.facilityCode,
-              place_name: eq.name,
-              facility_year: eq.facilityYear ?? "",
-              project_code: eq.projectCode ?? "",
-              business_type: eq.businessType ?? "",
-              final_station_name: eq.finalStationName ?? "",
-              eq_class: eq.eqClass ?? "",
-              eq_type: eq.eqType ?? "",
-              install_date: MapMarkerExcelManager.formatDateToYmd(
-                eq.installDate ?? "",
-              ),
-              open_date: MapMarkerExcelManager.formatDateToYmd(
-                eq.openDate ?? "",
-              ),
-            };
+            const dbInfo = toEquipmentDbInfo(eq, MapMarkerExcelManager.formatDateToYmd);
 
             const { error: infoError } = await supabase
               .from("information")

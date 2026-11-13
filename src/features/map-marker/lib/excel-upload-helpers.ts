@@ -8,7 +8,7 @@ import type { ErpParsedRow } from "@/features/map-marker/lib/excel/data-manager/
 import type { EquipmentMarker, StagedErpRow } from "@/features/map-marker/types/marker";
 
 /**
- * 엑셀·위치등록 업로드 훅(`use-excel-upload-actions.tsx`)에서 쓰는 순수 함수 모음.
+ * 엑셀·위치등록 업로드 훅(`use-excel-upload-actions.ts`)에서 쓰는 순수 함수 모음.
  * 훅에서 옮겨 왔다 — React에 의존하지 않아 `.ts` 테스트로 고정한다.
  * (JSX를 돌려주는 `buildUploadResultDescription`은 `.tsx`라 훅 파일에 남아 있다.)
  */

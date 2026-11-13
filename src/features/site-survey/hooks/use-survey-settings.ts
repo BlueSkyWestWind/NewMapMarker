@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
-import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { loadSurveySettings, saveSurveySettings, type SaveResult } from "../api";
 import { DEFAULT_SETTINGS } from "../constants/default-settings";
 import { mergeSettings } from "../lib/settings-schema";

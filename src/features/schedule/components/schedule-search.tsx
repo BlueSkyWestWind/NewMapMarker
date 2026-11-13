@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { SEARCH_RESULT_LIMIT, searchScheduleCells } from "@/features/schedule/api";
 import { normalizeSearchQuery } from "@/features/schedule/lib/search-cells";
 import { weekdayLabel } from "@/features/schedule/lib/week";

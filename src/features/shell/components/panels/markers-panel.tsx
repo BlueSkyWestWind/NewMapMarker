@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { FileSpreadsheet, Filter, List } from "lucide-react";
-import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { BatteryExcelSection } from "@/features/map-marker/components/sidebar/battery-excel-section";
 import { EquipmentExcelSection } from "@/features/map-marker/components/sidebar/equipment-excel-section";
 import { FilterPanel } from "@/features/map-marker/components/sidebar/filter-panel";

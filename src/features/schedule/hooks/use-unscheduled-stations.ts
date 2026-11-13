@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { useMapMarkersQuery } from "@/features/map-marker/hooks/use-map-markers-query";
 import { fetchScheduleCells } from "@/features/schedule/api";
 import { fetchErpStationInfo } from "@/features/schedule/day-api";

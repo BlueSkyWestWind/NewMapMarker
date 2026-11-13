@@ -12,6 +12,12 @@ const UNAUTHORIZED: AuthCheck = {
 
 const BEARER_PATTERN = /^Bearer\s+(.+)$/i;
 
+/** `Authorization: Bearer <토큰>` 헤더에서 토큰을 꺼낸다. 없거나 형식이 다르면 null. */
+export function extractBearerToken(request: Request): string | null {
+  const match = BEARER_PATTERN.exec(request.headers.get("authorization") ?? "");
+  return match?.[1]?.trim() || null;
+}
+
 /** 일시 장애(네트워크·Supabase 5xx)인가. 로그인 문제로 오인하지 않기 위해 구분한다. */
 function isTransientAuthError(error: { name?: string; status?: number }): boolean {
   if (error.name === "AuthRetryableFetchError") return true;
@@ -35,8 +41,7 @@ export async function verifyAuthToken(request: Request): Promise<AuthCheck> {
     };
   }
 
-  const match = BEARER_PATTERN.exec(request.headers.get("authorization") ?? "");
-  const token = match?.[1]?.trim();
+  const token = extractBearerToken(request);
   if (!token) return UNAUTHORIZED;
 
   try {

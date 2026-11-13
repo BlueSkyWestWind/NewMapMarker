@@ -1,39 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  extractBearerToken,
-  preventSelfAction,
-  validateAdminUser,
-} from "./admin-auth";
+import { preventSelfAction, validateAdminUser } from "./admin-auth";
 
 describe("admin-auth 유틸리티", () => {
-  describe("extractBearerToken", () => {
-    it("올바른 Bearer 토큰을 추출한다", () => {
-      const req = new Request("http://localhost/api/admin/users", {
-        headers: { authorization: "Bearer my-secret-token" },
-      });
-      expect(extractBearerToken(req)).toBe("my-secret-token");
-    });
-
-    it("대소문자 무관하게 bearer를 파싱한다", () => {
-      const req = new Request("http://localhost/api/admin/users", {
-        headers: { authorization: "bearer my-secret-token" },
-      });
-      expect(extractBearerToken(req)).toBe("my-secret-token");
-    });
-
-    it("헤더가 없으면 null을 반환한다", () => {
-      const req = new Request("http://localhost/api/admin/users");
-      expect(extractBearerToken(req)).toBeNull();
-    });
-
-    it("Bearer 형식이 아니면 null을 반환한다", () => {
-      const req = new Request("http://localhost/api/admin/users", {
-        headers: { authorization: "Basic 12345" },
-      });
-      expect(extractBearerToken(req)).toBeNull();
-    });
-  });
-
   describe("preventSelfAction", () => {
     it("본인 ID와 대상 ID가 다르면 null(통과)을 반환한다", () => {
       expect(preventSelfAction("user-1", "user-2", "delete")).toBeNull();

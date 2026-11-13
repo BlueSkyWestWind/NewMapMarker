@@ -9,7 +9,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { applyScheduleImport } from "@/features/schedule/api";
 import { readScheduleWorkbook, type ReadScheduleResult } from "@/features/schedule/lib/read-schedule";
 import { matchColumns, planImport } from "@/features/schedule/lib/schedule-excel";

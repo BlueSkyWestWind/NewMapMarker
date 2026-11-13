@@ -5,6 +5,8 @@ import {
   makeGoogleSearchCoordinate,
   parseCoords,
   splitDmsParts,
+  kakaoLevelFromLeafletZoom,
+  leafletZoomFromKakaoLevel,
   validateKoreaCoordPair,
 } from "./coords";
 
@@ -92,5 +94,38 @@ describe("detectInputType", () => {
 
   it("주소는 address", () => {
     expect(detectInputType("서울특별시 중구")).toBe("address");
+  });
+});
+
+describe("leafletZoomFromKakaoLevel", () => {
+  it("카카오 레벨을 20 - 레벨로 바꾼다", () => {
+    expect(leafletZoomFromKakaoLevel(3)).toBe(17);
+    expect(leafletZoomFromKakaoLevel(1)).toBe(19);
+  });
+
+  it("7~20 범위로 자른다", () => {
+    expect(leafletZoomFromKakaoLevel(14)).toBe(7);
+    expect(leafletZoomFromKakaoLevel(-5)).toBe(20);
+  });
+
+  it("값이 없거나 NaN이면 레벨 3으로 본다", () => {
+    expect(leafletZoomFromKakaoLevel(0)).toBe(17);
+    expect(leafletZoomFromKakaoLevel(Number.NaN)).toBe(17);
+  });
+});
+
+describe("kakaoLevelFromLeafletZoom", () => {
+  it("Leaflet 줌을 20 - 줌으로 바꾼다", () => {
+    expect(kakaoLevelFromLeafletZoom(17)).toBe(3);
+    expect(kakaoLevelFromLeafletZoom(19)).toBe(1);
+  });
+
+  it("1~14 범위로 자른다", () => {
+    expect(kakaoLevelFromLeafletZoom(20)).toBe(1);
+    expect(kakaoLevelFromLeafletZoom(3)).toBe(14);
+  });
+
+  it("값이 없으면 줌 17로 본다", () => {
+    expect(kakaoLevelFromLeafletZoom(0)).toBe(3);
   });
 });

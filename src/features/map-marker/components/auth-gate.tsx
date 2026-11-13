@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AuthFormCard } from "@/features/map-marker/components/modals/auth-modal";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { useHasMounted } from "@/hooks/use-has-mounted";
 
 /**

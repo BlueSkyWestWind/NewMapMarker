@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 
 interface AccountsPasswordGateProps {
   /** 비밀번호가 맞으면 호출한다 */

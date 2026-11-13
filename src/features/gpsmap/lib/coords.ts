@@ -191,3 +191,13 @@ export function makeGoogleSearchCoordinate(lat: number, lon: number): string {
 export function detectInputType(text: string): 'coord' | 'address' {
   return parseCoords(text) ? 'coord' : 'address';
 }
+
+/** 카카오 레벨 → Leaflet 줌 (원본 GPSMAP과 동일: 20 - 레벨, 7~20으로 자른다). */
+export function leafletZoomFromKakaoLevel(level: number): number {
+  return Math.max(7, Math.min(20, 20 - Math.round(level || 3)));
+}
+
+/** Leaflet 줌 → 카카오 레벨 (20 - 줌, 1~14로 자른다). */
+export function kakaoLevelFromLeafletZoom(zoom: number): number {
+  return Math.max(1, Math.min(14, 20 - Math.round(zoom || 17)));
+}

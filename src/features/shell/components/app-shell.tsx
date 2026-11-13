@@ -6,8 +6,8 @@ import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useHasMounted } from "@/hooks/use-has-mounted";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
-import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useSiteListCount } from "@/features/site-lists/hooks/use-site-lists";
 import { NavRail } from "@/features/shell/components/nav-rail";
 import { TopSearchBar } from "@/features/shell/components/top-search-bar";
@@ -119,19 +119,20 @@ export function AppShell({
   const siteListCount = useSiteListCount();
 
   // 첫 화면 마운트 후 유휴 시간에 주요 메뉴 청크를 미리 받아 두어 첫 메뉴 전환 지연을 줄인다.
+  // 로그인 전에는 받지 않고, 관리자 전용 그룹관리 청크는 관리자일 때만 받는다.
   useEffect(() => {
-    if (!hasMounted) return;
+    if (!authed) return;
     const timer = window.setTimeout(() => {
       void import("@/features/dashboard/components/dashboard-panel");
       void import("@/features/schedule/components/schedule-view");
       void import("@/features/site-lists/components/site-lists-panel");
-      void import("@/features/group-admin/components/group-panel");
+      if (isAdmin) void import("@/features/group-admin/components/group-panel");
       void import("@/features/cctv/components/cctv-panel");
       void import("@/features/shell/components/panels/backup-panel");
       void import("@/features/shell/components/panels/settings-panel");
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [hasMounted]);
+  }, [authed, isAdmin]);
   // persist로 복원된 값도 여기서 함께 걸러진다.
   useEffect(() => {
     // 관리자 판별 중에는 미룬다. 저장된 activeNav가 groups여도 판별 전에 쫓아내지 않는다.

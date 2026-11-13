@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { fetchAuditLog } from "../api";
 import { AUDIT_ACTION_LABELS, describeAuditDetail } from "../lib/audit-log";
 import { formatAccountDateTime } from "../lib/account-helpers";

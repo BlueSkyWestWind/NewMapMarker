@@ -1,20 +1,10 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { extractBearerToken } from "@/lib/api/verify-auth-token";
 import { getSupabaseAdminClient, getSupabaseServerAnonClient } from "@/lib/supabase/admin";
 
 export type AdminAuthResult =
   | { ok: true; user: User; adminClient: SupabaseClient }
   | { ok: false; status: number; error: string };
-
-/**
- * 요청의 Authorization 헤더에서 Bearer 토큰을 추출한다.
- */
-export function extractBearerToken(req: Request): string | null {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader) return null;
-
-  const match = authHeader.match(/^bearer\s+(.+)$/i);
-  return match ? match[1].trim() : null;
-}
 
 /**
  * 본인 계정에 대한 권한 해제 또는 삭제 시도를 방어한다.

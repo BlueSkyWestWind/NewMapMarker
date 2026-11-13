@@ -1,22 +1,22 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Crosshair, Eye, FileDown, Lock, Rows2, Search, Square } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useKakaoMapSdk } from '@/features/map-marker/hooks/use-kakao-map-sdk';
-import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
+import { useAuthSession } from '@/lib/auth/use-auth-session';
 import { useHasMounted } from '@/hooks/use-has-mounted';
-import {
-  VworldMapPane,
-  type VworldMapHandle,
-} from '@/features/gpsmap/components/vworld-map-pane';
+import type { VworldMapHandle } from '@/features/gpsmap/components/vworld-map-pane';
 import { RoadviewPane } from '@/features/gpsmap/components/roadview-pane';
 import { GpsResultTable } from '@/features/gpsmap/components/gps-result-table';
 import { runSingleLookup, type GpsLookupResult } from '@/features/gpsmap/lib/lookup';
 import {
   dmsToDecimal,
+  kakaoLevelFromLeafletZoom,
+  leafletZoomFromKakaoLevel,
   splitDmsParts,
   validateKoreaCoordPair,
 } from '@/features/gpsmap/lib/coords';
@@ -43,11 +43,11 @@ const EMPTY_DMS: DmsFields = {
   lonD: '', lonM: '', lonS: '', lonCS: '',
 };
 
-// 카카오 레벨 ↔ Leaflet 줌 (원본 GPSMAP과 동일: 20 - 값, 축척 맞춤)
-const leafletZoomFromKakaoLevel = (level: number) =>
-  Math.max(7, Math.min(20, 20 - Math.round(level || 3)));
-const kakaoLevelFromLeafletZoom = (zoom: number) =>
-  Math.max(1, Math.min(14, 20 - Math.round(zoom || 17)));
+// Leaflet(브이월드 지적도)은 window에 의존하고 무거워 클라이언트에서만, 화면이 뜬 뒤에 받는다.
+const VworldMapPane = dynamic(
+  () => import('@/features/gpsmap/components/vworld-map-pane').then((m) => m.VworldMapPane),
+  { ssr: false },
+);
 
 export function GpsMapPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuthSession();

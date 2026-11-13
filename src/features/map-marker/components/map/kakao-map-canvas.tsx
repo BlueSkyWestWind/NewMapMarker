@@ -35,20 +35,15 @@ import {
   createOverlayContent,
 } from "@/features/map-marker/lib/overlay-content";
 import { useKakaoMapSdk } from "@/features/map-marker/hooks/use-kakao-map-sdk";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import {
   isStagedReviewMarker,
   reviewGroupMemberIds,
 } from "@/features/map-marker/lib/erp-review";
 import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-store";
 import { useRouteStore } from "@/features/route/store/use-route-store";
-import { useRouteMarkerPool } from "@/features/route/hooks/use-route-marker-pool";
-import {
-  clearRoutePolylines,
-  fitMapToRoute,
-  syncRoutePolylines,
-} from "@/features/route/lib/route-polyline";
-import { createRoutePointBadge } from "@/features/route/lib/route-point-badge";
+import { useKakaoCctvLayer } from "@/features/map-marker/hooks/use-kakao-cctv-layer";
+import { useKakaoRouteLayer } from "@/features/map-marker/hooks/use-kakao-route-layer";
 import type {
   EquipmentMarker,
   MapMode,
@@ -98,30 +93,6 @@ const MARKER_Z_INDEX = 3;
 const SELECTED_MARKER_Z_INDEX = 100;
 const OVERLAY_ARRANGE_FALLBACK_MS = 700;
 
-const CCTV_MARKER_IMAGE =
-  "data:image/svg+xml;charset=utf-8," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">' +
-      '<circle cx="11" cy="11" r="9.5" fill="#0f766e" stroke="#5eead4" stroke-width="1.5"/>' +
-      '<rect x="5.5" y="8" width="8" height="6" rx="1" fill="#f0fdfa"/>' +
-      '<path d="M14 9.5 L16.5 8 v6 l-2.5 -1.5 z" fill="#f0fdfa"/>' +
-    "</svg>",
-  );
-
-/**
- * 경로탐색 지도 클릭 픽업 아이콘. 대시보드는 지도 모드가 weather로 고정돼 있어
- * 평상시 마커가 대부분 숨어 있으므로, 픽업 중에는 이 전용 아이콘으로 클릭 가능한
- * 지점을 눈에 띄게 보여준다.
- */
-const ROUTE_PICK_MARKER_IMAGE =
-  "data:image/svg+xml;charset=utf-8," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">' +
-      '<circle cx="10" cy="10" r="8.5" fill="#f59e0b" stroke="#fef3c7" stroke-width="1.5"/>' +
-      '<path d="M10 5.5v9M5.5 10h9" stroke="#451a03" stroke-width="2" stroke-linecap="round"/>' +
-    "</svg>",
-  );
-
 export function KakaoMapCanvas({
   markers,
   mode,
@@ -131,7 +102,6 @@ export function KakaoMapCanvas({
   const queryClient = useQueryClient();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<KakaoMap | null>(null);
-  const cctvMarkersRef = useRef<KakaoMarker[]>([]);
   const [mapInstance, setMapInstance] = useState<KakaoMap | null>(null);
   const [isRegionSelectMode, setIsRegionSelectMode] = useState(false);
   const [isCapturePanelOpen, setIsCapturePanelOpen] = useState(false);
@@ -169,9 +139,6 @@ export function KakaoMapCanvas({
       return next;
     });
   }, []);
-  const routePolylinesRef = useRef<KakaoPolyline[]>([]);
-  const routePickMarkersRef = useRef<KakaoMarker[]>([]);
-  const routePointBadgesRef = useRef<KakaoCustomOverlay[]>([]);
   const clustererRef = useRef<KakaoMarkerClusterer | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
   const builtMarkersCacheRef = useRef<{
@@ -217,10 +184,7 @@ export function KakaoMapCanvas({
   setPickedPointRef.current = setPickedPoint;
   const roadviewOverlayRef = useRef<KakaoRoadviewOverlay | null>(null);
   const placeSearch = useMapMarkerStore((state) => state.placeSearch);
-  const cctvMarkers = useMapMarkerStore((state) => state.cctvMarkers);
-  const isCctvVisible = useMapMarkerStore((state) => state.isCctvVisible);
   const isMarkersVisible = useMapMarkerStore((state) => state.isMarkersVisible);
-  const setSelectedCctv = useMapMarkerStore((state) => state.setSelectedCctv);
   const searchPolygonsRef = useRef<KakaoPolygon[]>([]);
   const searchMarkerRef = useRef<KakaoMarker | null>(null);
   const clusterIconStyleRef = useRef<ClusterIconStyle>(clusterIconStyle);
@@ -260,11 +224,6 @@ export function KakaoMapCanvas({
   );
   const isDetailOpen = useMapMarkerStore((state) => state.isDetailOpen);
   const isEditOpen = useMapMarkerStore((state) => state.isEditOpen);
-  const routeResult = useRouteStore((state) => state.result);
-  const routePickTarget = useRouteStore((state) => state.pickTarget);
-  const routeOrigin = useRouteStore((state) => state.origin);
-  const routeStops = useRouteStore((state) => state.stops);
-  const routeMarkerPool = useRouteMarkerPool();
   const { toast } = useToast();
 
   const prevModeRef = useRef<MapMode | null>(null);
@@ -1291,46 +1250,6 @@ export function KakaoMapCanvas({
     };
   }, [mapPickMode, isReady]);
 
-  /**
-   * 도로 CCTV 마커 레이어 (장비 모드).
-   * 국소 마커 체계(클러스터·정보창)와 섞지 않고 별도 레이어로 올렸다 내린다.
-   */
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !window.kakao?.maps) return;
-    const kakao = window.kakao;
-
-    cctvMarkersRef.current.forEach((marker) => marker.setMap(null));
-    cctvMarkersRef.current = [];
-
-    if (!isCctvVisible || cctvMarkers.length === 0) return;
-
-    const image = new kakao.maps.MarkerImage(
-      CCTV_MARKER_IMAGE,
-      new kakao.maps.Size(22, 22),
-      { offset: new kakao.maps.Point(11, 11) },
-    );
-
-    for (const item of cctvMarkers) {
-      if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) continue;
-
-      const marker = new kakao.maps.Marker({
-        position: new kakao.maps.LatLng(item.lat, item.lng),
-        image,
-        title: item.name,
-        zIndex: 4,
-      });
-      marker.setMap(map);
-      kakao.maps.event.addListener(marker, "click", () => setSelectedCctv(item));
-      cctvMarkersRef.current.push(marker);
-    }
-
-    return () => {
-      cctvMarkersRef.current.forEach((marker) => marker.setMap(null));
-      cctvMarkersRef.current = [];
-    };
-  }, [cctvMarkers, isCctvVisible, isReady, setSelectedCctv]);
-
   useEffect(() => {
     return () => {
       searchPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
@@ -1340,133 +1259,9 @@ export function KakaoMapCanvas({
     };
   }, []);
 
-  /** 경로탐색 결과 Polyline. 초기화/패널 이탈로 result가 비면 지도에서 지운다(§21.3). */
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    if (!routeResult) {
-      if (routePolylinesRef.current.length > 0) {
-        clearRoutePolylines(routePolylinesRef.current);
-        routePolylinesRef.current = [];
-      }
-      return;
-    }
-
-    routePolylinesRef.current = syncRoutePolylines(
-      map,
-      routeResult.legs,
-      routePolylinesRef.current,
-    );
-    fitMapToRoute(map, routeResult.legs);
-  }, [routeResult, isReady]);
-
-  useEffect(() => {
-    return () => {
-      clearRoutePolylines(routePolylinesRef.current);
-      routePolylinesRef.current = [];
-    };
-  }, []);
-
-  /**
-   * 경로탐색 지도 클릭 픽업 레이어. 현재 모드(대시보드는 weather 고정)와 무관하게
-   * 전체 마커 풀에서 고른다 — 그렇지 않으면 weather 모드에서 저장된 국소 외에는
-   * 지도에서 클릭할 것이 아예 없다. 이미 일반 레이어에 떠 있는 마커는 중복 표시하지 않는다.
-   */
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !window.kakao?.maps) return;
-    const kakao = window.kakao;
-
-    routePickMarkersRef.current.forEach((marker) => marker.setMap(null));
-    routePickMarkersRef.current = [];
-
-    if (!routePickTarget) return;
-
-    const alreadyVisibleIds = new Set(markerDataByIdRef.current.keys());
-    const image = new kakao.maps.MarkerImage(
-      ROUTE_PICK_MARKER_IMAGE,
-      new kakao.maps.Size(20, 20),
-      { offset: new kakao.maps.Point(10, 10) },
-    );
-
-    routeMarkerPool.forEach((item) => {
-      if (alreadyVisibleIds.has(item.id)) return;
-      if (!isPlottableCoordinate(item.lat, item.lng)) return;
-
-      const marker = new kakao.maps.Marker({
-        position: new kakao.maps.LatLng(item.lat, item.lng),
-        title: item.name,
-        image,
-        zIndex: 7,
-      });
-      marker.setMap(map);
-      kakao.maps.event.addListener(marker, "click", () => {
-        const routeState = useRouteStore.getState();
-        const routePoint = {
-          routePointId: item.id,
-          markerIds: [item.id],
-          name: item.name,
-          lat: item.lat,
-          lng: item.lng,
-        };
-        if (routeState.pickTarget === "origin") {
-          routeState.setOrigin(routePoint);
-          routeState.setPickTarget(null);
-        } else if (routeState.pickTarget === "stop") {
-          routeState.addStop(routePoint);
-        }
-      });
-      routePickMarkersRef.current.push(marker);
-    });
-
-    return () => {
-      routePickMarkersRef.current.forEach((marker) => marker.setMap(null));
-      routePickMarkersRef.current = [];
-    };
-  }, [routePickTarget, routeMarkerPool, isReady]);
-
-  /**
-   * 출발지·방문지점 번호 배지. 방문 지점 목록의 순번과 지도 위 번호가 일치해야
-   * "N구간"이 어느 위치인지 바로 알아볼 수 있다(§21.3).
-   */
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !window.kakao?.maps) return;
-    const kakao = window.kakao;
-
-    routePointBadgesRef.current.forEach((overlay) => overlay.setMap(null));
-    routePointBadgesRef.current = [];
-
-    if (routeOrigin) {
-      const overlay = new kakao.maps.CustomOverlay({
-        position: new kakao.maps.LatLng(routeOrigin.lat, routeOrigin.lng),
-        content: createRoutePointBadge("출", "origin"),
-        xAnchor: 0.5,
-        yAnchor: 0.5,
-        zIndex: 8,
-      });
-      overlay.setMap(map);
-      routePointBadgesRef.current.push(overlay);
-    }
-
-    routeStops.forEach((stop, index) => {
-      const overlay = new kakao.maps.CustomOverlay({
-        position: new kakao.maps.LatLng(stop.lat, stop.lng),
-        content: createRoutePointBadge(String(index + 1), "stop"),
-        xAnchor: 0.5,
-        yAnchor: 0.5,
-        zIndex: 8,
-      });
-      overlay.setMap(map);
-      routePointBadgesRef.current.push(overlay);
-    });
-
-    return () => {
-      routePointBadgesRef.current.forEach((overlay) => overlay.setMap(null));
-      routePointBadgesRef.current = [];
-    };
-  }, [routeOrigin, routeStops, isReady]);
+  // 도로 CCTV 마커와 경로탐색 레이어(Polyline·픽업 마커·번호 배지). 지도가 만들어진 뒤 그려야 해서 지도 초기화 effect 뒤에 둔다.
+  useKakaoCctvLayer({ mapInstanceRef, isReady });
+  useKakaoRouteLayer({ mapInstanceRef, markerDataByIdRef, isReady });
 
   if (error) {
     return (

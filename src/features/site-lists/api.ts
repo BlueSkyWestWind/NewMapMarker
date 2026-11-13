@@ -1,5 +1,5 @@
 import { fetchAllRows } from "@/features/map-marker/api";
-import { fetchIsAppAdmin } from "@/features/map-marker/lib/admin";
+import { fetchIsAppAdmin } from "@/lib/auth/admin";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 import { planSiteListRestore } from "@/features/site-lists/lib/site-list-view";
 import type {

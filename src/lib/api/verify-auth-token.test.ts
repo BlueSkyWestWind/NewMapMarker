@@ -5,7 +5,7 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({ auth: { getUser } }),
 }));
 
-import { verifyAuthToken } from "./verify-auth-token";
+import { extractBearerToken, verifyAuthToken } from "./verify-auth-token";
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("https://newmarker.example.com/api/its-key", { headers });
@@ -91,5 +91,18 @@ describe("verifyAuthToken", () => {
     const result = await verifyAuthToken(makeRequest({ authorization: "Bearer tok" }));
     expect(result).toMatchObject({ ok: false, status: 500 });
     expect(getUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("extractBearerToken", () => {
+  it("Bearer 토큰을 추출한다(대소문자 무시)", () => {
+    expect(extractBearerToken(makeRequest({ authorization: "Bearer my-secret-token" }))).toBe("my-secret-token");
+    expect(extractBearerToken(makeRequest({ authorization: "bearer my-secret-token" }))).toBe("my-secret-token");
+  });
+
+  it("헤더가 없거나 Bearer 형식이 아니면 null이다", () => {
+    expect(extractBearerToken(makeRequest())).toBeNull();
+    expect(extractBearerToken(makeRequest({ authorization: "Basic abc" }))).toBeNull();
+    expect(extractBearerToken(makeRequest({ authorization: "Bearer   " }))).toBeNull();
   });
 });

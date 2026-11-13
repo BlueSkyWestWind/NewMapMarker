@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { fetchScheduleRange } from "@/features/schedule/api";
 import { computeMonthScale, MONTH_MIN_WEEK_HEIGHT_PT } from "@/features/schedule/lib/month-layout";
 import {

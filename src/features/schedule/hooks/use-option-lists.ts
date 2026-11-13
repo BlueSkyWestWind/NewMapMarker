@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { addOption, DAY_QUERY_KEY, deleteOption, fetchOptionLists } from "@/features/schedule/day-api";
 import type { OptionListKey, OptionLists } from "@/features/schedule/lib/day-types";
 import { cloneOptionLists, OPTION_LIST_SEEDS } from "@/features/schedule/lib/option-lists";

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { isPrefetchStalled, type KmaUsageReport } from "@/features/worksite-weather/lib/kma-usage-stats";
 import { fetchKmaUsage } from "../api";
 

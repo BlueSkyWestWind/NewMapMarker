@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { LogIn, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuthSession } from '@/features/map-marker/hooks/use-auth-session';
+import { useAuthSession } from '@/lib/auth/use-auth-session';
 import { AuthModal } from '@/features/map-marker/components/modals/auth-modal';
 
 export function AuthHeader() {

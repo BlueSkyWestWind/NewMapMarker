@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
-import { useIsAdmin } from "@/features/map-marker/hooks/use-is-admin";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { fetchScheduleRange } from "@/features/schedule/api";
 import { isScheduleTableMissing } from "@/features/schedule/lib/table-missing";
 import type {

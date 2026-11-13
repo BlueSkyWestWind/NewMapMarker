@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
 import { describe, expect, it } from "vitest";
-import { buildFillAt, parseWorkbookBuffer } from "./read-schedule";
+import { buildFillAt, encodeA1Cell, parseWorkbookBuffer } from "./read-schedule";
 
 const HEADER_NOT_FOUND = "일정표 형식(A열 '날짜' 머리글)을 찾지 못했습니다.";
 const NO_SCHEDULE = "가져올 일정이 없습니다.";
@@ -92,6 +92,26 @@ describe("parseWorkbookBuffer", () => {
       ["국소4", "0070C0"],
       ["국소5", null],
     ]);
+  });
+});
+
+describe("encodeA1Cell", () => {
+  it("0부터 시작하는 행·열을 A1 주소로 바꾼다", () => {
+    expect(encodeA1Cell(0, 0)).toBe("A1");
+    expect(encodeA1Cell(2, 25)).toBe("Z3");
+  });
+
+  it("26열부터 두 글자 열 이름이 된다", () => {
+    expect(encodeA1Cell(0, 26)).toBe("AA1");
+    expect(encodeA1Cell(9, 27)).toBe("AB10");
+    expect(encodeA1Cell(0, 701)).toBe("ZZ1");
+    expect(encodeA1Cell(0, 702)).toBe("AAA1");
+  });
+
+  it("SheetJS encode_cell과 같은 결과를 준다", () => {
+    for (const [r, c] of [[0, 0], [5, 30], [99, 51], [3, 700]]) {
+      expect(encodeA1Cell(r, c)).toBe(XLSX.utils.encode_cell({ r, c }));
+    }
   });
 });
 

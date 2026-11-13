@@ -5,7 +5,7 @@ import { Ban, ChevronLeft, ChevronRight, Download, ListPlus, Upload } from "luci
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
-import { useAuthSession } from "@/features/map-marker/hooks/use-auth-session";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { arrangeScheduleGroup, moveScheduleCell } from "@/features/schedule/api";
 import {
   filterVisibleScheduleColumns,
