@@ -73,8 +73,8 @@
   early return처럼, 조건부 분기가 기존 요소를 빠뜨렸을 수 있다. 새로 만들기 전에
   해당 컴포넌트의 모든 return 경로부터 확인한다.
 - 위성/레이더·태풍정보 버튼은 `dashboard-panel.tsx` 한 곳에만 있다(`worksite-weather-panel.tsx`는
-  Ver 2.3에서 미참조 파일로 삭제). TBM 엑셀 내보내기(`worksite-weather/lib/export-tbm.ts`)는
-  그 패널에서만 호출돼 지금 화면에서 닿을 수 없다 — 복원/삭제 결정 전까지 파일만 남겨 둔다.
+  Ver 2.3에서 미참조 파일로 삭제). TBM 엑셀 내보내기(`export-tbm.ts`)는 쓰지 않기로 해
+  2026-11-15에 삭제했다(복원이 필요하면 git 기록 `46fb126`·`8764d75`).
 
 - **스타일 가드**(`src/lib/style-guard.test.ts`, `npm test`에 포함)가 그라디언트·글로(`shadow-glow`)·그림 이모지·`transition-all`·대문자+넓은 자간을 막는다. 의도적으로 쓰려면 가드의 `ALLOW`에 이유와 함께 적는다. `font-bold`·9·10px 글자·단독 `rounded`는 정리를 마쳐서 지금은 `CLEAN_SCOPES`가 비어 있다(다시 막으려면 `["src"]`).
   기능 기호 `✓ ✕ ★`와 날씨 판정 이모지(`VERDICT_ICON`)는 이모지 규칙 밖이다. 설계는 `docs/Ver_3.0/스타일정리/Ver_3.0_스타일정리_설계.md`.

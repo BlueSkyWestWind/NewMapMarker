@@ -57,7 +57,7 @@ src/
     lib/                       # grid · kma-base-time · parse-amount · apparent-temp · wind
                                # verdict(판정 엔진) · merge-sources · parse-wrn-text
                                # site-search · worksite-weather-api · kma-client(서버 전용) · kma-usage · kma-usage-stats
-                               # kma-forecast-store · kma-prefetch · export-tbm
+                               # kma-forecast-store · kma-prefetch
     hooks/ components/         # 타임라인 표 · 위험 요약 · 태풍/위성 모달 (대시보드가 조립)
   features/route/              # 다중 경유지 최적 경로(TSP) 산출 및 카카오 길찾기 연동 (20파일)
   features/gpsmap/             # 주소·좌표 변환 (VWorld · Leaflet, 14파일)
@@ -97,7 +97,7 @@ e2e/                           # Playwright 스모크 테스트
 | 영역 선택 → 격자 캡처/스티칭(PNG) | ✅ |
 | 정적맵·타일 프록시(SSRF 방지) | ✅ |
 | 동일 번지 대표/SUB/단독 그룹핑 · 동/구역 실제 그룹 분리·원복(대표 직접 선택) | ✅ |
-| **국소 작업 안전 날씨 판정 (07~17시)** · **TBM 안전 자료 엑셀 저장** | ✅ |
+| **국소 작업 안전 날씨 판정 (07~17시)** | ✅ |
 | **도로 CCTV 조회·영상 재생**(ITS, 브라우저 직접 호출) | ✅ |
 | **주소/좌표 통합 변환기**(단건·일괄·엑셀, GPS 메뉴) | ✅ |
 | **바코드 사진 인식·QR 코드 생성·엑셀 후보 검색** | ✅ |
