@@ -4,6 +4,7 @@ import {
   DEFAULT_BATTERY_CAPACITY,
   DEFAULT_BATTERY_QUANTITY,
 } from '@/features/map-marker/constants/map-config';
+import { localDateIso } from '@/lib/local-date';
 
 /** 내보내기에 쓰는 마커 필드. 앱 마커 객체의 일부만 읽는다. */
 interface ExportMarker {
@@ -115,7 +116,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
         XLSX.utils.book_append_sheet(workbook, worksheet, "markers");
 
         const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-        const dateStr = new Date().toISOString().split("T")[0];
+        const dateStr = localDateIso();
         this._triggerDownloadBuffer(
             buffer,
             filename || `supabase_markers_backup_${dateStr}.xlsx`,
@@ -156,7 +157,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
         XLSX.utils.book_append_sheet(workbook, worksheet, "information");
 
         const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-        const dateStr = new Date().toISOString().split("T")[0];
+        const dateStr = localDateIso();
         this._triggerDownloadBuffer(
             buffer,
             filename || `supabase_information_backup_${dateStr}.xlsx`,
@@ -209,7 +210,7 @@ export const exportMethods: Record<string, any> & ThisType<any> = {
         XLSX.utils.book_append_sheet(workbook, worksheet, "battery_markers");
 
         const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-        const dateStr = new Date().toISOString().split("T")[0];
+        const dateStr = localDateIso();
         this._triggerDownloadBuffer(
             buffer,
             filename || `battery_markers_backup_${dateStr}.xlsx`,

@@ -15,6 +15,7 @@ import { SiteListMembership } from '@/features/site-lists/components/site-list-m
 import { useAuthSession } from '@/lib/auth/use-auth-session';
 import { MAP_MARKER_QUERY_KEY } from '@/features/map-marker/constants/map-config';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { createLatestRequest } from '@/lib/latest-request';
 import { useToast } from '@/hooks/use-toast';
 import { useMarkerAddressDisplay } from '@/features/map-marker/hooks/use-marker-address-display';
 import {
@@ -176,10 +177,14 @@ export function MarkerDetailModal() {
   useEffect(() => {
     if (!isDetailOpen || !marker || mode !== 'equipment' || !supabase) {
       setDetailedInfo([]);
+      // 진행 중이던 조회는 cleanup에서 무효화돼 finally가 로딩 표시를 끄지 못한다. 여기서 끈다.
+      setIsLoading(false);
       return;
     }
 
+    const latest = createLatestRequest();
     const fetchDetail = async () => {
+      const ticket = latest.begin();
       setIsLoading(true);
       try {
         const markerIds = relatedEquipmentMarkers.map((item) => item.id);
@@ -219,19 +224,26 @@ export function MarkerDetailModal() {
           }
         }
 
+        if (!ticket.isCurrent()) return;
         // 행 조립(국소 1건=1행)은 buildEquipmentDetailRows 가 담당.
         // 여기서 facility_code/마커 합성으로 미리 채우면 중복·누락이 생긴다.
         setDetailedInfo(infoRows);
       } catch (err) {
+        if (!ticket.isCurrent()) return;
         console.error('연관 상세 정보 조회 실패:', err);
         setDetailedInfo([]);
       } finally {
-        setIsLoading(false);
+        if (ticket.isCurrent()) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchDetail();
     clearSelection();
+    return () => {
+      latest.invalidate();
+    };
   }, [
     clearSelection,
     isDetailOpen,

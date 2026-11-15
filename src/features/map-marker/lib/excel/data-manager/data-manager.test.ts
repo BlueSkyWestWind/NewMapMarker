@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatDateToYmd } from "./date-utils";
 import { MapMarkerExcelManager } from "./index";
 
 /**
@@ -222,6 +223,15 @@ describe("formatDateToYmd", () => {
   it("유효 범위(1980~현재+10년) 밖이거나 날짜가 아니면 원문을 돌려준다", () => {
     expect(fmt("1970-01-01")).toBe("1970-01-01");
     expect(fmt("hello")).toBe("hello");
+  });
+
+  it("독립 함수와 매니저에서 떼어낸 함수 모두 this 없이 동작한다", () => {
+    expect(formatDateToYmd("20260101")).toBe("2026-01-01");
+    expect(formatDateToYmd(new Date(2026, 0, 1))).toBe("2026-01-01");
+    expect(formatDateToYmd("2026-02-30")).toBe(fmt("2026-02-30"));
+
+    const { formatDateToYmd: detached } = MapMarkerExcelManager;
+    expect(detached("20260101")).toBe("2026-01-01");
   });
 });
 

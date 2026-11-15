@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { guardProxyRequest } from "@/lib/api/proxy-guard";
-
-const MAX_SIZE = 1024;
-
-function toEvenSize(value: number): number {
-  const clamped = Math.min(MAX_SIZE, Math.max(2, Math.round(value)));
-  return clamped % 2 === 0 ? clamped : clamped - 1;
-}
+import { parseStaticMapParams } from "./params";
 
 /**
  * 카카오 REST API가 요구하는 KA 헤더.
@@ -35,20 +29,14 @@ export async function GET(request: NextRequest) {
   const blocked = await guardProxyRequest(request);
   if (blocked) return blocked;
 
-  const params = request.nextUrl.searchParams;
-  const lat = Number(params.get("lat"));
-  const lng = Number(params.get("lng"));
-  const level = Number(params.get("level") ?? "3");
-  const width = toEvenSize(Number(params.get("width") ?? "600"));
-  const height = toEvenSize(Number(params.get("height") ?? "400"));
-  const mapType = params.get("mapType") === "roadmap" ? "ROADMAP" : "SKYVIEW";
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  const parsed = parseStaticMapParams(request.nextUrl.searchParams);
+  if ("error" in parsed) {
     return NextResponse.json(
-      { error: "lat, lng 파라미터가 필요합니다." },
+      { error: parsed.error },
       { status: 400 },
     );
   }
+  const { lat, lng, level, width, height, mapType } = parsed;
 
   // Static Map = REST API → REST API 키 필수
   // (JS 키는 지도 SDK용. REST 키가 없으면 JS 키로 시도하되, 콘솔에서 REST 키 설정을 권장)

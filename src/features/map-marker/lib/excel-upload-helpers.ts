@@ -6,6 +6,7 @@ import {
 import { splitAddressFields } from "@/features/map-marker/lib/geocode";
 import type { ErpParsedRow } from "@/features/map-marker/lib/excel/data-manager/erp-parse";
 import type { EquipmentMarker, StagedErpRow } from "@/features/map-marker/types/marker";
+import { localDateIso } from "@/lib/local-date";
 
 /**
  * 엑셀·위치등록 업로드 훅(`use-excel-upload-actions.ts`)에서 쓰는 순수 함수 모음.
@@ -114,7 +115,7 @@ export function toEquipmentMarker(
     eqType: String(marker.eqType ?? ""),
     installDate: String(marker.installDate ?? ""),
     openDate: String(marker.openDate ?? ""),
-    createdAt: new Date().toISOString().split("T")[0],
+    createdAt: localDateIso(),
     isPending,
   };
 }
@@ -144,7 +145,7 @@ export function stagedMarkerRowToPending(row: StagedErpRow): EquipmentMarker {
     eqType: "",
     installDate: "",
     openDate: "",
-    createdAt: new Date().toISOString().split("T")[0],
+    createdAt: localDateIso(),
     isPending: true,
   };
 }

@@ -77,6 +77,35 @@ describe("parseOverrides", () => {
   it("빈 객체는 통과한다", () => {
     expect(parseOverrides({})).toEqual({ ok: true, overrides: {} });
   });
+
+  it("fields.*.sources(record)는 정상 객체를 통과시키고 값 타입이 틀리면 경로와 함께 거부한다", () => {
+    const valid = {
+      fields: {
+        sharer: {
+          sources: {
+            primary: { section: 1, label: "공유자", direction: "below" as const },
+          },
+        },
+      },
+    };
+    expect(parseOverrides(valid)).toEqual({ ok: true, overrides: valid });
+
+    const invalid = {
+      fields: {
+        sharer: {
+          sources: {
+            primary: { section: "1", label: "공유자", direction: "below" },
+          },
+        },
+      },
+    };
+    const res = parseOverrides(invalid);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.errors.length).toBeGreaterThan(0);
+      expect(res.errors.join("\n")).toContain("fields.sharer.sources.primary.section");
+    }
+  });
 });
 
 describe("validateSettings", () => {

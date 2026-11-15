@@ -10,6 +10,7 @@ import type {
   MapMarkersPayload,
 } from '@/features/map-marker/types/marker';
 import type { SupabaseBrowserClient } from '@/lib/supabase/client';
+import { localDateIso } from '@/lib/local-date';
 
 interface InformationRow {
   marker_id: string | null;
@@ -203,7 +204,7 @@ export async function fetchMapMarkers(
       // CR-004 마이그레이션 미적용 DB에서도 조회가 깨지지 않게 optional로 읽는다
       siteAlias: row.site_alias ?? null,
       workType: row.work_type ?? null,
-      createdAt: formatDateOnly(row.created_at) || new Date().toISOString().split('T')[0],
+      createdAt: formatDateOnly(row.created_at) || localDateIso(),
     };
   });
 
@@ -238,7 +239,7 @@ export async function fetchMapMarkers(
         facilityTeam: row.facility_team ?? '',
         createdAt:
           formatDateOnly(row.created_at) ||
-          new Date().toISOString().split('T')[0],
+          localDateIso(),
         items: specs.map((spec) => ({
           id: spec.id,
           erpName: spec.erp_name ?? '',
@@ -248,7 +249,7 @@ export async function fetchMapMarkers(
           stationName: spec.station_name ?? '',
           createdAt:
             formatDateOnly(spec.created_at) ||
-            new Date().toISOString().split('T')[0],
+            localDateIso(),
         })),
         capacity: repSpec?.capacity ?? DEFAULT_BATTERY_CAPACITY,
         quantity: repSpec?.quantity ?? DEFAULT_BATTERY_QUANTITY,

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { buildDayGrid, parseIsoParts, stepYearMonth } from "@/lib/calendar-picker";
+import { localDateIso } from "@/lib/local-date";
 import { toggleDate } from "@/lib/multi-date";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +49,7 @@ export function MultiDatePicker({
   className,
   compact = false,
 }: MultiDatePickerProps) {
-  const anchor = startIso ?? lockedIso ?? new Date().toISOString().slice(0, 10);
+  const anchor = startIso ?? lockedIso ?? localDateIso();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(() => {
     const { year, month } = parseIsoParts(anchor);

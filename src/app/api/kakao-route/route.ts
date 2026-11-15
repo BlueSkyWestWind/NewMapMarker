@@ -22,8 +22,8 @@ const MAX_BODY_BYTES = 32 * 1024;
 const pointSchema = z.object({
   id: z.string().min(1).max(200),
   name: z.string().max(200),
-  lat: z.number().finite().min(-90).max(90),
-  lng: z.number().finite().min(-180).max(180),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
 });
 
 const bodySchema = z.object({

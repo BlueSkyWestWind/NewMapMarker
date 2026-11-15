@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { runSingleLookup, type GpsLookupResult } from "@/features/gpsmap/lib/lookup";
+import { createLatestRequest } from "@/lib/latest-request";
 
 /**
  * 마커 좌표의 GPSMAP 정보(역주소·PNU·필지·건축물대장)를 버튼으로 열 때만 조회한다.
@@ -17,12 +18,18 @@ export function useMarkerGpsInfo(
   // 좌표·주소 변환 + 건축물대장을 하나로 묶은 펼침 여부
   const [openGps, setOpenGps] = useState(false);
   const gpsCacheRef = useRef<Map<string, GpsLookupResult>>(new Map());
+  const latestRef = useRef(createLatestRequest());
 
   useEffect(() => {
+    const latest = latestRef.current;
+    latest.invalidate();
     setOpenGps(false);
     setGpsInfo(null);
     setGpsError(null);
     setGpsLoading(false);
+    return () => {
+      latest.invalidate();
+    };
   }, [resetKey.isDetailOpen, resetKey.selectedMarkerId]);
 
   const loadGpsInfo = async () => {
@@ -41,18 +48,23 @@ export function useMarkerGpsInfo(
       setGpsLoading(false);
       return;
     }
+    const ticket = latestRef.current.begin();
     setGpsLoading(true);
     setGpsError(null);
     setGpsInfo(null);
     try {
       const info = await runSingleLookup(`${lat}, ${lng}`);
       gpsCacheRef.current.set(key, info);
+      if (!ticket.isCurrent()) return;
       setGpsInfo(info);
     } catch {
+      if (!ticket.isCurrent()) return;
       setGpsInfo(null);
       setGpsError("좌표·주소 변환 정보를 불러오지 못했습니다.");
     } finally {
-      setGpsLoading(false);
+      if (ticket.isCurrent()) {
+        setGpsLoading(false);
+      }
     }
   };
 

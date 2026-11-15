@@ -5,6 +5,7 @@ import {
   DEFAULT_BATTERY_CAPACITY,
   DEFAULT_BATTERY_QUANTITY,
 } from '@/features/map-marker/constants/map-config';
+import { localDateIso } from '@/lib/local-date';
 
 /** 엑셀·CSV 시트 한 행. `defval: ""`로 읽어 빈 칸은 빈 문자열이고, 셀 형식에 따라 숫자·불리언·날짜가 올 수 있다. */
 type SheetRow = Record<string, string | number | boolean | Date | null | undefined>;
@@ -126,7 +127,7 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                             // 엑셀 주소 컬럼의 값이 도로명인지 지번인지 판별해 올바른 필드에 넣는다
                             roadAddress: addressVal && classifyKoreanAddress(addressVal) === "road" ? addressVal : "",
                             jibunAddress: addressVal && classifyKoreanAddress(addressVal) === "jibun" ? addressVal : "",
-                            createdAt: new Date().toISOString().split('T')[0]
+                            createdAt: localDateIso()
                         };
                         
                         // 좌표가 제대로 유효하게 있는 경우 (Float 정밀도 보존)
@@ -447,7 +448,7 @@ export const parseMethods: Record<string, any> & ThisType<any> = {
                             tags: tags,
                             facilityTeam: teamParsed.facilityTeam,
                             color: validColor,
-                            createdAt: new Date().toISOString().split('T')[0]
+                            createdAt: localDateIso()
                         };
                         
                         if (!isNaN(latVal) && !isNaN(lngVal)) {

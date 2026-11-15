@@ -59,6 +59,28 @@ describe("POST /api/kakao-route — 입력 검증", () => {
     expect(response.status).toBe(400);
   });
 
+  it("stops가 비어 있으면 거부한다", async () => {
+    const response = await POST(
+      makeRequest({ origin: ORIGIN, stops: [], roundTrip: false, priority: "RECOMMEND", avoidToll: false }),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("lat이 문자열이거나 유한수가 아니면 거부한다", async () => {
+    for (const lat of ["35.2", Infinity]) {
+      const response = await POST(
+        makeRequest({
+          origin: ORIGIN,
+          stops: [{ id: "s", name: "s", lat, lng: 126.9 }],
+          roundTrip: false,
+          priority: "RECOMMEND",
+          avoidToll: false,
+        }),
+      );
+      expect(response.status).toBe(400);
+    }
+  });
+
   it("좌표 범위를 벗어나면 거부한다", async () => {
     const response = await POST(
       makeRequest({

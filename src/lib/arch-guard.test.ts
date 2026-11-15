@@ -13,7 +13,8 @@ const ALLOW: Partial<Record<`${string}:${ArchRuleId}`, string>> = {
     "서버 전용 카카오 길찾기 모듈이 @/features/route/types/route의 타입만 import type으로 참조한다. 타입을 src/types/로 옮기는 후속 작업 전까지 허용",
 };
 
-const IMPORT_FEATURE_RE = /from\s+["']@\/features\//;
+// from "…", import("…"), import "…"(부수효과 import)를 모두 센다.
+const IMPORT_FEATURE_RE = /(?:from\s+|import\s*\(\s*|import\s+)["']@\/features\//;
 
 function walk(dir: string, out: string[]): void {
   for (const name of readdirSync(dir)) {

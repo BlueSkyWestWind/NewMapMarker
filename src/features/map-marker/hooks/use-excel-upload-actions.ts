@@ -46,6 +46,7 @@ import {
   toEquipmentDbMarker,
 } from "@/features/map-marker/lib/excel-upload-runners";
 import { buildUploadResultDescription } from "@/features/map-marker/components/sidebar/upload-result-toast";
+import { formatDateToYmd } from "@/features/map-marker/lib/excel/data-manager/date-utils";
 import type {
   BatteryMarker,
   EquipmentMarker,
@@ -844,9 +845,6 @@ export function useExcelUploadActions() {
 
   const submitPendingMarkers = useCallback(
     async (isTemp = false) => {
-      const MapMarkerExcelManager = (
-        await import("@/features/map-marker/lib/excel/data-manager")
-      ).default;
       if (!pendingMarkers.length) return;
 
       if (!isTemp && !supabase) {
@@ -901,7 +899,7 @@ export function useExcelUploadActions() {
 
           const bulkInfo = equipmentPending
             .filter((marker) => marker.facilityCode)
-            .map((marker) => toEquipmentDbInfo(marker, MapMarkerExcelManager.formatDateToYmd));
+            .map((marker) => toEquipmentDbInfo(marker, formatDateToYmd));
 
           await savePendingEquipment(supabase!, { markers: bulkMarkers, info: bulkInfo });
         }
@@ -938,9 +936,6 @@ export function useExcelUploadActions() {
 
   const submitSinglePendingMarker = useCallback(
     async (markerId: string) => {
-      const MapMarkerExcelManager = (
-        await import("@/features/map-marker/lib/excel/data-manager")
-      ).default;
       const marker = pendingMarkers.find((m) => m.id === markerId);
       if (!marker) return;
 
@@ -986,7 +981,7 @@ export function useExcelUploadActions() {
           if (markerError) throw markerError;
 
           if (eq.facilityCode) {
-            const dbInfo = toEquipmentDbInfo(eq, MapMarkerExcelManager.formatDateToYmd);
+            const dbInfo = toEquipmentDbInfo(eq, formatDateToYmd);
 
             const { error: infoError } = await supabase
               .from("information")

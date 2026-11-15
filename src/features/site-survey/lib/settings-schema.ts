@@ -18,7 +18,7 @@ const alias = z.object({ from: z.string(), to: z.string() });
 const fieldSetting = z.object({
   enabled: z.boolean().optional(),
   aliases: z.array(alias).optional(),
-  sources: z.record(sourceRef).optional(),
+  sources: z.record(z.string(), sourceRef).optional(),
 });
 const FIELD_IDS = FIELD_RULES.map((r) => r.id) as [FieldId, ...FieldId[]];
 const modeRule = z.discriminatedUnion("kind", [

@@ -275,3 +275,19 @@ describe("collectReviewTargets", () => {
     expect(targets).toHaveLength(1);
   });
 });
+
+describe("toEquipmentDbInfo와 실제 날짜 변환기", () => {
+  it("formatDateToYmd는 this에 의존하므로 감싸서 넘기면 날짜가 변환된다", async () => {
+    const { default: manager } = await import("@/features/map-marker/lib/excel/data-manager");
+    const info = toEquipmentDbInfo(equipment, (value) => manager.formatDateToYmd(value));
+    expect(info.install_date).toBe("2026-01-01");
+    expect(info.open_date).toBe("2026-02-01");
+  });
+
+  it("메서드를 떼어 넘겨도 날짜가 변환된다", async () => {
+    const { default: manager } = await import("@/features/map-marker/lib/excel/data-manager");
+    const info = toEquipmentDbInfo(equipment, manager.formatDateToYmd);
+    expect(info.install_date).toBe("2026-01-01");
+    expect(info.open_date).toBe("2026-02-01");
+  });
+});

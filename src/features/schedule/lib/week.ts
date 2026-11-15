@@ -3,6 +3,8 @@
  * 주는 월요일에 시작한다.
  */
 
+import { localDateIso } from "@/lib/local-date";
+
 const ISO_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
@@ -60,7 +62,7 @@ export function weekdayLabel(iso: string): string {
 
 /** 로컬 달력 기준 오늘. 자정 직전에도 같은 날짜가 나와야 해서 UTC가 아니라 로컬 값을 쓴다. */
 export function todayIso(now: Date = new Date()): string {
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return localDateIso(now);
 }
 
 /** 그 날짜가 속한 주부터 `weeks`개 주의 월요일. */
