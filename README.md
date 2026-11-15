@@ -62,9 +62,10 @@ src/
   features/route/              # 다중 경유지 최적 경로(TSP) 산출 및 카카오 길찾기 연동 (20파일)
   features/gpsmap/             # 주소·좌표 변환 (VWorld · Leaflet, 14파일)
   features/cctv/               # 도로 CCTV 조회 — ITS를 브라우저에서 직접 호출 (13파일)
+  features/site-survey/        # 공정관리 > 현장실사서 — 실사서 엑셀에서 세부 시트 입력값 생성·양식 내보내기
   features/barcode/            # 사진 바코드 인식 · QR 생성 · 엑셀 후보 검색 (15파일)
 docs/                          # Ver_3.0(현재 계획·구현 문서) · 이전버젼/(Ver_1.0 ~ Ver_2.3 문서 세트)
-supabase/migrations/           # DB 마이그레이션 SQL 12개(번호 4 + 개별 8) + README(적용 순서·RLS 정책)
+supabase/migrations/           # DB 마이그레이션 SQL 13개(번호 4 + 개별 9) + README(적용 순서·RLS 정책)
 e2e/                           # Playwright 스모크 테스트
 ```
 

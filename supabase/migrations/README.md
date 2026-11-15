@@ -21,6 +21,7 @@ Supabase 대시보드 → **SQL Editor** 에서 아래 파일을 **번호 순서
 20261117000200_survey_settings.sql               ← 현장실사서 환경설정 테이블(survey_settings, 관리자만 수정)
 20261118000000_kma_manual_source.sql             ← 3단계: source 에 manual 허용(갱신 버튼의 저장·집계)
 20261119000000_login_history.sql                 ← 접속 기록 전용 테이블(login_history)·auth.sessions 트리거·1년 보관 cron
+20261120000000_survey_settings_search_path.sql   ← survey_settings 트리거 함수의 search_path 를 ''(빈 값)으로 통일
 ```
 
 - **이미 운영 중인 DB에는 `01`~`04`를 다시 실행하지 않는다.** 이미 적용된 내용이고, 일부는 다시 실행하면 안 된다
@@ -62,6 +63,7 @@ Supabase 대시보드 → **SQL Editor** 에서 아래 파일을 **번호 순서
 | `20261117000200_survey_settings.sql` | — | 현장실사서 > 세부 시트 정리 환경설정 테이블(`survey_settings`), 조회는 로그인 전체·수정은 관리자만 |
 | `20261118000000_kma_manual_source.sql` | — | 3단계: 예보 저장소·호출 집계의 `source`에 `manual` 허용(현재 데이터로 갱신 버튼). 적용 전에는 갱신 결과의 저장만 실패 |
 | `20261119000000_login_history.sql` | — | 접속 기록 테이블 `login_history`와 `auth.sessions` 트리거(로그인·로그아웃·IP·브라우저), 기존 세션 백필, 1년 보관 cron. 적용 전에는 접속 기록 창이 "아직 없습니다"로 보인다 |
+| `20261120000000_survey_settings_search_path.sql` | — | `survey_settings` 트리거 함수 `touch_survey_settings_updated_at()`의 `search_path`를 `public`에서 `''`로 통일(함수 본문은 `now()`뿐이라 동작 같음) |
 
 세부 사유(예: 칸 맞바꾸기 409 원인, 미시설 필수 사유)는 각 구간의 원본 주석에 그대로 남아 있다.
 

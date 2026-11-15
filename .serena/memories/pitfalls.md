@@ -58,3 +58,4 @@ CORS 미지원이라 script 주입만 가능. 키는 `NEXT_PUBLIC_`이고 도메
   대표는 숨은 SUB의 올해 장비를 합산, `detachedVisible` SUB는 자기 것만. 판정은 `lib/facility-status.ts`.
 - 필터의 **빈 집합은 "걸러내지 않음"**이다. 기본값으로 고를 값이 없으면 그 차원은 전체가 보인다(연도·상태 공통).
 - 흰 핀(`#ffffff`)은 `getMarkerSvg`가 어두운 테두리·점으로 바꾼다. 흰 핀을 새로 그리는 곳은 같은 처리가 필요.
+- **`MapMarkerExcelManager`(`lib/excel/data-manager`)의 메서드는 `this`로 서로를 부른다**(`formatDateToYmd` → `this.isValidDateRange`). 메서드를 변수·인자로 떼어 넘기면(`fn(marker, MapMarkerExcelManager.formatDateToYmd)`) `this`가 없어 날짜가 있는 순간 `TypeError`가 난다. 항상 `(v) => MapMarkerExcelManager.formatDateToYmd(v)`처럼 감싸서 넘긴다(2026-11-15 업로드 훅 분할 때 이 실수로 장비 저장이 깨질 뻔했다. `excel-upload-runners.test.ts`가 재발을 막는다).

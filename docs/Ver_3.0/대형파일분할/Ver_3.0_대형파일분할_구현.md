@@ -68,3 +68,13 @@
 
 - `.tsx`와 훅 렌더 테스트는 여전히 없다(`vitest.config.ts`는 `.ts`만 실행). 이번에 뺀 것 중 테스트로 지키는 것은 순수 함수뿐이고, 훅 3개와 지도 레이어 2개는 화면 확인에 의존한다.
 - 업로드 훅 본체는 1,048줄로 여전히 크다. 상태·토스트·스토어 연결과 각 업로드 흐름이 한 훅에 남아 있다.
+
+## 사후 점검에서 찾은 회귀 (2026-11-15)
+
+mattpocock code-review(기준·명세 두 축)로 `2f62a97`..`HEAD`를 다시 검토하다 **이 작업이 만든 회귀 1건**을 찾아 고쳤다.
+
+- **내용**: 업로드 훅 분할 때 장비 저장의 상세 정보 행을 `toEquipmentDbInfo(marker, MapMarkerExcelManager.formatDateToYmd)`로 만들었다. `formatDateToYmd`는 내부에서 `this.isValidDateRange`를 부르는 메서드라서 `this` 없이 넘기면 시설일·개통일 값이 있는 순간 `TypeError`가 난다. 시설코드가 있는 장비를 일괄 저장하거나 개별 저장할 때 모두 해당한다.
+- **왜 못 잡았나**: `excel-upload-runners.test.ts`가 자체 함수를 넘겼고, 호출부는 훅 안이라 테스트하지 못한다. 원본은 `MapMarkerExcelManager.formatDateToYmd(x)`를 메서드로 불렀다.
+- **고침**: 두 호출 함수(`submitPendingMarkers`, `submitSinglePendingMarker`)에서 `(value) => MapMarkerExcelManager.formatDateToYmd(value)`로 감싼 `formatDate`를 만들어 넘긴다. 재발 방지로 실제 `MapMarkerExcelManager`를 쓰는 테스트 2개를 더했다(감싸면 `2026-01-01`로 변환되고, 그대로 넘기면 오류가 난다는 것을 고정).
+- **함정 기록**: Serena 메모리 `pitfalls`에 적었다.
+- 이 회귀는 커밋 `971366b`~`423ecc0`에 들어 있다. 이미 푸시됐으므로 수정은 다음 커밋으로 낸다(미커밋 상태).
