@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -44,6 +45,7 @@ import { useMapMarkerStore } from "@/features/map-marker/store/use-map-marker-st
 import { useRouteStore } from "@/features/route/store/use-route-store";
 import { useKakaoCctvLayer } from "@/features/map-marker/hooks/use-kakao-cctv-layer";
 import { useKakaoRouteLayer } from "@/features/map-marker/hooks/use-kakao-route-layer";
+import { useKakaoCaptureGuide } from "@/features/map-marker/hooks/use-kakao-capture-guide";
 import type {
   EquipmentMarker,
   MapMode,
@@ -51,10 +53,7 @@ import type {
   MarkerRecord,
 } from "@/features/map-marker/types/marker";
 
-import {
-  screenRectToMapBounds,
-  type MapBoundsLiteral,
-} from "@/features/map-marker/lib/map-capture-stitch";
+import { screenRectToMapBounds } from "@/features/map-marker/lib/map-capture-stitch/bounds";
 import {
   arrangeOverlayPanels,
   boardFitPadding,
@@ -72,13 +71,30 @@ import {
   type ModifierKeysState,
 } from "@/features/map-marker/components/map/kakao-map-helpers";
 import { MapFloatingControls } from "@/features/map-marker/components/map/map-floating-controls";
-import {
-  MapRegionCapturePanel,
-  type CaptureGuideState,
-} from "@/features/map-marker/components/map/map-region-capture-panel";
-import { MapRegionSelectOverlay } from "@/features/map-marker/components/map/map-region-select-overlay";
-import { MapRegionBoundsGuide } from "@/features/map-marker/components/map/map-region-bounds-guide";
 import { useToast } from "@/hooks/use-toast";
+
+// 영역 캡처 UI는 사용자가 캡처 버튼을 누를 때만 필요하므로 초기 번들에서 분리한다.
+const MapRegionCapturePanel = dynamic(
+  () =>
+    import(
+      "@/features/map-marker/components/map/map-region-capture-panel"
+    ).then((m) => m.MapRegionCapturePanel),
+  { ssr: false },
+);
+const MapRegionSelectOverlay = dynamic(
+  () =>
+    import(
+      "@/features/map-marker/components/map/map-region-select-overlay"
+    ).then((m) => m.MapRegionSelectOverlay),
+  { ssr: false },
+);
+const MapRegionBoundsGuide = dynamic(
+  () =>
+    import(
+      "@/features/map-marker/components/map/map-region-bounds-guide"
+    ).then((m) => m.MapRegionBoundsGuide),
+  { ssr: false },
+);
 
 interface KakaoMapCanvasProps {
   markers: MarkerRecord[];
@@ -103,42 +119,22 @@ export function KakaoMapCanvas({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<KakaoMap | null>(null);
   const [mapInstance, setMapInstance] = useState<KakaoMap | null>(null);
-  const [isRegionSelectMode, setIsRegionSelectMode] = useState(false);
-  const [isCapturePanelOpen, setIsCapturePanelOpen] = useState(false);
-  const [captureBounds, setCaptureBounds] = useState<MapBoundsLiteral | null>(
-    null,
-  );
-  const [captureGuide, setCaptureGuide] = useState<CaptureGuideState>({
-    plan: null,
-    viewportSpan: null,
-    capturedCount: 0,
-  });
-  const [excludedTiles, setExcludedTiles] = useState<Set<number>>(
-    () => new Set(),
-  );
-  const prevTileCountRef = useRef(0);
-
-  // 격자 구성(레벨·겹침·범위)이 바뀌어 타일 수가 달라지면 제외 선택을 초기화한다.
-  const handleCaptureGuideChange = useCallback((guide: CaptureGuideState) => {
-    const count = guide.plan?.tiles.length ?? 0;
-    if (count !== prevTileCountRef.current) {
-      prevTileCountRef.current = count;
-      setExcludedTiles(new Set());
-    }
-    setCaptureGuide(guide);
-  }, []);
-
-  const handleToggleExcludedTile = useCallback((index: number) => {
-    setExcludedTiles((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  }, []);
+  const {
+    isRegionSelectMode,
+    isCapturePanelOpen,
+    captureBounds,
+    captureGuide,
+    excludedTiles,
+    handleCaptureGuideChange,
+    handleToggleExcludedTile,
+    setCaptureBounds,
+    startRegionSelect,
+    cancelRegionSelect,
+    completeRegion,
+    resetCapture,
+    reselectRegion,
+    editRegion,
+  } = useKakaoCaptureGuide();
   const clustererRef = useRef<KakaoMarkerClusterer | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
   const builtMarkersCacheRef = useRef<{
@@ -1309,7 +1305,7 @@ export function KakaoMapCanvas({
       ) : null}
       {isRegionSelectMode ? (
         <MapRegionSelectOverlay
-          onCancel={() => setIsRegionSelectMode(false)}
+          onCancel={cancelRegionSelect}
           onComplete={(rect) => {
             const map = mapInstanceRef.current;
             const container = mapRef.current;
@@ -1324,16 +1320,14 @@ export function KakaoMapCanvas({
                 rect.clientX2,
                 rect.clientY2,
               );
-              setCaptureBounds(bounds);
-              setIsRegionSelectMode(false);
-              setIsCapturePanelOpen(true);
+              completeRegion(bounds);
             } catch (err) {
               console.error("영역 변환 실패:", err);
               toast({
                 description: "선택한 영역을 지도 좌표로 변환하지 못했습니다.",
                 variant: "destructive",
               });
-              setIsRegionSelectMode(false);
+              cancelRegionSelect();
             }
           }}
         />
@@ -1355,16 +1349,13 @@ export function KakaoMapCanvas({
       <MapFloatingControls
         map={mapInstance}
         onStartRegionCapture={() => {
-          setIsCapturePanelOpen(false);
-          setCaptureBounds(null);
-          setExcludedTiles(new Set());
-          prevTileCountRef.current = 0;
-          setCaptureGuide({
-            plan: null,
-            viewportSpan: null,
-            capturedCount: 0,
-          });
-          setIsRegionSelectMode(true);
+          void import(
+            "@/features/map-marker/components/map/map-region-capture-panel"
+          );
+          void import(
+            "@/features/map-marker/components/map/map-region-bounds-guide"
+          );
+          startRegionSelect();
         }}
       />
       {isCapturePanelOpen && mapInstance && mapRef.current && captureBounds ? (
@@ -1386,30 +1377,9 @@ export function KakaoMapCanvas({
           })}
           excludedTiles={excludedTiles}
           onGuideChange={handleCaptureGuideChange}
-          onEditRegion={() => setIsRegionSelectMode(true)}
-          onClose={() => {
-            setIsCapturePanelOpen(false);
-            setCaptureBounds(null);
-            setExcludedTiles(new Set());
-            prevTileCountRef.current = 0;
-            setCaptureGuide({
-              plan: null,
-              viewportSpan: null,
-              capturedCount: 0,
-            });
-          }}
-          onReselectRegion={() => {
-            setIsCapturePanelOpen(false);
-            setCaptureBounds(null);
-            setExcludedTiles(new Set());
-            prevTileCountRef.current = 0;
-            setCaptureGuide({
-              plan: null,
-              viewportSpan: null,
-              capturedCount: 0,
-            });
-            setIsRegionSelectMode(true);
-          }}
+          onEditRegion={editRegion}
+          onClose={resetCapture}
+          onReselectRegion={reselectRegion}
         />
       ) : null}
     </div>

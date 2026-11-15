@@ -426,9 +426,9 @@ export function TyphoonModal({ isOpen, onClose, typhoon }: TyphoonModalProps) {
                 </div>
 
                 <div className="rounded-sm border border-sky-800/60 bg-sky-950/50 p-2.5">
-                  <p className="flex items-center gap-1.5 font-semibold text-sky-200 text-xs"><ClipboardList className="h-3.5 w-3.5 shrink-0" />3. 작업 전 TBM 엑셀 출력 및 안전교육 실시</p>
+                  <p className="flex items-center gap-1.5 font-semibold text-sky-200 text-xs"><ClipboardList className="h-3.5 w-3.5 shrink-0" />3. 작업 전 기상 상황 확인 및 안전교육 실시</p>
                   <p className="mt-0.5 text-[11px] text-sky-300/90">
-                    당일 기상 상황을 TBM 엑셀 서식으로 출력하여 현장 작업자들에게 공유하고 비상 연락망을 재확인합니다.
+                    당일 기상 상황을 대시보드에서 확인해 현장 작업자들에게 공유하고 비상 연락망을 재확인합니다.
                   </p>
                 </div>
               </div>

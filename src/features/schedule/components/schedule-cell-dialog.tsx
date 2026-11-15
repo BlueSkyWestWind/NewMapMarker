@@ -25,8 +25,6 @@ import {
 } from "@/features/schedule/api";
 import {
   COMPANION_KINDS,
-  findCompanions,
-  parseCompanionText,
   planCompanionOps,
   type CompanionKind,
 } from "@/features/schedule/lib/companions";
@@ -39,7 +37,16 @@ import {
 import { planCompanionArrangement } from "@/features/schedule/lib/companion-arrange";
 import { crossTeamBlockReason, planCrossTeamCreate } from "@/features/schedule/lib/cross-team";
 import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
-import { draftsFromCells, planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
+import { planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
+import {
+  CLICKED_NEW_KEY,
+  columnLabel,
+  initialCompanions,
+  initialDrafts,
+  nextTextColor,
+  type CellEditorState,
+  type CompanionFields,
+} from "@/features/schedule/lib/cell-dialog-helpers";
 import { pickStation, startPickSession, type PickSession } from "@/features/schedule/lib/station-pick";
 import { searchStations } from "@/features/schedule/lib/station-search";
 import { MAX_WORK_DATES, planWorkDatesCreate, type WorkDatesPlan } from "@/features/schedule/lib/period";
@@ -51,11 +58,9 @@ import {
   resultLabel,
   TEXT_COLOR_DISPLAY,
   textColorLabel,
-  type CellPosition,
   type MarkColor,
   type ScheduleCell,
   type ScheduleColumn,
-  type TextColor,
 } from "@/features/schedule/types";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleBulkResultDialog } from "./schedule-bulk-result-dialog";
@@ -67,12 +72,7 @@ const MARK_CHOICES: (MarkColor | null)[] = [null, ...MARK_COLORS];
 const FIELD_CLASS = "h-8 border-slate-700 bg-slate-900 text-xs";
 const SELECT_CLASS =
   "h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-100 disabled:opacity-60";
-const CLICKED_NEW_KEY = "clicked";
-
-export interface CellEditorState {
-  cell: ScheduleCell | null;
-  position: CellPosition;
-}
+export type { CellEditorState };
 
 interface ScheduleCellDialogProps {
   state: CellEditorState | null;
@@ -84,49 +84,6 @@ interface ScheduleCellDialogProps {
   canEdit: boolean;
   onClose: () => void;
   onSaved: () => void;
-}
-
-function columnLabel(column: ScheduleColumn): string {
-  return column.leaderLabel ? `${column.teamLabel} · ${column.leaderLabel}` : column.teamLabel;
-}
-
-/** 글자색을 없음 → 파랑 → 빨강 → 없음 순으로 돌린다. */
-function nextTextColor(color: TextColor | null): TextColor | null {
-  if (color === null) return "0070C0";
-  if (color === "0070C0") return "FF0000";
-  return null;
-}
-
-/** 클릭한 빈 행의 새 항목을 행 순서에 맞게 끼워 넣은 처음 목록. */
-function initialDrafts(cells: ScheduleCell[], state: CellEditorState): EntryDraft[] {
-  const { cell, position } = state;
-  const drafts = draftsFromCells(cells, position.workDate, position.columnId);
-  if (cell !== null) return drafts;
-  const blank: EntryDraft = {
-    key: CLICKED_NEW_KEY,
-    id: null,
-    rowNo: position.rowNo,
-    mainText: "",
-    subText: "",
-    textColor: null,
-    companionTarget: false,
-  };
-  const index = drafts.findIndex((draft) => (draft.rowNo ?? 0) > position.rowNo);
-  return index === -1 ? [...drafts, blank] : [...drafts.slice(0, index), blank, ...drafts.slice(index)];
-}
-
-type CompanionFields = Record<CompanionKind, { enabled: boolean; names: string }>;
-
-function initialCompanions(cells: ScheduleCell[], position: CellPosition): CompanionFields {
-  const found = findCompanions(cells, position.workDate, position.columnId);
-  const fieldOf = (kind: CompanionKind) => {
-    const existing = found[kind];
-    return {
-      enabled: existing !== null,
-      names: existing ? (parseCompanionText(existing.subText)?.names ?? "") : "",
-    };
-  };
-  return { 입회: fieldOf("입회"), 신호수: fieldOf("신호수") };
 }
 
 /**
