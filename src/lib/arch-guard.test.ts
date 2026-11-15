@@ -1,5 +1,5 @@
 // 의존 방향 가드: 공용 레이어(src/lib)가 피처(src/features)를 import하는 역방향 의존을 막는다.
-// 설계: docs/Ver_3.0/의존방향정리/Ver_3.0_의존방향정리_설계.md §3.2
+// 설계: docs/Ver_3.0/프로젝트정비/의존방향정리/Ver_3.0_의존방향정리_설계.md §3.2
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";

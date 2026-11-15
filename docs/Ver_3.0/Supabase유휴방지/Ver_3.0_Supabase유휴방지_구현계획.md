@@ -8,7 +8,7 @@
 
 **Tech Stack:** GitHub Actions (YAML), cURL, Supabase PostgREST API
 
-**Spec:** [docs/Ver_3.0/Ver_3.0_계획.md](file:///C:/Users/celyo/OneDrive/문서/3000_Development/NewMapMarker/docs/Ver_3.0/Ver_3.0_계획.md#L520-L529) (15장)
+**Spec:** [docs/Ver_3.0/Ver_3.0_계획.md](../Ver_3.0_계획.md#L520-L529) (15장)
 
 ## Global Constraints
 - 스케줄 주기: 매주 일요일 00:00 KST (`cron: '0 15 * * 6'`)
