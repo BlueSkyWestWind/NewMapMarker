@@ -45,6 +45,8 @@ interface ScheduleMonthGridProps {
   model: MonthModel;
   /** 날짜별 작업금지(프리징) 배지 */
   freezeBadges: Map<string, FreezeBadge[]>;
+  /** 검색 결과 선택 등으로 일시 강조할 칸 id */
+  highlightCellId?: string | null;
   /** 관리자만 끌어서 옮길 수 있다. */
   canEdit: boolean;
   /** 날짜를 누르면 그 주의 주간 보기로 간다(칸 편집은 주간에서 한다). */
@@ -64,6 +66,7 @@ interface ScheduleMonthGridProps {
 export function ScheduleMonthGrid({
   model,
   freezeBadges,
+  highlightCellId = null,
   canEdit,
   onPickDay,
   onDropCell,
@@ -247,7 +250,12 @@ export function ScheduleMonthGrid({
                           {group.entries.map((entry) => (
                             <span
                               key={entry.id}
-                              className={cn("block truncate whitespace-nowrap", canEdit && "cursor-grab")}
+                              data-cell-id={entry.id}
+                              className={cn(
+                                "block truncate whitespace-nowrap",
+                                canEdit && "cursor-grab",
+                                highlightCellId === entry.id && "rounded-sm bg-amber-500/20 px-1 ring-2 ring-amber-400",
+                              )}
                               draggable={canEdit}
                               title={
                                 canEdit

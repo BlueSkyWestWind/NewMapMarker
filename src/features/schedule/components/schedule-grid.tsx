@@ -31,6 +31,8 @@ interface ScheduleGridProps {
   marks: ScheduleMark[];
   /** 날짜별 작업금지(프리징) 배지 */
   freezeBadges: Map<string, FreezeBadge[]>;
+  /** 검색 결과 선택 등으로 일시 강조할 칸 id */
+  highlightCellId?: string | null;
   canEdit: boolean;
   onEditCell: (cell: ScheduleCell | null, position: CellPosition) => void;
   /** `single`이면 Shift를 누른 채 놓은 것이라 끈 칸 하나만 옮긴다(아니면 같은 날짜·팀의 묶음 전체) */
@@ -50,6 +52,7 @@ export function ScheduleGrid({
   dayNotes,
   marks,
   freezeBadges,
+  highlightCellId = null,
   canEdit,
   onEditCell,
   onDropCell,
@@ -194,9 +197,11 @@ export function ScheduleGrid({
                 const markColor = markByKey.get(`${workDate}|${column.id}`);
                 const interactive = canEdit || cell !== undefined;
                 const isLastColumn = column.id === sortedColumns[sortedColumns.length - 1]?.id;
+                const isHighlighted = cell !== undefined && highlightCellId === cell.id;
                 return (
                   <td
                     key={column.id}
+                    data-cell-id={cell?.id}
                     tabIndex={interactive ? 0 : undefined}
                     draggable={canEdit && cell !== undefined}
                     title={
@@ -219,6 +224,7 @@ export function ScheduleGrid({
                       !markColor && !isToday && isWeekend && "bg-slate-900/40",
                       interactive && "cursor-pointer hover:bg-slate-800/70",
                       canEdit && cell !== undefined && "cursor-grab",
+                      isHighlighted && "bg-amber-500/20 ring-2 ring-inset ring-amber-400",
                     )}
                     onClick={() => (interactive ? onEditCell(cell ?? null, position) : undefined)}
                     onKeyDown={(event) => {

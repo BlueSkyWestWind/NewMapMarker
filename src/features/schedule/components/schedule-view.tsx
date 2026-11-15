@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Ban, ChevronLeft, ChevronRight, Download, ListPlus, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,14 @@ import {
 } from "@/features/schedule/lib/cell-grid";
 import { freezeBadgesByDate } from "@/features/schedule/lib/freeze";
 import { buildMonthModel } from "@/features/schedule/lib/month-layout";
+import {
+  loadDateState,
+  loadViewState,
+  saveDateState,
+  saveViewState,
+  VIEW_STATE_KEY,
+  type KeyValueStore,
+} from "@/features/schedule/lib/view-state";
 import {
   addDays,
   addMonths,
@@ -63,6 +71,29 @@ const DAILY_VIEW_KINDS: readonly ScheduleViewKind[] = ["day", "archive"];
 const TABLE_MISSING_MESSAGE =
   "DB에 시설일정 테이블이 없습니다. 마이그레이션(03_facility_schedule.sql)을 Supabase에 적용해 주세요.";
 
+function getLocalStore(): KeyValueStore | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getSessionStore(): KeyValueStore | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function truncateCellLabel(cell: ScheduleCell): string {
+  const raw = cell.mainText.trim() || cell.subText.trim() || "항목";
+  return raw.length > 16 ? `${raw.slice(0, 16)}…` : raw;
+}
+
 /**
  * 시설일정 화면. 지도 자리(오른쪽 전체)를 차지한다. 주간(관리자 수정)과 월간(월 달력, 조회 전용)을 전환한다.
  * 부모(`main`)가 `relative`이므로 `absolute inset-0`으로 영역을 채운다.
@@ -70,9 +101,11 @@ const TABLE_MISSING_MESSAGE =
 export function ScheduleView({ section = "facility" }: { section?: "facility" | "daily" | "mail" }) {
   const { supabase } = useAuthSession();
   const { toast } = useToast();
+  const [initialViewState] = useState(() => loadViewState(getLocalStore(), new Set()));
+  const [initialDateState] = useState(() => loadDateState(getSessionStore(), todayIso()));
   // 시설일정은 주간·월간, 일일일정은 일자별·누적을 보인다. 두 메뉴가 각자 마지막 보기를 기억한다.
-  const [facilityView, setFacilityView] = useState<"week" | "month">("week");
-  const [dailyView, setDailyView] = useState<"day" | "archive">("day");
+  const [facilityView, setFacilityView] = useState<"week" | "month">(initialViewState.facilityView);
+  const [dailyView, setDailyView] = useState<"day" | "archive">(initialViewState.dailyView);
   const isDaily = section === "daily";
   // 메일양식은 주간·월간 조회가 필요 없어 일자별과 같이 취급한다(조회 훅이 꺼진다).
   const view: ScheduleViewKind = section === "mail" ? "day" : isDaily ? dailyView : facilityView;
@@ -80,9 +113,9 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
     if (next === "day" || next === "archive") setDailyView(next);
     else setFacilityView(next);
   };
-  const [selectedDate, setSelectedDate] = useState(() => todayIso());
-  const [weekStart, setWeekStart] = useState(() => weekStartOf(todayIso()));
-  const [month, setMonth] = useState(() => monthOf(todayIso()));
+  const [selectedDate, setSelectedDate] = useState(() => initialDateState?.selectedDate ?? todayIso());
+  const [weekStart, setWeekStart] = useState(() => initialDateState?.weekStart ?? weekStartOf(todayIso()));
+  const [month, setMonth] = useState(() => initialDateState?.month ?? monthOf(todayIso()));
   const [cellEditor, setCellEditor] = useState<CellEditorState | null>(null);
   const [columnEditor, setColumnEditor] = useState<ScheduleColumn | null>(null);
   const [dayEditor, setDayEditor] = useState<string | null>(null);
@@ -95,10 +128,15 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   const [visibleOptionalColumnIds, setVisibleOptionalColumnIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const restoredOptionalRef = useRef(false);
+  const [highlightCellId, setHighlightCellId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
+  const scrollRafRef = useRef<number | null>(null);
+  const scrolledCellIdRef = useRef<string | null>(null);
 
   // 한 번에 보는 주·달 수(1~3). 다음 주·달 일정을 옮길 때 칸 편집 창을 열지 않고 한 화면에서 끌어 옮기려는 용도다(주 4주, 달 3달까지).
-  const [weekCount, setWeekCount] = useState(2);
-  const [monthCount, setMonthCount] = useState(1);
+  const [weekCount, setWeekCount] = useState(initialViewState.weekCount);
+  const [monthCount, setMonthCount] = useState(initialViewState.monthCount);
 
   const weekDates = useMemo(
     () => Array.from({ length: weekCount * 7 }, (_, offset) => addDays(weekStart, offset)),
@@ -133,6 +171,77 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   }, [monthFreezes.freezes, monthFrom, monthTo]);
   const data = view === "week" ? weekData : monthData;
   const { isAdmin } = data;
+
+  useEffect(() => {
+    if (restoredOptionalRef.current || data.columns.length === 0) return;
+    restoredOptionalRef.current = true;
+    const validIds = new Set(data.columns.map((column) => column.id));
+    const restored = loadViewState(getLocalStore(), validIds).visibleOptionalColumnIds;
+    if (restored.length > 0) setVisibleOptionalColumnIds(new Set(restored));
+  }, [data.columns]);
+
+  useEffect(() => {
+    const store = getLocalStore();
+    let optionalIds: string[];
+    if (restoredOptionalRef.current) {
+      optionalIds = Array.from(visibleOptionalColumnIds);
+    } else {
+      optionalIds = [];
+      try {
+        const raw = store?.getItem(VIEW_STATE_KEY);
+        if (raw) {
+          const parsed: unknown = JSON.parse(raw);
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            Array.isArray((parsed as { visibleOptionalColumnIds?: unknown }).visibleOptionalColumnIds)
+          ) {
+            optionalIds = (parsed as { visibleOptionalColumnIds: unknown[] }).visibleOptionalColumnIds.filter(
+              (id): id is string => typeof id === "string",
+            );
+          }
+        }
+      } catch {
+        optionalIds = [];
+      }
+    }
+    saveViewState(store, {
+      facilityView,
+      dailyView,
+      weekCount,
+      monthCount,
+      visibleOptionalColumnIds: optionalIds,
+    });
+  }, [facilityView, dailyView, weekCount, monthCount, visibleOptionalColumnIds]);
+
+  useEffect(() => {
+    saveDateState(getSessionStore(), { selectedDate, weekStart, month }, todayIso());
+  }, [selectedDate, weekStart, month]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+      if (scrollRafRef.current !== null) window.cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!highlightCellId || scrolledCellIdRef.current === highlightCellId) return;
+    if (scrollRafRef.current !== null) window.cancelAnimationFrame(scrollRafRef.current);
+    const tryScroll = (retriesLeft: number) => {
+      const escaped = highlightCellId.replace(/"/g, '\\"');
+      const el = gridAreaRef.current?.querySelector<HTMLElement>(`[data-cell-id="${escaped}"]`);
+      if (el) {
+        el.scrollIntoView({ block: "center", inline: "nearest" });
+        scrolledCellIdRef.current = highlightCellId;
+        return;
+      }
+      if (retriesLeft > 0) {
+        scrollRafRef.current = window.requestAnimationFrame(() => tryScroll(retriesLeft - 1));
+      }
+    };
+    scrollRafRef.current = window.requestAnimationFrame(() => tryScroll(1));
+  }, [highlightCellId, data.cells, view]);
 
   const optionalColumns = useMemo(
     () =>
@@ -187,6 +296,15 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
     setWeekStart(weekStartOf(workDate));
     setMonth(monthOf(workDate));
   };
+  const handlePickSearch = (cell: ScheduleCell) => {
+    jumpToDate(cell.workDate);
+    scrolledCellIdRef.current = null;
+    setHighlightCellId(cell.id);
+    if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightCellId(null);
+    }, 3000);
+  };
   const goToday = () => {
     const today = todayIso();
     setSelectedDate(today);
@@ -240,9 +358,14 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
           return;
         }
         // 순서대로 하나씩 옮긴다. 중간에 실패해도 화면은 새로 고쳐 실제 상태를 보여 준다.
+        let movedCount = 0;
         try {
           for (const id of plan.ids) {
             await moveScheduleCell(supabase, id, { ...target, rowNo: null });
+            movedCount += 1;
+          }
+          if (movedCount > 0) {
+            toast({ title: `${movedCount}건을 옮겼습니다` });
           }
         } finally {
           await weekData.refresh();
@@ -269,6 +392,11 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
       await moveScheduleCell(supabase, dragged.id, target);
       await closeLeftoverGap(dragged, target);
       await weekData.refresh();
+      if (plan.kind === "swap") {
+        toast({
+          title: `${truncateCellLabel(dragged)}와 ${truncateCellLabel(plan.with)}의 자리를 맞바꿨습니다`,
+        });
+      }
     } catch (error) {
       toast({
         title: "옮기지 못했습니다",
@@ -435,7 +563,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
           />
         )}
 
-        <ScheduleSearch columns={data.columns} onPick={jumpToDate} />
+        <ScheduleSearch columns={data.columns} onPick={handlePickSearch} />
 
         <div className="ml-auto flex items-center gap-2">
           {!isAdmin ? (
@@ -531,6 +659,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
             dayNotes={weekData.dayNotes}
             marks={weekData.marks}
             freezeBadges={weekFreezeBadges}
+            highlightCellId={highlightCellId}
             canEdit={isAdmin}
             onEditCell={openCellEditor}
             onDropCell={handleDropCell}
@@ -547,6 +676,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
                 <ScheduleMonthGrid
                   model={model}
                   freezeBadges={monthFreezeBadges}
+                  highlightCellId={highlightCellId}
                   canEdit={isAdmin}
                   onDropCell={(cellId, workDate, columnId, group) => {
                     const dragged = monthData.cells.find((candidate) => candidate.id === cellId);

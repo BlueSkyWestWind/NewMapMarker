@@ -37,6 +37,7 @@ import {
 import { planCompanionArrangement } from "@/features/schedule/lib/companion-arrange";
 import { crossTeamBlockReason, planCrossTeamCreate } from "@/features/schedule/lib/cross-team";
 import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
+import { deleteConfirmMessage } from "@/features/schedule/lib/delete-confirm";
 import { planGroupOps, type EntryDraft } from "@/features/schedule/lib/group-edit";
 import {
   CLICKED_NEW_KEY,
@@ -137,6 +138,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   const [columnId, setColumnId] = useState(position.columnId);
   const [markColor, setMarkColor] = useState<MarkColor | null>(mark);
   const [notice, setNotice] = useState("");
+  const [clearedAll, setClearedAll] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const newKeyCounter = useRef(0);
   // 줄 입력에 글을 쓰는 동안 그 줄 아래에 등록된 국소 검색 결과를 보여 준다(한 번에 한 줄).
@@ -219,6 +221,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
     });
     setDrafts(result.drafts);
     setPickSession(result.session);
+    setClearedAll(false);
   };
   const handleRowKeyDown = (event: KeyboardEvent<HTMLInputElement>, key: string) => {
     if (suggestKey !== key || rowResults.length === 0) return;
@@ -244,6 +247,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   };
   const addDraft = (mainText: string) => {
     newKeyCounter.current += 1;
+    setClearedAll(false);
     setDrafts((prev) => [
       ...prev,
       {
@@ -259,6 +263,7 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
   };
   /** 이 팀·날짜의 일정과 입회·신호수를 한꺼번에 목록에서 뺀다. 저장하면 삭제된다(취소하면 그대로). */
   const clearAll = () => {
+    setClearedAll(true);
     setDrafts([]);
     setWorkDates({});
     setCommonDates([]);
@@ -356,6 +361,13 @@ function CellForm({ state, columns, cells, mark, canEdit, onClose, onSaved }: Ce
       kind,
       names: companions[kind].names,
     }));
+    const confirmText = deleteConfirmMessage({
+      deleteCount: deletedIds.size,
+      isClearAll: clearedAll,
+    });
+    if (confirmText !== null && !window.confirm(confirmText)) {
+      return;
+    }
     setIsSaving(true);
     try {
       // 마이그레이션 전이면 표시를 저장할 수 없다. 앞선 지움·수정이 반영되기 전에 먼저 알린다.

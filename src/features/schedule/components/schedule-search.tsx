@@ -9,7 +9,7 @@ import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { SEARCH_RESULT_LIMIT, searchScheduleCells } from "@/features/schedule/api";
 import { normalizeSearchQuery } from "@/features/schedule/lib/search-cells";
 import { weekdayLabel } from "@/features/schedule/lib/week";
-import { resultLabel, type ScheduleColumn } from "@/features/schedule/types";
+import { resultLabel, type ScheduleCell, type ScheduleColumn } from "@/features/schedule/types";
 import { RESULT_DOT_CLASS } from "./schedule-result-dialog";
 
 /** 입력을 멈추고 이 시간(ms)이 지나면 조회한다. */
@@ -17,8 +17,8 @@ const DEBOUNCE_MS = 300;
 
 interface ScheduleSearchProps {
   columns: ScheduleColumn[];
-  /** 결과를 누르면 그 날짜로 이동한다(지금 보는 주간·월간 그대로). */
-  onPick: (workDate: string) => void;
+  /** 결과를 누르면 그 날짜로 이동하고 해당 칸을 강조한다(지금 보는 주간·월간 그대로). */
+  onPick: (cell: ScheduleCell) => void;
 }
 
 /**
@@ -127,7 +127,7 @@ export function ScheduleSearch({ columns, onPick }: ScheduleSearchProps) {
                         "hover:bg-slate-800 focus-visible:bg-slate-800 focus-visible:outline-none",
                       )}
                       onClick={() => {
-                        onPick(cell.workDate);
+                        onPick(cell);
                         setOpen(false);
                       }}
                     >
