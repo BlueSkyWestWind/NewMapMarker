@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, ClipboardCopy, Download, ListChecks, Plus, Save, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,12 @@ import { DAY_COLUMNS } from "@/features/schedule/lib/day-columns";
 import { formatRefNotice, summarizeRefSources } from "@/features/schedule/lib/day-ref-summary";
 import { defaultDayDate, type DayRow } from "@/features/schedule/lib/day-rows";
 import type { DayDetailPatch, RefValues } from "@/features/schedule/lib/day-types";
+import {
+  nextInlineTarget,
+  type InlineMoveKey,
+  type InlineTarget,
+} from "@/features/schedule/lib/inline-nav";
+import { createSerialQueue } from "@/features/schedule/lib/serial-queue";
 import { downloadDayWorkbook } from "@/features/schedule/lib/write-day-workbook";
 import { stationKey } from "@/features/schedule/lib/day-stations";
 import { addDays, isValidIso, todayIso } from "@/features/schedule/lib/week";
@@ -80,6 +86,15 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   const canWrite = canEdit && !sheet.isTableMissing;
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const [activeEdit, setActiveEdit] = useState<InlineTarget | null>(null);
+  const [inlineQueue] = useState(() => createSerialQueue());
+  const inlinePending = useSyncExternalStore(
+    inlineQueue.subscribe,
+    () => inlineQueue.pending,
+    () => 0,
+  );
+  const inlineSaving = inlinePending > 0;
+  const [pendingValues, setPendingValues] = useState<Record<string, string>>({});
   /** 상세 창에 보여 줄 행(하나면 상세, 둘 이상이면 일괄 적용). `null`이면 창이 닫혀 있다. */
   const [detailRows, setDetailRows] = useState<DayRow[] | null>(null);
   const [isListsOpen, setListsOpen] = useState(false);
@@ -91,6 +106,20 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   const { widths, startResize, resetWidth } = useDayColumnWidths();
   // 열 순서는 원래(엑셀) 그대로다. 순번~국소명은 틀 고정이다(왼쪽 끝부터 이어진 열이라 원래 자리 그대로 붙는다).
   const orderedColumns = DAY_COLUMNS;
+  const inlineColumnKeys = useMemo(
+    () => orderedColumns.map((column) => column.key).filter(isInlineKey),
+    [orderedColumns],
+  );
+  const effectiveActiveEdit = useMemo(() => {
+    if (!activeEdit) return null;
+    return rows.some((row) => row.stationKey === activeEdit.rowKey) ? activeEdit : null;
+  }, [activeEdit, rows]);
+
+  useEffect(() => {
+    if (activeEdit && !rows.some((row) => row.stationKey === activeEdit.rowKey)) {
+      setActiveEdit(null);
+    }
+  }, [activeEdit, rows]);
   // 고정 열의 left 오프셋(체크 칸 폭 + 앞선 고정 열 폭)
   const frozenLeft = useMemo(() => {
     const result: Record<string, number> = {};
@@ -113,6 +142,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
     if (!isValidIso(next) || next === workDate) return;
     setWorkDate(next);
     setSelected(new Set());
+    setActiveEdit(null);
   };
 
   const toggleRow = (key: string) =>
@@ -129,6 +159,9 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
   const runExclusive = async (action: () => Promise<void>) => {
     // 불러오는 중이거나 실패한 표는 상세·참조 값이 비어 있어 누적을 빈 값으로 덮을 수 있다.
     if (!canAct || busyRef.current) return;
+    // 표에서 바로 고친 칸의 저장이 남아 있으면 그것이 끝난 뒤에 시작한다(대기열은 순서대로 처리한다).
+    if (inlineQueue.pending > 0) await inlineQueue.add(async () => undefined);
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     try {
@@ -193,15 +226,47 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
       }
     });
 
-  /** 표 칸에서 바로 고친 한 칸을 저장한다. 실패하면 오류만 알리고 표는 저장된 값 그대로다. */
-  const handleInlineSave = (row: DayRow, key: InlineKey, next: string) =>
-    runExclusive(async () => {
+  /** 표 칸에서 고친 한 칸을 직렬 대기열에 넣고 낙관적 값을 즉시 표시한다. */
+  const enqueueInlineSave = (row: DayRow, key: InlineKey, next: string) => {
+    const mapKey = `${row.stationKey}|${key}`;
+    setPendingValues((prev) => ({ ...prev, [mapKey]: next }));
+    void inlineQueue.add(async () => {
       try {
         await sheet.saveDetails([{ station: row, patch: { [key]: next } }]);
       } catch (error) {
         toast({ title: "저장하지 못했습니다", description: errorMessage(error), variant: "destructive" });
+      } finally {
+        setPendingValues((prev) => {
+          if (prev[mapKey] !== next) return prev;
+          const copy = { ...prev };
+          delete copy[mapKey];
+          return copy;
+        });
       }
     });
+  };
+
+  const handleInlineFinish = (
+    row: DayRow,
+    key: InlineKey,
+    currentValue: string,
+    next: string | null,
+    move: InlineMoveKey | null,
+  ) => {
+    setActiveEdit(null);
+    if (next !== null && next.trim() !== currentValue) {
+      enqueueInlineSave(row, key, next.trim());
+    }
+    if (move !== null) {
+      const target = nextInlineTarget({
+        rowKeys: rows.map((candidate) => candidate.stationKey),
+        columnKeys: inlineColumnKeys,
+        current: { rowKey: row.stationKey, columnKey: key },
+        key: move,
+      });
+      if (target) setActiveEdit(target);
+    }
+  };
 
   /** 이미 표에 있는 국소명이면 이유를 돌려준다. */
   const checkNewSite = (site: string) =>
@@ -209,6 +274,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
 
   /** 일정이 빈 날에도 추가할 수 있어야 하므로 `runExclusive`(행이 있어야 동작)를 쓰지 않고 직접 막는다. 실패는 창이 보여 준다. */
   const handleAddRow = async (site: string, overrides: RefValues) => {
+    if (inlineQueue.pending > 0) await inlineQueue.add(async () => undefined);
     if (busyRef.current) throw new Error("다른 저장이 끝나기를 기다린 뒤 다시 시도하세요.");
     busyRef.current = true;
     setBusy(true);
@@ -307,7 +373,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                 type="button"
                 variant="outline"
                 className="h-8 border-slate-700 px-3 text-xs"
-                disabled={!canWrite || !canAct || busy || selectedCount === 0}
+                disabled={!canWrite || !canAct || busy || inlineSaving || selectedCount === 0}
                 onClick={openBulk}
               >
                 선택한 {selectedCount}건 일괄 적용
@@ -317,7 +383,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                 variant="outline"
                 className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
                 title="직접 추가한 행 중 체크한 행을 지웁니다(일정에서 온 행은 지워지지 않습니다)"
-                disabled={!canWrite || !canAct || busy || selectedManualRows.length === 0}
+                disabled={!canWrite || !canAct || busy || inlineSaving || selectedManualRows.length === 0}
                 onClick={() => void deleteManual(selectedManualRows)}
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -327,7 +393,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                 type="button"
                 variant="outline"
                 className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-                disabled={!canWrite || sheet.isLoading || Boolean(sheet.error) || busy}
+                disabled={!canWrite || sheet.isLoading || Boolean(sheet.error) || busy || inlineSaving}
                 onClick={() => setAddRowOpen(true)}
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -348,7 +414,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
             type="button"
             variant="outline"
             className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-            disabled={!canAct || busy}
+            disabled={!canAct || busy || inlineSaving}
             onClick={() => void handleCopy()}
           >
             <ClipboardCopy className="h-3.5 w-3.5" aria-hidden />
@@ -358,7 +424,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
             type="button"
             variant="outline"
             className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-            disabled={!canAct || busy}
+            disabled={!canAct || busy || inlineSaving}
             onClick={() => void handleDownload()}
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
@@ -369,7 +435,7 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
               type="button"
               variant="outline"
               className="h-8 gap-1.5 border-slate-700 px-3 text-xs"
-              disabled={!canWrite || !canAct || busy}
+              disabled={!canWrite || !canAct || busy || inlineSaving}
               onClick={() => void handleArchive()}
             >
               <Save className="h-3.5 w-3.5" aria-hidden />
@@ -489,6 +555,9 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                     // 작업유형·중장비투입·작업내용·작업내용 상세는 표에서 바로 고른다(관리자). 새 창을 열지 않는다.
                     const inlineKey = column.key;
                     if (isInlineKey(inlineKey)) {
+                      const mapKey = `${row.stationKey}|${inlineKey}`;
+                      const pendingValue = pendingValues[mapKey];
+                      const currentValue = pendingValue !== undefined ? pendingValue : value;
                       return (
                         <ScheduleDayInlineCell
                           key={column.key}
@@ -496,9 +565,17 @@ export function ScheduleDayView({ canEdit }: ScheduleDayViewProps) {
                           options={column.list ? lists[column.list] : undefined}
                           maxLength={column.key === "workDetail" ? DETAIL_MAX_LENGTH : SHORT_MAX_LENGTH}
                           editable={canWrite && canAct && !busy}
+                          active={
+                            effectiveActiveEdit?.rowKey === row.stationKey &&
+                            effectiveActiveEdit?.columnKey === inlineKey
+                          }
+                          onActivate={() => setActiveEdit({ rowKey: row.stationKey, columnKey: inlineKey })}
+                          pendingValue={pendingValue}
                           style={frozenStyle(column.key)}
                           className={cellClass}
-                          onCommit={(next) => void handleInlineSave(row, inlineKey, next)}
+                          onFinish={(next, move) =>
+                            handleInlineFinish(row, inlineKey, currentValue, next, move)
+                          }
                         />
                       );
                     }

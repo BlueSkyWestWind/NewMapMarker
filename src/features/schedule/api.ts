@@ -2,9 +2,16 @@ import { fetchAllRows, type FetchPageResult } from "@/features/map-marker/api";
 import { planCompanionArrangement } from "@/features/schedule/lib/companion-arrange";
 import { planReschedule } from "@/features/schedule/lib/cell-result";
 import { toDbTimestamp, toKstLocal, type Freeze, type FreezeInput } from "@/features/schedule/lib/freeze";
-import { addDays } from "@/features/schedule/lib/week";
+import type { CreatedCellRef, GroupState } from "@/features/schedule/lib/group-state";
+import type { MarkChange } from "@/features/schedule/lib/undo-stack";
+import { addDays, isValidIso } from "@/features/schedule/lib/week";
 import type { ImportPlan } from "@/features/schedule/lib/schedule-excel";
 import { likePattern } from "@/features/schedule/lib/search-cells";
+import {
+  buildSearchOrFilter,
+  isTruncated,
+  type SearchOptions,
+} from "@/features/schedule/lib/search-filter";
 import {
   isCompanionTargetColumnMissing,
   isResultColumnMissing,
@@ -142,6 +149,60 @@ export async function searchScheduleCells(
     return await run(`${CELL_COLUMNS}, ${RESULT_COLUMNS}`);
   } catch (error) {
     // 시행 결과 마이그레이션 전이면 결과 없이 찾는다.
+    if (!isResultColumnMissing(error)) throw error;
+    return run(CELL_COLUMNS);
+  }
+}
+
+export interface SearchFilteredResult {
+  cells: ScheduleCell[];
+  truncated: boolean;
+}
+
+/**
+ * 팀·기간·메모 포함 옵션을 지원하는 일정 검색.
+ * `SEARCH_RESULT_LIMIT + 1`건을 요청해 상한 초과(`truncated`) 여부를 함께 돌려준다.
+ */
+export async function searchScheduleCellsFiltered(
+  supabase: SupabaseBrowserClient,
+  query: string,
+  options: SearchOptions = {},
+): Promise<SearchFilteredResult> {
+  const pattern = likePattern(query);
+  const run = async (columns: string): Promise<SearchFilteredResult> => {
+    let req = supabase.from("schedule_cells").select(columns);
+
+    if (options.includeSub) {
+      req = req.or(buildSearchOrFilter(pattern));
+    } else {
+      req = req.ilike("main_text", pattern);
+    }
+
+    if (options.columnIds && options.columnIds.length > 0) {
+      req = req.in("column_id", options.columnIds);
+    }
+    if (options.from && isValidIso(options.from)) {
+      req = req.gte("work_date", options.from);
+    }
+    if (options.to && isValidIso(options.to)) {
+      req = req.lte("work_date", options.to);
+    }
+
+    const { data, error } = await req
+      .order("work_date", { ascending: false })
+      .order("row_no")
+      .limit(SEARCH_RESULT_LIMIT + 1);
+    if (error) throw error;
+
+    const rows = (data ?? []) as unknown as Row[];
+    const truncated = isTruncated(rows.length, SEARCH_RESULT_LIMIT);
+    const cells = (truncated ? rows.slice(0, SEARCH_RESULT_LIMIT) : rows).map(toCell);
+    return { cells, truncated };
+  };
+
+  try {
+    return await run(`${CELL_COLUMNS}, ${RESULT_COLUMNS}`);
+  } catch (error) {
     if (!isResultColumnMissing(error)) throw error;
     return run(CELL_COLUMNS);
   }
@@ -476,4 +537,72 @@ export async function deleteScheduleFreeze(
 ): Promise<void> {
   const { error } = await supabase.from("schedule_freezes").delete().eq("id", id);
   if (error) throw error;
+}
+
+export interface RpcGroupPayload {
+  work_date: string;
+  column_id: string;
+  base_ids: string[];
+  cells: {
+    id: string | null;
+    row_no: number;
+    main_text: string;
+    sub_text: string;
+    text_color: string | null;
+    companion_target: boolean;
+    result_status: string | null;
+    result_reason: string;
+    rescheduled_to: string | null;
+  }[];
+}
+
+/** `GroupState[]`를 `apply_schedule_groups` RPC의 `p_groups` 스네이크 케이스 JSON으로 바꾼다. */
+export function toRpcGroups(groups: GroupState[]): RpcGroupPayload[] {
+  return groups.map((group) => ({
+    work_date: group.workDate,
+    column_id: group.columnId,
+    base_ids: [...group.baseIds],
+    cells: group.cells.map((cell) => ({
+      id: cell.id,
+      row_no: cell.rowNo,
+      main_text: cell.mainText,
+      sub_text: cell.subText,
+      text_color: cell.textColor,
+      companion_target: cell.companionTarget === true,
+      result_status: cell.result?.status ?? null,
+      result_reason: cell.result?.reason ?? "",
+      rescheduled_to: cell.result?.rescheduledTo ?? null,
+    })),
+  }));
+}
+
+/**
+ * 영향받는 (날짜, 팀) 그룹의 최종 상태와 칸 색을 한 트랜잭션으로 교체한다.
+ * `stale_group`·함수 없음 등의 오류는 그대로 던진다(분류는 `classifyApplyError`).
+ */
+export async function applyScheduleGroups(
+  supabase: SupabaseBrowserClient,
+  groups: GroupState[],
+  marks: MarkChange[],
+): Promise<CreatedCellRef[]> {
+  const { data, error } = await supabase.rpc("apply_schedule_groups", {
+    p_groups: toRpcGroups(groups),
+    p_marks: marks.map((mark) => ({
+      work_date: mark.workDate,
+      column_id: mark.columnId,
+      color: mark.color,
+    })),
+  });
+  if (error) throw error;
+
+  const rawCreated =
+    data && typeof data === "object" && "created" in data && Array.isArray((data as { created?: unknown }).created)
+      ? (data as { created: Record<string, unknown>[] }).created
+      : [];
+
+  return rawCreated.map((item) => ({
+    groupIndex: Number(item.group_index),
+    cellIndex: Number(item.cell_index),
+    id: String(item.id),
+  }));
 }

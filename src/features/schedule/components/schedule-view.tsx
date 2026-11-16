@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, ChevronLeft, ChevronRight, Download, ListPlus, Upload } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Copy, Download, ListPlus, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
-import { arrangeScheduleGroup, moveScheduleCell } from "@/features/schedule/api";
+import { arrangeScheduleGroup, fetchScheduleCells, moveScheduleCell } from "@/features/schedule/api";
 import {
   filterVisibleScheduleColumns,
   groupOfCell,
@@ -17,7 +17,9 @@ import {
   planGroupDrop,
 } from "@/features/schedule/lib/cell-grid";
 import { freezeBadgesByDate } from "@/features/schedule/lib/freeze";
+import { snapshotGroups, type GroupKey } from "@/features/schedule/lib/group-state";
 import { buildMonthModel } from "@/features/schedule/lib/month-layout";
+import { completionSummary, toggleDone } from "@/features/schedule/lib/quick-result";
 import {
   loadDateState,
   loadViewState,
@@ -38,6 +40,7 @@ import {
 } from "@/features/schedule/lib/week";
 import { useScheduleFreezes } from "@/features/schedule/hooks/use-schedule-freezes";
 import { useScheduleRange } from "@/features/schedule/hooks/use-schedule-range";
+import { useScheduleWrite } from "@/features/schedule/hooks/use-schedule-write";
 import type {
   CellPosition,
   ScheduleCell,
@@ -56,6 +59,7 @@ import { ScheduleMonthGrid } from "./schedule-month-grid";
 import { ScheduleArchiveView } from "./schedule-archive-view";
 import { ScheduleDayView } from "./schedule-day-view";
 import { ScheduleMailView } from "./schedule-mail-view";
+import { ScheduleCopyDialog } from "./schedule-copy-dialog";
 import { ScheduleUnscheduledDialog } from "./schedule-unscheduled-dialog";
 import { ScheduleSectionSwitch } from "./schedule-section-switch";
 import { ScheduleSearch } from "./schedule-search";
@@ -101,6 +105,7 @@ function truncateCellLabel(cell: ScheduleCell): string {
 export function ScheduleView({ section = "facility" }: { section?: "facility" | "daily" | "mail" }) {
   const { supabase } = useAuthSession();
   const { toast } = useToast();
+  const scheduleWrite = useScheduleWrite();
   const [initialViewState] = useState(() => loadViewState(getLocalStore(), new Set()));
   const [initialDateState] = useState(() => loadDateState(getSessionStore(), todayIso()));
   // 시설일정은 주간·월간, 일일일정은 일자별·누적을 보인다. 두 메뉴가 각자 마지막 보기를 기억한다.
@@ -122,6 +127,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   const [isExportOpen, setExportOpen] = useState(false);
   const [isFreezeOpen, setFreezeOpen] = useState(false);
   const [isImportOpen, setImportOpen] = useState(false);
+  const [isCopyOpen, setCopyOpen] = useState(false);
   const [isUnscheduledOpen, setUnscheduledOpen] = useState(false);
   /** 이미지로 저장할 일정표(스크롤 영역) */
   const gridAreaRef = useRef<HTMLDivElement>(null);
@@ -133,6 +139,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   const highlightTimerRef = useRef<number | null>(null);
   const scrollRafRef = useRef<number | null>(null);
   const scrolledCellIdRef = useRef<string | null>(null);
+  const togglingIdsRef = useRef<Set<string>>(new Set());
 
   // 한 번에 보는 주·달 수(1~3). 다음 주·달 일정을 옮길 때 칸 편집 창을 열지 않고 한 화면에서 끌어 옮기려는 용도다(주 4주, 달 3달까지).
   const [weekCount, setWeekCount] = useState(initialViewState.weekCount);
@@ -224,6 +231,32 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
       if (scrollRafRef.current !== null) window.cancelAnimationFrame(scrollRafRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (section !== "facility" || !isAdmin) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "z") return;
+
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        (active.matches("input, textarea, select, [contenteditable]") || active.isContentEditable)
+      ) {
+        return;
+      }
+      if (document.querySelector('[role="dialog"]')) {
+        return;
+      }
+
+      event.preventDefault();
+      void scheduleWrite.undoWithToast();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isAdmin, scheduleWrite, section]);
 
   useEffect(() => {
     if (!highlightCellId || scrolledCellIdRef.current === highlightCellId) return;
@@ -344,6 +377,22 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
   ) => {
     if (!supabase || !isAdmin) return;
     const viewCells = data.cells;
+    const affectedKeys: GroupKey[] = [
+      { workDate: dragged.workDate, columnId: dragged.columnId },
+      { workDate: target.workDate, columnId: target.columnId },
+    ];
+    const fetchAffectedCells = async () => {
+      const dates = [...new Set(affectedKeys.map((key) => key.workDate))];
+      const pages = await Promise.all(dates.map((date) => fetchScheduleCells(supabase, date, date)));
+      return pages.flat();
+    };
+    const recordDragUndo = async (label: string) => {
+      const before = snapshotGroups(viewCells, affectedKeys);
+      const fresh = await fetchAffectedCells();
+      const after = snapshotGroups(fresh, affectedKeys);
+      scheduleWrite.recordUndo({ label, before, marksBefore: [], after });
+    };
+
     const moveGroup = !options.single && groupOfCell(viewCells, dragged).length > 1;
     try {
       if (moveGroup) {
@@ -365,7 +414,11 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
             movedCount += 1;
           }
           if (movedCount > 0) {
-            toast({ title: `${movedCount}건을 옮겼습니다` });
+            await recordDragUndo(`${movedCount}건 이동`);
+            toast({
+              title: `${movedCount}건을 옮겼습니다`,
+              action: scheduleWrite.createUndoAction(),
+            });
           }
         } finally {
           await weekData.refresh();
@@ -384,17 +437,29 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         }
         await moveScheduleCell(supabase, dragged.id, { ...target, rowNo: null });
         await closeLeftoverGap(dragged, target);
+        await recordDragUndo("일정 이동");
         await weekData.refresh();
+        toast({
+          title: `${truncateCellLabel(dragged)}을(를) 옮겼습니다`,
+          action: scheduleWrite.createUndoAction(),
+        });
         return;
       }
       const plan = planDrop(viewCells, dragged, target);
       if (plan.kind === "none") return;
       await moveScheduleCell(supabase, dragged.id, target);
       await closeLeftoverGap(dragged, target);
+      await recordDragUndo(plan.kind === "swap" ? "자리 맞바꾸기" : "일정 이동");
       await weekData.refresh();
       if (plan.kind === "swap") {
         toast({
           title: `${truncateCellLabel(dragged)}와 ${truncateCellLabel(plan.with)}의 자리를 맞바꿨습니다`,
+          action: scheduleWrite.createUndoAction(),
+        });
+      } else {
+        toast({
+          title: `${truncateCellLabel(dragged)}을(를) 옮겼습니다`,
+          action: scheduleWrite.createUndoAction(),
         });
       }
     } catch (error) {
@@ -408,6 +473,33 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
 
   const openCellEditor = (cell: ScheduleCell | null, position: CellPosition) =>
     setCellEditor({ cell, position });
+
+  const handleToggleDone = async (cell: ScheduleCell) => {
+    const toggle = toggleDone(cell.result ?? null);
+    if (toggle.kind === "open-dialog") {
+      openCellEditor(cell, {
+        workDate: cell.workDate,
+        columnId: cell.columnId,
+        rowNo: cell.rowNo,
+      });
+      return;
+    }
+    if (togglingIdsRef.current.has(cell.id)) return;
+    togglingIdsRef.current.add(cell.id);
+    try {
+      const label = toggle.next
+        ? `${truncateCellLabel(cell)} 완료 기록`
+        : `${truncateCellLabel(cell)} 완료 취소`;
+      await scheduleWrite.writeResult(label, cell.id, cell.result ?? null, toggle.next);
+    } finally {
+      togglingIdsRef.current.delete(cell.id);
+    }
+  };
+
+  const todaySummary = useMemo(
+    () => completionSummary(weekData.cells, todayIso()),
+    [weekData.cells],
+  );
 
   const markOfEditor = cellEditor
     ? (weekData.marks.find(
@@ -473,16 +565,28 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         <h1 className="sr-only">시설일정</h1>
         <ScheduleSectionSwitch section="facility" />
         {isAdmin ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-8 shrink-0 gap-1.5 border-slate-700 px-3 text-xs"
-            title="시설일이 없고 오늘 이후 일정에도 없는 국소를 찾아 일정에 추가합니다"
-            onClick={() => setUnscheduledOpen(true)}
-          >
-            <ListPlus className="h-3.5 w-3.5" aria-hidden />
-            미배정 국소
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 shrink-0 gap-1.5 border-slate-700 px-3 text-xs"
+              title="시설일이 없고 오늘 이후 일정에도 없는 국소를 찾아 일정에 추가합니다"
+              onClick={() => setUnscheduledOpen(true)}
+            >
+              <ListPlus className="h-3.5 w-3.5" aria-hidden />
+              미배정 국소
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 shrink-0 gap-1.5 border-slate-700 px-3 text-xs"
+              title="날짜 또는 주 단위로 일정을 다른 날짜에 복제합니다"
+              onClick={() => setCopyOpen(true)}
+            >
+              <Copy className="h-3.5 w-3.5" aria-hidden />
+              복제
+            </Button>
+          </>
         ) : null}
 
         <ScheduleViewToggle view={view} onChange={setView} kinds={FACILITY_VIEW_KINDS} />
@@ -564,6 +668,17 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         )}
 
         <ScheduleSearch columns={data.columns} onPick={handlePickSearch} />
+
+        {todaySummary.total > 0 ? (
+          <span
+            title={`전체 ${todaySummary.total}건 중 ${todaySummary.recorded}건 기록`}
+            className="whitespace-nowrap rounded-full border border-slate-700 bg-slate-900 px-2.5 py-0.5 text-xs text-slate-200"
+          >
+            {todaySummary.recorded === 0
+              ? "기록 없음"
+              : `오늘 완료 ${todaySummary.done}/${todaySummary.recorded}`}
+          </span>
+        ) : null}
 
         <div className="ml-auto flex items-center gap-2">
           {!isAdmin ? (
@@ -665,6 +780,7 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
             onDropCell={handleDropCell}
             onEditColumn={setColumnEditor}
             onEditDay={setDayEditor}
+            onToggleDone={isAdmin ? (cell) => void handleToggleDone(cell) : undefined}
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -725,13 +841,22 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
         onSaved={() => void weekData.refresh()}
       />
       {isAdmin ? (
-        <ScheduleUnscheduledDialog
-          open={isUnscheduledOpen}
-          onOpenChange={setUnscheduledOpen}
-          columns={data.columns}
-          defaultDate={selectedDate}
-          onAdded={() => void data.refresh()}
-        />
+        <>
+          <ScheduleUnscheduledDialog
+            open={isUnscheduledOpen}
+            onOpenChange={setUnscheduledOpen}
+            columns={data.columns}
+            defaultDate={selectedDate}
+            onAdded={() => void data.refresh()}
+          />
+          <ScheduleCopyDialog
+            open={isCopyOpen}
+            onOpenChange={setCopyOpen}
+            columns={data.columns}
+            defaultDate={selectedDate}
+            onSaved={() => void data.refresh()}
+          />
+        </>
       ) : null}
       <ScheduleFreezeDialog open={isFreezeOpen} onOpenChange={setFreezeOpen} canEdit={isAdmin} />
       <ScheduleExportDialog

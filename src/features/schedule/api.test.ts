@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 import {
+  SEARCH_RESULT_LIMIT,
+  applyScheduleGroups,
   applyScheduleImport,
   createScheduleCell,
   fetchScheduleCells,
   isCompanionTargetSupported,
+  searchScheduleCellsFiltered,
+  toRpcGroups,
 } from "./api";
 import type { ImportPlan } from "./lib/schedule-excel";
 
@@ -173,5 +177,208 @@ describe("isCompanionTargetSupported", () => {
   it("다른 오류는 그대로 던진다", async () => {
     const error = { message: "network" };
     await expect(isCompanionTargetSupported(probeClient(error))).rejects.toBe(error);
+  });
+});
+
+describe("toRpcGroups & applyScheduleGroups", () => {
+  it("toRpcGroups는 GroupState[]를 스네이크 케이스 RPC JSON으로 변환한다", () => {
+    const rpc = toRpcGroups([
+      {
+        workDate: "2026-11-09",
+        columnId: "col-1",
+        baseIds: ["c1"],
+        cells: [
+          {
+            id: "c1",
+            rowNo: 0,
+            mainText: "국소1",
+            subText: "모국1",
+            textColor: "0070C0",
+            companionTarget: true,
+            result: { status: "partial", reason: "우천", rescheduledTo: "2026-11-10" },
+          },
+          {
+            id: null,
+            rowNo: 1,
+            mainText: "국소2",
+            subText: "",
+            textColor: null,
+          },
+        ],
+      },
+    ]);
+
+    expect(rpc).toEqual([
+      {
+        work_date: "2026-11-09",
+        column_id: "col-1",
+        base_ids: ["c1"],
+        cells: [
+          {
+            id: "c1",
+            row_no: 0,
+            main_text: "국소1",
+            sub_text: "모국1",
+            text_color: "0070C0",
+            companion_target: true,
+            result_status: "partial",
+            result_reason: "우천",
+            rescheduled_to: "2026-11-10",
+          },
+          {
+            id: null,
+            row_no: 1,
+            main_text: "국소2",
+            sub_text: "",
+            text_color: null,
+            companion_target: false,
+            result_status: null,
+            result_reason: "",
+            rescheduled_to: null,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("applyScheduleGroups는 created 목록을 카멜 케이스로 돌려주고 오류는 그대로 던진다", async () => {
+    const rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
+    const okClient = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        rpcCalls.push({ name, args });
+        return {
+          data: { created: [{ group_index: 0, cell_index: 1, id: "new-uuid" }] },
+          error: null,
+        };
+      },
+    } as unknown as SupabaseBrowserClient;
+
+    const created = await applyScheduleGroups(
+      okClient,
+      [
+        {
+          workDate: "2026-11-09",
+          columnId: "col-1",
+          baseIds: [],
+          cells: [{ id: null, rowNo: 0, mainText: "국소", subText: "", textColor: null }],
+        },
+      ],
+      [{ workDate: "2026-11-09", columnId: "col-1", color: "D9F2D0" }],
+    );
+
+    expect(rpcCalls[0].name).toBe("apply_schedule_groups");
+    expect(rpcCalls[0].args.p_marks).toEqual([
+      { work_date: "2026-11-09", column_id: "col-1", color: "D9F2D0" },
+    ]);
+    expect(created).toEqual([{ groupIndex: 0, cellIndex: 1, id: "new-uuid" }]);
+
+    const errClient = {
+      rpc: async () => ({ data: null, error: { code: "P0001", message: "stale_group" } }),
+    } as unknown as SupabaseBrowserClient;
+    await expect(applyScheduleGroups(errClient, [], [])).rejects.toMatchObject({
+      message: "stale_group",
+    });
+  });
+});
+
+describe("searchScheduleCellsFiltered", () => {
+  function searchClient(rows: Record<string, unknown>[], missingResultOnce = false) {
+    const ops: string[] = [];
+    let failOnce = missingResultOnce;
+    const client = {
+      from: (table: string) => ({
+        select: (columns: string) => {
+          ops.push(`select:${table}:${columns}`);
+          const chain = {
+            ilike: (col: string, val: string) => {
+              ops.push(`ilike:${col}:${val}`);
+              return chain;
+            },
+            or: (expr: string) => {
+              ops.push(`or:${expr}`);
+              return chain;
+            },
+            in: (col: string, vals: string[]) => {
+              ops.push(`in:${col}:${vals.join(",")}`);
+              return chain;
+            },
+            gte: (col: string, val: string) => {
+              ops.push(`gte:${col}:${val}`);
+              return chain;
+            },
+            lte: (col: string, val: string) => {
+              ops.push(`lte:${col}:${val}`);
+              return chain;
+            },
+            order: (col: string) => {
+              ops.push(`order:${col}`);
+              return chain;
+            },
+            limit: async (n: number) => {
+              ops.push(`limit:${n}`);
+              if (failOnce) {
+                failOnce = false;
+                return {
+                  data: null,
+                  error: { code: "42703", message: "column result_status does not exist" },
+                };
+              }
+              return { data: rows, error: null };
+            },
+          };
+          return chain;
+        },
+      }),
+    } as unknown as SupabaseBrowserClient;
+    return { client, ops };
+  }
+
+  const makeRow = (i: number) => ({
+    id: `id-${i}`,
+    work_date: "2026-11-09",
+    column_id: "col-1",
+    row_no: 0,
+    main_text: `국소${i}`,
+    sub_text: "",
+    text_color: null,
+  });
+
+  it("옵션이 비어 있으면 main_text ilike와 limit(201)로 조회하고 truncated=false다", async () => {
+    const { client, ops } = searchClient([makeRow(1)]);
+    const res = await searchScheduleCellsFiltered(client, "국소");
+    expect(res.truncated).toBe(false);
+    expect(res.cells).toHaveLength(1);
+    expect(ops).toContain("ilike:main_text:%국소%");
+    expect(ops).toContain(`limit:${SEARCH_RESULT_LIMIT + 1}`);
+    expect(ops.some((op) => op.startsWith("or:"))).toBe(false);
+  });
+
+  it("columnIds·from·to·includeSub 옵션을 모두 반영한다", async () => {
+    const { client, ops } = searchClient([makeRow(1)]);
+    await searchScheduleCellsFiltered(client, "국소", {
+      columnIds: ["col-1", "col-2"],
+      from: "2026-11-01",
+      to: "2026-11-30",
+      includeSub: true,
+    });
+    expect(ops).toContain('or:main_text.ilike."%국소%",sub_text.ilike."%국소%"');
+    expect(ops).toContain("in:column_id:col-1,col-2");
+    expect(ops).toContain("gte:work_date:2026-11-01");
+    expect(ops).toContain("lte:work_date:2026-11-30");
+  });
+
+  it("결과가 201건이면 truncated=true이고 앞의 200건만 돌려준다", async () => {
+    const rows = Array.from({ length: SEARCH_RESULT_LIMIT + 1 }, (_, i) => makeRow(i));
+    const { client } = searchClient(rows);
+    const res = await searchScheduleCellsFiltered(client, "국소");
+    expect(res.truncated).toBe(true);
+    expect(res.cells).toHaveLength(SEARCH_RESULT_LIMIT);
+  });
+
+  it("결과 컬럼이 없는 DB면 CELL_COLUMNS만으로 재시도한다", async () => {
+    const { client, ops } = searchClient([makeRow(1)], true);
+    const res = await searchScheduleCellsFiltered(client, "국소");
+    expect(res.cells).toHaveLength(1);
+    expect(ops.filter((op) => op.startsWith("select:"))).toHaveLength(2);
   });
 });

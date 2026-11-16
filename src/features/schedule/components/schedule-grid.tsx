@@ -5,6 +5,7 @@ import { useMemo, type DragEvent } from "react";
 import { cn } from "@/lib/utils";
 import { indexCells, positionKey, visibleRowCount } from "@/features/schedule/lib/cell-grid";
 import { resultSummary } from "@/features/schedule/lib/cell-result";
+import { isCompanionCell } from "@/features/schedule/lib/companions";
 import type { FreezeBadge } from "@/features/schedule/lib/freeze";
 import { holidayName } from "@/features/schedule/lib/holidays";
 import { todayIso, weekdayLabel } from "@/features/schedule/lib/week";
@@ -39,6 +40,7 @@ interface ScheduleGridProps {
   onDropCell: (dragged: ScheduleCell, target: CellPosition, options: { single: boolean }) => void;
   onEditColumn: (column: ScheduleColumn) => void;
   onEditDay: (workDate: string) => void;
+  onToggleDone?: (cell: ScheduleCell) => void;
 }
 
 /**
@@ -58,6 +60,7 @@ export function ScheduleGrid({
   onDropCell,
   onEditColumn,
   onEditDay,
+  onToggleDone,
 }: ScheduleGridProps) {
   const sortedColumns = useMemo(
     () => [...columns].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -198,6 +201,12 @@ export function ScheduleGrid({
                 const interactive = canEdit || cell !== undefined;
                 const isLastColumn = column.id === sortedColumns[sortedColumns.length - 1]?.id;
                 const isHighlighted = cell !== undefined && highlightCellId === cell.id;
+                const canQuickDone =
+                  canEdit &&
+                  onToggleDone !== undefined &&
+                  cell !== undefined &&
+                  cell.mainText.trim() !== "" &&
+                  !isCompanionCell(cell);
                 return (
                   <td
                     key={column.id}
@@ -214,7 +223,7 @@ export function ScheduleGrid({
                     style={markColor ? { backgroundColor: `#${markColor}${MARK_ALPHA}` } : undefined}
                     className={cn(
                       // 세로선만 두고, 가로선은 날짜 블록의 첫 행 위(날짜 사이 구분)에만 둔다.
-                      "h-7 overflow-hidden text-ellipsis whitespace-nowrap border-x border-slate-800 px-1.5",
+                      "group relative h-7 overflow-hidden text-ellipsis whitespace-nowrap border-x border-slate-800 px-1.5",
                       rowNo === 0 && "border-t border-t-slate-700",
                       isLastDay && rowNo === rowCount - 1 && "border-b border-b-slate-700",
                       isToday && rowNo === 0 && "border-t-2 border-t-indigo-500",
@@ -243,6 +252,30 @@ export function ScheduleGrid({
                     }}
                     onDrop={(event) => handleDrop(event, position)}
                   >
+                    {canQuickDone ? (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        draggable={false}
+                        aria-label={cell.result?.status === "done" ? "완료 기록 취소" : "완료로 기록"}
+                        title={cell.result?.status === "done" ? "완료 기록 취소" : "완료로 기록"}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          event.preventDefault();
+                          onToggleDone(cell);
+                        }}
+                        onDragStart={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        className={cn(
+                          "absolute left-0.5 top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-slate-900/90 text-xs group-hover:flex hover:bg-slate-800",
+                          cell.result?.status === "done" ? "text-emerald-300" : "text-slate-300",
+                        )}
+                      >
+                        ✓
+                      </button>
+                    ) : null}
                     {cell?.result ? (
                       <span
                         className={cn("mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle", RESULT_DOT_CLASS[cell.result.status])}

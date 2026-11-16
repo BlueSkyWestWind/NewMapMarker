@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import type { InlineMoveKey } from "@/features/schedule/lib/inline-nav";
 import { cn } from "@/lib/utils";
 
 /** 목록 상자의 최대 높이(px). 아래 공간이 모자라면 위로 연다. */
@@ -14,58 +15,67 @@ interface ScheduleDayInlineCellProps {
   maxLength: number;
   /** 수정할 수 있나(관리자·저장 가능). 아니면 일반 칸이고 클릭은 행 클릭으로 흘러간다. */
   editable: boolean;
-  /** 바뀐 글(앞뒤 공백 제거)로 저장한다. 바뀌지 않았으면 부르지 않는다. */
-  onCommit: (next: string) => void;
+  /** 현재 이 칸이 편집 중인가(부모가 제어) */
+  active: boolean;
+  /** 칸을 클릭해 편집을 시작할 때 부른다 */
+  onActivate: () => void;
+  /** 직렬 대기열에서 저장 중인 낙관적 값 */
+  pendingValue?: string;
+  /** 편집이 끝날 때 부른다(`next`가 null이면 취소, `move`는 Tab/Enter 이동 방향) */
+  onFinish: (next: string | null, move: InlineMoveKey | null) => void;
   className?: string;
   style?: CSSProperties;
 }
 
 /**
  * 표 안에서 바로 고치는 칸. 클릭하면 입력칸과 목록이 열린다.
- * 목록 값을 고르거나, 직접 쓰거나 붙여 넣고 Enter(또는 다른 곳 클릭)로 저장한다. Esc는 취소.
+ * 목록 값을 고르거나, 직접 쓰거나 붙여 넣고 Tab/Enter(또는 다른 곳 클릭)로 저장한다. Esc는 취소.
  */
 export function ScheduleDayInlineCell({
   value,
   options,
   maxLength,
   editable,
-  onCommit,
+  active,
+  onActivate,
+  pendingValue,
+  onFinish,
   className,
   style,
 }: ScheduleDayInlineCellProps) {
-  const [editing, setEditing] = useState(false);
   const cellRef = useRef<HTMLTableCellElement>(null);
+  const hasPending = pendingValue !== undefined;
+  const displayValue = hasPending ? pendingValue : value;
 
   return (
     <td
       ref={cellRef}
-      title={editing ? undefined : value}
+      title={active ? undefined : displayValue}
       style={style}
       className={cn(
         className,
-        editable && !editing && "cursor-text hover:bg-slate-800 hover:shadow-[inset_0_0_0_1px_rgb(99_102_241/0.6)]",
-        editing && "p-0",
+        editable && !active && "cursor-text hover:bg-slate-800 hover:shadow-[inset_0_0_0_1px_rgb(99_102_241/0.6)]",
+        active && "p-0",
       )}
       onClick={(event) => {
         if (!editable) return;
         // 상세 창으로 번지지 않게 한다.
         event.stopPropagation();
-        if (!editing) setEditing(true);
+        if (!active) onActivate();
       }}
     >
-      {editing ? (
+      {active ? (
         <Editor
-          value={value}
+          value={displayValue}
           options={options}
           maxLength={maxLength}
           anchor={cellRef}
-          onDone={(next) => {
-            setEditing(false);
-            if (next !== null && next.trim() !== value) onCommit(next.trim());
-          }}
+          onDone={onFinish}
         />
+      ) : hasPending ? (
+        <span className="italic text-slate-400">{displayValue}</span>
       ) : (
-        value
+        displayValue
       )}
     </td>
   );
@@ -83,7 +93,7 @@ function Editor({
   maxLength: number;
   anchor: React.RefObject<HTMLTableCellElement | null>;
   /** `null`이면 취소 */
-  onDone: (next: string | null) => void;
+  onDone: (next: string | null, move: InlineMoveKey | null) => void;
 }) {
   const [text, setText] = useState(value);
   const [typed, setTyped] = useState(false);
@@ -91,10 +101,10 @@ function Editor({
   const doneRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const finish = (next: string | null) => {
+  const finish = (next: string | null, move: InlineMoveKey | null) => {
     if (doneRef.current) return;
     doneRef.current = true;
-    onDone(next);
+    onDone(next, move);
   };
 
   useEffect(() => {
@@ -139,14 +149,17 @@ function Editor({
           setText(event.target.value);
           setTyped(true);
         }}
-        onBlur={() => finish(text)}
+        onBlur={() => finish(text, null)}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          if (event.key === "Tab") {
             event.preventDefault();
-            finish(text);
+            finish(text, event.shiftKey ? "Shift+Tab" : "Tab");
+          } else if (event.key === "Enter") {
+            event.preventDefault();
+            finish(text, event.shiftKey ? "Shift+Enter" : "Enter");
           } else if (event.key === "Escape") {
             event.preventDefault();
-            finish(null);
+            finish(null, null);
           }
         }}
         className="h-full min-h-9 w-full bg-slate-800 px-1.5 text-sm text-slate-100 outline-none ring-1 ring-inset ring-indigo-500"
@@ -164,7 +177,7 @@ function Editor({
                   aria-selected={false}
                   // 입력칸이 포커스를 잃지 않게 mousedown을 막고 click에서 고른다.
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => finish("")}
+                  onClick={() => finish("", null)}
                   className="cursor-pointer px-2 py-1 text-slate-400 hover:bg-slate-800"
                 >
                   (비움)
@@ -176,7 +189,7 @@ function Editor({
                   role="option"
                   aria-selected={option === value}
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => finish(option)}
+                  onClick={() => finish(option, null)}
                   className={cn(
                     "cursor-pointer whitespace-nowrap px-2 py-1 hover:bg-slate-800",
                     option === value && "bg-indigo-950 text-indigo-200",
