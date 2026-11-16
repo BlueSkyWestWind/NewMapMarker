@@ -5,6 +5,7 @@ import {
   applyScheduleGroups,
   applyScheduleImport,
   createScheduleCell,
+  deleteScheduleFreeze,
   fetchScheduleCells,
   isCompanionTargetSupported,
   searchScheduleCellsFiltered,
@@ -380,5 +381,49 @@ describe("searchScheduleCellsFiltered", () => {
     const res = await searchScheduleCellsFiltered(client, "국소");
     expect(res.cells).toHaveLength(1);
     expect(ops.filter((op) => op.startsWith("select:"))).toHaveLength(2);
+  });
+});
+
+describe("deleteScheduleFreeze", () => {
+  function deleteClient(response: { data: unknown; error: unknown }) {
+    const ops: string[] = [];
+    const client = {
+      from: (table: string) => ({
+        delete: () => {
+          ops.push(`delete:${table}`);
+          return {
+            eq: (col: string, val: string) => {
+              ops.push(`eq:${col}:${val}`);
+              return {
+                select: async (cols: string) => {
+                  ops.push(`select:${cols}`);
+                  return response;
+                },
+              };
+            },
+          };
+        },
+      }),
+    } as unknown as SupabaseBrowserClient;
+    return { client, ops };
+  }
+
+  it("① 1건이 지워지면 정상 완료된다", async () => {
+    const { client, ops } = deleteClient({ data: [{ id: "f1" }], error: null });
+    await expect(deleteScheduleFreeze(client, "f1")).resolves.toBeUndefined();
+    expect(ops).toEqual(["delete:schedule_freezes", "eq:id:f1", "select:id"]);
+  });
+
+  it("② 지워진 행이 0건이면 권한·부재 오류를 던진다", async () => {
+    const { client } = deleteClient({ data: [], error: null });
+    await expect(deleteScheduleFreeze(client, "f1")).rejects.toThrow(
+      "삭제되지 않았습니다. 이미 지워졌거나 삭제 권한이 없습니다.",
+    );
+  });
+
+  it("③ Supabase 오류가 나면 그 오류를 그대로 던진다", async () => {
+    const err = { message: "permission denied" };
+    const { client } = deleteClient({ data: null, error: err });
+    await expect(deleteScheduleFreeze(client, "f1")).rejects.toBe(err);
   });
 });

@@ -836,9 +836,11 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
             ? (weekData.dayNotes.find((entry) => entry.workDate === dayEditor)?.note ?? "")
             : ""
         }
+        freezes={dayEditor ? (weekFreezeBadges.get(dayEditor) ?? []) : []}
         canEdit={isAdmin}
         onClose={() => setDayEditor(null)}
         onSaved={() => void weekData.refresh()}
+        onFreezeDeleted={() => void weekFreezes.refresh()}
       />
       {isAdmin ? (
         <>

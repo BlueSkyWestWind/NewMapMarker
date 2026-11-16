@@ -535,8 +535,15 @@ export async function deleteScheduleFreeze(
   supabase: SupabaseBrowserClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase.from("schedule_freezes").delete().eq("id", id);
+  const { data, error } = await supabase
+    .from("schedule_freezes")
+    .delete()
+    .eq("id", id)
+    .select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("삭제되지 않았습니다. 이미 지워졌거나 삭제 권한이 없습니다.");
+  }
 }
 
 export interface RpcGroupPayload {
