@@ -41,6 +41,7 @@ import {
 import { useScheduleFreezes } from "@/features/schedule/hooks/use-schedule-freezes";
 import { useScheduleRange } from "@/features/schedule/hooks/use-schedule-range";
 import { useScheduleWrite } from "@/features/schedule/hooks/use-schedule-write";
+import { useScheduleJumpStore } from "@/features/schedule/store/use-schedule-jump-store";
 import type {
   CellPosition,
   ScheduleCell,
@@ -338,6 +339,24 @@ export function ScheduleView({ section = "facility" }: { section?: "facility" | 
       setHighlightCellId(null);
     }, 3000);
   };
+
+  const jumpTarget = useScheduleJumpStore((s) => s.target);
+  useEffect(() => {
+    if (section !== "facility" || !jumpTarget) return;
+    const target = useScheduleJumpStore.getState().consume();
+    if (!target || !isValidIso(target.date)) return;
+    setSelectedDate(target.date);
+    setWeekStart(weekStartOf(target.date));
+    setMonth(monthOf(target.date));
+    if (target.cellId) {
+      scrolledCellIdRef.current = null;
+      setHighlightCellId(target.cellId);
+      if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = window.setTimeout(() => {
+        setHighlightCellId(null);
+      }, 3000);
+    }
+  }, [section, jumpTarget]);
   const goToday = () => {
     const today = todayIso();
     setSelectedDate(today);

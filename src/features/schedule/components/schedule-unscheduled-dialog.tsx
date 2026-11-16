@@ -6,7 +6,14 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
-import { createScheduleCell, fetchScheduleCells } from "@/features/schedule/api";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
+import { cn } from "@/lib/utils";
+import {
+  createScheduleCell,
+  fetchScheduleCells,
+  restoreExcludedStation,
+} from "@/features/schedule/api";
+import { ScheduleExcludeDialog } from "@/features/schedule/components/schedule-exclude-dialog";
 import { useScheduleWrite } from "@/features/schedule/hooks/use-schedule-write";
 import { MAX_ROWS } from "@/features/schedule/lib/cell-grid";
 import {
@@ -14,6 +21,7 @@ import {
   useUnscheduledStations,
 } from "@/features/schedule/hooks/use-unscheduled-stations";
 import { NOTE_COLUMN_LABEL } from "@/features/schedule/lib/day-stations";
+import { exclusionReasonLabel } from "@/features/schedule/lib/excluded-stations";
 import {
   applyOpsToGroups,
   snapshotGroups,
@@ -57,9 +65,17 @@ export function ScheduleUnscheduledDialog({
   onAdded,
 }: ScheduleUnscheduledDialogProps) {
   const { supabase } = useAuthSession();
+  const { isAdmin } = useIsAdmin();
   const { toast } = useToast();
   const scheduleWrite = useScheduleWrite();
-  const { stations, isLoading, error } = useUnscheduledStations(open);
+  const {
+    stations,
+    isLoading,
+    error,
+    excluded,
+    isExclusionTableMissing,
+    refreshExcluded,
+  } = useUnscheduledStations(open);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [date, setDate] = useState(defaultDate);
@@ -69,11 +85,35 @@ export function ScheduleUnscheduledDialog({
   const [includeOffDays, setIncludeOffDays] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [excludeOpen, setExcludeOpen] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const addingRef = useRef(false);
 
   useEffect(() => {
-    if (open) setNotice(null);
+    if (open) {
+      setNotice(null);
+      setShowExcluded(false);
+    }
   }, [open]);
+
+  const handleRestore = async (id: string) => {
+    if (!supabase || !isAdmin || restoringId !== null) return;
+    setRestoringId(id);
+    try {
+      await restoreExcludedStation(supabase, id);
+      await refreshExcluded();
+      toast({ title: "복원했습니다" });
+    } catch (cause) {
+      toast({
+        title: "복원하지 못했습니다",
+        description: errorMessage(cause),
+        variant: "destructive",
+      });
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   // 비고 열에는 국소를 넣지 않는다(일정 국소 집계에서도 빠지는 열).
   const sortedColumns = useMemo(
@@ -271,21 +311,112 @@ export function ScheduleUnscheduledDialog({
         </DialogDescription>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Input
-            value={query}
-            aria-label="미배정 국소 검색"
-            placeholder="국소명·주소·통합시설코드·프로젝트코드"
-            autoComplete="off"
-            onChange={(event) => setQuery(event.target.value)}
-            className="h-8 w-72 border-slate-700 bg-slate-900 text-xs"
-          />
-          <span className="whitespace-nowrap text-xs text-slate-300">
-            {shown.length}건{query.trim() ? ` (전체 ${stations.length}건)` : ""} · 선택 {pickedShown.length}건
-          </span>
+          {!showExcluded ? (
+            <>
+              <Input
+                value={query}
+                aria-label="미배정 국소 검색"
+                placeholder="국소명·주소·통합시설코드·프로젝트코드"
+                autoComplete="off"
+                onChange={(event) => setQuery(event.target.value)}
+                className="h-8 w-72 border-slate-700 bg-slate-900 text-xs"
+              />
+              <span className="whitespace-nowrap text-xs text-slate-300">
+                {shown.length}건{query.trim() ? ` (전체 ${stations.length}건)` : ""} · 선택 {pickedShown.length}건
+              </span>
+            </>
+          ) : (
+            <span className="whitespace-nowrap text-xs text-slate-300">
+              제외한 국소 {excluded.length}건
+            </span>
+          )}
+          {!isExclusionTableMissing ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={excluded.length === 0 && !showExcluded}
+              onClick={() => setShowExcluded((prev) => !prev)}
+              className={cn(
+                "ml-auto h-8 border-slate-700 px-3 text-xs",
+                showExcluded && "border-indigo-500 bg-indigo-950/60 text-indigo-100",
+              )}
+            >
+              {showExcluded ? "미배정 목록" : `제외한 국소 (${excluded.length})`}
+            </Button>
+          ) : null}
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto rounded-md border border-slate-800">
-          {error ? (
+          {showExcluded ? (
+            excluded.length === 0 ? (
+              <p className="p-4 text-sm text-slate-400">제외한 국소가 없습니다.</p>
+            ) : (
+              <table className="w-full table-fixed border-separate border-spacing-0 text-sm text-slate-100">
+                <colgroup>
+                  <col style={{ width: 280 }} />
+                  <col style={{ width: 120 }} />
+                  <col />
+                  <col style={{ width: 120 }} />
+                  {isAdmin ? <col style={{ width: 90 }} /> : null}
+                </colgroup>
+                <thead>
+                  <tr>
+                    {[
+                      "국소명",
+                      "사유",
+                      "메모",
+                      "제외한 날짜",
+                      ...(isAdmin ? ["동작"] : []),
+                    ].map((head, index) => (
+                      <th
+                        key={index}
+                        className="sticky top-0 z-10 truncate whitespace-nowrap border-b border-slate-700 bg-slate-900 px-2 py-1.5 text-center font-semibold"
+                      >
+                        {head}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {excluded.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-800/60">
+                      <td
+                        title={item.label}
+                        className="truncate whitespace-nowrap border-b border-slate-800 px-2 py-1.5"
+                      >
+                        {item.label}
+                      </td>
+                      <td className="truncate whitespace-nowrap border-b border-slate-800 px-2 py-1.5 text-center">
+                        {exclusionReasonLabel(item.reason)}
+                      </td>
+                      <td
+                        title={item.note}
+                        className="truncate whitespace-nowrap border-b border-slate-800 px-2 py-1.5 text-slate-300"
+                      >
+                        {item.note || "-"}
+                      </td>
+                      <td className="truncate whitespace-nowrap border-b border-slate-800 px-2 py-1.5 text-center text-slate-300">
+                        {item.createdAt.slice(0, 10)}
+                      </td>
+                      {isAdmin ? (
+                        <td className="whitespace-nowrap border-b border-slate-800 px-2 py-1 text-center">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={restoringId !== null}
+                            onClick={() => void handleRestore(item.id)}
+                            className="h-6 border-slate-700 px-2 text-xs text-slate-200"
+                          >
+                            {restoringId === item.id ? "복원 중…" : "복원"}
+                          </Button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : error ? (
             <p className="p-4 text-sm text-rose-400">불러오지 못했습니다. {errorMessage(error)}</p>
           ) : isLoading ? (
             <p className="p-4 text-sm text-slate-400">불러오는 중...</p>
@@ -375,105 +506,146 @@ export function ScheduleUnscheduledDialog({
         </div>
 
         <div className="flex flex-col gap-2 border-t border-slate-800 pt-3">
-          {notice ? (
-            <p className="rounded border border-rose-700/60 bg-rose-950/50 px-2.5 py-1.5 text-xs text-rose-200">
-              {notice}
-            </p>
-          ) : null}
-          {previewText ? (
-            <p title={previewText} className="truncate whitespace-nowrap text-right text-xs text-slate-300">
-              {previewText}
-            </p>
-          ) : null}
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Input
-              value={memo}
-              aria-label="모국·장비·메모"
-              placeholder="모국·장비·메모 (선택)"
-              disabled={isAdding}
-              onChange={(event) => {
-                setNotice(null);
-                setMemo(event.target.value);
-              }}
-              className="h-8 w-48 border-slate-700 bg-slate-900 text-xs"
-            />
-            <span className="whitespace-nowrap text-xs text-slate-400">하루 최대</span>
-            <Input
-              type="number"
-              min={1}
-              max={30}
-              value={perDayRaw}
-              aria-label="하루 최대 건수"
-              placeholder="전체"
-              disabled={isAdding}
-              onChange={(event) => {
-                setNotice(null);
-                setPerDayRaw(event.target.value);
-              }}
-              className="h-8 w-20 border-slate-700 bg-slate-900 text-xs"
-            />
-            <label className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-slate-300">
-              <input
-                type="checkbox"
-                checked={includeOffDays}
+          {showExcluded ? (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
                 disabled={isAdding}
-                onChange={(event) => {
-                  setNotice(null);
-                  setIncludeOffDays(event.target.checked);
-                }}
-                className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
-              />
-              주말·공휴일도 포함
-            </label>
-            <span className="text-xs text-slate-400">추가할 칸</span>
-            <DatePicker
-              ariaLabel="추가할 날짜"
-              value={date}
-              onChange={(next) => {
-                if (isValidIso(next)) {
-                  setNotice(null);
-                  setDate(next);
-                }
-              }}
-              className="w-36"
-            />
-            <select
-              aria-label="추가할 팀"
-              value={effectiveColumnId}
-              disabled={isAdding}
-              onChange={(event) => {
-                setNotice(null);
-                setColumnId(event.target.value);
-              }}
-              className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-100"
-            >
-              {sortedColumns.map((column) => (
-                <option key={column.id} value={column.id}>
-                  {column.teamLabel}
-                  {column.leaderLabel ? ` · ${column.leaderLabel}` : ""}
-                </option>
-              ))}
-            </select>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isAdding}
-              onClick={() => onOpenChange(false)}
-              className="h-8 border-slate-700 text-xs text-slate-200"
-            >
-              닫기
-            </Button>
-            <Button
-              type="button"
-              disabled={!canAdd}
-              onClick={() => void handleAdd()}
-              className="h-8 bg-indigo-600 text-xs hover:bg-indigo-500"
-            >
-              {isAdding ? "추가 중…" : `일정에 추가 (${pickedShown.length})`}
-            </Button>
-          </div>
+                onClick={() => onOpenChange(false)}
+                className="h-8 border-slate-700 text-xs text-slate-200"
+              >
+                닫기
+              </Button>
+            </div>
+          ) : (
+            <>
+              {notice ? (
+                <p className="rounded border border-rose-700/60 bg-rose-950/50 px-2.5 py-1.5 text-xs text-rose-200">
+                  {notice}
+                </p>
+              ) : null}
+              {previewText ? (
+                <p title={previewText} className="truncate whitespace-nowrap text-right text-xs text-slate-300">
+                  {previewText}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {isAdmin && pickedShown.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isAdding}
+                    onClick={() => setExcludeOpen(true)}
+                    className="mr-auto h-8 border-rose-700/70 px-3 text-xs text-rose-300 hover:bg-rose-950/50"
+                  >
+                    제외 ({pickedShown.length})
+                  </Button>
+                ) : null}
+                <Input
+                  value={memo}
+                  aria-label="모국·장비·메모"
+                  placeholder="모국·장비·메모 (선택)"
+                  disabled={isAdding}
+                  onChange={(event) => {
+                    setNotice(null);
+                    setMemo(event.target.value);
+                  }}
+                  className="h-8 w-48 border-slate-700 bg-slate-900 text-xs"
+                />
+                <span className="whitespace-nowrap text-xs text-slate-400">하루 최대</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={perDayRaw}
+                  aria-label="하루 최대 건수"
+                  placeholder="전체"
+                  disabled={isAdding}
+                  onChange={(event) => {
+                    setNotice(null);
+                    setPerDayRaw(event.target.value);
+                  }}
+                  className="h-8 w-20 border-slate-700 bg-slate-900 text-xs"
+                />
+                <label className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={includeOffDays}
+                    disabled={isAdding}
+                    onChange={(event) => {
+                      setNotice(null);
+                      setIncludeOffDays(event.target.checked);
+                    }}
+                    className="h-3.5 w-3.5 rounded-sm border-slate-600 bg-slate-900 accent-indigo-500"
+                  />
+                  주말·공휴일도 포함
+                </label>
+                <span className="text-xs text-slate-400">추가할 칸</span>
+                <DatePicker
+                  ariaLabel="추가할 날짜"
+                  value={date}
+                  onChange={(next) => {
+                    if (isValidIso(next)) {
+                      setNotice(null);
+                      setDate(next);
+                    }
+                  }}
+                  className="w-36"
+                />
+                <select
+                  aria-label="추가할 팀"
+                  value={effectiveColumnId}
+                  disabled={isAdding}
+                  onChange={(event) => {
+                    setNotice(null);
+                    setColumnId(event.target.value);
+                  }}
+                  className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-100"
+                >
+                  {sortedColumns.map((column) => (
+                    <option key={column.id} value={column.id}>
+                      {column.teamLabel}
+                      {column.leaderLabel ? ` · ${column.leaderLabel}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isAdding}
+                  onClick={() => onOpenChange(false)}
+                  className="h-8 border-slate-700 text-xs text-slate-200"
+                >
+                  닫기
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!canAdd}
+                  onClick={() => void handleAdd()}
+                  className="h-8 bg-indigo-600 text-xs hover:bg-indigo-500"
+                >
+                  {isAdding ? "추가 중…" : `일정에 추가 (${pickedShown.length})`}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
+      {isAdmin ? (
+        <ScheduleExcludeDialog
+          open={excludeOpen}
+          onOpenChange={setExcludeOpen}
+          items={pickedShown.map((station) => ({
+            label: station.label,
+            markerId: station.id,
+          }))}
+          onDone={() => {
+            setPicked(new Set());
+            void refreshExcluded();
+          }}
+        />
+      ) : null}
     </Dialog>
   );
 }

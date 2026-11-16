@@ -1,6 +1,8 @@
 import {
   Battery,
   CalendarRange,
+  CircleDashed,
+  CircleSlash,
   ClipboardList,
   FileSpreadsheet,
   Mail,
@@ -28,13 +30,15 @@ export const SEGMENT_META: Record<NavSubKey, { label: string; icon: LucideIcon }
   facility: { label: "시설일정", icon: CalendarRange },
   daily: { label: "일일일정", icon: ClipboardList },
   mail: { label: "메일양식", icon: Mail },
+  undone: { label: "미시설", icon: CircleSlash },
+  partial: { label: "일부완료", icon: CircleDashed },
   survey: { label: "현장실사서", icon: FileSpreadsheet },
 };
 
 const NAV_SEGMENTS: Partial<Record<NavKey, NavSubKey[]>> = {
   map: ["equipment", "battery", "location", "cctv", "converter"],
   markers: ["equipment", "battery", "groups"],
-  schedule: ["facility", "daily", "mail"],
+  schedule: ["facility", "daily", "mail", "undone", "partial"],
   process: ["survey"],
 };
 
@@ -42,7 +46,7 @@ const NAV_SEGMENTS: Partial<Record<NavKey, NavSubKey[]>> = {
 export const NAV_DESCRIPTIONS: Partial<Record<NavKey, string>> = {
   map: "표시할 데이터를 고르고 위치를 찾습니다",
   markers: "마커를 등록하고 목록을 관리합니다",
-  schedule: "시설팀 일정표와 일일 작업 상세를 보고 메일 양식을 만듭니다",
+  schedule: "시설팀 일정표와 일일 작업 상세를 보고 메일 양식을 만듭니다. 미시설·일부완료 국소를 모아 봅니다",
   process: "현장실사서 엑셀에서 세부 시트에 옮겨 적을 값을 만듭니다",
   accounts: "사용자 계정과 관리자 권한을 관리합니다",
 };

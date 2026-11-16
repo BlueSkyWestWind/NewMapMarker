@@ -43,18 +43,47 @@ export function hasNoInstallDate(marker: UnscheduledSource): boolean {
 }
 
 /** 일정 글과 대조하는 이름들: 국소명·최종 국소명·별칭 */
-function nameKeys(marker: UnscheduledSource): string[] {
+export function nameKeys(marker: UnscheduledSource): string[] {
   const aliases = (marker.siteAlias ?? "").split(",");
   return [marker.name, marker.finalStationName ?? "", ...aliases].map((value) => normalize(value)).filter(Boolean);
 }
 
 /**
+ * 시설일이 있는 마커마다 이름 키(`nameKeys`)별 가장 늦은 시설일(`yyyy-mm-dd`) 맵을 만든다.
+ * 마커 자신의 `installDate`와 `facilityRecords[].installDate`를 모두 확인하고,
+ * 같은 키가 여러 마커에 걸리면 더 늦은 날짜를 남긴다.
+ */
+export function installedDateByName(markers: readonly UnscheduledSource[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const marker of markers) {
+    if (hasNoInstallDate(marker)) continue;
+    let latest = (marker.installDate ?? "").trim();
+    for (const record of marker.facilityRecords ?? []) {
+      const candidate = (record.installDate ?? "").trim();
+      if (candidate !== "" && (latest === "" || candidate > latest)) {
+        latest = candidate;
+      }
+    }
+    if (latest === "") continue;
+    for (const key of nameKeys(marker)) {
+      const prev = map.get(key);
+      if (!prev || latest > prev) {
+        map.set(key, latest);
+      }
+    }
+  }
+  return map;
+}
+
+/**
  * 시설일이 없고 일정에 없는 대표·단독 마커를 이름순으로 돌려준다.
  * `scheduledNames`는 오늘 이후 일정 칸의 `국소·작업` 글이다. 같은 국소명은 하나만 남긴다.
+ * `excludedKeys`가 있으면 마커의 이름 키 중 하나라도 포함된 마커를 뺀다.
  */
 export function findUnscheduledStations(
   markers: readonly UnscheduledSource[],
   scheduledNames: readonly string[],
+  excludedKeys?: ReadonlySet<string>,
 ): UnscheduledStation[] {
   const scheduled = new Set(scheduledNames.map((name) => normalize(name)).filter(Boolean));
   const seen = new Set<string>();
@@ -64,7 +93,11 @@ export function findUnscheduledStations(
     const label = (marker.finalStationName || marker.name || "").trim();
     if (label === "" || seen.has(label)) continue;
     if (!hasNoInstallDate(marker)) continue;
-    if (nameKeys(marker).some((key) => scheduled.has(key))) continue;
+    const keys = nameKeys(marker);
+    if (keys.some((key) => scheduled.has(key))) continue;
+    if (excludedKeys && excludedKeys.size > 0 && keys.some((key) => excludedKeys.has(key))) {
+      continue;
+    }
     seen.add(label);
     result.push({
       id: marker.id,

@@ -2,18 +2,21 @@
 
 import { cn } from "@/lib/utils";
 import { useShellStore } from "@/features/shell/store/use-shell-store";
+import type { ScheduleSegment } from "@/features/shell/types/segment";
 
-const SECTIONS = [
+const SECTIONS: readonly { key: ScheduleSegment; label: string }[] = [
   { key: "facility", label: "시설일정" },
   { key: "daily", label: "일일일정" },
   { key: "mail", label: "메일양식" },
+  { key: "undone", label: "미시설" },
+  { key: "partial", label: "일부완료" },
 ] as const;
 
 /**
- * 일정관리 화면 머리글의 시설일정 | 일일일정 전환.
+ * 일정관리 화면 머리글의 시설일정 | 일일일정 | 메일양식 | 미시설 | 일부완료 전환.
  * 사이드바를 접어 둔 채(레일)로도 하위 화면을 오갈 수 있게 제목 자리에 둔다.
  */
-export function ScheduleSectionSwitch({ section }: { section: "facility" | "daily" | "mail" }) {
+export function ScheduleSectionSwitch({ section }: { section: ScheduleSegment }) {
   const setScheduleSegment = useShellStore((state) => state.setScheduleSegment);
   return (
     <div className="flex shrink-0 gap-1" role="group" aria-label="일정 화면">

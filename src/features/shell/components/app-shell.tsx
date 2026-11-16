@@ -44,6 +44,13 @@ const ScheduleMain = dynamic(
   () => import("@/features/schedule/components/schedule-view").then((m) => m.ScheduleView),
   { ssr: false },
 );
+const ScheduleIncompleteMain = dynamic(
+  () =>
+    import("@/features/schedule/components/schedule-incomplete-view").then(
+      (m) => m.ScheduleIncompleteView,
+    ),
+  { ssr: false },
+);
 // 공정관리 > 현장실사서에서만 필요하다. Astryx 스타일과 엑셀 읽기 코드를 홈 첫 로딩 번들에서 뺀다.
 const SurveyMain = dynamic(
   () => import("@/features/site-survey/components/site-survey-main").then((m) => m.SiteSurveyMain),
@@ -230,7 +237,13 @@ export function AppShell({
            */}
           <div className={isMapHidden ? "hidden" : "contents"}>{children}</div>
           {activeNav === "barcode" ? <BarcodeResultsMain /> : null}
-          {activeNav === "schedule" ? <ScheduleMain section={scheduleSegment} /> : null}
+          {activeNav === "schedule" ? (
+            scheduleSegment === "undone" || scheduleSegment === "partial" ? (
+              <ScheduleIncompleteMain key={scheduleSegment} status={scheduleSegment} />
+            ) : (
+              <ScheduleMain section={scheduleSegment} />
+            )
+          ) : null}
           {activeNav === "process" ? <SurveyMain /> : null}
           {activeNav === "accounts" ? <AccountsMain /> : null}
 

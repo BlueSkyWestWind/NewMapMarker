@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { SupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   SEARCH_RESULT_LIMIT,
+  addExcludedStations,
   applyScheduleGroups,
   applyScheduleImport,
   createScheduleCell,
   deleteScheduleFreeze,
+  fetchExcludedStations,
+  fetchIncompleteCells,
   fetchScheduleCells,
   isCompanionTargetSupported,
+  restoreExcludedStation,
   searchScheduleCellsFiltered,
   toRpcGroups,
 } from "./api";
@@ -425,5 +429,213 @@ describe("deleteScheduleFreeze", () => {
     const err = { message: "permission denied" };
     const { client } = deleteClient({ data: null, error: err });
     await expect(deleteScheduleFreeze(client, "f1")).rejects.toBe(err);
+  });
+});
+
+describe("제외 목록 API (fetchExcludedStations · addExcludedStations · restoreExcludedStation)", () => {
+  it("fetchExcludedStations는 snake_case 행을 ExcludedStation으로 매핑해 최근 순으로 돌려준다", async () => {
+    const ops: string[] = [];
+    const client = {
+      from: (table: string) => ({
+        select: (cols: string) => {
+          ops.push(`select:${table}:${cols}`);
+          return {
+            order: async (col: string, opts: { ascending: boolean }) => {
+              ops.push(`order:${col}:${opts.ascending}`);
+              return {
+                data: [
+                  {
+                    id: "ex-1",
+                    station_key: "국소a",
+                    label: "국소A",
+                    marker_id: "m-1",
+                    reason: "canceled",
+                    note: "취소",
+                    created_at: "2026-11-16T01:00:00Z",
+                  },
+                ],
+                error: null,
+              };
+            },
+          };
+        },
+      }),
+    } as unknown as SupabaseBrowserClient;
+
+    const rows = await fetchExcludedStations(client);
+    expect(ops).toContain("order:created_at:false");
+    expect(rows).toEqual([
+      {
+        id: "ex-1",
+        stationKey: "국소a",
+        label: "국소A",
+        markerId: "m-1",
+        reason: "canceled",
+        note: "취소",
+        createdAt: "2026-11-16T01:00:00Z",
+      },
+    ]);
+  });
+
+  it("addExcludedStations는 빈 배열이면 호출 없이 0을, 값이 있으면 upsert(ignoreDuplicates) 후 삽입 건수를 돌려준다", async () => {
+    let called = false;
+    const emptyClient = {
+      from: () => {
+        called = true;
+        return {};
+      },
+    } as unknown as SupabaseBrowserClient;
+    expect(await addExcludedStations(emptyClient, [])).toBe(0);
+    expect(called).toBe(false);
+
+    let capturedOptions: unknown = null;
+    const client = {
+      from: () => ({
+        upsert: (_rows: unknown, options: unknown) => {
+          capturedOptions = options;
+          return {
+            select: async () => ({ data: [{ id: "ex-1" }], error: null }),
+          };
+        },
+      }),
+    } as unknown as SupabaseBrowserClient;
+
+    const inserted = await addExcludedStations(client, [
+      {
+        station_key: "국소a",
+        label: "국소A",
+        marker_id: null,
+        reason: "unneeded",
+        note: "",
+      },
+    ]);
+    expect(capturedOptions).toEqual({ onConflict: "station_key", ignoreDuplicates: true });
+    expect(inserted).toBe(1);
+  });
+
+  it("restoreExcludedStation은 0건이면 오류, 1건이면 성공, DB 오류는 그대로 던진다", async () => {
+    const okClient = {
+      from: () => ({
+        delete: () => ({
+          eq: () => ({
+            select: async () => ({ data: [{ id: "ex-1" }], error: null }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseBrowserClient;
+    await expect(restoreExcludedStation(okClient, "ex-1")).resolves.toBeUndefined();
+
+    const emptyClient = {
+      from: () => ({
+        delete: () => ({
+          eq: () => ({
+            select: async () => ({ data: [], error: null }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseBrowserClient;
+    await expect(restoreExcludedStation(emptyClient, "ex-1")).rejects.toThrow(
+      "복원되지 않았습니다. 이미 지워졌거나 권한이 없습니다.",
+    );
+
+    const err = { message: "rls error" };
+    const errClient = {
+      from: () => ({
+        delete: () => ({
+          eq: () => ({
+            select: async () => ({ data: null, error: err }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseBrowserClient;
+    await expect(restoreExcludedStation(errClient, "ex-1")).rejects.toBe(err);
+  });
+});
+
+describe("fetchIncompleteCells", () => {
+  function incompleteClient(response: { data: unknown; error: unknown }) {
+    const ops: string[] = [];
+    const client = {
+      from: (table: string) => ({
+        select: (cols: string) => {
+          ops.push(`select:${table}:${cols}`);
+          const chain = {
+            eq: (col: string, val: string) => {
+              ops.push(`eq:${col}:${val}`);
+              return chain;
+            },
+            gte: (col: string, val: string) => {
+              ops.push(`gte:${col}:${val}`);
+              return chain;
+            },
+            lte: (col: string, val: string) => {
+              ops.push(`lte:${col}:${val}`);
+              return chain;
+            },
+            in: (col: string, vals: string[]) => {
+              ops.push(`in:${col}:${vals.join(",")}`);
+              return chain;
+            },
+            order: (col: string, opts?: { ascending?: boolean }) => {
+              ops.push(`order:${col}:${opts?.ascending ?? true}`);
+              return chain;
+            },
+            limit: async (n: number) => {
+              ops.push(`limit:${n}`);
+              return response;
+            },
+          };
+          return chain;
+        },
+      }),
+    } as unknown as SupabaseBrowserClient;
+    return { client, ops };
+  }
+
+  const row = (i: number) => ({
+    id: `c-${i}`,
+    work_date: "2026-11-09",
+    column_id: "col-a",
+    row_no: i % 30,
+    main_text: `국소${i}`,
+    sub_text: "",
+    text_color: null,
+    result_status: "undone",
+    result_reason: "사유",
+    rescheduled_to: null,
+  });
+
+  it("상태·기간·팀 필터를 적용해 조회하고 500건 이하이면 truncated=false다", async () => {
+    const { client, ops } = incompleteClient({ data: [row(1)], error: null });
+    const res = await fetchIncompleteCells(client, {
+      status: "undone",
+      from: "2026-11-01",
+      to: "2026-11-30",
+      columnIds: ["col-a", "col-b"],
+    });
+
+    expect(ops).toContain("eq:result_status:undone");
+    expect(ops).toContain("gte:work_date:2026-11-01");
+    expect(ops).toContain("lte:work_date:2026-11-30");
+    expect(ops).toContain("in:column_id:col-a,col-b");
+    expect(ops).toContain("order:work_date:false");
+    expect(ops).toContain("order:row_no:true");
+    expect(ops).toContain("limit:501");
+    expect(res.truncated).toBe(false);
+    expect(res.cells).toHaveLength(1);
+  });
+
+  it("501건이 반환되면 truncated=true이고 앞의 500건만 돌려준다", async () => {
+    const rows = Array.from({ length: 501 }, (_, i) => row(i));
+    const { client } = incompleteClient({ data: rows, error: null });
+    const res = await fetchIncompleteCells(client, { status: "partial" });
+    expect(res.truncated).toBe(true);
+    expect(res.cells).toHaveLength(500);
+  });
+
+  it("시행 결과 컬럼이 없는 오류면 그대로 던진다", async () => {
+    const err = { code: "42703", message: "column result_status does not exist" };
+    const { client } = incompleteClient({ data: null, error: err });
+    await expect(fetchIncompleteCells(client, { status: "undone" })).rejects.toBe(err);
   });
 });

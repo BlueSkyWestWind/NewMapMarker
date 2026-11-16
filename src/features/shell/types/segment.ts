@@ -15,7 +15,7 @@ export type MapSegment =
   | "groups";
 
 /** 일정관리의 하위 화면. 지도 모드와 무관하다(`MapMode`·스토어에 얽히지 않는다). */
-export type ScheduleSegment = "facility" | "daily" | "mail";
+export type ScheduleSegment = "facility" | "daily" | "mail" | "undone" | "partial";
 
 /** 공정관리의 하위 화면. 일정관리처럼 지도 모드·스토어와 무관하다. */
 export type ProcessSegment = "survey";
@@ -24,7 +24,14 @@ export type ProcessSegment = "survey";
 export type NavSubKey = MapSegment | ScheduleSegment | ProcessSegment;
 
 export function isMapSegment(key: NavSubKey): key is MapSegment {
-  return key !== "facility" && key !== "daily" && key !== "mail" && key !== "survey";
+  return (
+    key !== "facility" &&
+    key !== "daily" &&
+    key !== "mail" &&
+    key !== "undone" &&
+    key !== "partial" &&
+    key !== "survey"
+  );
 }
 
 /** 세그먼트가 쓰는 지도 모드. */

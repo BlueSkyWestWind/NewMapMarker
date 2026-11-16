@@ -8,6 +8,11 @@ describe("isMapSegment", () => {
     }
   });
 
+  it("미시설·일부완료도 지도 세그먼트가 아니다", () => {
+    expect(isMapSegment("undone")).toBe(false);
+    expect(isMapSegment("partial")).toBe(false);
+  });
+
   it("지도 세그먼트는 true다", () => {
     for (const key of ["equipment", "battery", "location", "cctv", "converter", "groups"] as const) {
       expect(isMapSegment(key), key).toBe(true);

@@ -8,6 +8,7 @@ import { fetchScheduleCells } from "@/features/schedule/api";
 import { fetchErpStationInfo } from "@/features/schedule/day-api";
 import { stationKey } from "@/features/schedule/lib/day-stations";
 import { SCHEDULE_QUERY_KEY } from "@/features/schedule/hooks/use-schedule-range";
+import { useExcludedStations } from "@/features/schedule/hooks/use-excluded-stations";
 import {
   filterByPartner,
   findUnscheduledStations,
@@ -34,6 +35,7 @@ export function useUnscheduledStations(enabled: boolean) {
   const markersQuery = useMapMarkersQuery();
   const equipmentMarkers = markersQuery.data?.equipmentMarkers;
   const today = todayIso();
+  const excluded = useExcludedStations(enabled);
 
   const cellsQuery = useQuery({
     queryKey: [...SCHEDULE_QUERY_KEY, "unscheduled", userId, today],
@@ -49,8 +51,9 @@ export function useUnscheduledStations(enabled: boolean) {
     return findUnscheduledStations(
       equipmentMarkers,
       cellsQuery.data.map((cell) => cell.mainText),
+      excluded.keys,
     );
-  }, [equipmentMarkers, cellsQuery.data]);
+  }, [equipmentMarkers, cellsQuery.data, excluded.keys]);
 
   // 방식·업체는 마커에 없고 공정관리(erp_details)에만 있다. 목록이 정해지면 그 국소들만 읽는다.
   const labels = useMemo(() => stations.map((station) => station.label), [stations]);
@@ -81,5 +84,8 @@ export function useUnscheduledStations(enabled: boolean) {
       infoQuery.isLoading ||
       (enabled && cellsQuery.isFetching),
     error: markersQuery.error ?? cellsQuery.error ?? infoQuery.error,
+    excluded: excluded.rows,
+    isExclusionTableMissing: excluded.isTableMissing,
+    refreshExcluded: excluded.refresh,
   };
 }

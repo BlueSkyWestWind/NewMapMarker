@@ -28,7 +28,7 @@ describe("segmentsOfNav", () => {
   });
 
   it("일정관리는 시설일정과 일일일정을 가진다", () => {
-    expect(segmentsOfNav("schedule")).toEqual(["facility", "daily", "mail"]);
+    expect(segmentsOfNav("schedule")).toEqual(["facility", "daily", "mail", "undone", "partial"]);
     expect(hasNavSegments("schedule")).toBe(true);
   });
 
@@ -112,9 +112,9 @@ describe("filterNavTree", () => {
 });
 
 describe("일정관리 하위 메뉴", () => {
-  it("시설일정으로 검색하면 일정관리와 시설일정만 남는다", () => {
+  it("시설일정으로 검색하면 일정관리와 시설일정·미시설이 남는다", () => {
     expect(filterNavTree(NAV_ITEMS, "시설").map((n) => [n.item.key, n.segments])).toEqual([
-      ["schedule", ["facility"]],
+      ["schedule", ["facility", "undone"]],
     ]);
   });
 
@@ -126,7 +126,12 @@ describe("일정관리 하위 메뉴", () => {
 
   it("일정으로 검색하면 일정관리 노드가 하위 메뉴를 모두 가진다", () => {
     const node = filterNavTree(NAV_ITEMS, "일정").find((n) => n.item.key === "schedule");
-    expect(node?.segments).toEqual(["facility", "daily", "mail"]);
+    expect(node?.segments).toEqual(["facility", "daily", "mail", "undone", "partial"]);
+  });
+
+  it("미시설·일부완료 라벨이 맞는다", () => {
+    expect(subLabelOf("schedule", "equipment", "undone")).toBe("미시설");
+    expect(subLabelOf("schedule", "equipment", "partial")).toBe("일부완료");
   });
 });
 

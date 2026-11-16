@@ -1,6 +1,12 @@
 import { fetchAllRows, type FetchPageResult } from "@/features/map-marker/api";
 import { planCompanionArrangement } from "@/features/schedule/lib/companion-arrange";
 import { planReschedule } from "@/features/schedule/lib/cell-result";
+import {
+  isExclusionReason,
+  type ExcludedStation,
+  type ExclusionRow,
+} from "@/features/schedule/lib/excluded-stations";
+import { INCOMPLETE_LIMIT } from "@/features/schedule/lib/incomplete-list";
 import { toDbTimestamp, toKstLocal, type Freeze, type FreezeInput } from "@/features/schedule/lib/freeze";
 import type { CreatedCellRef, GroupState } from "@/features/schedule/lib/group-state";
 import type { MarkChange } from "@/features/schedule/lib/undo-stack";
@@ -612,4 +618,106 @@ export async function applyScheduleGroups(
     cellIndex: Number(item.cell_index),
     id: String(item.id),
   }));
+}
+
+/**
+ * 제외된 국소 목록을 최근 등록 순으로 조회한다.
+ * 테이블이 아직 없으면 오류를 그대로 던진다(훅이 `isScheduleTableMissing`으로 판별).
+ */
+export async function fetchExcludedStations(
+  supabase: SupabaseBrowserClient,
+): Promise<ExcludedStation[]> {
+  const { data, error } = await supabase
+    .from("schedule_excluded_stations")
+    .select("id, station_key, label, marker_id, reason, note, created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as Row[]).map((row) => ({
+    id: String(row.id),
+    stationKey: String(row.station_key),
+    label: String(row.label),
+    markerId: row.marker_id ? String(row.marker_id) : null,
+    reason: isExclusionReason(row.reason) ? row.reason : "other",
+    note: String(row.note ?? ""),
+    createdAt: String(row.created_at),
+  }));
+}
+
+/**
+ * 제외 국소를 추가한다. 중복(`station_key`)은 건너뛰고 새로 들어간 행 수를 돌려준다.
+ */
+export async function addExcludedStations(
+  supabase: SupabaseBrowserClient,
+  rows: ExclusionRow[],
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const { data, error } = await supabase
+    .from("schedule_excluded_stations")
+    .upsert(rows, { onConflict: "station_key", ignoreDuplicates: true })
+    .select("id");
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+/** 제외한 국소를 목록에서 지워 복원한다. 0건이면 오류를 던진다. */
+export async function restoreExcludedStation(
+  supabase: SupabaseBrowserClient,
+  id: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("schedule_excluded_stations")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("복원되지 않았습니다. 이미 지워졌거나 권한이 없습니다.");
+  }
+}
+
+export interface IncompleteQuery {
+  status: "undone" | "partial";
+  from?: string | null;
+  to?: string | null;
+  columnIds?: string[];
+}
+
+/**
+ * 미시설(`undone`) 또는 일부완료(`partial`) 상태의 일정 칸을 최근 날짜 순으로 최대 500건 조회한다.
+ * `result_status` 열이 아직 없는 경우 fallback하지 않고 오류를 그대로 던진다(훅이 `isResultColumnMissing`으로 안내).
+ */
+export async function fetchIncompleteCells(
+  supabase: SupabaseBrowserClient,
+  q: IncompleteQuery,
+): Promise<{ cells: ScheduleCell[]; truncated: boolean }> {
+  let builder = supabase
+    .from("schedule_cells")
+    .select(`${CELL_COLUMNS}, ${RESULT_COLUMNS}`)
+    .eq("result_status", q.status);
+
+  if (q.from && isValidIso(q.from)) {
+    builder = builder.gte("work_date", q.from);
+  }
+  if (q.to && isValidIso(q.to)) {
+    builder = builder.lte("work_date", q.to);
+  }
+  if (q.columnIds && q.columnIds.length > 0) {
+    builder = builder.in("column_id", q.columnIds);
+  }
+
+  const { data, error } = await builder
+    .order("work_date", { ascending: false })
+    .order("row_no")
+    .limit(INCOMPLETE_LIMIT + 1);
+
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as Row[];
+  const truncated = rows.length > INCOMPLETE_LIMIT;
+  const sliced = truncated ? rows.slice(0, INCOMPLETE_LIMIT) : rows;
+  return {
+    cells: sliced.map(toCell),
+    truncated,
+  };
 }
