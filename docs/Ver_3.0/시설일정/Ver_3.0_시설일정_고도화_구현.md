@@ -2,9 +2,23 @@
 
 구현일 2026-11-15 · 설계: [Ver_3.0_시설일정_고도화_설계.md](Ver_3.0_시설일정_고도화_설계.md) · 계획: [Ver_3.0_시설일정_고도화_구현계획.md](Ver_3.0_시설일정_고도화_구현계획.md)
 
-설계의 **1단계 중 1A(화면 쪽 안전망, DB 변경 없음)** 를 구현했다. 1B(원자 저장·되돌리기)와 2·3단계는 아직이다. 구현은 agy가 하고 Claude가 diff를 검토했다.
+설계의 **1단계 중 1A(화면 쪽 안전망, DB 변경 없음)** 를 2026-11-15에, **1B(저장 쪽 안전망: 원자 저장·입력 보존·되돌리기, DB 함수 추가)** 를 2026-11-16에 구현했다. 2·3단계는 아직이다. 구현은 agy가 하고 Claude가 diff를 검토했다. 1B 결과는 아래 "1B 구현" 절에 있다.
 
 ## 직접 하실 일
+
+### 1B (먼저)
+
+1. **SQL 적용**: Supabase 대시보드 → SQL Editor에서 `supabase/migrations/20261121000000_schedule_apply_groups.sql` 전체를 실행한다. 다시 실행해도 안전하다. (적용 전에도 앱은 이전 방식으로 저장하므로 급하지 않지만, 입력 보존·되돌리기는 적용해야 동작한다.)
+2. **적용 후 확인**: 같은 파일 맨 아래 주석(`-- DO $$ … END $$;`)의 `--`를 지워 SQL Editor에서 실행한다. 2099-01-01 날짜만 쓰고 끝에서 지운다. `apply_schedule_groups verification passed` 알림이 나오면 성공이고, 중간에 `ASSERT` 오류가 나면 어느 항목((a)~(g))인지 알려 주세요.
+3. **화면 확인** (관리자 계정, 시설일정):
+   - 여러 날짜·팀에 한 번에 저장(함께 등록할 팀, 작업일자 여러 날)해 모두 반영되는지.
+   - 저장 실패 시 입력 보존: 칸 편집 창에서 입력을 바꾼 뒤 브라우저 개발자도구 → 네트워크를 **오프라인**으로 하고 저장한다. 창이 **닫히지 않고** 입력이 그대로이며 오류가 보이는지. 네트워크를 되돌려 다시 저장하면 되는지.
+   - 칸을 지우고 저장한 뒤 `Ctrl+Z`(또는 토스트의 [되돌리기]). 칸이 원래 자리로 돌아오는지(국소·모국·글자색·행 번호). 시행 결과(완료·미시설)가 있던 칸을 지운 뒤 되돌려도 결과가 남는지.
+   - 칸을 다른 날짜·팀으로 옮기는 저장, 드래그 이동·맞바꿈 뒤 `Ctrl+Z`.
+   - 두 탭을 열어 한쪽에서 같은 칸을 바꾸고, 다른 탭에서 되돌리기를 눌러 **"다른 곳에서 일정이 바뀌어 되돌릴 수 없습니다"** 로 거부되는지(남의 변경을 덮어쓰지 않는다).
+   - 편집 창이 열려 있거나 입력칸에 커서가 있을 때는 `Ctrl+Z`가 일정 되돌리기가 아니라 글자 되돌리기로 동작하는지.
+
+### 1A
 
 시설일정(`일정관리 > 시설일정`)을 열어 확인한다. 관리자 계정으로 한다.
 
@@ -51,6 +65,63 @@
 - **1건 `×` 삭제는 아직 보호가 없다.** 1B의 되돌리기가 들어오면 해결된다.
 - 가로로 긴 화면에서 검색 결과 칸이 보이는 위치까지의 스크롤은 브라우저의 `scrollIntoView`에 맡겼다. 매우 좁은 창에서는 사람이 보기에 어색할 수 있다.
 
+## 1B 구현 (저장 쪽 안전망)
+
+구현일 2026-11-16 · 계획 Task B1~B6.
+
+### 한 일
+
+| 계획 | 내용 |
+|---|---|
+| B1 DB 함수 | `supabase/migrations/20261121000000_schedule_apply_groups.sql`. `apply_schedule_groups(p_groups, p_marks)` — `SECURITY INVOKER`·`search_path=''`·`authenticated`만 실행. **1단계**(모든 그룹: 잠금 → `base_ids` 비교(`stale_group`) → 같은 그룹 `row_no` 중복 검사(`duplicate_row`) → 최종 목록에 없는 칸 삭제), **2단계**(모든 그룹: `id`가 있고 그 그룹에 있으면 갱신(시행 결과는 건드리지 않음), `id`가 있는데 그 그룹에 없으면 **그 id로 복원 삽입**, `id`가 없으면 삽입) 순으로 처리한다. 자리 고유 제약 두 개(`schedule_cells_position_key`·`schedule_cells_column_position_key`)를 함께 `DEFERRED`로 한다 |
+| B2 `lib/group-state.ts` | 최종 상태 계산. `snapshotGroups`·`applyOpsToGroups`(`moveTo.includeCreated`로 새로 만든 칸의 이동까지)·`countDeletes`·`fillCreatedIds`·`buildRestoreGroups`. 기존 칸 단위 실행과 같은 결과인지를 **메모리 가짜 실행기(FakeStore) 대조 시험 ①~⑥·⑧·⑨**로 확인한다 |
+| B3 `lib/undo-stack.ts`·`apply-error.ts` | 되돌리기 스택(20개, 세션 메모리)과 오류 분류(`stale`·`missing-function`·`other`) |
+| B4 `api.ts`·`hooks/use-schedule-write.ts` | `toRpcGroups`(순수, 테스트)·`applyScheduleGroups`. 훅 `write`/`undo`/`recordUndo`/`canUndo`. 성공하면 RPC가 돌려준 새 칸 id를 `after`에 채워 스택에 쌓고, 되돌리기는 그 `after`를 `base_ids`로 보낸다 |
+| B5 화면 연결 | 칸 편집 창의 저장 실행부를 `applyOpsToGroups` → `write`로 교체(판단부는 한 줄도 바꾸지 않음). 성공 때만 닫고 `stale`·`failed`는 창을 연 채 입력을 보존. 드래그 이동·맞바꿈은 기존 RPC 그대로 두고 전후 스냅샷을 스택에 쌓는다. `Ctrl+Z`/`Cmd+Z`와 토스트 [되돌리기] |
+
+### 되돌리기의 동작
+
+- 되돌리기는 저장 직전 스냅샷(`before`)을 같은 함수로 다시 보낸다. 서버는 "방금 저장한 상태 그대로인지"(`base_ids`)를 검사해 **다른 곳에서 바뀌었으면 거부**한다(남의 변경을 덮어쓰지 않는다).
+- 지운 칸은 **원래 id로 복원**된다. 그래서 더 이전 되돌리기 항목도 계속 유효하다. 시행 결과(완료·미시설·사유·미룬 날짜)도 함께 복원된다.
+- 그룹 사이 이동은 그룹 처리 순서와 무관하게 되돌려지도록 2단계(먼저 삭제, 나중에 삽입)로 처리한다.
+- 되돌리기 실패(`failed`, 예: 네트워크)는 항목을 스택에 되돌려 놓아 다시 시도할 수 있다. 충돌(`stale`)은 항목을 버린다.
+- `Ctrl+Z`는 입력칸·편집 창이 열려 있으면 무시하고(글자 되돌리기를 그대로 둔다), 관리자의 시설일정 화면에서만 동작한다.
+
+### 마이그레이션 전 동작 (대체 경로)
+
+`apply_schedule_groups`가 DB에 없으면(`PGRST202`·`42883`) 한 번만 안내("DB 함수가 아직 적용되지 않아 이전 방식으로 저장합니다…")를 띄우고 **기존 칸 단위 실행**(`runLegacySave`)으로 저장한다. 이 경우 입력 보존·되돌리기는 동작하지 않는다. 임시 경로라 `TODO(삭제)` 주석이 달려 있다.
+
+**제거 절차**(SQL 적용과 위 화면 확인이 끝난 뒤): `use-schedule-write.ts`의 `missing-function` 분기와 `legacyNotified`, `schedule-cell-dialog.tsx`의 `runLegacySave`·`"legacy"` 분기를 지우고 `"legacy"`를 `WriteResult`에서 뺀다. `TODO(삭제): apply_schedule_groups` 주석으로 찾는다.
+
+### 검토에서 확인·보완한 것
+
+- **Claude가 계획 단계에서 찾아 agy 2부 지시서에 넣은 보정 3건**: ① 새로 만든 칸의 이동(`includeCreated`)과 이동 순서(이동 전 행 순서) — 1부 구현이 기존 칸만 이동시켜 "새 국소 추가 + 팀 이동" 대조 시험이 없었다 ② 되돌리기가 지운 칸을 원래 id로 복원할 수 있게 SQL을 바꿈(처음 구현은 없는 id를 `stale_group`으로 거부했을 것) ③ 그룹 사이 이동 되돌리기가 처리 순서에 따라 PK 충돌이 나는 문제 → SQL 2단계 처리.
+- agy가 **두 번째 고유 제약**(`schedule_cells_column_position_key`, `03_facility_schedule.sql`)이 있음을 직접 찾아 `DEFERRED`에 함께 넣었다. 하나만 지연했다면 행 맞바꿈이 실제 DB에서 실패했을 것이다.
+- SQL을 `03_facility_schedule.sql`의 컬럼·제약·`move_schedule_cell` 시그니처와 대조했다(`text_color` 체크, `result_*` 제약, `schedule_marks` 기본 키).
+- **변이 확인**: 이동 정렬을 일부러 내림차순으로 바꿨을 때 동등성 시험 ④·⑧이 실패하는 것을 확인하고 원복했다.
+- 칸 편집 창: 편집한 그룹의 `base_ids`는 창이 열릴 때 받은 `cells`에서, 도착·함께 등록·작업일자 그룹은 저장 직전 새로 불러온 칸에서 만든다(동시 수정 감지 범위를 사용자가 본 그룹으로 맞춤).
+
+### 검증
+
+| 명령 | 결과 |
+|---|---|
+| `npx tsc --noEmit` | 오류 0건 |
+| `npx eslint . --max-warnings=0` | 오류 0건 |
+| `npm test` | 168개 파일 통과, 1개 스킵 / 1,874개 통과, 3개 스킵, 1개 todo (1A 직후 1,851개) |
+| 임시 distDir `next build` | 성공. 홈 First Load JS **283 kB**(기준선 282~283 kB 유지, 시설일정은 `dynamic()` 패널) |
+
+- 소스 변경: 신규 `lib/group-state.ts`·`undo-stack.ts`·`apply-error.ts`(+테스트), `hooks/use-schedule-write.ts`, `supabase/migrations/20261121000000_schedule_apply_groups.sql`. 수정 `api.ts`(+테스트)·`schedule-cell-dialog.tsx`·`schedule-view.tsx`. 판단 함수(`group-edit`·`companions`·`cross-team`·`period`·`companion-arrange`)와 엑셀·인쇄 코드는 바뀌지 않았다.
+
+### 한계
+
+- **SQL 함수 자체는 자동 테스트가 없다**(로컬 Supabase 실행 금지). 대신 같은 규칙의 TypeScript 구현은 FakeStore 대조로 시험하고, SQL은 적용 후 확인 스크립트((a)~(g))로 사용자가 확인한다.
+- UI 연결(창이 실패 때 열려 있는지, 토스트·`Ctrl+Z`)은 `.tsx` 테스트가 없어 위 화면 확인에 의존한다.
+- 되돌리기 스택은 세션 메모리다. 새로고침하면 사라진다.
+- 토스트의 [되돌리기]는 그 토스트의 작업이 아니라 **가장 최근 작업**을 되돌린다(스택 방식).
+- 저장 내용이 전혀 바뀌지 않은 채 저장하면(변경 없음) 빈 되돌리기 항목이 쌓이고 행 정리는 일어나지 않는다. 화면 결과는 달라지지 않는다.
+- 엑셀 가져오기(`replace_schedule_cells`)와 일일일정은 되돌리기 대상이 아니다.
+- `Ctrl+Z` 리스너가 렌더마다 다시 등록된다(동작에는 영향 없음, 정리 후보).
+
 ## 다음
 
-1B(저장 쪽 안전망)가 가장 체감이 큰 단계다: 저장 실패 때 입력 보존, 되돌리기(Ctrl+Z), 저장 속도. DB 함수 추가가 필요하고 **SQL을 한 번 적용**해야 한다(설계 §3.3, 계획 Task B1~B6). 1A 화면 확인 뒤에 진행하는 것을 추천한다.
+2단계(반복 줄이기)와 3단계(큰 편집 창 재설계)는 각각 별도 설계·계획을 쓴다. 1B 화면 확인 결과를 보고 우선순위를 정하는 것을 추천한다.
